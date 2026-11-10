@@ -141,6 +141,7 @@ class AuthService:
                 "pta_virement_confirmation",
                 "pta_reversement_declaration",
                 "pta_activity_reminder",
+                "pta_activity_assignment_notification",
                 "pta_activity_document",
                 "pta_activity_document_withdrawal",
                 "pta_zero_spending_declaration",
@@ -153,7 +154,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0029_decision_observations"]:
+        if revisions != ["0032_assignment_notifications"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -308,7 +309,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "ab4aa8c2d563b135f54507f90e5bc9e91f2fc38d9e22732b2c4630b2a41080cb"
+            "b583e13956fe7aa5d210a47083399ca87ba87bb77cd28d51da0567592212cb6e"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -1109,7 +1110,13 @@ class AuthService:
                     "version",
                     "allowed_actions",
                 },
-                "type": {"id", "label", "active", "allowed_actions"},
+                "type": {
+                    "id",
+                    "label",
+                    "description",
+                    "active",
+                    "allowed_actions",
+                },
                 "project": {
                     "id",
                     "partner_id",
@@ -1160,9 +1167,15 @@ class AuthService:
                     return False
             if shape in {"partner", "type"}:
                 label = value.get("name" if shape == "partner" else "label")
+                description = value.get("description")
                 return (
                     isinstance(label, str)
                     and bool(label)
+                    and (
+                        description is None
+                        or isinstance(description, str)
+                        and len(description) <= 4000
+                    )
                     and isinstance(value.get("active"), bool)
                 )
             if shape == "pta":
@@ -1201,7 +1214,6 @@ class AuthService:
                         "reference",
                         "name",
                         "description",
-                        "planned_start",
                         "state",
                     )
                 )
@@ -1226,7 +1238,7 @@ class AuthService:
                 and all(
                     isinstance(value.get(field), str)
                     or (value.get("state") == "draft" and value.get(field) is None)
-                    for field in ("planned_end", "allocation")
+                    for field in ("planned_start", "planned_end", "allocation")
                 )
                 and all(
                     isinstance(row, dict)

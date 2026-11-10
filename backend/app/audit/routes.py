@@ -280,7 +280,9 @@ CHANGE_FIELDS = {
 }
 
 
-def public_changes(row: Audit) -> list[dict[str, str | None]]:
+def public_changes(
+    row: Audit, identity_labels: dict[str, str] | None = None
+) -> list[dict[str, str | None]]:
     facts = (
         row.business if isinstance(row.business, dict) and row.business else row.details
     )
@@ -341,11 +343,18 @@ def public_changes(row: Audit) -> list[dict[str, str | None]]:
                     }
                 )
     if before.get("agent_ids") != after.get("agent_ids"):
+        labels = identity_labels or {}
         result.append(
             {
                 "field": "Agents affectés",
-                "before": ", ".join(before.get("agent_ids") or []),
-                "after": ", ".join(after.get("agent_ids") or []),
+                "before": ", ".join(
+                    labels.get(value, "Identité indisponible")
+                    for value in before.get("agent_ids") or []
+                ),
+                "after": ", ".join(
+                    labels.get(value, "Identité indisponible")
+                    for value in after.get("agent_ids") or []
+                ),
             }
         )
     return result
@@ -445,6 +454,19 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
     users = {
         user.id: user for user in db.scalars(select(User).where(User.id.in_(actor_ids)))
     }
+    assignment_identity_ids: set[str] = set()
+    for row in rows:
+        assignment_facts = row.business if isinstance(row.business, dict) else {}
+        for side_name in ("before", "after"):
+            side = assignment_facts.get(side_name)
+            if isinstance(side, dict) and isinstance(side.get("agent_ids"), list):
+                assignment_identity_ids.update(
+                    value for value in side["agent_ids"] if isinstance(value, str)
+                )
+    identity_labels = {
+        user.id: user.full_name or user.email
+        for user in db.scalars(select(User).where(User.id.in_(assignment_identity_ids)))
+    }
     activity_ids = {
         activity_id
         for row in rows
@@ -522,7 +544,7 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
                     if user
                     else None
                 ),
-                "changes": public_changes(row),
+                "changes": public_changes(row, identity_labels),
                 "amendment_id": amendment.get("id"),
                 "reason": event_reason(row)
                 or withdrawal_reasons.get(str(revision.get("id", ""))),

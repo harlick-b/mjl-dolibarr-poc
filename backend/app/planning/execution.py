@@ -1012,6 +1012,8 @@ def change_execution(
         if body.action == "start":
             if operation.execution_started_at is not None:
                 raise AuthError(409, "execution_already_started")
+            if item.planned_start is None:
+                raise AuthError(409, "activity_incomplete")
             if now.astimezone(PORTO_NOVO).date() < item.planned_start:
                 raise AuthError(409, "execution_too_early")
             operation.execution_started_at = now

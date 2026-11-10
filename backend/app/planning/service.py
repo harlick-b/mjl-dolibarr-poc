@@ -187,6 +187,7 @@ def type_item(item: OperationType, role: str) -> dict[str, Any]:
     return {
         "id": item.id,
         "label": item.label,
+        "description": item.description,
         "active": item.active,
         "allowed_actions": allowed(role, resource="type"),
     }
@@ -342,7 +343,13 @@ def activity_item(
         withdrawal=item.withdrawal_id is not None,
         transfer=item.transfer_id is not None,
     )
-    if item.planned_end is None or item.allocation is None or not operations:
+    if (
+        not item.description.strip()
+        or item.planned_start is None
+        or item.planned_end is None
+        or item.allocation is None
+        or not operations
+    ):
         actions = [action for action in actions if action != "submit"]
     if role == "AGENT_SAISIE" and actor_id not in agent_ids:
         actions = ["read"]
@@ -363,7 +370,9 @@ def activity_item(
         "reference": item.reference,
         "name": item.name,
         "description": item.description,
-        "planned_start": item.planned_start.isoformat(),
+        "planned_start": (
+            item.planned_start.isoformat() if item.planned_start else None
+        ),
         "planned_end": (item.planned_end.isoformat() if item.planned_end else None),
         "allocation": str(item.allocation) if item.allocation is not None else None,
         "state": item.state,
@@ -533,7 +542,9 @@ def structural_content(db: Session, item: Activity) -> dict[str, Any]:
     return {
         "name": item.name,
         "description": item.description,
-        "planned_start": item.planned_start.isoformat(),
+        "planned_start": (
+            item.planned_start.isoformat() if item.planned_start else None
+        ),
         "planned_end": (item.planned_end.isoformat() if item.planned_end else None),
         "allocation": str(item.allocation) if item.allocation is not None else None,
         "operations": [
@@ -890,6 +901,65 @@ def validate_plan(
         return {
             "name": clean(payload["name"], 200),
             "description": clean(payload["description"], 4000),
+            "planned_start": start,
+            "planned_end": end,
+            "allocation": allocation,
+        }, normalized
+    except (KeyError, TypeError):
+        raise AuthError(422, "input_invalid") from None
+
+
+def validate_draft(
+    payload: dict[str, Any], year: int
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Normalize a resumable initial draft; started Operations stay complete."""
+    raw_start = payload.get("planned_start")
+    raw_end = payload.get("planned_end")
+    try:
+        start = date.fromisoformat(raw_start) if raw_start else None
+        end = date.fromisoformat(raw_end) if raw_end else None
+    except (ValueError, TypeError):
+        raise AuthError(422, "input_invalid") from None
+    if (start and start.year != year) or (start and end and end < start):
+        raise AuthError(422, "input_invalid")
+    operations = payload.get("operations", [])
+    if not isinstance(operations, list) or len(operations) > 100:
+        raise AuthError(422, "input_invalid")
+    normalized: list[dict[str, Any]] = []
+    total = 0
+    operation_ids: set[str] = set()
+    for position, row in enumerate(operations, 1):
+        try:
+            operation_id = str(UUID(row["id"])) if row.get("id") else None
+            if operation_id and operation_id in operation_ids:
+                raise AuthError(422, "input_invalid")
+            if operation_id:
+                operation_ids.add(operation_id)
+            amount = xof(row.get("allocation", ""))
+            total += amount
+            if total > 9_223_372_036_854_775_807:
+                raise AuthError(422, "input_invalid")
+            normalized.append(
+                {
+                    "id": operation_id,
+                    "type_id": str(UUID(row["type_id"])),
+                    "name": clean(row["name"], 200),
+                    "allocation": amount,
+                    "position": position,
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            raise AuthError(422, "input_invalid") from None
+    raw_allocation = payload.get("allocation")
+    allocation = xof(raw_allocation) if raw_allocation else None
+    if normalized and allocation != total:
+        raise AuthError(422, "allocation_mismatch")
+    if not normalized and allocation is not None:
+        raise AuthError(422, "allocation_mismatch")
+    try:
+        return {
+            "name": clean(payload["name"], 200),
+            "description": str(payload.get("description") or "").strip(),
             "planned_start": start,
             "planned_end": end,
             "allocation": allocation,

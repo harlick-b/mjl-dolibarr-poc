@@ -4306,15 +4306,25 @@ def test_partner_description_upgrade_preserves_existing_partner(planning):
 def test_agents_create_operation_categories_with_existing_guards(planning):
     for role in ("agent", "validator"):
         response = post(
-            planning[role], "/api/v1/operation-types", {"label": f"Catégorie {role}"}
+            planning[role],
+            "/api/v1/operation-types",
+            {
+                "label": f"Catégorie {role}",
+                "description": "Interventions auprès des communautés",
+            },
         )
         assert response.status_code == 201, response.text
         assert response.json()["label"] == f"Catégorie {role}"
-        assert "create" in response.json()["allowed_actions"]
-        assert any(
-            row["id"] == response.json()["id"]
-            for row in planning["agent"].get("/api/v1/operation-types").json()["data"]
+        assert response.json()["description"] == (
+            "Interventions auprès des communautés"
         )
+        assert "create" in response.json()["allowed_actions"]
+        saved = next(
+            row
+            for row in planning["agent"].get("/api/v1/operation-types").json()["data"]
+            if row["id"] == response.json()["id"]
+        )
+        assert saved["description"] == "Interventions auprès des communautés"
     for role in ("supervisor", "admin"):
         assert (
             post(

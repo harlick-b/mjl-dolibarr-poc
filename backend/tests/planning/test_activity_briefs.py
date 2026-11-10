@@ -8,6 +8,67 @@ from tests.planning.test_planning import patch, plan, post, references
 from tests.planning.test_planning import planning as planning
 
 
+def test_agent_saves_reopens_and_submits_a_title_only_draft(planning):
+    _, category, project = references(planning)
+    path = f"/api/v1/projects/{project['id']}/ptas/2027/activities"
+    created = post(
+        planning["agent"],
+        path,
+        {"request_key": str(uuid4()), "name": "Brouillon terrain"},
+    )
+    assert created.status_code == 201, created.text
+    draft = created.json()
+    assert draft["planned_start"] is None
+    assert draft["planned_end"] is None
+    assert draft["allocation"] is None
+    assert draft["operations"] == []
+    assert "submit" not in draft["allowed_actions"]
+    assert planning["agent"].get("/api/v1/notifications").json()["count"] == 0
+
+    end_only = post(
+        planning["agent"],
+        path,
+        {
+            "request_key": str(uuid4()),
+            "name": "Brouillon sans début",
+            "planned_end": "2027-05-01",
+        },
+    )
+    assert end_only.status_code == 201, end_only.text
+    filtered = planning["agent"].get(
+        f"/api/v1/ptas/{draft['pta_id']}/activities?from=2027-01-01"
+    )
+    assert filtered.status_code == 200, filtered.text
+    assert end_only.json()["id"] not in {row["id"] for row in filtered.json()["data"]}
+
+    detail = planning["agent"].get(f"/api/v1/activities/{draft['id']}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["name"] == "Brouillon terrain"
+    assert (
+        post(
+            planning["agent"],
+            f"/api/v1/activities/{draft['id']}/submissions",
+            {"expected_version": draft["version"]},
+        ).status_code
+        == 409
+    )
+    completed = patch(
+        planning["agent"],
+        f"/api/v1/activities/{draft['id']}",
+        {
+            **plan(category),
+            "expected_version": draft["version"],
+        },
+    )
+    assert completed.status_code == 200, completed.text
+    submitted = post(
+        planning["agent"],
+        f"/api/v1/activities/{draft['id']}/submissions",
+        {"expected_version": completed.json()["version"]},
+    )
+    assert submitted.status_code == 201, submitted.text
+
+
 @pytest.mark.parametrize("creator", ["supervisor", "validator"])
 def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
     planning, creator
@@ -29,15 +90,21 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         "request_key": str(uuid4()),
         "name": "Concertation communale",
         "planned_start": today.isoformat(),
+        "planned_end": date(today.year + 1, 1, 1).isoformat(),
         "agent_ids": [agent_id],
     }
     created = post(planning[creator], path, body)
     assert created.status_code == 201, created.text
     item = created.json()
     assert item["state"] == "draft"
-    assert item["planned_end"] is None and item["allocation"] is None
+    assert item["planned_end"] == body["planned_end"]
+    assert item["allocation"] is None
     assert item["description"] == "" and item["operations"] == []
     assert item["agent_ids"] == [agent_id]
+    notification = planning["agent"].get("/api/v1/notifications").json()
+    assert notification["count"] == 1
+    assert notification["data"][0]["kind"] == "assignment"
+    assert notification["data"][0]["activity_id"] == item["id"]
     assert not {
         "agents",
         "creator",
@@ -158,6 +225,8 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         from sqlalchemy import text
         from sqlalchemy.orm import Session
 
+        with Session(planning["auth"].engine) as db, db.begin():
+            db.execute(text("DELETE FROM pta_activity_assignment_notification"))
         with pytest.raises(
             RuntimeError, match="Preserve positive decision observations"
         ):
@@ -349,6 +418,12 @@ def test_brief_migration_preserves_complete_legacy_data_and_refuses_loss(plannin
             "agent_ids": [agent],
         },
     ).json()
+    with pytest.raises(
+        RuntimeError, match="Preserve Activity assignment notifications"
+    ):
+        command.downgrade(Config("alembic.ini"), "0031_resumable_activity_drafts")
+    with Session(planning["auth"].engine) as db, db.begin():
+        db.execute(text("DELETE FROM pta_activity_assignment_notification"))
     with pytest.raises(RuntimeError, match="Preserve Activity briefs"):
         command.downgrade(Config("alembic.ini"), "0027_pta_metadata")
     with Session(planning["auth"].engine) as db:

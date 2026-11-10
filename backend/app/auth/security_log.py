@@ -27,7 +27,7 @@ ROUTINE = {
     "otp_verify",
     "otp_resend",
     "logout",
-    "reminder.read",
+    "notification.read",
     "access_denied",
     "abuse_limit",
     "invitation_inspect",

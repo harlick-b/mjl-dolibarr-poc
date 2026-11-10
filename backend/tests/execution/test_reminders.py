@@ -8,7 +8,7 @@ from alembic.config import Config
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.auth.models import User
+from app.auth.models import Audit, User
 from app.planning.models import ActivityReminder
 from app.planning.reminders import deliver_reminder, dispatch_due_reminders
 from tests.auth.test_access import admin, headers
@@ -54,12 +54,23 @@ def reminder_mail(planning):
     ]
 
 
+def assignment_mail(planning):
+    return [
+        row
+        for row in messages(planning["auth"].mail.directory)
+        if row["kind"] == "activity_assignment"
+    ]
+
+
 def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
     activity, _ = approved_activity(planning)
     assigned, _ids = assign(planning, activity, "agent")
 
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 1
     assigned, new_ids = assign(planning, assigned, "agent", "agent2")
+    assert len(assignment_mail(planning)) == 1
+    assert assigned["reference"] in assignment_mail(planning)[0]["html"]
+    assert assigned["name"] in assignment_mail(planning)[0]["html"]
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 1
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 10)) == 0
     assert len(reminder_mail(planning)) == 2
@@ -72,9 +83,16 @@ def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
     first = planning["agent"].get("/api/v1/notifications")
     second = planning["agent2"].get("/api/v1/notifications")
     assert first.status_code == second.status_code == 200
-    assert first.json()["count"] == second.json()["count"] == 1
-    assert first.json()["data"][0]["planned_end"] == "2028-02-29"
-    assert first.json()["data"][0]["pta_year"] == assigned["placement_year"]
+    assert first.json()["count"] == 1
+    assert second.json()["count"] == 2
+    reminder = next(item for item in first.json()["data"] if item["kind"] == "deadline")
+    assignment = next(
+        item for item in second.json()["data"] if item["kind"] == "assignment"
+    )
+    assert reminder["planned_end"] == "2028-02-29"
+    assert assignment["activity_id"] == assigned["id"]
+    assert assignment["assigned_by"]
+    assert reminder["pta_year"] == assigned["placement_year"]
     with Session(planning["auth"].engine) as db:
         assert set(db.scalars(select(ActivityReminder.agent_id))) == set(new_ids)
 
@@ -293,6 +311,11 @@ def test_read_is_versioned_and_not_visible_to_another_agent(planning):
     )
     assert read.status_code == 200, read.text
     assert read.json()["read_at"]
+    with Session(planning["auth"].engine) as db:
+        assert (
+            db.scalar(select(Audit).where(Audit.action == "notification.read").limit(1))
+            is None
+        )
     replay = planning["agent"].patch(
         f"/api/v1/notifications/{item['id']}",
         headers=headers(planning["agent"]),
@@ -353,6 +376,25 @@ def test_failed_mail_is_recorded_once_without_retry(planning, monkeypatch):
     assert item["email_status"] == "failed"
 
 
+def test_assignment_survives_its_email_failure(planning, monkeypatch):
+    activity, _ = approved_activity(planning)
+    assigned, _ids = assign(planning, activity, "agent")
+    original_send = planning["auth"].mail.send
+
+    def fail_assignment(recipient, kind, message):
+        if kind == "activity_assignment":
+            raise OSError("provider unavailable")
+        return original_send(recipient, kind, message)
+
+    monkeypatch.setattr(planning["auth"].mail, "send", fail_assignment)
+    changed, expected_ids = assign(planning, assigned, "agent", "agent2")
+    assert set(changed["agent_ids"]) == set(expected_ids)
+    notification = planning["agent2"].get("/api/v1/notifications").json()
+    assert notification["count"] == 1
+    assert notification["data"][0]["kind"] == "assignment"
+    assert notification["data"][0]["email_status"] == "failed"
+
+
 def test_unconfirmed_delivery_result_is_never_retried(planning, monkeypatch):
     activity, _ = approved_activity(planning)
     assign(planning, activity, "agent")
@@ -390,8 +432,9 @@ def test_provider_call_does_not_hold_the_global_mutation_lock(planning, monkeypa
     original_send = planning["auth"].mail.send
 
     def delayed(*args, **kwargs):
-        entered.set()
-        assert release.wait(5)
+        if len(args) > 1 and args[1] == "activity_reminder":
+            entered.set()
+            assert release.wait(5)
         return original_send(*args, **kwargs)
 
     monkeypatch.setattr(planning["auth"].mail, "send", delayed)
@@ -424,7 +467,12 @@ def test_assignment_change_serializes_before_dispatch(planning):
     assert changed.status_code == 200
     assert dispatched == 1
     assert planning["agent"].get("/api/v1/notifications").json()["count"] == 0
-    assert planning["agent2"].get("/api/v1/notifications").json()["count"] == 1
+    recipient_items = planning["agent2"].get("/api/v1/notifications").json()
+    assert recipient_items["count"] == 2
+    assert {item["kind"] for item in recipient_items["data"]} == {
+        "assignment",
+        "deadline",
+    }
 
 
 def test_used_reminder_history_blocks_downgrade(planning):

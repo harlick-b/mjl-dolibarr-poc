@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func, or_, select, text, tuple_
@@ -14,6 +14,11 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.planning.assignment_notifications import (
+    deliver_assignment_notification,
+    record_assignment_notification,
+)
+from app.planning.dashboard import dashboard_attention_data, dashboard_finance_data
 from app.planning.models import (
     Activity,
     ActivityAssignment,
@@ -52,6 +57,7 @@ from app.planning.service import (
     snapshot_projection,
     structural_content,
     type_item,
+    validate_draft,
     validate_plan,
     xof,
 )
@@ -124,11 +130,17 @@ class ProjectUpdate(NameInput):
 
 class TypeInput(Input):
     label: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=4000)
 
     @field_validator("label", mode="before")
     @classmethod
     def normalized_label(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalized_description(cls, value: object) -> object:
+        return (value.strip() or None) if isinstance(value, str) else value
 
 
 class ProjectInput(NameInput):
@@ -166,7 +178,23 @@ class PlanningInput(Input):
         return value.strip() if isinstance(value, str) else value
 
 
-class ActivityCreate(PlanningInput):
+class DraftPlanningInput(Input):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
+    planned_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    allocation: str | None = Field(
+        default=None, max_length=19, pattern=r"^[1-9][0-9]*$"
+    )
+    operations: list[OperationInput] = Field(default_factory=list, max_length=100)
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def normalized_draft_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class ActivityCreate(DraftPlanningInput):
     request_key: str = Field(max_length=36)
 
     @field_validator("request_key")
@@ -179,7 +207,7 @@ class ActivityBriefCreate(Input):
     request_key: str = Field(max_length=36)
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=4000)
-    planned_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     planned_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     agent_ids: list[str] = Field(min_length=1, max_length=100)
 
@@ -202,7 +230,7 @@ class ActivityBriefCreate(Input):
         return sorted(normalized)
 
 
-class ActivityReplace(PlanningInput):
+class ActivityReplace(DraftPlanningInput):
     expected_version: int = Field(gt=0, strict=True)
 
 
@@ -299,6 +327,7 @@ class PartnerOutput(Input):
 class OperationTypeOutput(Input):
     id: str
     label: str
+    description: str | None
     active: bool
     allowed_actions: list[str]
 
@@ -380,7 +409,7 @@ class TransferOutput(Input):
 
 
 class ActivityListItem(Input):
-    planned_start: str
+    planned_start: str | None
     planned_end: str | None
     state: str
     operation_count: int
@@ -410,7 +439,7 @@ class ActivityOutput(Input):
     reference: str
     name: str
     description: str
-    planned_start: str
+    planned_start: str | None
     planned_end: str | None
     allocation: str | None
     state: Literal[
@@ -497,6 +526,49 @@ class AnnualMetricsOutput(Input):
     as_of: str
     physical: PhysicalMetricOutput
     financial: FinancialMetricOutput
+
+
+class DashboardFinanceOutput(Input):
+    approved_allocation: str = Field(pattern=r"^(0|[1-9][0-9]*)$")
+    recorded_spending: str | None = Field(pattern=r"^(0|[1-9][0-9]*)$")
+    recorded_operations: int = Field(ge=0)
+    approved_operations: int = Field(ge=0)
+    closed_spending: str = Field(pattern=r"^(0|[1-9][0-9]*)$")
+    reversement_due: str | None = Field(pattern=r"^(0|[1-9][0-9]*)$")
+    reversement_confirmed: str | None = Field(pattern=r"^(0|[1-9][0-9]*)$")
+
+
+class DashboardAttentionItem(Input):
+    activity_id: str
+    reference: str
+    name: str
+    reason: Literal[
+        "draft_to_complete",
+        "correction_requested",
+        "planning_prevalidation",
+        "planning_approval",
+        "funding_prevalidation",
+        "funding_approval",
+        "disbursement_prevalidation",
+        "disbursement_approval",
+        "zero_spending_prevalidation",
+        "zero_spending_approval",
+        "virement_prevalidation",
+        "virement_approval",
+        "reversement_required",
+    ]
+    action: Literal["review_planning", "review_finance", "declare_reversement"]
+    destination: Literal["planning", "execution"]
+
+
+class DashboardAttentionOutput(Input):
+    count: int = Field(ge=0)
+    items: list[DashboardAttentionItem] = Field(max_length=3)
+
+
+class DashboardOutput(AnnualMetricsOutput):
+    finance: DashboardFinanceOutput
+    attention: DashboardAttentionOutput
 
 
 def annual_metrics_data(
@@ -897,6 +969,7 @@ def create_operation_type(body: TypeInput, request: Request, auth: Auth) -> Resp
         item = OperationType(
             context_id=CONTEXT,
             label=clean(body.label, 200),
+            description=body.description,
             active=True,
             creator_id=actor.id,
             created_at=now,
@@ -1345,7 +1418,7 @@ def pta_context(
         }
 
 
-def normalized_body(body: PlanningInput) -> dict[str, Any]:
+def normalized_body(body: PlanningInput | DraftPlanningInput) -> dict[str, Any]:
     return body.model_dump(mode="json", exclude={"expected_version", "request_key"})
 
 
@@ -1362,6 +1435,7 @@ def create_activity(
     body: ActivityCreate | ActivityBriefCreate,
     request: Request,
     auth: Auth,
+    background_tasks: BackgroundTasks,
 ) -> Response:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
@@ -1382,11 +1456,19 @@ def create_activity(
             raise AuthError(403, "business_forbidden")
         if isinstance(body, ActivityBriefCreate):
             try:
-                start = date.fromisoformat(body.planned_start)
+                start = (
+                    date.fromisoformat(body.planned_start)
+                    if body.planned_start
+                    else None
+                )
                 end = date.fromisoformat(body.planned_end) if body.planned_end else None
             except ValueError:
                 raise AuthError(422, "input_invalid") from None
-            if start.year != year or not 2000 <= year <= 2200 or (end and end < start):
+            if (
+                not 2000 <= year <= 2200
+                or (start and start.year != year)
+                or (start and end and end < start)
+            ):
                 raise AuthError(422, "input_invalid")
             plan = {
                 "name": body.name,
@@ -1398,13 +1480,15 @@ def create_activity(
             operations = []
             agent_ids = body.agent_ids
         else:
-            plan, operations = validate_plan(normalized_body(body), year)
+            plan, operations = validate_draft(normalized_body(body), year)
             if any(row["id"] for row in operations):
                 raise AuthError(422, "input_invalid")
             agent_ids = [actor.id]
         canonical = {
             **plan,
-            "planned_start": plan["planned_start"].isoformat(),
+            "planned_start": (
+                plan["planned_start"].isoformat() if plan["planned_start"] else None
+            ),
             "planned_end": (
                 plan["planned_end"].isoformat() if plan["planned_end"] else None
             ),
@@ -1513,16 +1597,21 @@ def create_activity(
                 else "content",
             )
         )
+        notification_ids: list[str] = []
         for agent_id in agent_ids:
-            db.add(
-                ActivityAssignment(
-                    context_id=CONTEXT,
-                    activity_id=item.id,
-                    agent_id=agent_id,
-                    assigned_by_id=actor.id,
-                    assigned_at=now,
-                )
+            assignment = ActivityAssignment(
+                context_id=CONTEXT,
+                activity_id=item.id,
+                agent_id=agent_id,
+                assigned_by_id=actor.id,
+                assigned_at=now,
             )
+            db.add(assignment)
+            db.flush()
+            if brief:
+                notification_ids.append(
+                    record_assignment_notification(db, auth, assignment)
+                )
         db.flush()
         result = activity_item(db, item, actor.role, actor.id)
         auth.business_audit(
@@ -1532,6 +1621,10 @@ def create_activity(
             item.id,
             {"context_id": CONTEXT, "after": result},
         )
+        for notification_id in notification_ids:
+            background_tasks.add_task(
+                deliver_assignment_notification, auth, notification_id
+            )
         return created(request, f"/api/v1/activities/{item.id}", result)
 
 
@@ -1572,6 +1665,28 @@ def annual_metrics(identifier: str, request: Request, auth: Auth) -> dict[str, A
             raise AuthError(404, "pta_not_found")
         cutoff = cutoff_value(db, None)
         return annual_metrics_data(db, pta, cutoff)
+
+
+@router.get("/ptas/{identifier}/dashboard", response_model=DashboardOutput)
+def dashboard(identifier: str, request: Request, auth: Auth) -> dict[str, Any]:
+    with Session(auth.engine) as db, db.begin():
+        locked_read(db)
+        actor = principal(
+            db,
+            auth,
+            evidence(request, auth)[0],
+            roles={"AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
+        )
+        pta = db.get(AnnualPTA, identifier)
+        if not pta or pta.context_id != CONTEXT:
+            raise AuthError(404, "pta_not_found")
+        cutoff = cutoff_value(db, None)
+        metrics = annual_metrics_data(db, pta, cutoff)
+        return {
+            **metrics,
+            "finance": dashboard_finance_data(db, pta, metrics),
+            "attention": dashboard_attention_data(db, pta, actor),
+        }
 
 
 @router.get(
@@ -1651,6 +1766,7 @@ def activities(
                 .exists()
             )
         if period_from:
+            base.append(Activity.planned_start.is_not(None))
             base.append(
                 func.coalesce(Activity.planned_end, Activity.planned_start)
                 >= period_from
@@ -3315,7 +3431,11 @@ def replace_activity(
             "returned_validator",
         }:
             raise AuthError(409, "activity_not_editable")
-        plan, incoming = validate_plan(payload, pta.year)
+        plan, incoming = (
+            validate_draft(payload, pta.year)
+            if item.state == "draft" and item.current_revision_id is None
+            else validate_plan(payload, pta.year)
+        )
         assert_types(db, incoming)
         current = {
             row.id: row
@@ -3457,7 +3577,11 @@ def replace_activity(
     openapi_extra=MUTATION_HEADERS,
 )
 def replace_assignments(
-    identifier: str, body: AssignmentReplace, request: Request, auth: Auth
+    identifier: str,
+    body: AssignmentReplace,
+    request: Request,
+    auth: Auth,
+    background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
@@ -3509,16 +3633,20 @@ def replace_assignments(
             if agent_id not in body.agent_ids:
                 assignment.ended_at = now
                 assignment.ended_by_id = actor.id
+        notification_ids: list[str] = []
         for agent_id in body.agent_ids:
             if agent_id not in current:
-                db.add(
-                    ActivityAssignment(
-                        context_id=CONTEXT,
-                        activity_id=item.id,
-                        agent_id=agent_id,
-                        assigned_by_id=actor.id,
-                        assigned_at=now,
-                    )
+                assignment = ActivityAssignment(
+                    context_id=CONTEXT,
+                    activity_id=item.id,
+                    agent_id=agent_id,
+                    assigned_by_id=actor.id,
+                    assigned_at=now,
+                )
+                db.add(assignment)
+                db.flush()
+                notification_ids.append(
+                    record_assignment_notification(db, auth, assignment)
                 )
         item.version += 1
         item.updated_at = now
@@ -3531,6 +3659,10 @@ def replace_assignments(
             item.id,
             {"context_id": CONTEXT, "before": before, "after": result},
         )
+        for notification_id in notification_ids:
+            background_tasks.add_task(
+                deliver_assignment_notification, auth, notification_id
+            )
         return result
 
 

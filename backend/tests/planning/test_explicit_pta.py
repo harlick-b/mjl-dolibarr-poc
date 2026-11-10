@@ -3,6 +3,27 @@ from tests.planning.test_planning import patch, post, references
 from tests.planning.test_planning import planning as planning
 
 
+def test_project_without_pta_returns_an_empty_collection(planning):
+    validator = planning["validator"]
+    partner = post(validator, "/api/v1/partners", {"name": "Sans PTA"}).json()
+    project = post(
+        validator,
+        "/api/v1/projects",
+        {"partner_id": partner["id"], "name": "Projet sans PTA"},
+    ).json()
+
+    response = validator.get(f"/api/v1/projects/{project['id']}/ptas")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "object": "list",
+        "count": 0,
+        "data": [],
+        "next": None,
+        "previous": None,
+    }
+
+
 def test_pta_created_before_activity_and_metadata_editing(planning):
     _, _, project = references(planning)
     path = f"/api/v1/projects/{project['id']}/ptas"

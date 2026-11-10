@@ -21,6 +21,7 @@ MAILS = {
     ),
     "password_reset_notice": ("password-change-notice", "Mot de passe modifié"),
     "activity_reminder": ("activity-reminder", "Rappel d’échéance"),
+    "activity_assignment": ("activity-assignment", "Nouvelle activité assignée"),
 }
 
 

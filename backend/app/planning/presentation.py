@@ -20,6 +20,8 @@ def approved_plans(
     db: Session, project_years: list[tuple[str, int]], cutoff: datetime
 ) -> dict[tuple[str, int], dict[str, int | str]]:
     """Resolve the latest effective approval once per Activity across the page."""
+    if not project_years:
+        return {}
     rows = db.execute(
         text(
             """
@@ -120,7 +122,9 @@ def activity_rows(db: Session, rows: list[Activity]) -> list[dict[str, Any]]:
             "reference": row.reference,
             "name": row.name,
             "allocation": str(row.allocation) if row.allocation is not None else None,
-            "planned_start": row.planned_start.isoformat(),
+            "planned_start": (
+                row.planned_start.isoformat() if row.planned_start else None
+            ),
             "planned_end": (row.planned_end.isoformat() if row.planned_end else None),
             "state": row.state,
             "operation_count": operations.get(row.id, 0),

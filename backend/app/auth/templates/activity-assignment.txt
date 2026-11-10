@@ -1,0 +1,14 @@
+{{ email_title }}
+
+Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
+
+{{ assigner_name }} vous a assigné une activité.
+
+Référence : {{ activity_reference }}
+Activité : {{ activity_name }}
+PTA : {{ pta_name }}
+Projet : {{ project_name }}
+
+Connectez-vous à MJL pour consulter l’activité.
+
+Message automatique envoyé par {{ app_name }}. Merci de ne pas y répondre.

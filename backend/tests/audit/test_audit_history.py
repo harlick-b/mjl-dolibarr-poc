@@ -411,11 +411,23 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     same = patch(agent, path, body)
     assert same.status_code == 200, same.text
     assert same.json()["version"] == created["version"]
-    assert agent.get(path + "/history").json()["count"] == 1
+    initial_history = agent.get(path + "/history").json()
+    assert initial_history["count"] == 1
+    agent_user = agent.get("/api/v1/auth/session").json()["user"]
+    assigned_change = next(
+        change
+        for change in initial_history["data"][0]["changes"]
+        if change["field"] == "Agents affectés"
+    )
+    assert assigned_change["after"] == agent_user["full_name"]
+    assert agent_user["id"] not in str(initial_history["data"][0]["changes"])
     assigned = put(
         planning["supervisor"],
         path + "/assignments",
-        {"expected_version": created["version"], "agent_ids": []},
+        {
+            "expected_version": created["version"],
+            "agent_ids": created["agent_ids"],
+        },
     )
     assert assigned.status_code == 200
     assert agent.get(path + "/history").json()["count"] == 1

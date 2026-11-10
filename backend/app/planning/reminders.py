@@ -24,8 +24,11 @@ from app.core.database import make_engine
 from app.planning.models import (
     Activity,
     ActivityAssignment,
+    ActivityAssignmentNotification,
     ActivityReminder,
     ActivityRevision,
+    AnnualPTA,
+    Project,
 )
 from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
 
@@ -71,13 +74,17 @@ class ReadInput(Input):
 
 
 class ReminderOutput(Input):
+    kind: Literal["deadline", "assignment"]
     id: str
     activity_id: str
     activity_reference: str
     activity_name: str
     pta_year: int
-    planned_end: str
-    due_on: str
+    planned_end: str | None
+    due_on: str | None
+    pta_name: str | None = None
+    project_name: str | None = None
+    assigned_by: str | None = None
     created_at: str
     read_at: str | None
     email_status: str
@@ -284,6 +291,7 @@ def _output(db: Session, item: ActivityReminder) -> dict[str, Any]:
         raise AuthError(409, "reminder_source_invalid")
     name, _ = _snapshot(revision)
     return {
+        "kind": "deadline",
         "id": item.id,
         "activity_id": item.activity_id,
         "activity_reference": activity.reference,
@@ -295,6 +303,57 @@ def _output(db: Session, item: ActivityReminder) -> dict[str, Any]:
         "read_at": item.read_at.isoformat() if item.read_at else None,
         "email_status": item.email_status,
         "version": item.version,
+    }
+
+
+def _assignment_outputs(
+    db: Session, items: list[ActivityAssignmentNotification]
+) -> dict[str, dict[str, Any]]:
+    if not items:
+        return {}
+    contexts = {
+        row.notification_id: row
+        for row in db.execute(
+            select(
+                ActivityAssignmentNotification.id.label("notification_id"),
+                Activity.reference.label("activity_reference"),
+                Activity.name.label("activity_name"),
+                Activity.placement_year.label("pta_year"),
+                User.full_name.label("assigner_name"),
+                User.email.label("assigner_email"),
+                AnnualPTA.name.label("pta_name"),
+                Project.name.label("project_name"),
+            )
+            .select_from(ActivityAssignmentNotification)
+            .join(Activity, Activity.id == ActivityAssignmentNotification.activity_id)
+            .join(User, User.id == ActivityAssignmentNotification.assigned_by_id)
+            .join(AnnualPTA, AnnualPTA.id == Activity.pta_id)
+            .join(Project, Project.id == AnnualPTA.project_id)
+            .where(ActivityAssignmentNotification.id.in_([item.id for item in items]))
+        )
+    }
+    if len(contexts) != len(items):
+        raise AuthError(409, "notification_source_invalid")
+    return {
+        item.id: {
+            "kind": "assignment",
+            "id": item.id,
+            "activity_id": item.activity_id,
+            "activity_reference": contexts[item.id].activity_reference,
+            "activity_name": contexts[item.id].activity_name,
+            "pta_year": contexts[item.id].pta_year,
+            "planned_end": None,
+            "due_on": None,
+            "pta_name": contexts[item.id].pta_name,
+            "project_name": contexts[item.id].project_name,
+            "assigned_by": contexts[item.id].assigner_name
+            or contexts[item.id].assigner_email,
+            "created_at": item.created_at.isoformat(),
+            "read_at": item.read_at.isoformat() if item.read_at else None,
+            "email_status": item.email_status,
+            "version": item.version,
+        }
+        for item in items
     }
 
 
@@ -317,10 +376,8 @@ def listing(
         limit, token, state = args
         cursor = Cursor(auth, "notifications", f"{actor.id}:{state}", limit)
         marker, direction = cursor.decode(token)
-        base_conditions = [ActivityReminder.agent_id == actor.id]
-        if state == "unread":
-            base_conditions.append(ActivityReminder.read_at.is_(None))
-        conditions = list(base_conditions)
+        marker_time: datetime | None = None
+        marker_id: str | None = None
         if marker:
             try:
                 marker_time_raw, marker_id_raw = marker.split("|", 1)
@@ -328,49 +385,67 @@ def listing(
                 marker_id = str(UUID(marker_id_raw))
             except (ValueError, TypeError):
                 raise AuthError(422, "cursor_invalid") from None
-            pair = tuple_(ActivityReminder.created_at, ActivityReminder.id)
-            conditions.append(
-                pair < tuple_(marker_time, marker_id)
+        rows: list[ActivityReminder | ActivityAssignmentNotification] = []
+        total = 0
+        for model in (ActivityReminder, ActivityAssignmentNotification):
+            base_conditions = [model.agent_id == actor.id]
+            if state == "unread":
+                base_conditions.append(model.read_at.is_(None))
+            conditions = list(base_conditions)
+            if marker_time and marker_id:
+                pair = tuple_(model.created_at, model.id)
+                conditions.append(
+                    pair < tuple_(marker_time, marker_id)
+                    if direction == "next"
+                    else pair > tuple_(marker_time, marker_id)
+                )
+            order = (
+                (model.created_at.desc(), model.id.desc())
                 if direction == "next"
-                else pair > tuple_(marker_time, marker_id)
+                else (model.created_at.asc(), model.id.asc())
             )
-        order = (
-            (ActivityReminder.created_at.desc(), ActivityReminder.id.desc())
-            if direction == "next"
-            else (ActivityReminder.created_at.asc(), ActivityReminder.id.asc())
-        )
-        rows = list(
-            db.scalars(
-                select(ActivityReminder)
-                .where(*conditions)
-                .order_by(*order)
-                .limit(limit + 1)
+            rows.extend(
+                db.scalars(
+                    select(model).where(*conditions).order_by(*order).limit(limit + 1)
+                )
             )
-        )
-        total = (
-            db.scalar(
-                select(func.count())
-                .select_from(ActivityReminder)
-                .where(*base_conditions)
+            total += int(
+                db.scalar(
+                    select(func.count()).select_from(model).where(*base_conditions)
+                )
+                or 0
             )
-            or 0
+        rows.sort(
+            key=lambda item: (item.created_at, item.id),
+            reverse=direction == "next",
         )
         more = len(rows) > limit
         rows = rows[:limit]
         if direction == "previous":
             rows.reverse()
 
-        def link(row: ActivityReminder, move: str) -> str:
+        def link(
+            row: ActivityReminder | ActivityAssignmentNotification, move: str
+        ) -> str:
             mark = f"{row.created_at.isoformat()}|{row.id}"
             query = urlencode(
                 {"limit": limit, "state": state, "cursor": cursor.encode(mark, move)}
             )
             return f"{auth.policy.origin}/api/v1/notifications?{query}"
 
+        assignment_outputs = _assignment_outputs(
+            db,
+            [row for row in rows if isinstance(row, ActivityAssignmentNotification)],
+        )
         return {
             "object": "list",
             "count": total,
-            "data": [_output(db, row) for row in rows],
+            "data": [
+                _output(db, row)
+                if isinstance(row, ActivityReminder)
+                else assignment_outputs[row.id]
+                for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,
@@ -390,7 +465,13 @@ def mark_read(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = db.get(ActivityReminder, identifier, with_for_update=True)
+        item: ActivityReminder | ActivityAssignmentNotification | None = db.get(
+            ActivityReminder, identifier, with_for_update=True
+        )
+        if item is None:
+            item = db.get(
+                ActivityAssignmentNotification, identifier, with_for_update=True
+            )
         if not item or item.agent_id != actor.id:
             raise AuthError(404, "notification_not_found")
         if item.version != body.expected_version or item.read_at is not None:
@@ -399,13 +480,17 @@ def mark_read(
         item.version += 1
         auth.audit(
             db,
-            "reminder.read",
+            "notification.read",
             actor.id,
             item.id,
             details={"before_version": body.expected_version, "version": item.version},
         )
         db.flush()
-        return _output(db, item)
+        return (
+            _output(db, item)
+            if isinstance(item, ActivityReminder)
+            else _assignment_outputs(db, [item])[item.id]
+        )
 
 
 def main() -> None:

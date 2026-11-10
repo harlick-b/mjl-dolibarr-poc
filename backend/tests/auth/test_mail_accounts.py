@@ -86,12 +86,23 @@ def test_all_personalized_templates_and_strict_variables():
         activity_name="Une activité <longue> " + "x" * 200,
         activity_end_date="29 février 2028",
     )
+    assignment = renderer.render(
+        "activity_assignment",
+        recipient_name="Aminata Dossou",
+        activity_reference="ACT-2028-002",
+        activity_name="Concertation communale",
+        pta_name="PTA 2028",
+        project_name="Protection de l’enfant",
+        assigner_name="Jean Superviseur",
+    )
 
     assert "Bonjour," in recovery.html and "réinitialiser" in recovery.text
     assert "Bonjour Aminata Dossou," in reminder.html
     assert "29 février 2028" in reminder.html and "&lt;longue&gt;" in reminder.html
     assert "<a " not in reminder.html
     assert "@media only screen and (max-width:600px)" in reminder.html
+    assert "Jean Superviseur" in assignment.text
+    assert "ACT-2028-002" in assignment.html
     with pytest.raises(UndefinedError):
         renderer.render("activity_reminder", recipient_name="Aminata Dossou")
 

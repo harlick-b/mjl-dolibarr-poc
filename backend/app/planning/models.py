@@ -54,6 +54,7 @@ class OperationType(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(ForeignKey("mjl_ownership_context.id"))
     label: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(String(4000), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -216,7 +217,8 @@ class Activity(Base):
         ),
         CheckConstraint(
             "placement_year BETWEEN 2000 AND 2200 AND "
-            "extract(year from planned_start)::integer = placement_year",
+            "(planned_start IS NULL OR "
+            "extract(year from planned_start)::integer = placement_year)",
             name="activity_placement_year_valid",
         ),
         CheckConstraint("version > 0", name="activity_version_positive"),
@@ -230,7 +232,8 @@ class Activity(Base):
         CheckConstraint(
             "(state = 'draft' AND current_revision_id IS NULL "
             "AND approved_revision_id IS NULL) OR "
-            "(planned_end IS NOT NULL AND allocation IS NOT NULL)",
+            "(planned_start IS NOT NULL AND planned_end IS NOT NULL "
+            "AND allocation IS NOT NULL)",
             name="activity_complete_after_submission",
         ),
         CheckConstraint("planned_end >= planned_start", name="activity_dates_ordered"),
@@ -241,7 +244,7 @@ class Activity(Base):
     reference: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(4000))
-    planned_start: Mapped[date] = mapped_column(Date)
+    planned_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     planned_end: Mapped[date | None] = mapped_column(Date)
     allocation: Mapped[int | None] = mapped_column(BigInteger)
     state: Mapped[str] = mapped_column(String(32), default="draft")
@@ -375,6 +378,41 @@ class ActivityReminder(Base):
     agent_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     planned_end: Mapped[date] = mapped_column(Date)
     due_on: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_status: Mapped[str] = mapped_column(String(16), default="unconfirmed")
+    email_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(default=1)
+
+
+class ActivityAssignmentNotification(Base):
+    __tablename__ = "pta_activity_assignment_notification"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        UniqueConstraint("assignment_id", name="assignment_notification_once"),
+        CheckConstraint(
+            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            name="assignment_notification_email_status_allowed",
+        ),
+        CheckConstraint("version > 0", name="assignment_notification_version_positive"),
+        Index(
+            "assignment_notification_recipient_created",
+            "agent_id",
+            "created_at",
+            "id",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    assignment_id: Mapped[str] = mapped_column(
+        ForeignKey("pta_activity_agent_assignment.id")
+    )
+    agent_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    assigned_by_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_status: Mapped[str] = mapped_column(String(16), default="unconfirmed")
