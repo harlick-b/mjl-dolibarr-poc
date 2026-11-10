@@ -1,6 +1,6 @@
 # Project status
 
-Updated 2026-11-09. MJL is under development; implemented does not mean accepted
+Updated 2026-11-10. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
@@ -747,9 +747,10 @@ Final verification (commands from `frontend/`, except backend checks):
 The existing JavaScript bundle-size warning remains. Fixture-backed browser
 coverage is not live backend/email or human visual/accessibility acceptance.
 The later catalog/planning refinement above supplies PTA summary projections and
-PTA/Execution search filters. Populated Dashboard attention/financial sections
-remain outside that slice and still need supporting data contracts. No fictional
-totals or nonfunctional controls were added to imitate references.
+PTA/Execution search filters. At that checkpoint, populated Dashboard
+attention/financial sections remained outside the slice; they were subsequently
+completed in **Internal Dashboard attention and finance, 2026-11-10** below. No
+fictional totals or nonfunctional controls were added to imitate references.
 
 Current invitation/Relances/session-recovery candidate (2026-11-06):
 `npx vitest run --maxWorkers=1` passed 183 tests in 19 files;
@@ -880,6 +881,105 @@ Focused Ruff, strict mypy and `git diff --check` passed after the correction.
 No banking execution, partial reversement, new operation-attachment model or new
 financial exception was introduced. Production readiness and client acceptance
 remain outside this implementation evidence.
+
+## Internal Dashboard attention and finance, 2026-11-10
+
+The internal Dashboard now gives Agents, Supervisors and Validators a bounded
+summary of work that their existing role and resource assignments let them act
+on. The server returns the exact count and at most the first three prioritized
+items, linking planning reviews back to Planning and financial or settlement work
+back to Execution. It reuses the current assignment, reviewer-exclusion,
+no-self-validation and closure rules; it does not create a second workflow or
+make the browser an authorization boundary.
+
+The financial strip now separates approved budget, known operation spending,
+closed spending, remaining reversement and confirmed reversement. Values use
+integer XOF strings. A missing basis remains `null`, while a confirmed zero is
+returned and displayed as `0 F CFA`. The existing physical and financial progress
+facts remain the source of the two Dashboard rates. The Partner Dashboard, new
+mutations and a generic all-actions destination remain outside this slice.
+
+Final focused evidence:
+
+- On disposable PostgreSQL, `pytest -q
+  tests/planning/test_dashboard_reads.py` passed **6 tests** in 33.96s after one
+  discarded setup-only run used an incomplete test URL. The journeys cover
+  planning and financial role attention, exact settlement values, the explicit
+  zero-reversement case, role denial and the adjacent shared-read behavior. The
+  temporary database and cluster were removed.
+- The production frontend build passed with the existing large-chunk warning.
+  The populated Dashboard browser journey passed at desktop and 390px, and both
+  rendered screenshots were inspected. The affected role/entry/empty-state rerun
+  passed **8 tests**. A broader browser campaign passed **28 of 31**: two unrelated
+  Planning fixture journeys timed out, while one stale Admin-heading assertion
+  was corrected and included in the focused pass. This is not reported as a
+  broad-suite pass or human accessibility/visual acceptance.
+- Ruff, strict mypy, targeted ESLint, Prettier and `git diff --check` passed on
+  the final candidate. Separate specification and standards/design reviewers
+  found the missing-versus-zero defect; it was corrected with a contextual
+  workflow regression and returned to both reviewers. They reported no remaining
+  blocking code or contract finding.
+
+Runtime follow-up: a Project with no PTA returned 503 because the raw expanding
+bind in the approved-plan summary inferred an integer type for an empty Project-ID
+set. The summary now returns its neutral empty projection without issuing that
+query. The regression failed with the reported 503 before correction; afterward,
+the full explicit-PTA file passed **8 tests** on disposable PostgreSQL and the
+original read-only development-database replay completed. Root development
+StrictMode was also removed after a browser trace proved it canceled and repeated
+each Query read during navigation; the same trace then issued Projects and PTAs
+once each. The production build and focused static checks passed. Independent
+review found no remaining blocking issue; production/client acceptance claims are
+unchanged.
+
+Reversement attention batch-prefilters eligible candidates but invokes the
+canonical closure check for each remaining candidate. This candidate-filtered
+N+1 read is a known performance limitation; duplicating the closure rule or
+introducing a new abstraction was not justified for this summary slice.
+Production, security and client acceptance gates remain unchanged.
+
+## Activity creation and assignment UX - implementation candidate, 2026-11-10
+
+The reviewed Activity plan is implemented across the existing Planning,
+notification and audit seams. Agents can save and reopen a title-only initial
+draft, while submission still requires the complete dated and balanced plan.
+Reviewers retain quick creation with ten active Agents prefetched, and newly
+assigned Agents receive a recipient-only in-app notification plus one bounded
+email attempt. Agent self-creation does not notify. The Agent PTA view starts on
+`Mes activités`, undated drafts appear under `Sans date`, and category
+descriptions are now persisted.
+
+Migrations `0030`-`0032` add category descriptions, permit incomplete initial
+drafts without weakening submitted/approved revisions, and store the narrow
+assignment-notification record. Downgrades refuse data loss where the older
+schema cannot represent current rows. Email failure does not roll back an
+assignment or its in-app notification, and notification reads remain scoped to
+the recipient.
+
+Fresh corrected-candidate verification used disposable PostgreSQL. Repeatable
+migration to head passed and the strict schema fingerprint was regenerated from
+the migrated database. The affected backend campaign completed with **26 passes**
+and one order-sensitive assertion; after correcting that assertion to compare the
+assigned set, its focused workflow rerun passed **1 test**. Backend Ruff and
+strict mypy passed.
+
+The affected frontend campaign passed **104 tests in seven files**, covering
+Planning, PTA metadata, quick creation, History, notifications, authentication
+labels and adjacent Execution behavior. ESLint passed with one unchanged hooks
+warning, and the production build passed with the existing large-chunk warning.
+A broad parallel run completed **217 of 221 tests**; its four Execution misses
+then passed together in the isolated **29-test** file rerun, so the broad run is
+not represented as a pass. A later single-worker broad attempt was interrupted
+and is not evidence. The focused reviewer quick-create browser journey passed and
+its desktop, 390px, calendar, Agent-selection and short-height screenshots were
+inspected against the supplied composition. Independent specification and
+standards/security/design reviewers cleared their concrete code findings. The
+Agent full-form desktop/mobile composition remains part of the user's ongoing
+human review. These checks and reviews are implementation evidence, not human
+visual/accessibility acceptance or production readiness. Final specification
+review removed an unapproved end-year cap while retaining start-year and date-order
+rules; the corrected Planning frontend rerun passed **47 tests** and the two-role
+reviewer-brief PostgreSQL rerun passed **2 tests**.
 
 ## Remaining inputs and excluded work
 

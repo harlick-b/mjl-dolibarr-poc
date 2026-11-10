@@ -171,6 +171,10 @@ implementation boundaries; [README](../README.md) owns setup.
 
 ## Reliable verification and local operation
 
+- A raw SQL expanding bind can infer the wrong type for an empty collection.
+  Return the neutral empty projection before executing the query, or bind an
+  explicit database type when empty input must still reach SQL. Exercise the
+  public empty-list API because populated fixtures cannot expose this failure.
 - Use disposable PostgreSQL with deterministic barriers for transaction races.
   Sequential browser submissions do not prove serialization. Hold the real
   mutation, start the competitor, check both orderings and tear down test data.

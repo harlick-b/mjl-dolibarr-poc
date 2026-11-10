@@ -73,8 +73,8 @@ atomically invalidates credentials/sessions, then attempts one best-effort notic
 Local development permits real email addresses and requires a trimmed, control-free
 Unicode full name (maximum 200 characters) for new invitations/first Admin.
 Existing unnamed accounts use a generic greeting. Resend is the sole runtime
-mail provider. The five messages are invitation, login OTP, password recovery,
-password-change notice and Activity reminder. HTML/plain-text sources live in
+mail provider. The six messages are invitation, login OTP, password recovery,
+password-change notice, Activity reminder and new Activity assignment. HTML/plain-text sources live in
 backend/app/auth/templates; rendering escapes values and rejects missing fields.
 Links retain secrets in fragments; OTP leading zeros are preserved. Password-change
 and reminder notices have no action button. A reminder names its approved end date.
@@ -88,18 +88,23 @@ Agents de saisie and final Validators may create operation categories (types).
 Agents create and select categories directly in the Activity's operation form.
 Supervisors, Admins and Partner users cannot create them. Category creation is
 separate from saving the Activity and does not change its approval or contributor
-history; the existing Activity validation rules still apply.
+history; the existing Activity validation rules still apply. A category has a
+required name and an optional saved description.
 
 All three internal business roles may create Activities inside an existing PTA.
-Supervisors and Validators create through the PTA's quick modal: required title,
-start date in the PTA year and at least one assigned Agent; optional instructions
-and end date. An entered end date cannot precede the start. An absent end stays
-unknown in the brief. They then request corrections rather than edit its content.
-Agents use the full Activity workspace, not a standalone brief page. Assigned Agents complete
-the dates, Operations and budget before submission. A submitted Activity has one
+Supervisors and Validators create through the PTA's quick modal: required title
+and at least one assigned Agent; instructions and dates are optional. A start
+belongs to the PTA year and an end cannot precede it; the end may cross the PTA
+year boundary. Missing dates stay unknown. They then request corrections rather
+than edit its content. Agents
+use the full Activity workspace, not a standalone brief page. An Agent may save
+a title-only initial draft and resume it later. Wholly blank Operation rows are
+ignored; a started row must be completed or explicitly removed before save.
+Description, both dates, complete Operations and balanced budget are mandatory
+before submission. A submitted Activity has one
 or more Operations with positive allocations whose sum equals its allocation.
-In the full Agent form, the suggested end date is start plus three calendar months for every
-Partner: preserve the day when valid, otherwise clamp to the month's last day.
+In the full Agent form, the suggested end date is start plus three calendar
+months: preserve the day when valid, otherwise clamp to the month's last day.
 This is an editable suggestion; never overwrite a manual end date.
 
 Validation is per Activity, not for an entire PTA. Submission creates an immutable
@@ -234,6 +239,12 @@ changes determine eligibility; a new assignee/date gets its applicable cycle.
 One in-app notification/email attempt is recorded; success, failure and uncertain
 delivery are never automatically resent. Notification APIs are recipient-only;
 Admin has no general inbox. Browser push and production scheduling are deferred.
+
+Reviewer creation and later assignment changes create an in-app notification and
+one email attempt for each newly assigned Agent. Agent self-creation creates no
+assignment notification. Unchanged and removed assignees receive none; a later
+re-add is a new assignment. The assignment and in-app notification are committed
+together, while email is attempted after commit and cannot roll back assignment.
 
 Whole-current-PTA metrics use approved baselines, independent of screen filters
 or pagination. Physical rate = closed Activities / approved planned Activities.

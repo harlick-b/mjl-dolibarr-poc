@@ -228,8 +228,12 @@ standard sizes; XOF amounts display as F CFA without changing exact stored value
 
 PTA creation/edit, metadata placement, reviewer quick creation and assignments
 now have supplied references in `docs/inspiration/pta/`. Reviewer creation opens
-the **Créer et affecter une activité** modal directly from the PTA; Agent creation
+the **Créer une activité** modal directly from the PTA; Agent creation
 opens the full editing workspace. Do not use the old standalone **Brief initial**
-page. Activity detail prioritizes context, responsibility, validation and one
+page. Required form labels end with `*`; optional labels have no parenthetical
+suffix. The reviewer modal uses **Assigner à**, preloads the first ten active
+Agents and keeps server search. Agent PTA lists start with a removable **Mes
+activités** filter, while undated drafts appear under **Sans date**. Activity
+detail prioritizes context, responsibility, validation and one
 authorized next action. Table/calendar share search and filters, removable chips
 and reset; calendars use horizontal spans and a distinct start-only marker.
