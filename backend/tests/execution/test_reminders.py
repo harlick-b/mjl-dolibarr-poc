@@ -16,6 +16,7 @@ from tests.auth.test_auth import messages
 from tests.execution.test_closure import close_path, settled_activity
 from tests.planning.test_amendments import approved_activity, open_amendment
 from tests.planning.test_planning import (
+    create_activity,
     ordered_advisory_race,
     patch,
     plan,
@@ -83,7 +84,7 @@ def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
     first = planning["agent"].get("/api/v1/notifications")
     second = planning["agent2"].get("/api/v1/notifications")
     assert first.status_code == second.status_code == 200
-    assert first.json()["count"] == 1
+    assert first.json()["count"] == 2
     assert second.json()["count"] == 2
     reminder = next(item for item in first.json()["data"] if item["kind"] == "deadline")
     assignment = next(
@@ -147,15 +148,16 @@ def test_approved_end_date_change_creates_a_new_cycle_and_keeps_history(planning
 
     assert dispatch_due_reminders(planning["auth"], date(2028, 3, 10)) == 1
     payload = planning["agent"].get("/api/v1/notifications").json()
-    assert payload["count"] == 2
-    assert {item["planned_end"] for item in payload["data"]} == {
+    assert payload["count"] == 4
+    deadlines = [item for item in payload["data"] if item["kind"] == "deadline"]
+    assert {item["planned_end"] for item in deadlines} == {
         "2028-02-29",
         "2028-03-31",
     }
     first_page = planning["agent"].get("/api/v1/notifications?limit=1").json()
-    assert first_page["count"] == 2 and first_page["next"]
+    assert first_page["count"] == 4 and first_page["next"]
     second_page = planning["agent"].get(first_page["next"]).json()
-    assert second_page["count"] == 2 and second_page["previous"]
+    assert second_page["count"] == 4 and second_page["previous"]
     back = planning["agent"].get(second_page["previous"]).json()
     assert back["data"][0]["id"] == first_page["data"][0]["id"]
 
@@ -296,7 +298,11 @@ def test_read_is_versioned_and_not_visible_to_another_agent(planning):
     activity, _ = approved_activity(planning)
     _assigned, _ids = assign(planning, activity, "agent")
     dispatch_due_reminders(planning["auth"], date(2028, 2, 8))
-    item = planning["agent"].get("/api/v1/notifications").json()["data"][0]
+    item = next(
+        row
+        for row in planning["agent"].get("/api/v1/notifications").json()["data"]
+        if row["kind"] == "deadline"
+    )
 
     hidden = planning["agent2"].patch(
         f"/api/v1/notifications/{item['id']}",
@@ -321,9 +327,12 @@ def test_read_is_versioned_and_not_visible_to_another_agent(planning):
         headers=headers(planning["agent"]),
         json={"expected_version": item["version"]},
     )
-    assert replay.status_code == 409
+    assert replay.status_code == 200
+    assert replay.json()["read_at"] == read.json()["read_at"]
+    assert replay.json()["version"] == read.json()["version"]
     unread = planning["agent"].get("/api/v1/notifications?state=unread")
-    assert unread.json()["count"] == 0
+    assert unread.json()["count"] == 1
+    assert unread.json()["data"][0]["kind"] == "activity_approved"
 
 
 def test_deactivation_serializes_before_notification_read(planning):
@@ -466,7 +475,9 @@ def test_assignment_change_serializes_before_dispatch(planning):
     )
     assert changed.status_code == 200
     assert dispatched == 1
-    assert planning["agent"].get("/api/v1/notifications").json()["count"] == 0
+    former_agent_items = planning["agent"].get("/api/v1/notifications").json()
+    assert former_agent_items["count"] == 1
+    assert former_agent_items["data"][0]["kind"] == "activity_approved"
     recipient_items = planning["agent2"].get("/api/v1/notifications").json()
     assert recipient_items["count"] == 2
     assert {item["kind"] for item in recipient_items["data"]} == {
@@ -475,10 +486,16 @@ def test_assignment_change_serializes_before_dispatch(planning):
     }
 
 
-def test_used_reminder_history_blocks_downgrade(planning):
+def test_notification_history_blocks_each_unsafe_downgrade(planning):
     activity, _ = approved_activity(planning)
     assign(planning, activity, "agent")
     dispatch_due_reminders(planning["auth"], date(2028, 2, 8))
+    with pytest.raises(
+        RuntimeError, match="Preserve Activity workflow notifications"
+    ):
+        command.downgrade(Config("alembic.ini"), "0015_pta3f")
+    with planning["auth"].engine.begin() as connection:
+        connection.execute(text("DELETE FROM pta_activity_workflow_notification"))
     with pytest.raises(RuntimeError, match="Refusing to discard reminder history"):
         command.downgrade(Config("alembic.ini"), "0015_pta3f")
 
@@ -497,3 +514,121 @@ def test_concurrent_dispatch_creates_and_sends_one_cycle(planning):
         )
     assert sorted(results) == [0, 1]
     assert len(reminder_mail(planning)) == 1
+
+
+def test_activity_review_notifications_follow_the_available_decision(planning):
+    _partner, _operation_type, _project, activity, _body = create_activity(planning)
+    submitted = post(
+        planning["agent"],
+        f"/api/v1/activities/{activity['id']}/submissions",
+        {"expected_version": activity["version"]},
+    )
+    assert submitted.status_code == 201, submitted.text
+    supervisor_items = planning["supervisor"].get("/api/v1/notifications").json()
+    assert supervisor_items["count"] == 1
+    supervisor_notice = supervisor_items["data"][0]
+    assert supervisor_notice["kind"] == "activity_review"
+    assert supervisor_notice["stage"] == "supervisor"
+    assert supervisor_notice["handled_at"] is None
+    assert planning["validator"].get("/api/v1/notifications").json()["count"] == 0
+    review_mail = [
+        row
+        for row in messages(planning["auth"].mail.directory)
+        if row["kind"] == "activity_review_supervisor"
+    ]
+    assert len(review_mail) == 1
+    assert review_mail[0]["html"] is None
+    assert activity["reference"] in review_mail[0]["text"]
+
+    prevalidated = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{activity['id']}/revisions/"
+        f"{submitted.json()['id']}/decisions",
+        {
+            "expected_version": submitted.json()["activity_version"],
+            "decision": "prevalidate",
+        },
+    )
+    assert prevalidated.status_code == 201, prevalidated.text
+    supervisor_notice = (
+        planning["supervisor"].get("/api/v1/notifications").json()["data"][0]
+    )
+    assert supervisor_notice["handled_at"] is not None
+    validator_notice = (
+        planning["validator"].get("/api/v1/notifications").json()["data"][0]
+    )
+    assert validator_notice["stage"] == "validator"
+    assert validator_notice["handled_at"] is None
+
+    returned = post(
+        planning["validator"],
+        f"/api/v1/activities/{activity['id']}/revisions/"
+        f"{submitted.json()['id']}/decisions",
+        {
+            "expected_version": prevalidated.json()["activity_version"],
+            "decision": "return",
+            "reason": "Préciser les résultats attendus.",
+        },
+    )
+    assert returned.status_code == 201, returned.text
+    agent_items = planning["agent"].get("/api/v1/notifications").json()
+    correction = next(
+        row for row in agent_items["data"] if row["kind"] == "activity_correction"
+    )
+    assert correction["reason"] == "Préciser les résultats attendus."
+    assert correction["email_status"] == "delivered"
+    assert (
+        planning["validator"]
+        .get("/api/v1/notifications")
+        .json()["data"][0]["handled_at"]
+    )
+
+
+def test_activity_final_approval_notifies_agent_in_app_without_email(planning):
+    activity, _operation_type = approved_activity(planning)
+
+    agent_items = planning["agent"].get("/api/v1/notifications").json()
+    approval = next(
+        row for row in agent_items["data"] if row["kind"] == "activity_approved"
+    )
+    assert approval["activity_id"] == activity["id"]
+    assert approval["stage"] == "agent"
+    assert approval["email_status"] == "skipped"
+    assert all(
+        row["kind"] != "activity_approved"
+        for row in messages(planning["auth"].mail.directory)
+    )
+
+
+def test_activity_submission_survives_review_email_failure_without_retry(
+    planning, monkeypatch
+):
+    _partner, _operation_type, _project, activity, _body = create_activity(planning)
+    calls = 0
+
+    def fail(*_args):
+        nonlocal calls
+        calls += 1
+        raise OSError("synthetic failure")
+
+    monkeypatch.setattr(planning["auth"].mail, "send", fail)
+    submitted = post(
+        planning["agent"],
+        f"/api/v1/activities/{activity['id']}/submissions",
+        {"expected_version": activity["version"]},
+    )
+    assert submitted.status_code == 201, submitted.text
+    detail = planning["agent"].get(f"/api/v1/activities/{activity['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["state"] == "submitted"
+    notice = planning["supervisor"].get("/api/v1/notifications").json()["data"][0]
+    assert notice["kind"] == "activity_review"
+    assert notice["email_status"] == "failed"
+
+    replay = post(
+        planning["agent"],
+        f"/api/v1/activities/{activity['id']}/submissions",
+        {"expected_version": submitted.json()["activity_version"]},
+    )
+    assert replay.status_code == 409
+    assert calls == 1

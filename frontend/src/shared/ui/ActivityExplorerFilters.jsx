@@ -11,6 +11,7 @@ export function ActivityExplorerFilters({
   onChange,
   agentPath,
   ownActivities = false,
+  reviewLabel = '',
   searchLabel = strings.searchActivity,
   stateLabel = strings.state,
   stateOptions,
@@ -23,11 +24,13 @@ export function ActivityExplorerFilters({
     onChange({
       q: '',
       state: '',
+      ...(reviewLabel ? { review: 'all' } : {}),
       agent: '',
       ...(ownActivities ? { mine: 'all' } : {}),
       ...(dates ? { from: '', to: '' } : {}),
     })
   const chips = [
+    ['review', value.review === 'mine' ? 'mine' : '', reviewLabel],
     ['q', value.q, `${strings.search}: ${value.q}`],
     [
       'state',
@@ -52,6 +55,7 @@ export function ActivityExplorerFilters({
         label={searchLabel}
         active={Boolean(
           value.state ||
+          value.review === 'mine' ||
           value.from ||
           value.to ||
           (ownActivities && value.mine !== 'all'),
@@ -93,7 +97,12 @@ export function ActivityExplorerFilters({
           {stateLabel}
           <Select
             value={value.state || ''}
-            onChange={(event) => onChange({ state: event.target.value })}
+            onChange={(event) =>
+              onChange({
+                state: event.target.value,
+                ...(reviewLabel ? { review: 'all' } : {}),
+              })
+            }
           >
             {stateOptions.map((option) => (
               <option key={option.value || 'all'} value={option.value}>
@@ -132,7 +141,12 @@ export function ActivityExplorerFilters({
             variant="ghost"
             aria-pressed={value.state === option.value}
             className="aria-pressed:bg-selected aria-pressed:text-primary"
-            onClick={() => onChange({ state: option.value })}
+            onClick={() =>
+              onChange({
+                state: option.value,
+                ...(reviewLabel ? { review: 'all' } : {}),
+              })
+            }
           >
             {option.label}
           </Button>
@@ -146,8 +160,18 @@ export function ActivityExplorerFilters({
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => onChange({ [key]: '' })}
-              aria-label={`${strings.removeFilter} ${key === 'state' ? stateLabel : key === 'agent' ? strings.agent : label}`}
+              onClick={() =>
+                onChange(
+                  key === 'review'
+                    ? { review: 'all', state: '' }
+                    : { [key]: '' },
+                )
+              }
+              aria-label={
+                key === 'review'
+                  ? `Retirer le filtre ${label}`
+                  : `${strings.removeFilter} ${key === 'state' ? stateLabel : key === 'agent' ? strings.agent : label}`
+              }
             >
               {label} ×
             </Button>

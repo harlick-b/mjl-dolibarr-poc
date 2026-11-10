@@ -5,6 +5,7 @@ import { ActivityExplorerFilters } from '@/shared/ui/ActivityExplorerFilters'
 import { Button } from '@/shared/ui/button'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { ActivityTimeline } from './ActivityTimeline'
+import { activityStatusClass } from './activity-status'
 
 const stateOptions = [
   ['', strings.allStates],
@@ -35,6 +36,7 @@ export function PlanningActivities({
   filters,
   onFilter,
   ownActivities = false,
+  reviewLabel = '',
 }) {
   const rows = result?.data || []
   const hasFilters = Boolean(
@@ -43,6 +45,7 @@ export function PlanningActivities({
     filters?.agent ||
     filters?.from ||
     filters?.to ||
+    filters?.review === 'mine' ||
     (ownActivities && filters?.mine !== 'all'),
   )
   return (
@@ -52,6 +55,7 @@ export function PlanningActivities({
         onChange={onFilter}
         agentPath={ptaId ? `/ptas/${ptaId}/activity-agents` : undefined}
         ownActivities={ownActivities}
+        reviewLabel={reviewLabel}
         searchLabel={strings.searchActivities}
         stateLabel={strings.validation}
         stateOptions={stateOptions}
@@ -166,15 +170,10 @@ export function PlanningActivities({
                   <td className="px-3 py-3">{row.agents?.join(', ') || '—'}</td>
                   <td className="px-3 py-3">
                     <span
-                      className={`inline-block rounded-card px-2 py-1 text-xs ${['approved', 'closed'].includes(row.state) ? 'bg-success-badge text-success' : row.state?.startsWith('returned') ? 'bg-warning-soft text-warning' : 'bg-selected text-primary'}`}
+                      className={`inline-block rounded-card px-2 py-1 text-xs ${activityStatusClass(row.state)}`}
                     >
                       {strings[row.state] || '—'}
                     </span>
-                    {row.revision_number && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {strings.revision} {row.revision_number}
-                      </p>
-                    )}
                   </td>
                   <td className="px-3 py-3">
                     <Button asChild variant="outline" size="sm">

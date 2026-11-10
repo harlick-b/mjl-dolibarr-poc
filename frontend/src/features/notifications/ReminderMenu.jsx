@@ -16,7 +16,7 @@ export function ReminderMenu() {
     queryKey: ['notifications', access.user?.id, 'unread', '', 1],
     queryFn: ({ signal }) =>
       api.request('/api/v1/notifications?state=unread&limit=1', { signal }),
-    enabled: access.role === 'AGENT_SAISIE',
+    enabled: access.can('notifications'),
   })
   if (!access.can('notifications')) return null
   return (

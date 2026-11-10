@@ -14,7 +14,10 @@ test('timeline shows milestones, persisted changes, reasons and revision links',
           label: 'Activité retournée',
           occurred_at: '2026-11-06T09:00:00Z',
           milestone: true,
-          actor: { full_name: 'Validateur' },
+          actor: {
+            full_name: 'Clarisse Akpon',
+            role: 'Validateur définitif',
+          },
           revision_id: 'revision-1',
           reason: 'Préciser le calendrier',
           changes: [],
@@ -50,15 +53,20 @@ test('timeline shows milestones, persisted changes, reasons and revision links',
   )
   expect(screen.getByText('Étape majeure')).toBeVisible()
   expect(screen.getByText('Modification')).toBeVisible()
+  expect(
+    screen.getByText(/Clarisse Akpon · Validateur définitif/),
+  ).toBeVisible()
   expect(screen.getByText('Préciser le calendrier')).not.toBeVisible()
   await userEvent.click(screen.getAllByText('Consulter les détails')[0])
   expect(screen.getByText('Préciser le calendrier')).toBeVisible()
   await userEvent.click(screen.getAllByText('Consulter les détails')[1])
-  expect(screen.getByText(/9007199254740993 → 9007199254740994/)).toBeVisible()
+  expect(screen.getByText(/Budget \(F CFA\)/).closest('p')).toHaveTextContent(
+    '9 007 199 254 740 993 F CFA → 9 007 199 254 740 994 F CFA',
+  )
   expect(screen.getByText(/27 octobre 2026 → 28 octobre 2026/)).toBeVisible()
   expect(screen.getByText(/6 novembre 2026 à 09:00/)).toBeVisible()
   await userEvent.click(
-    screen.getByRole('button', { name: 'Consulter la révision' }),
+    screen.getByRole('button', { name: 'Voir les informations soumises' }),
   )
   expect(navigate.mock.calls[0][0].search({ revisionCursor: 'page' })).toEqual({
     revisionCursor: 'page',

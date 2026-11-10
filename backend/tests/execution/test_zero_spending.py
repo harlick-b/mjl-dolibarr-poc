@@ -75,6 +75,14 @@ def test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes(plannin
     )
     assert approved.status_code == 201, approved.text
     assert approved.json()["state"] == "approved"
+    approval_notice = next(
+        row
+        for row in planning["agent"].get("/api/v1/notifications").json()["data"]
+        if row["kind"] == "financial_approved"
+        and row["request_id"] == declaration["id"]
+    )
+    assert approval_notice["request_kind"] == "zero_spending"
+    assert approval_notice["email_status"] == "skipped"
 
     detail = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()

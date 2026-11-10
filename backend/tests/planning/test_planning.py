@@ -2306,6 +2306,47 @@ def test_activity_filtered_cursor_traverses_more_than_one_hundred_rows(planning)
     assert not final.json()["next"]
 
 
+def test_activity_list_review_filter_only_returns_work_the_reviewer_can_do(planning):
+    _partner, operation_type, project, eligible, _body = create_activity(planning)
+    excluded_response = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            **plan(operation_type, name="Contribution du superviseur"),
+            "request_key": str(uuid4()),
+        },
+    )
+    assert excluded_response.status_code == 201, excluded_response.text
+    excluded = excluded_response.json()
+    supervisor_id = (
+        planning["supervisor"].get("/api/v1/auth/session").json()["user"]["id"]
+    )
+    with Session(planning["auth"].engine) as db, db.begin():
+        db.add(
+            ActivityContributor(
+                context_id="MJL",
+                activity_id=excluded["id"],
+                user_id=supervisor_id,
+                kind="content",
+                contributed_at=planning["auth"].now(db),
+            )
+        )
+    for activity in (eligible, excluded):
+        submitted = post(
+            planning["agent"],
+            f"/api/v1/activities/{activity['id']}/submissions",
+            {"expected_version": activity["version"]},
+        )
+        assert submitted.status_code == 201, submitted.text
+
+    page = planning["supervisor"].get(
+        f"/api/v1/ptas/{eligible['pta_id']}/activities",
+        params={"state": "submitted", "review": "mine"},
+    )
+    assert page.status_code == 200, page.text
+    assert [row["id"] for row in page.json()["data"]] == [eligible["id"]]
+
+
 def test_p08_p14_closure_and_stale_versions(planning):
     partner, operation_type, project = references(planning)
     empty_partner = post(

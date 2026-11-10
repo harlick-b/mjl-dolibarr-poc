@@ -365,6 +365,9 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         }),
         client.invalidateQueries({ queryKey: ['planning', session.user.id] }),
         client.invalidateQueries({ queryKey: ['audit-history'] }),
+        client.invalidateQueries({
+          queryKey: ['notifications', session.user.id],
+        }),
       ])
       if (
         variables.path === '/disbursement-requests' ||

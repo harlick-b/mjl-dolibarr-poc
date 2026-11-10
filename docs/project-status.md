@@ -981,6 +981,81 @@ review removed an unapproved end-year cap while retaining start-year and date-or
 rules; the corrected Planning frontend rerun passed **47 tests** and the two-role
 reviewer-brief PostgreSQL rerun passed **2 tests**.
 
+## Activity History, role work filters and review notifications, 2026-11-10
+
+The Activity detail now keeps History on its own tab, presents business events in
+human French without raw identity IDs or email addresses, separates loading from
+empty/error states, shows assigned Agents in the validation summary and restores
+the approved status colors and finance affordance. Supervisors enter a PTA on
+`À examiner`; Validators enter on `À approuver`. Both defaults use the actual
+server-side contributor and no-self-review eligibility and remain removable.
+
+Activity review notifications are implemented through the existing recipient
+inbox. Submission alerts eligible Supervisors; prevalidation alerts eligible
+Validators; a return alerts assigned Agents in-app and by one plain-text email
+attempt; final approval alerts assigned Agents in-app only. Read and handled are
+separate, an already-read update is harmless, and a mail failure cannot roll back
+or replay the workflow transition. New HTML mail output is deliberately absent
+until approved templates are supplied.
+
+Corrected-candidate evidence: the independently reviewed presentation/filter
+slice passed **47 frontend tests**, **14 PostgreSQL-backed History/filter tests**,
+focused Ruff and strict audit mypy. For notifications, repeatable migration to
+`0033_activity_notifications` and plain-text mail rendering passed **2 tests**;
+the complete affected notification/reminder file passed **19 tests** on disposable
+PostgreSQL. The focused frontend campaign passed **49 tests**. Backend Ruff and
+strict mypy, frontend ESLint and `git diff --check` passed. Independent review
+found one stale reviewer-inbox cache after decisions; notification invalidation
+and a two-branch contextual regression corrected it, and the same reviewer then
+cleared the slice. Withdrawal approval remains a separate lifecycle-copy and
+recipient boundary rather than being mislabeled as ordinary Activity approval.
+Financial-request notifications are implemented in the following slice. These
+checks are implementation evidence, not human visual acceptance or production
+readiness.
+
+## Financial-request review notifications, 2026-11-10
+
+Additional-funding, disbursement, virement and zero-spending submissions now
+notify every active reviewer who is eligible when that review stage becomes
+actionable. Supervisor decisions hand the notification to eligible Validators;
+returns notify current assigned Agents in-app and by one plain-text email attempt;
+final approval notifies those Agents in-app only. Existing frozen contributor
+and no-self-review facts determine eligibility. Notifications are committed with
+the financial transition, while mail is attempted once after commit and cannot
+roll back the decision.
+
+The recipient inbox keeps read state separate from handled state, validates the
+underlying request/Activity relationship and opens financial items in the current
+`Réalisation & finances` view. Successful financial actions invalidate the
+current user's inbox cache. Migration `0034_financial_notifications` adds the
+narrow durable record. No HTML templates, retry queue, generic event system or
+named manager hierarchy were introduced.
+
+Corrected-candidate evidence: complete focused backend journeys
+passed for all four supported financial request types (**4 tests**). The affected
+notification/reminder, migration and representative plain-text mail checks passed
+**23 tests** on disposable PostgreSQL. Three focused financial UI journeys and
+the notification inbox file passed, backend Ruff and strict mypy passed, frontend
+ESLint passed, and the production build passed with the known large-chunk warning.
+Independent review found no P1/P2 issue and independently reran the four workflows,
+plain-text rendering, the affected inbox/migration checks, **31 frontend tests**,
+Ruff, strict mypy, ESLint and `git diff --check`. Real Resend delivery and browser
+E2E were not run. These checks are implementation evidence, not human acceptance
+or production readiness.
+
+Final commit review corrected stale reviewer notices after financial cancellation
+and batched inbox source lookups. Both independent specification and standards
+reviewers cleared the candidate. The final disposable-PostgreSQL rerun passed
+seven cases using `pytest -q` with funding
+`test_return_cancel_retains_pause_and_requires_fresh_decisions` and
+`test_funding_notifications_follow_the_available_reviewer`, disbursement
+`test_cancellation_or_return_releases_execution_for_fresh_request`, and virement
+`test_audit_failure_rolls_back_decision_and_cancellation`. Focused Ruff, strict
+planning mypy, `bash -n scripts/dev.sh` and `git diff --check` passed. The reviewed
+development launcher and metadata alignment for already-existing indexes are
+included; the launcher was not run against the user's development database in
+this review.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

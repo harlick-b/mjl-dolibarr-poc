@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import and_, func, or_, select, tuple_
@@ -14,6 +14,12 @@ from app.auth.models import Audit
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.execution import approved_operations, execution_facts, pause_reason
+from app.planning.financial_notifications import (
+    deliver_financial_notification,
+    mark_review_handled,
+    record_agent_notifications,
+    record_review_notifications,
+)
 from app.planning.models import (
     Activity,
     ActivityContributor,
@@ -529,7 +535,11 @@ def audit(
     openapi_extra=MUTATION_HEADERS,
 )
 def submit(
-    identifier: str, body: SubmitInput, request: Request, auth: Auth
+    identifier: str,
+    body: SubmitInput,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
@@ -569,6 +579,13 @@ def submit(
         item.updated_at = now
         db.flush()
         audit(auth, db, "disbursement.submit", actor.id, created, None)
+        notification_ids = record_review_notifications(
+            db, auth, item, created, "disbursement", "supervisor"
+        )
+        for notification_id in notification_ids:
+            background_tasks.add_task(
+                deliver_financial_notification, auth, notification_id
+            )
         result = output(db, created, actor.role, actor.id)
         result["activity_version"] = item.version
         return result
@@ -600,7 +617,12 @@ def exact_request(
     openapi_extra=MUTATION_HEADERS,
 )
 def decide(
-    identifier: str, request_id: str, body: DecisionInput, request: Request, auth: Auth
+    identifier: str,
+    request_id: str,
+    body: DecisionInput,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
@@ -660,10 +682,45 @@ def decide(
                 prevalidation_decision_id=prevalidation_id,
             )
         )
+        mark_review_handled(db, "disbursement", financial.id, stage, now)
+        if outcome == "prevalidated":
+            notification_ids = record_review_notifications(
+                db,
+                auth,
+                item,
+                financial,
+                "disbursement",
+                "validator",
+                exclude_user_id=actor.id,
+            )
+        elif outcome == "returned":
+            notification_ids = record_agent_notifications(
+                db,
+                auth,
+                item,
+                financial,
+                "disbursement",
+                kind="financial_correction",
+                reason=body.reason,
+            )
+        else:
+            notification_ids = record_agent_notifications(
+                db,
+                auth,
+                item,
+                financial,
+                "disbursement",
+                kind="financial_approved",
+            )
         item.version += 1
         item.updated_at = now
         db.flush()
         audit(auth, db, f"disbursement.{outcome}", actor.id, financial, before)
+        if outcome != "approved":
+            for notification_id in notification_ids:
+                background_tasks.add_task(
+                    deliver_financial_notification, auth, notification_id
+                )
         result = output(db, financial, actor.role, actor.id)
         result["activity_version"] = item.version
         return result
@@ -699,6 +756,13 @@ def cancel(
         financial.cancelled_by_id = actor.id
         financial.cancelled_at = now
         financial.cancellation_reason = body.reason
+        mark_review_handled(
+            db,
+            "disbursement",
+            financial.id,
+            "supervisor" if before == "submitted" else "validator",
+            now,
+        )
         item.version += 1
         item.updated_at = now
         db.flush()

@@ -1,5 +1,5 @@
 import { strings } from '@/locales/fr/AuditHistoryView'
-import { formatDate, formatDateTime } from '@/shared/lib/format'
+import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
 
 const dateFields = new Set([
   'Début prévu',
@@ -11,6 +11,8 @@ const dateFields = new Set([
 
 function readable(value, field) {
   if (!value) return '—'
+  if (field.includes('(F CFA)') && /^-?[0-9]+$/.test(value))
+    return formatXof(value)
   if (dateFields.has(field) && /^\d{4}-\d{2}-\d{2}$/.test(value))
     return formatDate(value)
   if (field === 'Début de réalisation') return formatDateTime(value)

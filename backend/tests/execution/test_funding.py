@@ -2,6 +2,7 @@
 import pytest
 
 from tests.auth.test_access import admin
+from tests.auth.test_auth import messages
 from tests.execution.test_execution import approved_execution_activity
 from tests.planning.test_amendments import open_amendment
 from tests.planning.test_planning import patch, planning, post, references
@@ -135,6 +136,62 @@ def execution(clients, activity):
     return response.json()
 
 
+def test_funding_notifications_follow_the_available_reviewer(planning):
+    activity = increase(planning, approved_execution_activity(planning))
+    request = submit(planning, activity)
+
+    supervisor_notice = next(
+        row
+        for row in planning["supervisor"].get("/api/v1/notifications").json()[
+            "data"
+        ]
+        if row["kind"] == "financial_review"
+        and row["request_id"] == request["id"]
+    )
+    assert supervisor_notice["request_kind"] == "funding"
+    assert supervisor_notice["stage"] == "supervisor"
+    assert not any(
+        row.get("request_id") == request["id"]
+        for row in planning["validator"].get("/api/v1/notifications").json()["data"]
+    )
+
+    prevalidated = decide(
+        planning, activity, request, "supervisor", "prevalidate"
+    )
+    assert prevalidated.status_code == 201, prevalidated.text
+    request = prevalidated.json()
+    validator_notice = next(
+        row
+        for row in planning["validator"].get("/api/v1/notifications").json()["data"]
+        if row["kind"] == "financial_review"
+        and row["request_id"] == request["id"]
+    )
+    assert validator_notice["stage"] == "validator"
+
+    returned = decide(
+        planning,
+        activity,
+        request,
+        "validator",
+        "return",
+        reason="Justification du financement à préciser.",
+    )
+    assert returned.status_code == 201, returned.text
+    correction = next(
+        row
+        for row in planning["agent"].get("/api/v1/notifications").json()["data"]
+        if row["kind"] == "financial_correction"
+        and row["request_id"] == request["id"]
+    )
+    assert correction["reason"] == "Justification du financement à préciser."
+    mail_kinds = {row["kind"] for row in messages(planning["auth"].mail.directory)}
+    assert {
+        "financial_review_supervisor",
+        "financial_review_validator",
+        "financial_correction",
+    } <= mail_kinds
+
+
 @pytest.mark.parametrize("release", ["return", "cancel"])
 def test_return_cancel_retains_pause_and_requires_fresh_decisions(planning, release):
     activity = increase(planning, approved_execution_activity(planning))
@@ -159,6 +216,13 @@ def test_return_cancel_retains_pause_and_requires_fresh_decisions(planning, rele
         )
     assert response.status_code == 201, response.text
     assert execution(planning, activity)["pause_reason"] == "funding_required"
+    notice = next(
+        row
+        for row in planning["supervisor"].get("/api/v1/notifications").json()["data"]
+        if row.get("request_id") == request["id"]
+    )
+    assert notice["handled_at"] is not None
+    assert notice["read_at"] is None
     assert (
         decide(planning, activity, response.json(), "validator", "approve").status_code
         == 409

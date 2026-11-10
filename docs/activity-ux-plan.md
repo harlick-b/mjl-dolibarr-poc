@@ -240,3 +240,129 @@ cleared their concrete code findings; review is not user acceptance or productio
 readiness. After final review removed an unapproved end-year restriction, the
 affected Planning frontend rerun passed 47 tests and the two-role reviewer-brief
 PostgreSQL rerun passed 2 tests; cross-year ends retain ordered-date validation.
+
+## Follow-up — review work, Activity History and notifications
+
+Authorized 2026-11-10. Implementation is in progress. The supplied Activity
+detail, History, finance and PTA-table references govern presentation.
+
+### Confirmed outcome
+
+- Activity confirmation dialogs name the decision and explain its result in
+  ordinary French. `À prévalider` becomes `À examiner` in user-facing planning
+  review labels.
+- Activity History is visible only on its tab. Initial loading, failure, empty
+  and populated states are mutually exclusive; a background refresh preserves
+  existing content. Attachments follow the same state rule.
+- History uses the supplied timeline composition and human-readable event copy,
+  names, roles, dates and amounts. Its API projection excludes email addresses,
+  raw identifiers, internal role codes and contributor dumps. Older unavailable
+  facts use a neutral fallback and are never invented.
+- Revision numbers disappear from routine Activity headers and PTA rows. The
+  immutable saved revisions remain the approval mechanism and may be opened from
+  History through human wording such as `Voir les informations soumises`.
+- `Budget et validation` includes `Assignée à` with the responsible Agent names.
+  Shared status badges use the approved semantic colors from the supplied
+  references. `Réalisation & finances` remains available after final approval;
+  before approval the screen explains when it becomes available.
+- Supervisors enter a PTA with the removable actionable filter `À examiner`.
+  Validators enter with `À approuver`. These defaults show only requests the
+  current user is eligible to decide; explicit filters and other actions remain
+  available. Agent `Mes activités` behavior remains unchanged.
+
+### Notification contract
+
+- When an Activity or supported financial request reaches Supervisor review,
+  notify every active Supervisor currently eligible to decide. After successful
+  prevalidation, notify every active Validator currently eligible to decide.
+  Eligibility reuses the actual no-self-review/contributor rules, not role alone.
+- Notify assigned Agents when an Activity or financial request is returned for
+  correction, in-app and by email. Notify assigned Agents after final approval
+  in-app only.
+- One notification exists per recipient, request identity and review stage.
+  Replay creates none; a fresh resubmission after correction creates a new set.
+  The notification is committed with the transition and email is attempted once
+  after commit. Email failure never rolls back or invites a duplicate transition.
+- Reading and handling are distinct. A notification remains historical when
+  another reviewer acts, but presents `Déjà traitée`/`Consulter` rather than a
+  stale action. Opening an Activity is not blocked by a mark-read failure, and an
+  already-read update is harmless across tabs.
+- The inbox and unread count work for Agents, Supervisors and Validators and are
+  named `Notifications`, not `Relances`. Links reauthorize and show current state.
+- New email content is plain text only in this slice. Approved HTML will be
+  supplied later. New mail kinds: Activity to examine, Activity to approve,
+  financial request to examine, financial request to approve, Activity returned
+  for correction and financial request returned for correction. Activity and
+  financial-request final approval are in-app only.
+
+### Slices and progress
+
+1. **Activity presentation and History** — implemented and independently
+   reviewed. History is tab-scoped and exposes human names/roles without actor IDs
+   or emails; loading and empty states are exclusive; submitted snapshots use
+   formatted dates and XOF amounts. Confirmation copy, assignment summary,
+   revision wording, finance availability and semantic badges are updated.
+2. **Role work filters** — implemented and independently reviewed. The API
+   applies actual contributor/no-self-review eligibility for `review=mine`;
+   Router-backed Supervisor `À examiner` and Validator `À approuver` defaults are
+   removable, including in the calendar, while explicit state filters stay broad.
+3. **Review notifications and inbox** — implemented and independently reviewed.
+   Activity transitions create durable eligible-recipient notifications, preserve
+   separate read/handled state and use plain-text-only mail for examination,
+   approval-stage and correction messages. Final approval is in-app only.
+4. **Financial notifications** — implemented and independently reviewed. The
+   existing additional-funding, décaissement, virement and zero-spending
+   transitions now create the same eligible-recipient, handled/read and Agent
+   outcome notifications. Review and correction mail is plain text only; final
+   approval remains in-app only. Financial inbox entries open the current
+   `Réalisation & finances` view.
+
+Each slice gets focused workflow checks, updated progress/lessons and independent
+review. HTML email output remains explicitly deferred until the user supplies the
+approved templates.
+
+Slice 1–2 evidence on the current candidate: 47 focused frontend tests passed
+across Planning, calendar pagination and Activity timeline; ESLint had no errors
+and retained one unrelated pre-existing hooks warning. Fourteen PostgreSQL-backed
+History/filter workflow tests passed against a fresh disposable database, and
+focused Ruff and strict audit mypy passed. The same independent reviewer cleared
+the corrected candidate after raw identifiers, mixed loading/empty states and
+current-role historical attribution were removed. A concrete test lesson was to
+keep the global Admin audit shape unchanged while using a narrower Activity History response projection;
+the role needed for human display is therefore added only to the Activity view.
+
+Slice 3 evidence on the current candidate: repeatable upgrade to migration
+`0033_activity_notifications` and plain-text-only mail rendering passed; the
+complete affected notification/reminder file passed 19 PostgreSQL-backed tests.
+The focused frontend Activity/History/notification campaign passed 49 tests.
+Backend Ruff, strict mypy, frontend ESLint and `git diff --check` passed. The
+adjacent-test lesson was to assert notification kinds rather than assume the
+inbox contains only deadline reminders. Review found and cleared a stale inbox
+cache after decisions by invalidating the current user's notification queries;
+the two-branch contextual regression passed. Withdrawal approval remains a
+separate lifecycle-copy/recipient boundary and is not mislabeled as ordinary
+Activity approval. HTML email output remains deferred.
+
+Slice 4 focused evidence on the current candidate: one complete backend journey
+for each of the four financial request types passed, including staged recipient
+progression and the final Agent in-app notice. The complete affected
+notification/reminder file plus migration compatibility and representative
+plain-text rendering passed 23 PostgreSQL-backed tests. Three focused financial
+UI journeys and the two-notification inbox file passed. Backend Ruff and strict
+mypy, frontend ESLint and the production build passed; the build retains the
+known large-chunk warning. The implementation lesson was to reuse each request's
+frozen contributor exclusions rather than introduce a separate manager hierarchy
+or notification workflow. Inbox projection also verifies that the referenced
+request still belongs to the Activity, and successful financial actions refresh
+the current user's notification cache. Independent review cleared the slice with
+no P1/P2 findings after rerunning all four workflow journeys, the affected inbox,
+mail and migration checks, 31 frontend notification/Execution tests, Ruff,
+strict mypy, ESLint and `git diff --check`. Real Resend delivery and browser E2E
+remain acceptance evidence outside this code-review gate.
+
+Final commit review corrected two findings: financial cancellation now marks the
+pending reviewer notice handled while preserving unread status, and financial
+source validation uses grouped queries rather than one query per inbox row.
+Both independent reviewers cleared the corrections. The focused PostgreSQL
+rerun passed seven funding/disbursement/virement cancellation, return, inbox and
+rollback cases; Ruff, strict planning mypy and diff checks passed.

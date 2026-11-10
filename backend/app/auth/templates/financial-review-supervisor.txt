@@ -1,0 +1,5 @@
+Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
+
+La {{ request_label }} liée à l’activité {{ activity_reference }} - {{ activity_name }} nécessite votre examen.
+
+Connectez-vous à MJL pour consulter la demande et rendre votre décision.

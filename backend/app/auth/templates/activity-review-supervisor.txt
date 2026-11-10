@@ -1,0 +1,5 @@
+Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
+
+L’activité {{ activity_reference }} - {{ activity_name }} a été soumise et nécessite votre examen.
+
+Connectez-vous à MJL pour consulter les informations soumises et rendre votre décision.

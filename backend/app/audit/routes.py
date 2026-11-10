@@ -56,6 +56,11 @@ class ActorOutput(Output):
     full_name: str | None
 
 
+class ActivityActorOutput(Output):
+    full_name: str
+    role: str | None
+
+
 class ChangeOutput(Output):
     field: str
     before: str | None
@@ -89,6 +94,30 @@ class AuditList(Output):
     object: Literal["list"]
     count: int
     data: list[AuditOutput]
+    next: str | None
+    previous: str | None
+
+
+class ActivityAuditOutput(Output):
+    id: int
+    occurred_at: str
+    action: str
+    label: str
+    outcome: str
+    actor: ActivityActorOutput | None
+    changes: list[ChangeOutput]
+    subject: str | None
+    reason: str | None
+    milestone: bool
+    amendment_id: str | None
+    revision_id: str | None
+    facts: list[ChangeOutput]
+
+
+class ActivityAuditList(Output):
+    object: Literal["list"]
+    count: int
+    data: list[ActivityAuditOutput]
     next: str | None
     previous: str | None
 
@@ -281,7 +310,11 @@ CHANGE_FIELDS = {
 
 
 def public_changes(
-    row: Audit, identity_labels: dict[str, str] | None = None
+    row: Audit,
+    identity_labels: dict[str, str] | None = None,
+    operation_type_labels: dict[str, str] | None = None,
+    *,
+    human_activity: bool = False,
 ) -> list[dict[str, str | None]]:
     facts = (
         row.business if isinstance(row.business, dict) and row.business else row.details
@@ -335,11 +368,35 @@ def public_changes(
         old, new = old_ops.get(identifier, {}), new_ops.get(identifier, {})
         for field in ("name", "type_id", "allocation", "position"):
             if old.get(field) != new.get(field):
+                operation_name = old.get("name") or new.get("name")
+                operation_label = (
+                    str(operation_name)
+                    if human_activity and operation_name
+                    else "indisponible"
+                    if human_activity
+                    else identifier
+                )
+                before_value = display_value(old.get(field), field)
+                after_value = display_value(new.get(field), field)
+                if human_activity and field == "type_id":
+                    labels = operation_type_labels or {}
+                    before_value = (
+                        labels.get(str(old.get(field)), "Catégorie indisponible")
+                        if old.get(field)
+                        else None
+                    )
+                    after_value = (
+                        labels.get(str(new.get(field)), "Catégorie indisponible")
+                        if new.get(field)
+                        else None
+                    )
                 result.append(
                     {
-                        "field": f"Opération {identifier} · {CHANGE_FIELDS[field]}",
-                        "before": display_value(old.get(field), field),
-                        "after": display_value(new.get(field), field),
+                        "field": (
+                            f"Opération {operation_label} · {CHANGE_FIELDS[field]}"
+                        ),
+                        "before": before_value,
+                        "after": after_value,
                     }
                 )
     if before.get("agent_ids") != after.get("agent_ids"):
@@ -449,7 +506,21 @@ def event_facts(row: Audit) -> list[dict[str, str | None]]:
     ]
 
 
-def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
+def recorded_actor_role(row: Audit) -> str | None:
+    facts = row.business if isinstance(row.business, dict) else {}
+    for candidate in (facts.get("decision"), facts.get("revision"), facts):
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("actor_id") == row.actor
+            and isinstance(candidate.get("actor_role"), str)
+        ):
+            return display_value(candidate["actor_role"], "role")
+    return None
+
+
+def projected_rows(
+    db: Session, rows: list[Audit], *, include_actor_role: bool = False
+) -> list[dict[str, Any]]:
     actor_ids = {row.actor for row in rows if len(row.actor) == 36}
     users = {
         user.id: user for user in db.scalars(select(User).where(User.id.in_(actor_ids)))
@@ -464,8 +535,34 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
                     value for value in side["agent_ids"] if isinstance(value, str)
                 )
     identity_labels = {
-        user.id: user.full_name or user.email
+        user.id: (
+            user.full_name
+            or ("Identité indisponible" if include_actor_role else user.email)
+        )
         for user in db.scalars(select(User).where(User.id.in_(assignment_identity_ids)))
+    }
+    operation_type_ids: set[str] = set()
+    if include_actor_role:
+        for row in rows:
+            row_facts = row.business if isinstance(row.business, dict) else {}
+            for side_name in ("before", "after"):
+                side = row_facts.get(side_name)
+                if isinstance(side, dict):
+                    content = side.get("content")
+                    if isinstance(content, dict):
+                        side = {**side, **content}
+                    operations = side.get("operations")
+                    if isinstance(operations, list):
+                        operation_type_ids.update(
+                            str(operation["type_id"])
+                            for operation in operations
+                            if isinstance(operation, dict) and operation.get("type_id")
+                        )
+    operation_type_labels = {
+        item.id: item.label
+        for item in db.scalars(
+            select(OperationType).where(OperationType.id.in_(operation_type_ids))
+        )
     }
     activity_ids = {
         activity_id
@@ -540,11 +637,25 @@ def projected_rows(db: Session, rows: list[Audit]) -> list[dict[str, Any]]:
                 "label": ACTION_LABELS.get(row.action, "Événement enregistré"),
                 "outcome": row.outcome,
                 "actor": (
-                    {"id": user.id, "email": user.email, "full_name": user.full_name}
+                    {
+                        "id": user.id,
+                        "email": user.email,
+                        "full_name": user.full_name,
+                        **(
+                            {"role": recorded_actor_role(row)}
+                            if include_actor_role
+                            else {}
+                        ),
+                    }
                     if user
                     else None
                 ),
-                "changes": public_changes(row, identity_labels),
+                "changes": public_changes(
+                    row,
+                    identity_labels,
+                    operation_type_labels,
+                    human_activity=include_actor_role,
+                ),
                 "amendment_id": amendment.get("id"),
                 "reason": event_reason(row)
                 or withdrawal_reasons.get(str(revision.get("id", ""))),
@@ -658,7 +769,7 @@ def audit_events(
     return history_page(request, auth, pagination, filters)
 
 
-@router.get("/activities/{identifier}/history", response_model=AuditList)
+@router.get("/activities/{identifier}/history", response_model=ActivityAuditList)
 def activity_history(
     identifier: str,
     request: Request,
@@ -745,10 +856,31 @@ def history_page(
             )
             return f"{auth.policy.origin}/api/v1{path}?{query}"
 
+        data = projected_rows(db, rows, include_actor_role=bool(activity_id))
+        if activity_id:
+            data = [
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key != "activity"
+                }
+                | {
+                    "actor": (
+                        {
+                            "full_name": row["actor"]["full_name"]
+                            or "Utilisateur indisponible",
+                            "role": row["actor"]["role"],
+                        }
+                        if row["actor"]
+                        else None
+                    )
+                }
+                for row in data
+            ]
         return {
             "object": "list",
             "count": total,
-            "data": projected_rows(db, rows),
+            "data": data,
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

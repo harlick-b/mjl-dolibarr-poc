@@ -18,6 +18,15 @@ import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
 
 const notificationRoot = ['notifications']
 
+function financialRequestLabel(kind) {
+  return {
+    funding: strings.fundingRequest,
+    disbursement: strings.disbursementRequest,
+    virement: strings.virementRequest,
+    zero_spending: strings.zeroSpendingRequest,
+  }[kind]
+}
+
 export function NotificationView({ embedded = false, onSelect }) {
   const session = useSessionQuery()
   if (session.isPending) return <NotificationsLoading />
@@ -145,7 +154,13 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                     className={item.read_at ? '' : 'font-medium text-primary'}
                   >
                     {!item.read_at && <span aria-hidden="true">● </span>}
-                    {item.read_at ? strings.read : strings.unread}
+                    {item.handled_at
+                      ? item.read_at
+                        ? strings.handled
+                        : strings.handledUnread
+                      : item.read_at
+                        ? strings.read
+                        : strings.unread}
                   </span>
                   <time dateTime={item.created_at}>
                     {formatDateTime(item.created_at)}
@@ -154,7 +169,23 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                 <h3 className="mb-2 text-sm font-semibold text-navy">
                   {item.kind === 'assignment'
                     ? strings.assignmentTitle
-                    : strings.deadlineTitle}
+                    : item.kind === 'activity_review'
+                      ? item.stage === 'supervisor'
+                        ? strings.reviewSupervisorTitle
+                        : strings.reviewValidatorTitle
+                      : item.kind === 'activity_correction'
+                        ? strings.correctionTitle
+                        : item.kind === 'activity_approved'
+                          ? strings.approvedTitle
+                          : item.kind === 'financial_review'
+                            ? item.stage === 'supervisor'
+                              ? strings.financialReviewSupervisorTitle
+                              : strings.financialReviewValidatorTitle
+                            : item.kind === 'financial_correction'
+                              ? strings.financialCorrectionTitle
+                              : item.kind === 'financial_approved'
+                                ? strings.financialApprovedTitle
+                                : strings.deadlineTitle}
                 </h3>
                 <p className="text-sm text-navy">{item.activity_name}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -164,9 +195,49 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                         pta: item.pta_name,
                         project: item.project_name,
                       })
-                    : strings.formatString(strings.deadline, {
-                        date: formatDate(item.planned_end),
-                      })}
+                    : item.kind === 'activity_review'
+                      ? item.stage === 'supervisor'
+                        ? strings.reviewSupervisor
+                        : strings.reviewValidator
+                      : item.kind === 'activity_correction'
+                        ? strings.formatString(strings.correction, {
+                            reason: item.reason,
+                          })
+                        : item.kind === 'activity_approved'
+                          ? strings.approved
+                          : item.kind === 'financial_review'
+                            ? strings.formatString(
+                                item.stage === 'supervisor'
+                                  ? strings.financialReviewSupervisor
+                                  : strings.financialReviewValidator,
+                                {
+                                  request: financialRequestLabel(
+                                    item.request_kind,
+                                  ),
+                                },
+                              )
+                            : item.kind === 'financial_correction'
+                              ? strings.formatString(
+                                  strings.financialCorrection,
+                                  {
+                                    request: financialRequestLabel(
+                                      item.request_kind,
+                                    ),
+                                    reason: item.reason,
+                                  },
+                                )
+                              : item.kind === 'financial_approved'
+                                ? strings.formatString(
+                                    strings.financialApproved,
+                                    {
+                                      request: financialRequestLabel(
+                                        item.request_kind,
+                                      ),
+                                    },
+                                  )
+                                : strings.formatString(strings.deadline, {
+                                    date: formatDate(item.planned_end),
+                                  })}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <span className="text-muted-foreground">
@@ -175,7 +246,11 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                   </span>
                   <Link
                     className="inline-flex items-center gap-2 font-medium text-primary"
-                    to="/activities/$activityId"
+                    to={
+                      item.kind.startsWith('financial_')
+                        ? '/execution/activities/$activityId'
+                        : '/activities/$activityId'
+                    }
                     params={{ activityId: item.activity_id }}
                     aria-disabled={read.isPending}
                     onClick={async (event) => {
@@ -190,7 +265,9 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                         await read.mutateAsync(item)
                         if (current !== generation.current) return
                         await navigate({
-                          to: '/activities/$activityId',
+                          to: item.kind.startsWith('financial_')
+                            ? '/execution/activities/$activityId'
+                            : '/activities/$activityId',
                           params: { activityId: item.activity_id },
                         })
                         onSelect?.()
@@ -198,12 +275,22 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                         if (
                           error.name !== 'AbortError' &&
                           current === generation.current
-                        )
+                        ) {
                           toast.error(strings.readFailed)
+                          await navigate({
+                            to: item.kind.startsWith('financial_')
+                              ? '/execution/activities/$activityId'
+                              : '/activities/$activityId',
+                            params: { activityId: item.activity_id },
+                          })
+                          onSelect?.()
+                        }
                       }
                     }}
                   >
-                    {strings.openActivity}
+                    {item.handled_at
+                      ? strings.consultActivity
+                      : strings.openActivity}
                     <ArrowRight size={14} aria-hidden="true" />
                   </Link>
                 </div>

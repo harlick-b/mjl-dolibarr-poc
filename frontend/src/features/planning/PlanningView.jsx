@@ -6,6 +6,7 @@ import { readCalendar } from './calendar'
 import { PlanningActivities } from './PlanningActivities'
 import { PlanningSummary } from './PlanningSummary'
 import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
+import { activityStatusClass } from './activity-status'
 import { CategoryCreator } from './CategoryCreator'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
@@ -32,6 +33,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import {
   addThreeMonths,
   formatDate,
+  formatDateTime,
   formatXof,
   localDateInput,
 } from '@/shared/lib/format'
@@ -188,6 +190,7 @@ function Workspace({ screen, session, onDenied }) {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['planning', user.id] }),
         client.invalidateQueries({ queryKey: ['execution', user.id] }),
+        client.invalidateQueries({ queryKey: ['notifications', user.id] }),
         ...(workflowActivityId(variables.path)
           ? [client.invalidateQueries({ queryKey: ['access'] })]
           : []),
@@ -284,7 +287,7 @@ function Workspace({ screen, session, onDenied }) {
   const historyActive =
     screen === 'activity' &&
     Boolean(params.activityId) &&
-    Boolean(search.tab === 'history' || search.revision || search.amendment)
+    search.tab === 'history'
   const revisions = useQuery({
     ...planningQuery(
       api,
@@ -306,7 +309,7 @@ function Workspace({ screen, session, onDenied }) {
       `/activities/${params.activityId}/revisions/${search.revision}`,
       onDenied,
     ),
-    enabled: Boolean(params.activityId && search.revision),
+    enabled: Boolean(historyActive && search.revision),
   })
   const selectedAmendment = useQuery({
     ...planningQuery(
@@ -316,7 +319,7 @@ function Workspace({ screen, session, onDenied }) {
       `/activities/${params.activityId}/amendments/${search.amendment}`,
       onDenied,
     ),
-    enabled: Boolean(params.activityId && search.amendment),
+    enabled: Boolean(historyActive && search.amendment),
   })
   const reconciliationBlocked = Boolean(
     workflowReconciliation &&
@@ -332,9 +335,24 @@ function Workspace({ screen, session, onDenied }) {
   )
   const calendarView = search.view === 'calendar'
   const ownActivities = user.role === 'AGENT_SAISIE'
+  const reviewerState =
+    user.role === 'AGENT_VERIFICATEUR'
+      ? 'submitted'
+      : user.role === 'VALIDATEUR_DEFINITIF'
+        ? 'prevalidated'
+        : ''
+  const reviewMine = Boolean(
+    reviewerState && search.review !== 'all' && !search.state,
+  )
+  const effectiveState = reviewMine ? reviewerState : search.state
   const effectiveAgent =
     ownActivities && search.mine !== 'all' ? user.id : search.agent
-  const activityFilters = { ...search, agent: effectiveAgent }
+  const activityFilters = {
+    ...search,
+    state: effectiveState,
+    review: reviewMine ? 'mine' : '',
+    agent: effectiveAgent,
+  }
   const list = useQuery({
     ...planningQuery(
       api,
@@ -344,7 +362,8 @@ function Workspace({ screen, session, onDenied }) {
         context.data?.pta?.id,
         calendarView ? 'calendar' : search.activityCursor,
         search.q,
-        search.state,
+        effectiveState,
+        reviewMine,
         effectiveAgent,
         search.from,
         search.to,
@@ -352,7 +371,8 @@ function Workspace({ screen, session, onDenied }) {
       `/ptas/${context.data?.pta?.id}/activities?${new URLSearchParams({
         ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
         ...(search.q ? { q: search.q } : {}),
-        ...(search.state ? { state: search.state } : {}),
+        ...(effectiveState ? { state: effectiveState } : {}),
+        ...(reviewMine ? { review: 'mine' } : {}),
         ...(effectiveAgent ? { agent: effectiveAgent } : {}),
         ...(search.from ? { from: search.from } : {}),
         ...(search.to ? { to: search.to } : {}),
@@ -542,6 +562,14 @@ function Workspace({ screen, session, onDenied }) {
       {screen === 'pta' && (
         <PTA
           ownActivities={ownActivities}
+          activityFilters={activityFilters}
+          reviewLabel={
+            reviewMine
+              ? user.role === 'AGENT_VERIFICATEUR'
+                ? strings.awaitingPrevalidation
+                : strings.awaitingFinalValidation
+              : ''
+          }
           onDenied={denyWorkspace}
           projects={projects}
           context={context.data}
@@ -645,6 +673,7 @@ function Workspace({ screen, session, onDenied }) {
             selectedRevision.isFetching ||
             selectedAmendment.isFetching
           }
+          historyFailed={historyActive && revisions.isError && !revisions.data}
           selectedRevision={selectedRevision.data}
           selectedAmendment={selectedAmendment.data}
           onDenied={denyWorkspace}
@@ -1078,6 +1107,8 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
 
 function PTA({
   ownActivities,
+  activityFilters,
+  reviewLabel,
   context,
   result,
   navigate,
@@ -1260,8 +1291,9 @@ function PTA({
           year={context.year}
           ptaId={context.pta?.id}
           month={search.month}
-          filters={search}
+          filters={activityFilters}
           ownActivities={ownActivities}
+          reviewLabel={reviewLabel}
           onFilter={(values) =>
             navigate({
               search: (current) => ({
@@ -2147,6 +2179,7 @@ function ActivityDetail({
   mutationBlocked,
   revisions,
   historyLoading,
+  historyFailed,
   selectedRevision,
   selectedAmendment,
   onDenied,
@@ -2491,7 +2524,7 @@ function ActivityDetail({
             {item.project_name} · {item.partner_name} · {item.pta_name}
           </p>
           <span
-            className={`w-fit rounded-card px-2 py-1 text-xs ${['approved', 'closed'].includes(item.state) ? 'bg-success-badge text-success' : item.state.startsWith('returned') ? 'bg-warning-soft text-warning' : 'bg-selected text-primary'}`}
+            className={`w-fit rounded-card px-2 py-1 text-xs ${activityStatusClass(item.state)}`}
           >
             {strings[item.state] || item.state}
           </span>
@@ -2535,14 +2568,6 @@ function ActivityDetail({
               </dt>
               <dd className="mt-1 font-medium">
                 {item.planned_end ? formatDate(item.planned_end) : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                {strings.revision}
-              </dt>
-              <dd className="mt-1 font-medium">
-                {item.current_revision_number || '—'}
               </dd>
             </div>
           </dl>
@@ -2720,7 +2745,12 @@ function ActivityDetail({
             key={tab}
             to="/activities/$activityId"
             params={{ activityId: item.id }}
-            search={(current) => ({ ...current, tab })}
+            search={(current) => ({
+              ...current,
+              tab,
+              revision: tab === 'history' ? current.revision : undefined,
+              amendment: tab === 'history' ? current.amendment : undefined,
+            })}
             activeOptions={{ exact: true, includeSearch: true }}
             className={`border-b-2 py-3 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
           >
@@ -2737,6 +2767,11 @@ function ActivityDetail({
           </Link>
         )}
       </nav>
+      {!item.approved_revision_id && (
+        <p className="text-sm text-muted-foreground">
+          {strings.financeAfterApproval}
+        </p>
+      )}
       <div hidden={search.tab && search.tab !== 'programming'}>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
           <div className="grid gap-6">
@@ -2830,6 +2865,16 @@ function ActivityDetail({
               <dl className="grid gap-6 p-5 text-sm">
                 <div>
                   <dt className="text-muted-foreground">
+                    {strings.assignedTo}
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {(item.agents || [])
+                      .map((agent) => agent.full_name || agent.email)
+                      .join(', ') || '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
                     {item.state === 'draft'
                       ? strings.createdBy
                       : item.state === 'submitted'
@@ -2905,29 +2950,26 @@ function ActivityDetail({
           />
         </div>
       )}
-      {(search.tab === 'history' || search.revision || search.amendment) && (
+      {search.tab === 'history' && (
         <section
           aria-labelledby="activity-history-title"
           className="rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:p-5 [&>h3]:font-semibold"
         >
           <h3 id="activity-history-title">{strings.revisionHistory}</h3>
-          {!revisions?.data?.length ? (
+          {historyFailed ? null : historyLoading && !revisions ? (
+            <LoadingPlaceholder label={strings.historyLoading} />
+          ) : !revisions?.data?.length ? (
             <EmptyContent kind="activityHistory" />
           ) : (
             <ActivityTimeline events={revisions.data} navigate={navigate} />
           )}
-          {historyLoading && (
-            <LoadingPlaceholder label={strings.historyLoading} />
-          )}
           {selectedRevision?.snapshot && (
-            <div className="border border-border rounded-card mt-4 p-4">
-              <h4>Révision {selectedRevision.revision_number}</h4>
-              <p>
-                {selectedRevision.snapshot.partner.name} ·{' '}
-                {selectedRevision.snapshot.project.reference} —{' '}
-                {selectedRevision.snapshot.project.name} · PTA{' '}
-                {selectedRevision.snapshot.pta.year} ·{' '}
-                {selectedRevision.snapshot.activity.reference}
+            <div className="m-5 grid gap-4 rounded-card border border-border p-4">
+              <h4 className="font-semibold">{strings.submittedInformation}</h4>
+              <p className="text-sm text-muted-foreground">
+                {selectedRevision.snapshot.project.name} ·{' '}
+                {selectedRevision.snapshot.partner.name} · PTA{' '}
+                {selectedRevision.snapshot.pta.year}
               </p>
               {selectedRevision.snapshot.withdrawal && (
                 <p>
@@ -2943,15 +2985,18 @@ function ActivityDetail({
                   {selectedRevision.snapshot.transfer.target_year}
                 </p>
               )}
+              <p className="font-medium">{selectedRevision.snapshot.name}</p>
               <p>
-                {selectedRevision.snapshot.name} ·{' '}
-                {selectedRevision.snapshot.planned_start} au{' '}
-                {selectedRevision.snapshot.planned_end}
+                {formatDate(selectedRevision.snapshot.planned_start)} au{' '}
+                {formatDate(selectedRevision.snapshot.planned_end)}
               </p>
               <p>{selectedRevision.snapshot.description}</p>
-              <p>{formatXof(selectedRevision.snapshot.allocation)}</p>
-              <h5>{strings.operations}</h5>
-              <ol>
+              <p>
+                <strong>{strings.budget} :</strong>{' '}
+                {formatXof(selectedRevision.snapshot.allocation)}
+              </p>
+              <h5 className="font-semibold">{strings.operations}</h5>
+              <ol className="grid gap-2">
                 {selectedRevision.snapshot.operations.map((operation) => (
                   <li key={operation.id}>
                     {operation.type_label} — {operation.name} ·{' '}
@@ -2959,31 +3004,19 @@ function ActivityDetail({
                   </li>
                 ))}
               </ol>
-              <p>
-                Soumise par {selectedRevision.snapshot.submitter.email} le{' '}
-                {selectedRevision.snapshot.submitted_at}
+              <p className="text-sm text-muted-foreground">
+                {strings.submittedOn}{' '}
+                {formatDateTime(selectedRevision.snapshot.submitted_at)}
               </p>
-              <p>
-                Agents coordonnés :{' '}
-                {selectedRevision.snapshot.agents
-                  .map((row) => row.email)
-                  .join(', ') || 'Aucun'}
-              </p>
-              <p>
-                Contributeurs :{' '}
-                {selectedRevision.snapshot.contributors
-                  .map((row) => `${row.email} (${row.role})`)
-                  .join(', ')}
-              </p>
-              <h5>Décisions</h5>
+              <h5 className="font-semibold">{strings.decisions}</h5>
               {!selectedRevision.decisions.length ? (
                 <p>Aucune décision.</p>
               ) : (
                 <ol>
                   {selectedRevision.decisions.map((decision) => (
                     <li key={decision.id}>
-                      {strings[decision.outcome] || decision.outcome} —{' '}
-                      {decision.actor_role} · {decision.decided_at}
+                      {strings[decision.outcome] || decision.outcome} ·{' '}
+                      {formatDateTime(decision.decided_at)}
                       {decision.reason ? ` — ${decision.reason}` : ''}
                       {decision.requested_amount
                         ? ` — ${formatXof(decision.requested_amount)}`
@@ -2995,7 +3028,7 @@ function ActivityDetail({
             </div>
           )}
           {selectedAmendment && (
-            <div className="border border-border rounded-card mt-4 p-4">
+            <div className="m-5 grid gap-3 rounded-card border border-border p-4">
               <h4>
                 {selectedAmendment.status === 'cancelled'
                   ? 'Modification annulée'
@@ -3004,9 +3037,8 @@ function ActivityDetail({
                     : 'Modification en cours'}
               </h4>
               <p>{selectedAmendment.reason}</p>
-              <p>
-                Ouverte par {selectedAmendment.opened_by_id} le{' '}
-                {selectedAmendment.opened_at}
+              <p className="text-sm text-muted-foreground">
+                {strings.openedOn} {formatDateTime(selectedAmendment.opened_at)}
               </p>
               <PlanningVersion
                 title={strings.candidateVersion}
@@ -3014,8 +3046,8 @@ function ActivityDetail({
               />
               {selectedAmendment.cancellation && (
                 <p>
-                  Annulée par {selectedAmendment.cancellation.actor_id} le{' '}
-                  {selectedAmendment.cancellation.occurred_at} —{' '}
+                  {strings.cancelledOn}{' '}
+                  {formatDateTime(selectedAmendment.cancellation.occurred_at)} —{' '}
                   {selectedAmendment.cancellation.reason}
                 </p>
               )}
@@ -3064,9 +3096,9 @@ function ActivityDetail({
         }}
         label={
           workflowAction === 'prevalidate'
-            ? strings.prevalidate
+            ? strings.prevalidationConfirmation
             : workflowAction === 'approve'
-              ? strings.authorize
+              ? strings.approvalConfirmation
               : strings.workflowConfirmation
         }
         opener={workflowOpener}
@@ -3080,13 +3112,17 @@ function ActivityDetail({
           )}
           {['prevalidate', 'approve'].includes(workflowAction) && (
             <>
-              <p className="font-medium">{item.name}</p>
-              <div className="flex items-center justify-between gap-4 border-b border-border pb-4 text-sm">
-                <span>
-                  {strings.revision} {item.current_revision_number || '—'}
-                </span>
+              <p>
+                {strings.formatString(
+                  workflowAction === 'prevalidate'
+                    ? strings.prevalidationExplanation
+                    : strings.approvalExplanation,
+                  item.name,
+                )}
+              </p>
+              <p className="border-b border-border pb-4 text-sm">
                 <strong>{formatXof(item.allocation)}</strong>
-              </div>
+              </p>
               <label>
                 {strings.observation}
                 <textarea
@@ -3274,9 +3310,11 @@ function ActivityDetail({
               </Button>
             ) : (
               <Button type="submit" disabled={mutationBlocked}>
-                {['prevalidate', 'approve'].includes(workflowAction)
-                  ? strings.confirmDecision
-                  : strings.confirm}
+                {workflowAction === 'prevalidate'
+                  ? strings.prevalidateAndSend
+                  : workflowAction === 'approve'
+                    ? strings.approveActivity
+                    : strings.confirm}
               </Button>
             )}
           </footer>

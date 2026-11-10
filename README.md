@@ -78,6 +78,18 @@ npm --prefix frontend ci
 (cd backend && uv sync --frozen --python 3.13)
 ```
 
+Start the complete app in development mode from the repository root:
+
+```bash
+./scripts/dev.sh
+```
+
+This command uses `DATABASE_URL`, `MJL_BACKEND_PORT`,
+`MJL_FRONTEND_PORT` and the other application settings from `.env`. It applies
+all committed migrations, checks that the SQLAlchemy models do not require a new
+migration, then starts the FastAPI and Vite development servers together. Stop
+both with `Ctrl+C`.
+
 ### Use Supabase for the development database
 
 Disable the Supabase Data API, then set `DATABASE_URL` in your private `.env`
@@ -86,24 +98,14 @@ Use the `postgresql+psycopg://` prefix, URL-encode the password, and include
 `?sslmode=require` for encryption. Keep the local authentication and Resend
 settings. This enables local development, not production hosting.
 
-Run from the repository root in Bash:
-
-```bash
-set -a
-source .env
-set +a
-cd backend
-uv run alembic upgrade head
-uv run python -m app.planning.provision --reason 'Initialize local development'
-uv run uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000 --no-proxy-headers --no-access-log
-```
-
-Provisioning creates the single MJL ownership record, not sample business data.
-In a second terminal, run `npm --prefix frontend run dev` from the repository
-root. The Docker stack is not needed for this mode; stop its frontend/backend
-first if they already use ports 5173/8000. For the first Admin invitation, load
-`.env` in another terminal and run `uv run python -m app.auth.bootstrap --email
-'you@example.com' --name 'Your Name'` from `backend/`.
+Run `./scripts/dev.sh` from the repository root. The Docker stack is not needed
+for this mode; stop its services first if they already use the configured ports.
+If this is a new empty database, initialize the single MJL ownership record once
+with `uv run python -m app.planning.provision --reason 'Initialize local
+development'` from `backend/` after loading `.env`. This does not create sample
+business data. For the first Admin invitation, load `.env` and run `uv run python
+-m app.auth.bootstrap --email 'you@example.com' --name 'Your Name'` from
+`backend/`.
 
 Keep integration tests on a separate disposable local PostgreSQL database.
 

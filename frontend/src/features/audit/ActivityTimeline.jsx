@@ -21,7 +21,8 @@ export function ActivityTimeline({ events, navigate }) {
               }).format(new Date(event.occurred_at))}
             </time>
             {' · '}
-            {event.actor?.full_name || event.actor?.email || strings.system}
+            {event.actor?.full_name || strings.system}
+            {event.actor?.role ? ` · ${event.actor.role}` : ''}
           </span>
           <EventDetails event={event} />
           {event.revision_id && (
@@ -38,7 +39,7 @@ export function ActivityTimeline({ events, navigate }) {
                 })
               }
             >
-              {strings.revision}
+              {strings.submittedInformation}
             </button>
           )}
           {event.amendment_id && (

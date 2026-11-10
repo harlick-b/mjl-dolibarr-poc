@@ -2,7 +2,15 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, String
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -88,6 +96,12 @@ class Recovery(Base):
 class Audit(Base):
     __tablename__ = "auth_audit"
     __table_args__ = (
+        Index(
+            "auth_bootstrap_once",
+            "action",
+            unique=True,
+            postgresql_where=text("action = 'bootstrap'"),
+        ),
         CheckConstraint(
             "details IS NULL OR (jsonb_typeof(details) = 'object' "
             "AND octet_length(details::text) <= 2048)",

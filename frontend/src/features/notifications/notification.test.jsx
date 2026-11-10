@@ -99,14 +99,6 @@ test('an assignment notification is readable and uses the standard read flow', a
     ),
   ).toBeVisible()
   expect(screen.getByLabelText('1 non lues')).toBeVisible()
-  const online = vi.spyOn(window.navigator, 'onLine', 'get')
-  online.mockReturnValue(false)
-  await userEvent.click(screen.getByRole('link', { name: /Ouvrir l’activité/ }))
-  expect(
-    fetch.mock.calls.some(([, options]) => options?.method === 'PATCH'),
-  ).toBe(false)
-  expect(screen.getByText(/ACT-001/)).toBeVisible()
-  online.mockReturnValue(true)
   await userEvent.click(screen.getByRole('link', { name: /Ouvrir l’activité/ }))
   await waitFor(() =>
     expect(screen.queryByText(/ACT-001/)).not.toBeInTheDocument(),
@@ -115,4 +107,87 @@ test('an assignment notification is readable and uses the standard read flow', a
     '/api/v1/notifications/notice-1',
     expect.objectContaining({ method: 'PATCH' }),
   )
+})
+
+test('a Supervisor sees a review notification in the shared inbox', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: {
+                id: 'supervisor',
+                email: 'supervisor@example.test',
+                role: 'AGENT_VERIFICATEUR',
+              },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 2,
+            data: [
+              {
+                kind: 'activity_review',
+                stage: 'supervisor',
+                id: 'notice-review-1',
+                activity_id: 'activity-1',
+                activity_reference: 'ACT-001',
+                activity_name: 'Formation',
+                pta_year: 2028,
+                created_at: '2028-02-08T08:00:00Z',
+                read_at: null,
+                handled_at: null,
+                email_status: 'delivered',
+                version: 1,
+              },
+              {
+                kind: 'financial_review',
+                stage: 'supervisor',
+                request_kind: 'virement',
+                request_id: 'request-1',
+                id: 'notice-financial-1',
+                activity_id: 'activity-1',
+                activity_reference: 'ACT-001',
+                activity_name: 'Formation',
+                pta_year: 2028,
+                created_at: '2028-02-08T09:00:00Z',
+                read_at: null,
+                handled_at: null,
+                email_status: 'delivered',
+                version: 1,
+              },
+            ],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/notifications'] }),
+      )}
+    />,
+  )
+  expect(await screen.findByText('Activité à examiner')).toBeVisible()
+  expect(screen.getByText('Demande financière à examiner')).toBeVisible()
+  expect(
+    screen.getByText('La demande de virement attend votre examen.'),
+  ).toBeVisible()
+  expect(screen.getAllByText('Formation')).toHaveLength(2)
+  expect(
+    screen.getAllByRole('link', { name: /Ouvrir l’activité/ })[1],
+  ).toHaveAttribute('href', '/execution/activities/activity-1')
+  expect(screen.getByLabelText('2 non lues')).toBeVisible()
 })

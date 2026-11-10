@@ -19,6 +19,7 @@ export const strings = new LocalizedStrings({
     change: 'Modification',
     system: 'Système',
     revision: 'Consulter la révision',
+    submittedInformation: 'Voir les informations soumises',
     amendment: 'Consulter la modification',
   },
 })

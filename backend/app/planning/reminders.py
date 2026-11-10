@@ -21,13 +21,16 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError, AuthService
 from app.core.config import database_url
 from app.core.database import make_engine
+from app.planning.financial_notifications import REQUEST_MODELS
 from app.planning.models import (
     Activity,
     ActivityAssignment,
     ActivityAssignmentNotification,
     ActivityReminder,
     ActivityRevision,
+    ActivityWorkflowNotification,
     AnnualPTA,
+    FinancialWorkflowNotification,
     Project,
 )
 from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
@@ -74,7 +77,16 @@ class ReadInput(Input):
 
 
 class ReminderOutput(Input):
-    kind: Literal["deadline", "assignment"]
+    kind: Literal[
+        "deadline",
+        "assignment",
+        "activity_review",
+        "activity_correction",
+        "activity_approved",
+        "financial_review",
+        "financial_correction",
+        "financial_approved",
+    ]
     id: str
     activity_id: str
     activity_reference: str
@@ -85,6 +97,11 @@ class ReminderOutput(Input):
     pta_name: str | None = None
     project_name: str | None = None
     assigned_by: str | None = None
+    stage: str | None = None
+    reason: str | None = None
+    handled_at: str | None = None
+    request_kind: str | None = None
+    request_id: str | None = None
     created_at: str
     read_at: str | None
     email_status: str
@@ -357,6 +374,98 @@ def _assignment_outputs(
     }
 
 
+def _workflow_outputs(
+    db: Session, items: list[ActivityWorkflowNotification]
+) -> dict[str, dict[str, Any]]:
+    if not items:
+        return {}
+    activities = {
+        row.id: row
+        for row in db.scalars(
+            select(Activity).where(
+                Activity.id.in_({item.activity_id for item in items})
+            )
+        )
+    }
+    if any(item.activity_id not in activities for item in items):
+        raise AuthError(409, "notification_source_invalid")
+    return {
+        item.id: {
+            "kind": item.kind,
+            "id": item.id,
+            "activity_id": item.activity_id,
+            "activity_reference": activities[item.activity_id].reference,
+            "activity_name": activities[item.activity_id].name,
+            "pta_year": activities[item.activity_id].placement_year,
+            "planned_end": None,
+            "due_on": None,
+            "stage": item.stage,
+            "reason": item.reason,
+            "handled_at": item.handled_at.isoformat() if item.handled_at else None,
+            "created_at": item.created_at.isoformat(),
+            "read_at": item.read_at.isoformat() if item.read_at else None,
+            "email_status": item.email_status,
+            "version": item.version,
+        }
+        for item in items
+    }
+
+
+def _financial_outputs(
+    db: Session, items: list[FinancialWorkflowNotification]
+) -> dict[str, dict[str, Any]]:
+    if not items:
+        return {}
+    activities = {
+        row.id: row
+        for row in db.scalars(
+            select(Activity).where(
+                Activity.id.in_({item.activity_id for item in items})
+            )
+        )
+    }
+    if any(item.activity_id not in activities for item in items):
+        raise AuthError(409, "notification_source_invalid")
+    source_activities: dict[tuple[str, str], str] = {}
+    for kind, model in REQUEST_MODELS.items():
+        request_ids = {item.request_id for item in items if item.request_kind == kind}
+        if request_ids:
+            source_activities.update(
+                ((kind, row.id), row.activity_id)
+                for row in db.execute(
+                    select(model.id, model.activity_id).where(model.id.in_(request_ids))
+                )
+            )
+    for item in items:
+        if (
+            source_activities.get((item.request_kind, item.request_id))
+            != item.activity_id
+        ):
+            raise AuthError(409, "notification_source_invalid")
+    return {
+        item.id: {
+            "kind": item.kind,
+            "id": item.id,
+            "activity_id": item.activity_id,
+            "activity_reference": activities[item.activity_id].reference,
+            "activity_name": activities[item.activity_id].name,
+            "pta_year": activities[item.activity_id].placement_year,
+            "planned_end": None,
+            "due_on": None,
+            "stage": item.stage,
+            "reason": item.reason,
+            "handled_at": item.handled_at.isoformat() if item.handled_at else None,
+            "request_kind": item.request_kind,
+            "request_id": item.request_id,
+            "created_at": item.created_at.isoformat(),
+            "read_at": item.read_at.isoformat() if item.read_at else None,
+            "email_status": item.email_status,
+            "version": item.version,
+        }
+        for item in items
+    }
+
+
 def list_args(
     limit: Annotated[int, Query(ge=1, le=100)] = 60,
     cursor: str | None = None,
@@ -385,10 +494,23 @@ def listing(
                 marker_id = str(UUID(marker_id_raw))
             except (ValueError, TypeError):
                 raise AuthError(422, "cursor_invalid") from None
-        rows: list[ActivityReminder | ActivityAssignmentNotification] = []
+        rows: list[
+            ActivityReminder
+            | ActivityAssignmentNotification
+            | ActivityWorkflowNotification
+            | FinancialWorkflowNotification
+        ] = []
         total = 0
-        for model in (ActivityReminder, ActivityAssignmentNotification):
-            base_conditions = [model.agent_id == actor.id]
+        for model, recipient_column in (
+            (ActivityReminder, ActivityReminder.agent_id),
+            (ActivityAssignmentNotification, ActivityAssignmentNotification.agent_id),
+            (ActivityWorkflowNotification, ActivityWorkflowNotification.recipient_id),
+            (
+                FinancialWorkflowNotification,
+                FinancialWorkflowNotification.recipient_id,
+            ),
+        ):
+            base_conditions = [recipient_column == actor.id]
             if state == "unread":
                 base_conditions.append(model.read_at.is_(None))
             conditions = list(base_conditions)
@@ -425,7 +547,11 @@ def listing(
             rows.reverse()
 
         def link(
-            row: ActivityReminder | ActivityAssignmentNotification, move: str
+            row: ActivityReminder
+            | ActivityAssignmentNotification
+            | ActivityWorkflowNotification
+            | FinancialWorkflowNotification,
+            move: str,
         ) -> str:
             mark = f"{row.created_at.isoformat()}|{row.id}"
             query = urlencode(
@@ -437,6 +563,14 @@ def listing(
             db,
             [row for row in rows if isinstance(row, ActivityAssignmentNotification)],
         )
+        workflow_outputs = _workflow_outputs(
+            db,
+            [row for row in rows if isinstance(row, ActivityWorkflowNotification)],
+        )
+        financial_outputs = _financial_outputs(
+            db,
+            [row for row in rows if isinstance(row, FinancialWorkflowNotification)],
+        )
         return {
             "object": "list",
             "count": total,
@@ -444,6 +578,10 @@ def listing(
                 _output(db, row)
                 if isinstance(row, ActivityReminder)
                 else assignment_outputs[row.id]
+                if isinstance(row, ActivityAssignmentNotification)
+                else workflow_outputs[row.id]
+                if isinstance(row, ActivityWorkflowNotification)
+                else financial_outputs[row.id]
                 for row in rows
             ],
             "next": link(rows[-1], "next")
@@ -462,19 +600,48 @@ def mark_read(
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
-        actor = principal(
-            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
-        )
-        item: ActivityReminder | ActivityAssignmentNotification | None = db.get(
-            ActivityReminder, identifier, with_for_update=True
-        )
+        actor = principal(db, auth, *evidence(request, auth), mutation=True)
+        item: (
+            ActivityReminder
+            | ActivityAssignmentNotification
+            | ActivityWorkflowNotification
+            | FinancialWorkflowNotification
+            | None
+        ) = db.get(ActivityReminder, identifier, with_for_update=True)
         if item is None:
             item = db.get(
                 ActivityAssignmentNotification, identifier, with_for_update=True
             )
-        if not item or item.agent_id != actor.id:
+        if item is None:
+            item = db.get(
+                ActivityWorkflowNotification, identifier, with_for_update=True
+            )
+        if item is None:
+            item = db.get(
+                FinancialWorkflowNotification, identifier, with_for_update=True
+            )
+        recipient_id = (
+            item.recipient_id
+            if isinstance(
+                item, (ActivityWorkflowNotification, FinancialWorkflowNotification)
+            )
+            else item.agent_id
+            if item
+            else None
+        )
+        if not item or recipient_id != actor.id:
             raise AuthError(404, "notification_not_found")
-        if item.version != body.expected_version or item.read_at is not None:
+        if item.read_at is not None:
+            return (
+                _financial_outputs(db, [item])[item.id]
+                if isinstance(item, FinancialWorkflowNotification)
+                else _workflow_outputs(db, [item])[item.id]
+                if isinstance(item, ActivityWorkflowNotification)
+                else _output(db, item)
+                if isinstance(item, ActivityReminder)
+                else _assignment_outputs(db, [item])[item.id]
+            )
+        if item.version != body.expected_version:
             raise AuthError(409, "version_conflict")
         item.read_at = auth.now(db)
         item.version += 1
@@ -490,6 +657,10 @@ def mark_read(
             _output(db, item)
             if isinstance(item, ActivityReminder)
             else _assignment_outputs(db, [item])[item.id]
+            if isinstance(item, ActivityAssignmentNotification)
+            else _workflow_outputs(db, [item])[item.id]
+            if isinstance(item, ActivityWorkflowNotification)
+            else _financial_outputs(db, [item])[item.id]
         )
 
 

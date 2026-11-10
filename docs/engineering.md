@@ -392,7 +392,7 @@ Current sidebar page matrix (2026-11-05):
 | Admin                | Tableau de bord, Utilisateurs, Historique                                        |
 | Partenaire           | Tableau de bord, Mes projets, Exports                                            |
 
-Internal reminders open in a modal from the sidebar; they are not an extra page.
+Internal notifications open in a modal from the sidebar; they are not an extra page.
 Prévisions owns PTA navigation and creation; Agents add Activities to an existing
 PTA without needing catalog-management access. See project status for the staged
 explicit-creation cutover while its supplied screens are being integrated. Partner Exports uses the existing scoped

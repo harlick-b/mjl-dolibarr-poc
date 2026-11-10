@@ -370,6 +370,12 @@ class ActivityReminder(Base):
             name="reminder_email_status_allowed",
         ),
         CheckConstraint("version > 0", name="reminder_version_positive"),
+        Index(
+            "reminder_recipient_created",
+            "agent_id",
+            "created_at",
+            "id",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(String(3))
@@ -420,6 +426,120 @@ class ActivityAssignmentNotification(Base):
     version: Mapped[int] = mapped_column(default=1)
 
 
+class ActivityWorkflowNotification(Base):
+    __tablename__ = "pta_activity_workflow_notification"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        ForeignKeyConstraint(
+            ["activity_id", "revision_id"],
+            ["pta_activity_revision.activity_id", "pta_activity_revision.id"],
+        ),
+        UniqueConstraint(
+            "revision_id",
+            "recipient_id",
+            "kind",
+            "stage",
+            name="activity_workflow_notification_once",
+        ),
+        CheckConstraint(
+            "kind IN ('activity_review','activity_correction','activity_approved')",
+            name="activity_workflow_notification_kind_allowed",
+        ),
+        CheckConstraint(
+            "stage IN ('supervisor','validator','agent')",
+            name="activity_workflow_notification_stage_allowed",
+        ),
+        CheckConstraint(
+            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            name="activity_workflow_notification_email_status_allowed",
+        ),
+        CheckConstraint(
+            "version > 0", name="activity_workflow_notification_version_positive"
+        ),
+        Index(
+            "activity_workflow_notification_recipient_created",
+            "recipient_id",
+            "created_at",
+            "id",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    revision_id: Mapped[str] = mapped_column(String(36))
+    recipient_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    kind: Mapped[str] = mapped_column(String(32))
+    stage: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str | None] = mapped_column(String(4000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_status: Mapped[str] = mapped_column(String(16), default="unconfirmed")
+    email_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(default=1)
+
+
+class FinancialWorkflowNotification(Base):
+    __tablename__ = "pta_financial_workflow_notification"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        UniqueConstraint(
+            "request_kind",
+            "request_id",
+            "recipient_id",
+            "kind",
+            "stage",
+            name="financial_workflow_notification_once",
+        ),
+        CheckConstraint(
+            "request_kind IN ('funding','disbursement','virement','zero_spending')",
+            name="financial_workflow_notification_request_kind_allowed",
+        ),
+        CheckConstraint(
+            "kind IN ('financial_review','financial_correction','financial_approved')",
+            name="financial_workflow_notification_kind_allowed",
+        ),
+        CheckConstraint(
+            "stage IN ('supervisor','validator','agent')",
+            name="financial_workflow_notification_stage_allowed",
+        ),
+        CheckConstraint(
+            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            name="financial_workflow_notification_email_status_allowed",
+        ),
+        CheckConstraint(
+            "version > 0", name="financial_workflow_notification_version_positive"
+        ),
+        Index(
+            "financial_workflow_notification_recipient_created",
+            "recipient_id",
+            "created_at",
+            "id",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    request_kind: Mapped[str] = mapped_column(String(24))
+    request_id: Mapped[str] = mapped_column(String(36))
+    recipient_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    kind: Mapped[str] = mapped_column(String(32))
+    stage: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str | None] = mapped_column(String(4000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_status: Mapped[str] = mapped_column(String(16), default="unconfirmed")
+    email_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(default=1)
+
+
 class ActivityDocument(Base):
     __tablename__ = "pta_activity_document"
     __table_args__ = (
@@ -434,6 +554,12 @@ class ActivityDocument(Base):
         CheckConstraint(
             "media_type IN ('application/pdf','image/jpeg','image/png')",
             name="document_media_type",
+        ),
+        Index(
+            "document_activity_uploaded",
+            "activity_id",
+            "uploaded_at",
+            "id",
         ),
     )
     partner_shared: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

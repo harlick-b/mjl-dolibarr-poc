@@ -1,0 +1,7 @@
+Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
+
+L’activité {{ activity_reference }} - {{ activity_name }} vous a été retournée pour correction.
+
+Motif : {{ reason }}
+
+Connectez-vous à MJL pour consulter la demande et corriger l’activité.

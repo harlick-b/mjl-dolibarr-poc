@@ -61,6 +61,12 @@ from app.planning.service import (
     validate_plan,
     xof,
 )
+from app.planning.workflow_notifications import (
+    deliver_workflow_notification,
+    mark_review_handled,
+    record_agent_notifications,
+    record_review_notifications,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -1711,13 +1717,14 @@ def activities(
         "closed",
         "returned",
     ] = "",
+    review: Literal["", "mine"] = "",
     agent: UUID | None = None,
     period_from: Annotated[date | None, Query(alias="from")] = None,
     period_to: Annotated[date | None, Query(alias="to")] = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
-        principal(db, auth, evidence(request, auth)[0])
+        actor = principal(db, auth, evidence(request, auth)[0])
         pta = db.get(AnnualPTA, identifier)
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
@@ -1730,6 +1737,7 @@ def activities(
             for key, value in {
                 "q": q,
                 "state": state,
+                "review": review,
                 "agent": str(agent) if agent else "",
                 "from": period_from.isoformat() if period_from else "",
                 "to": period_to.isoformat() if period_to else "",
@@ -1755,6 +1763,44 @@ def activities(
             )
         elif state:
             base.append(Activity.state == state)
+        if review == "mine":
+            if actor.role == "AGENT_VERIFICATEUR":
+                base.extend(
+                    [
+                        Activity.state == "submitted",
+                        ~select(ActivityContributor.id)
+                        .where(
+                            ActivityContributor.activity_id == Activity.id,
+                            ActivityContributor.user_id == actor.id,
+                            ActivityContributor.kind == "content",
+                        )
+                        .exists(),
+                    ]
+                )
+            elif actor.role == "VALIDATEUR_DEFINITIF":
+                base.extend(
+                    [
+                        Activity.state == "prevalidated",
+                        ~select(ActivityContributor.id)
+                        .where(
+                            ActivityContributor.activity_id == Activity.id,
+                            ActivityContributor.user_id == actor.id,
+                            ActivityContributor.kind == "content",
+                        )
+                        .exists(),
+                        ~select(ActivityRevisionDecision.id)
+                        .where(
+                            ActivityRevisionDecision.revision_id
+                            == Activity.current_revision_id,
+                            ActivityRevisionDecision.stage == "supervisor",
+                            ActivityRevisionDecision.outcome == "prevalidated",
+                            ActivityRevisionDecision.actor_id == actor.id,
+                        )
+                        .exists(),
+                    ]
+                )
+            else:
+                raise AuthError(403, "role_forbidden")
         if agent:
             base.append(
                 select(ActivityAssignment.id)
@@ -2770,7 +2816,11 @@ def workflow_audit(
     openapi_extra=MUTATION_HEADERS,
 )
 def submit_activity(
-    identifier: str, body: SubmissionInput, request: Request, auth: Auth
+    identifier: str,
+    body: SubmissionInput,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
 ) -> Response:
     import json
 
@@ -2881,6 +2931,13 @@ def submit_activity(
         workflow_audit(
             auth, db, "activity.submit", actor, item, before, after, revision
         )
+        notification_ids = record_review_notifications(
+            db, auth, item, revision, "supervisor"
+        )
+        for notification_id in notification_ids:
+            background_tasks.add_task(
+                deliver_workflow_notification, auth, notification_id
+            )
         payload = revision_item(db, revision)
         payload["activity_version"] = item.version
         return created(
@@ -2918,6 +2975,7 @@ def decide_activity(
     revision_id: str,
     body: DecisionInput,
     request: Request,
+    background_tasks: BackgroundTasks,
     auth: Auth,
 ) -> Response:
     with Session(auth.engine) as db, db.begin():
@@ -3155,6 +3213,34 @@ def decide_activity(
             prevalidation_revision_id=prevalidation_id,
         )
         db.add(decision)
+        mark_review_handled(db, revision.id, stage, now)
+        notification_ids: list[str]
+        if outcome == "prevalidated":
+            notification_ids = record_review_notifications(
+                db,
+                auth,
+                item,
+                revision,
+                "validator",
+                exclude_user_id=actor.id,
+            )
+        elif outcome == "returned":
+            notification_ids = record_agent_notifications(
+                db,
+                auth,
+                item,
+                revision,
+                kind="activity_correction",
+                reason=body.reason,
+            )
+        else:
+            notification_ids = record_agent_notifications(
+                db,
+                auth,
+                item,
+                revision,
+                kind="activity_approved",
+            )
         item.version += 1
         item.updated_at = now
         db.flush()
@@ -3171,6 +3257,11 @@ def decide_activity(
             decision,
             ended_assignment_ids,
         )
+        if outcome != "approved":
+            for notification_id in notification_ids:
+                background_tasks.add_task(
+                    deliver_workflow_notification, auth, notification_id
+                )
         return created(
             request,
             f"/api/v1/activities/{item.id}/revisions/{revision.id}",

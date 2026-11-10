@@ -142,6 +142,8 @@ class AuthService:
                 "pta_reversement_declaration",
                 "pta_activity_reminder",
                 "pta_activity_assignment_notification",
+                "pta_activity_workflow_notification",
+                "pta_financial_workflow_notification",
                 "pta_activity_document",
                 "pta_activity_document_withdrawal",
                 "pta_zero_spending_declaration",
@@ -154,7 +156,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0032_assignment_notifications"]:
+        if revisions != ["0034_financial_notifications"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -309,7 +311,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "b583e13956fe7aa5d210a47083399ca87ba87bb77cd28d51da0567592212cb6e"
+            "1e3f86a9ea6ca0eee7446f545c6ad77136cdf8115847e9990ed1ba8866fcde15"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:

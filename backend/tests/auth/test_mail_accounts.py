@@ -140,6 +140,57 @@ def test_resend_transport_returns_provider_id_and_rejects_bad_responses():
 
 
 @pytest.mark.parametrize(
+    ("kind", "context"),
+    [
+        (
+            "activity_review_supervisor",
+            {
+                "recipient_name": "Aminata Superviseure",
+                "activity_reference": "ACT-000021",
+                "activity_name": "Formation des relais",
+            },
+        ),
+        (
+            "financial_review_supervisor",
+            {
+                "recipient_name": "Aminata Superviseure",
+                "request_label": "demande de virement",
+                "activity_reference": "ACT-000021",
+                "activity_name": "Formation des relais",
+            },
+        ),
+    ],
+)
+def test_review_email_is_plain_text_only(kind, context):
+    import json
+
+    from app.auth.mail import MailRenderer, ResendMailer
+
+    requests: list[Request] = []
+
+    def accepted(request: Request) -> Response:
+        requests.append(request)
+        return Response(200, json={"id": "plain-text-message"})
+
+    message = MailRenderer().render(kind, **context)
+    assert message.html is None
+    assert "ACT-000021" in message.text
+    mailer = ResendMailer(
+        "secret",
+        "MJL <mail@example.com>",
+        None,
+        Client(transport=MockTransport(accepted)),
+    )
+    assert (
+        mailer.send("aminata@example.com", kind, message)
+        == "plain-text-message"
+    )
+    payload = json.loads(requests[0].read())
+    assert payload["text"] == message.text
+    assert "html" not in payload
+
+
+@pytest.mark.parametrize(
     "transport",
     [
         MockTransport(lambda request: Response(429, json={"message": "limited"})),

@@ -22,13 +22,43 @@ MAILS = {
     "password_reset_notice": ("password-change-notice", "Mot de passe modifié"),
     "activity_reminder": ("activity-reminder", "Rappel d’échéance"),
     "activity_assignment": ("activity-assignment", "Nouvelle activité assignée"),
+    "activity_review_supervisor": (
+        "activity-review-supervisor",
+        "Activité à examiner",
+    ),
+    "activity_review_validator": (
+        "activity-review-validator",
+        "Activité à approuver",
+    ),
+    "activity_correction": ("activity-correction", "Activité à corriger"),
+    "financial_review_supervisor": (
+        "financial-review-supervisor",
+        "Demande financière à examiner",
+    ),
+    "financial_review_validator": (
+        "financial-review-validator",
+        "Demande financière à approuver",
+    ),
+    "financial_correction": (
+        "financial-correction",
+        "Demande financière à corriger",
+    ),
+}
+
+TEXT_ONLY_MAILS = {
+    "activity_review_supervisor",
+    "activity_review_validator",
+    "activity_correction",
+    "financial_review_supervisor",
+    "financial_review_validator",
+    "financial_correction",
 }
 
 
 @dataclass(frozen=True)
 class RenderedEmail:
     subject: str
-    html: str
+    html: str | None
     text: str
     legacy_value: str
 
@@ -56,7 +86,11 @@ class MailRenderer:
             }.get(kind),
             **context,
         }
-        html = self.environment.get_template(f"{template}.html").render(values)
+        html = (
+            None
+            if kind in TEXT_ONLY_MAILS
+            else self.environment.get_template(f"{template}.html").render(values)
+        )
         text = self.environment.get_template(f"{template}.txt").render(values)
         legacy_value = str(
             values.get("action_url")
@@ -118,9 +152,10 @@ class ResendMailer:
             "from": self.sender,
             "to": [normalized],
             "subject": message.subject,
-            "html": message.html,
             "text": message.text,
         }
+        if message.html is not None:
+            payload["html"] = message.html
         if self.reply_to:
             payload["reply_to"] = self.reply_to
         try:

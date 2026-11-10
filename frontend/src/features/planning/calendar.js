@@ -4,7 +4,7 @@ import { strings } from '@/locales/fr/PlanningView'
 export async function readCalendar(api, ptaId, filters, signal) {
   const pathname = `/api/v1/ptas/${ptaId}/activities`
   const shared = Object.fromEntries(
-    ['q', 'state', 'agent', 'from', 'to']
+    ['q', 'state', 'review', 'agent', 'from', 'to']
       .filter((key) => filters[key])
       .map((key) => [key, String(filters[key]).trim()]),
   )
@@ -47,7 +47,7 @@ export async function readCalendar(api, ptaId, filters, signal) {
       Object.entries(shared).some(
         ([key, value]) => (next.searchParams.get(key) || '') !== value,
       ) ||
-      ['q', 'state', 'agent', 'from', 'to'].some(
+      ['q', 'state', 'review', 'agent', 'from', 'to'].some(
         (key) => !shared[key] && next.searchParams.has(key),
       )
     )

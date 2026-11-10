@@ -49,7 +49,7 @@ test('formats annual rates without capping and preserves zero denominators', () 
   expect(formatPercentage('0', '0')).toBe('Non calculable')
 })
 
-function annualPageFetch(exportReply) {
+function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
   return vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.endsWith('/ptas/pta-1/exports')) return exportReply(options)
@@ -62,7 +62,7 @@ function annualPageFetch(exportReply) {
             user: {
               id: 'agent',
               email: 'user@example.test',
-              role: 'AGENT_SAISIE',
+              role,
             },
             expires_at: new Date(Date.now() + 60000).toISOString(),
           }),
@@ -182,6 +182,43 @@ test('the annual plan shows whole-PTA planning counts and approved budget', asyn
   expect(createObjectURL).toHaveBeenCalledOnce()
   await waitFor(() =>
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:pta-export'),
+  )
+})
+
+test('a Supervisor starts with Activities they can examine and can remove that filter', async () => {
+  const user = userEvent.setup()
+  const fetch = annualPageFetch(vi.fn(), 'AGENT_VERIFICATEUR')
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage()
+
+  await screen.findByRole('region', { name: 'Synthèse du PTA' })
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) => {
+        const request = new URL(String(url), 'http://localhost')
+        return (
+          request.pathname.endsWith('/ptas/pta-1/activities') &&
+          request.searchParams.get('state') === 'submitted' &&
+          request.searchParams.get('review') === 'mine'
+        )
+      }),
+    ).toBe(true),
+  )
+
+  await user.click(
+    screen.getByRole('button', { name: 'Retirer le filtre À examiner' }),
+  )
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) => {
+        const request = new URL(String(url), 'http://localhost')
+        return (
+          request.pathname.endsWith('/ptas/pta-1/activities') &&
+          !request.searchParams.has('state') &&
+          !request.searchParams.has('review')
+        )
+      }),
+    ).toBe(true),
   )
 })
 
@@ -1088,7 +1125,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   ).toBeVisible()
 }, 10000)
 
-function amendmentHistoryFetch({ failed = false } = {}) {
+function amendmentHistoryFetch({ failed = false, historyFailed = false } = {}) {
   const activity = {
     id: 'activity-1',
     pta_id: 'pta-1',
@@ -1169,6 +1206,12 @@ function amendmentHistoryFetch({ failed = false } = {}) {
       )
     if (path.endsWith('/activities/activity-1'))
       return Promise.resolve(new Response(JSON.stringify(activity)))
+    if (historyFailed && path.endsWith('/activities/activity-1/history'))
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 'service_unavailable' }), {
+          status: 503,
+        }),
+      )
     return Promise.resolve(
       new Response(
         JSON.stringify({
@@ -1183,14 +1226,15 @@ function amendmentHistoryFetch({ failed = false } = {}) {
   })
 }
 
-test('approved amendment history renders frozen names, labels, and actor evidence', async () => {
+test('approved amendment history stays human-readable and isolated to its tab', async () => {
+  const user = userEvent.setup()
   vi.stubGlobal('fetch', amendmentHistoryFetch())
   render(
     <App
       router={makeRouter(
         createMemoryHistory({
           initialEntries: [
-            '/activities/activity-1?amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            '/activities/activity-1?tab=history&amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
           ],
         }),
       )}
@@ -1199,7 +1243,13 @@ test('approved amendment history renders frozen names, labels, and actor evidenc
   expect(await screen.findByText('Modification approuvée')).toBeVisible()
   expect(screen.getByText('Nouveau nom approuvé')).toBeVisible()
   expect(screen.getByText(/Formation figée — Former/)).toBeVisible()
-  expect(screen.getByText(/Ouverte par agent-1/)).toBeVisible()
+  expect(screen.getByText(/Modification ouverte le/)).toBeVisible()
+  expect(screen.queryByText(/agent-1/)).not.toBeInTheDocument()
+  await user.click(
+    screen.getByRole('link', { name: 'Pièces justificatives', exact: true }),
+  )
+  expect(screen.queryByText('Modification approuvée')).not.toBeInTheDocument()
+  expect(await screen.findByText('Aucune pièce justificative')).toBeVisible()
 })
 
 test('a failed amendment-history request blocks the workspace with an alert', async () => {
@@ -1209,7 +1259,7 @@ test('a failed amendment-history request blocks the workspace with an alert', as
       router={makeRouter(
         createMemoryHistory({
           initialEntries: [
-            '/activities/activity-1?amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            '/activities/activity-1?tab=history&amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
           ],
         }),
       )}
@@ -1218,6 +1268,23 @@ test('a failed amendment-history request blocks the workspace with an alert', as
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Les données de planification sont indisponibles.',
   )
+})
+
+test('a failed Activity History request does not also show the empty state', async () => {
+  vi.stubGlobal('fetch', amendmentHistoryFetch({ historyFailed: true }))
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/activities/activity-1?tab=history'],
+        }),
+      )}
+    />,
+  )
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Les données de planification sont indisponibles.',
+  )
+  expect(screen.queryByText('Aucun événement')).not.toBeInTheDocument()
 })
 
 test('an edited Activity retains its draft version after a background refresh', async () => {
@@ -1685,14 +1752,22 @@ test.each([
         )
       }),
     )
-    render(
-      <App
-        router={makeRouter(
-          createMemoryHistory({ initialEntries: ['/activities/review-1'] }),
-        )}
-      />,
+    const router = makeRouter(
+      createMemoryHistory({ initialEntries: ['/activities/review-1'] }),
     )
-    await user.click(await screen.findByRole('button', { name: 'Prévalider' }))
+    const notificationKey = ['notifications', 'supervisor', 'all', '', 60]
+    render(<App router={router} />)
+    const prevalidate = await screen.findByRole('button', {
+      name: 'Prévalider',
+    })
+    router.options.context.queryClient.setQueryData(notificationKey, {
+      object: 'list',
+      count: 1,
+      data: [{ id: 'notice-1', handled_at: null }],
+      next: null,
+      previous: null,
+    })
+    await user.click(prevalidate)
     await user.type(
       screen.getByLabelText('Observation'),
       'Programmation vérifiée.',
@@ -1702,9 +1777,15 @@ test.each([
       new File(['evidence'], 'note.pdf', { type: 'application/pdf' }),
     )
     await user.click(
-      screen.getByRole('button', { name: 'Confirmer la décision' }),
+      screen.getByRole('button', { name: 'Prévalider et transmettre' }),
     )
     await waitFor(() => expect(decisionCalls).toBe(1))
+    await waitFor(() =>
+      expect(
+        router.options.context.queryClient.getQueryState(notificationKey)
+          ?.isInvalidated,
+      ).toBe(true),
+    )
     await waitFor(() => expect(uploadCalls).toBe(1))
     if (!recovered) {
       expect(

@@ -73,9 +73,13 @@ atomically invalidates credentials/sessions, then attempts one best-effort notic
 Local development permits real email addresses and requires a trimmed, control-free
 Unicode full name (maximum 200 characters) for new invitations/first Admin.
 Existing unnamed accounts use a generic greeting. Resend is the sole runtime
-mail provider. The six messages are invitation, login OTP, password recovery,
-password-change notice, Activity reminder and new Activity assignment. HTML/plain-text sources live in
-backend/app/auth/templates; rendering escapes values and rejects missing fields.
+mail provider. Existing messages cover invitation, login OTP, password recovery,
+password-change notice, Activity reminder and new Activity assignment. Activity
+and financial-request review add plain-text notices for Supervisor examination,
+Validator approval and Agent correction; their approved HTML templates remain
+deferred. Final approvals are in-app only. HTML/plain-text
+sources live in backend/app/auth/templates; rendering escapes values and rejects
+missing fields.
 Links retain secrets in fragments; OTP leading zeros are preserved. Password-change
 and reminder notices have no action button. A reminder names its approved end date.
 There is one bounded synchronous attempt, no automatic retry/queue/webhook.
@@ -245,6 +249,23 @@ one email attempt for each newly assigned Agent. Agent self-creation creates no
 assignment notification. Unchanged and removed assignees receive none; a later
 re-add is a new assignment. The assignment and in-app notification are committed
 together, while email is attempted after commit and cannot roll back assignment.
+
+Activity submission notifies every active Supervisor eligible to examine it.
+Successful prevalidation notifies every active Validator then eligible to approve
+it. A return notifies assigned active Agents in-app and by one email attempt;
+final approval notifies them in-app only. Each recipient/revision/stage has one
+durable notification. A review item remains as history after another eligible
+reviewer acts and is marked handled separately from read state. Notification
+reads are recipient-only and repeating an already completed read is harmless.
+
+Additional-funding, disbursement, virement and zero-spending requests use the
+same delivery rule at the point each reviewer can act. Current active eligible
+Supervisors receive the first-stage notice; current active eligible Validators
+receive the second-stage notice. Contributor and no-self-review exclusions come
+from the request's frozen review facts. A financial return notifies current
+assigned active Agents in-app and by one email attempt; final approval notifies
+them in-app only. The notification links to the Activity's current
+`Réalisation & finances` state and never grants review authority by itself.
 
 Whole-current-PTA metrics use approved baselines, independent of screen filters
 or pagination. Physical rate = closed Activities / approved planned Activities.
