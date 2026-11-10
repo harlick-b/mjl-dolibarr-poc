@@ -11,6 +11,7 @@ import { Select } from '@/shared/ui/select'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { strings } from '@/locales/fr/PTAModal'
+import { toast } from 'sonner'
 
 // Mounted only while open: an edit owns a snapshot and its optimistic version.
 export function PTAModal({
@@ -100,7 +101,10 @@ export function PTAModal({
     onSuccess: async (result) => {
       if (!sameSession()) return
       await refreshSaved()
-      if (active.current && sameSession()) await onSaved(result)
+      if (active.current && sameSession()) {
+        toast.success(pta ? strings.updated : strings.created)
+        await onSaved(result)
+      }
     },
     onError: async (error) => {
       if (error.name === 'AbortError' || !sameSession()) return
@@ -148,7 +152,10 @@ export function PTAModal({
               }),
               client.invalidateQueries({ queryKey: ['audit-history'] }),
             ])
-            if (active.current) await onSaved(actual.pta)
+            if (active.current) {
+              toast.success(pta ? strings.updated : strings.created)
+              await onSaved(actual.pta)
+            }
             return
           }
           setMustReopen(
@@ -198,7 +205,7 @@ export function PTAModal({
         ) : (
           <>
             <label className="gap-0 text-sm font-normal">
-              {strings.project}
+              {strings.project} *
               <Select
                 required
                 value={current?.id ?? ''}
@@ -251,13 +258,13 @@ export function PTAModal({
               </div>
             )}
             <label className="gap-0 text-sm font-normal">
-              {strings.year}
+              {strings.year} *
               <Select
                 value={year}
                 onChange={(event) => setYear(event.target.value)}
               >
-                {Array.from({ length: 201 }, (_, index) =>
-                  String(2000 + index),
+                {Array.from({ length: 13 }, (_, index) =>
+                  String(new Date().getFullYear() - 2 + index),
                 ).map((value) => (
                   <option key={value} value={value}>
                     {value}
@@ -268,7 +275,7 @@ export function PTAModal({
           </>
         )}
         <label className="gap-4">
-          {strings.name}
+          {strings.name} *
           <input
             required
             autoFocus
@@ -278,12 +285,7 @@ export function PTAModal({
           />
         </label>
         <label className="gap-4">
-          <span>
-            {strings.description}{' '}
-            <span className="mt-1 block font-normal text-muted-foreground">
-              {strings.optional}
-            </span>
-          </span>
+          {strings.description}
           <textarea
             maxLength={4000}
             value={description}

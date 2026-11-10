@@ -5,6 +5,7 @@ import { Modal } from '@/shared/ui/BusinessModal'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { strings } from '@/locales/fr/PlanningView'
+import { toast } from 'sonner'
 
 export function CategoryCreator({ onCreate, onCreated, disabled }) {
   const [open, setOpen] = useState(false)
@@ -44,12 +45,16 @@ export function CategoryCreator({ onCreate, onCreated, disabled }) {
               onSubmit={async (event) => {
                 event.stopPropagation()
                 const current = generation.current
-                const label = new FormData(event.currentTarget).get('label')
+                const data = new FormData(event.currentTarget)
                 setError('')
                 try {
-                  const type = await onCreate(label)
+                  const type = await onCreate({
+                    label: data.get('label'),
+                    description: data.get('description') || null,
+                  })
                   if (current !== generation.current) return
                   onCreated(type)
+                  toast.success(strings.categoryCreated)
                   close()
                   opener.current?.focus()
                 } catch (problem) {
@@ -63,8 +68,12 @@ export function CategoryCreator({ onCreate, onCreated, disabled }) {
               }}
             >
               <label>
-                {strings.operationLabel}
+                {strings.name} *
                 <input name="label" required maxLength={200} autoFocus />
+              </label>
+              <label>
+                {strings.description}
+                <textarea name="description" maxLength={4000} rows={3} />
               </label>
               {error && (
                 <p role="alert" className="text-danger">

@@ -220,7 +220,11 @@ test('Partner preview is protected, cleaned on close, and late bytes are discard
   expect(
     await screen.findByRole('img', { name: 'Aperçu de photo.png' }),
   ).toHaveAttribute('src', 'blob:shared-photo')
-  fireEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+  fireEvent.click(
+    screen
+      .getByRole('dialog')
+      .querySelector("[data-ui='modal-actions'] button"),
+  )
   expect(urls.revokeObjectURL).toHaveBeenCalledWith('blob:shared-photo')
   fireEvent.click(screen.getByRole('button', { name: 'Aperçu' }))
   await waitFor(() => expect(late).toBeTypeOf('function'))
@@ -283,7 +287,11 @@ test('an older preview failure cannot cancel a newer preview', async () => {
   )
   fireEvent.click(await screen.findByRole('button', { name: 'Aperçu' }))
   await waitFor(() => expect(pending).toHaveLength(1))
-  fireEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+  fireEvent.click(
+    screen
+      .getByRole('dialog')
+      .querySelector("[data-ui='modal-actions'] button"),
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Aperçu' }))
   await waitFor(() => expect(pending).toHaveLength(2))
   await act(async () =>

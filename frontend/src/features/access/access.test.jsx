@@ -336,10 +336,10 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
     await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
   )
   const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Prénom'), {
+  fireEvent.change(within(dialog).getByLabelText('Prénom *'), {
     target: { value: 'John' },
   })
-  fireEvent.change(within(dialog).getByLabelText('Nom de famille'), {
+  fireEvent.change(within(dialog).getByLabelText('Nom de famille *'), {
     target: { value: 'Doe' },
   })
   await selectOption(within(dialog).getByLabelText('Rôle'), 'Partenaire')
@@ -351,11 +351,11 @@ test('Admin binds a Partner invitation to the selected Partner', async () => {
   await within(dialog).findByText('Premier')
   fireEvent.click(within(dialog).getByRole('button', { name: 'Suivant' }))
   expect(await screen.findByText('Partenaire Démo')).toBeVisible()
-  fireEvent.change(within(dialog).getByLabelText('Adresse e-mail'), {
+  fireEvent.change(within(dialog).getByLabelText('Adresse e-mail *'), {
     target: { value: 'portal@example.test' },
   })
   await selectOption(
-    within(dialog).getByLabelText('Partenaire'),
+    within(dialog).getByLabelText('Partenaire *'),
     'Partenaire Démo',
   )
   fireEvent.click(screen.getByRole('button', { name: 'Envoyer l’invitation' }))
@@ -604,16 +604,16 @@ test('Partner invitation choices load only on demand and paginate before submiss
   fireEvent.click(within(dialog).getByRole('button', { name: 'Suivant' }))
   expect(await within(dialog).findByText('Second partenaire')).toBeVisible()
   await selectOption(
-    within(dialog).getByLabelText('Partenaire'),
+    within(dialog).getByLabelText('Partenaire *'),
     'Second partenaire',
   )
-  fireEvent.change(within(dialog).getByLabelText('Prénom'), {
+  fireEvent.change(within(dialog).getByLabelText('Prénom *'), {
     target: { value: 'Ada' },
   })
-  fireEvent.change(within(dialog).getByLabelText('Nom de famille'), {
+  fireEvent.change(within(dialog).getByLabelText('Nom de famille *'), {
     target: { value: 'Lovelace' },
   })
-  fireEvent.change(within(dialog).getByLabelText('Adresse e-mail'), {
+  fireEvent.change(within(dialog).getByLabelText('Adresse e-mail *'), {
     target: { value: 'ada@example.test' },
   })
   fireEvent.submit(dialog.querySelector('form'))

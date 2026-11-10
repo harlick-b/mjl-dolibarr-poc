@@ -55,9 +55,11 @@ test('legacy combined names prefill editable fields without changing the origina
     sent = JSON.parse(options.body)
     return Promise.resolve(new Response(JSON.stringify(profile)))
   }, legacy)
-  expect(await screen.findByLabelText('Prénoms')).toHaveValue('Jean')
-  expect(screen.getByLabelText('Nom', { exact: true })).toHaveValue('de Souza')
-  fireEvent.change(screen.getByLabelText('Prénoms'), {
+  expect(await screen.findByLabelText('Prénoms *')).toHaveValue('Jean')
+  expect(screen.getByLabelText('Nom *', { exact: true })).toHaveValue(
+    'de Souza',
+  )
+  fireEvent.change(screen.getByLabelText('Prénoms *'), {
     target: { value: 'Jean Paul' },
   })
   fireEvent.click(
@@ -78,7 +80,7 @@ test('dirty profile retains its original comparison snapshot and explicitly reco
     sent = JSON.parse(options.body)
     return Promise.resolve(new Response('{}', { status: 409 }))
   })
-  fireEvent.change(await screen.findByLabelText('Prénoms'), {
+  fireEvent.change(await screen.findByLabelText('Prénoms *'), {
     target: { value: 'My draft' },
   })
   const updated = {
@@ -93,7 +95,7 @@ test('dirty profile retains its original comparison snapshot and explicitly reco
       updated,
     ),
   )
-  expect(screen.getByLabelText('Prénoms')).toHaveValue('My draft')
+  expect(screen.getByLabelText('Prénoms *')).toHaveValue('My draft')
   fireEvent.click(
     screen.getByRole('button', { name: 'Enregistrer les modifications' }),
   )
@@ -109,7 +111,7 @@ test('dirty profile retains its original comparison snapshot and explicitly reco
     }),
   )
   await waitFor(() =>
-    expect(screen.getByLabelText('Prénoms')).toHaveValue('Other'),
+    expect(screen.getByLabelText('Prénoms *')).toHaveValue('Other'),
   )
 })
 
@@ -126,7 +128,7 @@ test('leaving profile aborts saving and ignores its late result', async () => {
         )
     })
   })
-  fireEvent.change(await screen.findByLabelText('Prénoms'), {
+  fireEvent.change(await screen.findByLabelText('Prénoms *'), {
     target: { value: 'Late' },
   })
   fireEvent.click(

@@ -765,7 +765,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(await screen.findByText('Aucune pièce justificative')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Ajouter une pièce' }))
   await user.upload(
-    screen.getByLabelText('Choisir un fichier PDF, JPEG ou PNG'),
+    screen.getByLabelText('Choisir un fichier PDF, JPEG ou PNG *'),
     new File(['png'], 'preuve.png', { type: 'image/png' }),
   )
   const online = vi.spyOn(window.navigator, 'onLine', 'get')
@@ -861,7 +861,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     name: 'Retirer la pièce',
   })
   await user.type(
-    within(withdrawalDialog).getByLabelText('Motif du retrait'),
+    within(withdrawalDialog).getByLabelText('Motif du retrait *'),
     'Pièce incorrecte.',
   )
   expect(
@@ -870,9 +870,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   await user.click(
     within(withdrawalDialog).getByRole('button', { name: 'Suivant' }),
   )
-  await user.click(
-    within(withdrawalDialog).getByLabelText('Pièce corrigée (facultatif)'),
-  )
+  await user.click(within(withdrawalDialog).getByLabelText('Pièce corrigée'))
   await user.click(await screen.findByRole('option', { name: 'preuve.png' }))
   online.mockReturnValue(false)
   await user.click(
@@ -919,7 +917,10 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   await user.click(
     await screen.findByRole('button', { name: 'Demander une modification' }),
   )
-  await user.type(screen.getByLabelText('Motif de la modification'), 'Adapter.')
+  await user.type(
+    screen.getByLabelText('Motif de la modification *'),
+    'Adapter.',
+  )
   await user.click(
     screen.getByRole('dialog').querySelector('button[type="submit"]'),
   )
@@ -936,7 +937,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     screen.getByRole('button', { name: 'Annuler la modification' }),
   )
   await user.type(
-    screen.getByLabelText('Motif de l’annulation'),
+    screen.getByLabelText('Motif de l’annulation *'),
     'Retour au socle.',
   )
   await user.click(
@@ -960,7 +961,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   )
   await user.click(screen.getByRole('button', { name: 'Retirer l’activité' }))
   await user.type(
-    screen.getByLabelText('Motif du retrait'),
+    screen.getByLabelText('Motif du retrait *'),
     'Retrait justifié.',
   )
   await user.click(
@@ -987,7 +988,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     screen.getByRole('button', { name: 'Annuler la demande de retrait' }),
   )
   await user.type(
-    screen.getByLabelText('Motif de l’annulation'),
+    screen.getByLabelText('Motif de l’annulation *'),
     'Conserver l’activité.',
   )
   await user.click(
@@ -1019,14 +1020,17 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(screen.getByText(/Budget approuvé inchangé/)).toBeVisible()
   expect(screen.getByText(/Les Opérations et leurs montants/)).toBeVisible()
   await user.type(
-    screen.getByLabelText('Motif du transfert'),
+    screen.getByLabelText('Motif du transfert *'),
     'Calendrier 2028.',
   )
-  await user.type(screen.getByLabelText('Nouvelle date de début'), '2028-02-01')
+  await user.type(
+    screen.getByLabelText('Nouvelle date de début *'),
+    '2028-02-01',
+  )
   expect(screen.getByText('PTA cible :').parentElement).toHaveTextContent(
     '2028',
   )
-  await user.type(screen.getByLabelText('Nouvelle date de fin'), '2028-08-31')
+  await user.type(screen.getByLabelText('Nouvelle date de fin *'), '2028-08-31')
   await user.click(
     screen.getByRole('dialog').querySelector('button[type="submit"]'),
   )
@@ -1050,7 +1054,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     screen.getByRole('button', { name: 'Annuler la demande de transfert' }),
   )
   await user.type(
-    screen.getByLabelText('Motif de l’annulation'),
+    screen.getByLabelText('Motif de l’annulation *'),
     'Maintenir 2027.',
   )
   await user.click(
@@ -1241,7 +1245,7 @@ test('an edited Activity retains its draft version after a background refresh', 
   }
   const { rerender } = render(<ActivityForm {...props} initial={initial} />)
   await user.type(
-    screen.getByLabelText('Intitulé de l’activité', { exact: true }),
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
     ' modifiée',
   )
   rerender(
@@ -1255,7 +1259,9 @@ test('an edited Activity retains its draft version after a background refresh', 
       }}
     />,
   )
-  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
   expect(submit).toHaveBeenCalledWith(
     expect.objectContaining({
       expected_version: 1,
@@ -1263,6 +1269,7 @@ test('an edited Activity retains its draft version after a background refresh', 
       allocation: '100',
       planned_end: '2027-04-01',
     }),
+    'draft',
   )
 })
 
@@ -1295,14 +1302,82 @@ test('an edited Activity keeps its approved draft amount while operations are re
   await user.clear(operationAmount)
   await user.type(operationAmount, '80')
   expect(screen.getByRole('status')).toHaveTextContent('20 F CFA')
-  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  ).toBeDisabled()
   const plannedAmount = screen.getByLabelText(
     'Montant prévu de l’activité (F CFA)',
   )
   await user.clear(plannedAmount)
   await user.type(plannedAmount, '80')
   expect(screen.getByRole('status')).toHaveTextContent('—')
-  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled()
+  expect(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  ).toBeEnabled()
+})
+
+test('an Agent can clear an obsolete draft budget after removing its Operations', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      initial={{
+        version: 1,
+        name: 'Brouillon à reprendre',
+        description: '',
+        planned_start: null,
+        planned_end: null,
+        allocation: '100',
+        operations: [],
+      }}
+      types={[]}
+      pending={false}
+      onSubmit={submit}
+    />,
+  )
+  await user.clear(screen.getByLabelText('Montant prévu de l’activité (F CFA)'))
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+  expect(submit).toHaveBeenCalledWith(
+    expect.objectContaining({ allocation: null, operations: [] }),
+    'draft',
+  )
+})
+
+test('a returned correction keeps the complete-plan contract when saved', () => {
+  render(
+    <ActivityForm
+      year={2027}
+      initial={{
+        version: 3,
+        state: 'returned_supervisor',
+        name: 'Correction à compléter',
+        description: '',
+        planned_start: null,
+        planned_end: null,
+        allocation: '100',
+        operations: [
+          {
+            id: 'operation-1',
+            type_id: 'type-1',
+            name: 'Atelier',
+            allocation: '100',
+          },
+        ],
+      }}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={vi.fn()}
+    />,
+  )
+  expect(screen.getByLabelText('Description *')).toBeRequired()
+  expect(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  ).toBeDisabled()
+  expect(screen.getByText(/Pour soumettre, complétez/)).toHaveTextContent(
+    'la description · les dates de début et de fin',
+  )
 })
 
 test('assignment edits retain their base version and can discard a stale draft', async () => {
@@ -1619,11 +1694,11 @@ test.each([
     )
     await user.click(await screen.findByRole('button', { name: 'Prévalider' }))
     await user.type(
-      screen.getByLabelText('Observation (facultative)'),
+      screen.getByLabelText('Observation'),
       'Programmation vérifiée.',
     )
     await user.upload(
-      screen.getByLabelText('Pièce justificative (facultative)'),
+      screen.getByLabelText('Pièce justificative'),
       new File(['evidence'], 'note.pdf', { type: 'application/pdf' }),
     )
     await user.click(
@@ -1656,7 +1731,7 @@ test('a new Activity keeps its request key across a lost-response retry', async 
     />,
   )
   await user.type(
-    screen.getByLabelText('Intitulé de l’activité', { exact: true }),
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
     'Activité',
   )
   await user.type(screen.getByLabelText('Description'), 'Description')
@@ -1681,8 +1756,15 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
   await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
   await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
-  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  await user.click(
+    screen.getByRole('button', { name: /Ajouter une opération/ }),
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
   expect(submit).toHaveBeenCalledTimes(2)
   expect(submit.mock.calls[0][0].request_key).toBe(
     submit.mock.calls[1][0].request_key,
@@ -1895,7 +1977,7 @@ test('authentication loss aborts an in-flight planning mutation and masks it', a
   const opener = await screen.findByRole('button', { name: 'Créer un projet' })
   await waitFor(() => expect(opener).toBeEnabled())
   await user.click(opener)
-  await user.type(screen.getByLabelText('Nom'), 'Projet retardé')
+  await user.type(screen.getByLabelText('Nom *'), 'Projet retardé')
   await user.click(
     within(screen.getByRole('dialog')).getByRole('button', {
       name: 'Enregistrer',
@@ -1995,7 +2077,10 @@ test('a planning mutation invalidates and visibly refreshes the cached list', as
     within(card).getByRole('button', { name: 'Créer un partenaire' }),
   )
   const dialog = within(card).getByRole('dialog')
-  await user.type(within(dialog).getByLabelText('Nom'), 'Partenaire actualisé')
+  await user.type(
+    within(dialog).getByLabelText('Nom *'),
+    'Partenaire actualisé',
+  )
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
   await waitFor(() => expect(partnerReads).toBeGreaterThanOrEqual(2))
   expect(await within(card).findByText('Partenaire actualisé')).toBeVisible()
@@ -2069,7 +2154,7 @@ test('a 409 planning mutation refetches server state before another action', asy
     within(card).getByRole('button', { name: 'Créer un partenaire' }),
   )
   const dialog = within(card).getByRole('dialog')
-  await user.type(within(dialog).getByLabelText('Nom'), 'Conflit')
+  await user.type(within(dialog).getByLabelText('Nom *'), 'Conflit')
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
   await waitFor(() => expect(partnerReads).toBeGreaterThanOrEqual(2))
   expect(screen.getByRole('alert')).toBeVisible()
@@ -2402,12 +2487,28 @@ test('projects check Partner availability before enabling creation', async () =>
 
 test('new activity loads its context and operation choices without fetching activity lists', async () => {
   const fetch = annualPageFetch()
+  const user = userEvent.setup()
   vi.stubGlobal('fetch', fetch)
   const router = makeRouter(
     createMemoryHistory({ initialEntries: ['/projects/project-1/ptas/2027'] }),
   )
   render(<App router={router} />)
-  await screen.findByText('Ce PTA ne contient pas encore d’activité.')
+  const viewAll = await screen.findByRole('button', {
+    name: 'Voir toutes les activités',
+  })
+  const activityRequests = () =>
+    fetch.mock.calls
+      .map(([url]) => new URL(url, 'http://localhost'))
+      .filter((url) => url.pathname === '/api/v1/ptas/pta-1/activities')
+  expect(
+    activityRequests().some((url) => url.searchParams.get('agent') === 'agent'),
+  ).toBe(true)
+  await user.click(viewAll)
+  await waitFor(() =>
+    expect(
+      activityRequests().some((url) => !url.searchParams.has('agent')),
+    ).toBe(true),
+  )
   const boundary = fetch.mock.calls.length
   await act(async () => {
     await router.navigate({
@@ -2436,7 +2537,9 @@ test('unavailable edit choices block saving but still allow cancellation', () =>
       onSubmit={submit}
     />,
   )
-  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  ).toBeDisabled()
   const button = screen.getByRole('button', { name: 'Annuler la modification' })
   expect(button).toBeEnabled()
   fireEvent.click(button)
@@ -2592,7 +2695,7 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
     />,
   )
   expect(
-    screen.getByLabelText('Intitulé de l’activité', { exact: true }),
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
   ).toHaveValue('Brief')
   expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
     'Choisir une date',
@@ -2604,15 +2707,23 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
   await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
   await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
   await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
-  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-  expect(submit).not.toHaveBeenCalled()
-  expect(screen.getByRole('alert')).toHaveTextContent('Renseignez les dates')
-  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveFocus()
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+  expect(submit).toHaveBeenCalledWith(
+    expect.objectContaining({ planned_end: null, allocation: '10' }),
+    'draft',
+  )
+  expect(
+    screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+  ).toBeDisabled()
   await user.click(screen.getByRole('button', { name: /^Fin/ }))
   await user.click(
     screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
   )
-  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
   expect(submit).toHaveBeenCalledWith(
     expect.objectContaining({
       expected_version: 4,
@@ -2620,5 +2731,55 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
       planned_end: '2027-01-31',
       allocation: '10',
     }),
+    'draft',
   )
+  expect(
+    screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+  ).toBeEnabled()
+  await user.click(
+    screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+  )
+  expect(submit).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      operations: [
+        expect.objectContaining({ name: 'Préparer', allocation: '10' }),
+      ],
+    }),
+    'submit',
+  )
+})
+
+test('a started Operation must be completed or removed without losing its input', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      year={2027}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={submit}
+    />,
+  )
+  await user.type(
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
+    'Brouillon terrain',
+  )
+  await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
+  expect(
+    screen.getByLabelText('Nom de l’opération 1').closest('label'),
+  ).toHaveTextContent('Nom de l’opération *')
+  expect(
+    screen.getByLabelText('Type d’opération 1').closest('label'),
+  ).toHaveTextContent('Type *')
+  expect(
+    screen.getByLabelText('Budget de l’opération 1').closest('label'),
+  ).toHaveTextContent('Montant prévu (F CFA) *')
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+  expect(submit).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Complétez les champs de cette opération ou retirez-la avant d’enregistrer.',
+  )
+  expect(screen.getByLabelText('Nom de l’opération 1')).toHaveValue('Préparer')
 })

@@ -35,6 +35,7 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
   const visible = rows
     .map((row) => ({ row, position: timelinePosition(row, window) }))
     .filter(({ position }) => position)
+  const unscheduled = rows.filter((row) => !row.planned_start)
   const months = Array.from({ length: 12 }, (_, index) => ({
     label: monthName(year, index + 1),
     count: rows.filter((row) =>
@@ -61,6 +62,27 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
 
   return (
     <div className="p-5">
+      {unscheduled.length > 0 && (
+        <section className="mb-5 rounded-card border border-border bg-background p-4">
+          <h3 className="font-semibold text-navy">{strings.unscheduled}</h3>
+          <ul className="mt-2 grid gap-2">
+            {unscheduled.map((row) => (
+              <li key={row.id} className="flex flex-wrap justify-between gap-3">
+                <Link
+                  className="text-sm font-medium text-primary"
+                  to="/activities/$activityId"
+                  params={{ activityId: row.id }}
+                >
+                  {row.name}
+                </Link>
+                <span className="text-xs text-muted-foreground">
+                  {row.reference}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="font-semibold text-foreground">
           <span className="capitalize">

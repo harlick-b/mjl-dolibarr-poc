@@ -29,7 +29,12 @@ import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import { addThreeMonths, formatDate, formatXof } from '@/shared/lib/format'
+import {
+  addThreeMonths,
+  formatDate,
+  formatXof,
+  localDateInput,
+} from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
@@ -326,6 +331,10 @@ function Workspace({ screen, session, onDenied }) {
             workflowReconciliation.revisionsUpdatedAt))),
   )
   const calendarView = search.view === 'calendar'
+  const ownActivities = user.role === 'AGENT_SAISIE'
+  const effectiveAgent =
+    ownActivities && search.mine !== 'all' ? user.id : search.agent
+  const activityFilters = { ...search, agent: effectiveAgent }
   const list = useQuery({
     ...planningQuery(
       api,
@@ -336,7 +345,7 @@ function Workspace({ screen, session, onDenied }) {
         calendarView ? 'calendar' : search.activityCursor,
         search.q,
         search.state,
-        search.agent,
+        effectiveAgent,
         search.from,
         search.to,
       ],
@@ -344,13 +353,14 @@ function Workspace({ screen, session, onDenied }) {
         ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
         ...(search.q ? { q: search.q } : {}),
         ...(search.state ? { state: search.state } : {}),
-        ...(search.agent ? { agent: search.agent } : {}),
+        ...(effectiveAgent ? { agent: effectiveAgent } : {}),
         ...(search.from ? { from: search.from } : {}),
         ...(search.to ? { to: search.to } : {}),
       })}`,
       onDenied,
       calendarView
-        ? (signal) => readCalendar(api, context.data.pta.id, search, signal)
+        ? (signal) =>
+            readCalendar(api, context.data.pta.id, activityFilters, signal)
         : undefined,
     ),
     enabled: screen === 'pta' && Boolean(context.data?.pta?.id),
@@ -469,7 +479,7 @@ function Workspace({ screen, session, onDenied }) {
       aria-busy={loading}
     >
       <Helmet>
-        <title>{`${labels[screen]} — MJL`}</title>
+        <title>{`${labels[screen]} - MJL`}</title>
       </Helmet>
       {failedQueries.length > 0 && (
         <RetryableError onRetry={retryFailed}>
@@ -531,6 +541,7 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'pta' && (
         <PTA
+          ownActivities={ownActivities}
           onDenied={denyWorkspace}
           projects={projects}
           context={context.data}
@@ -572,31 +583,42 @@ function Workspace({ screen, session, onDenied }) {
           </header>
           <ActivityForm
             year={context.data?.year}
-            onCreateType={(label) =>
+            onCreateType={(body) =>
               mutation.mutateAsync({
                 path: '/operation-types',
-                body: { label },
+                body,
+                silentSuccess: true,
               })
             }
             types={types.data?.data || []}
             typeResult={types.data}
             navigate={navigate}
             pending={mutation.isPending}
-            onSubmit={(body) =>
-              mutation.mutateAsync(
-                {
-                  path: `/projects/${projectId}/ptas/${year}/activities`,
-                  body,
-                },
-                {
-                  onSuccess: (row) =>
-                    navigate({
-                      to: '/activities/$activityId',
-                      params: { activityId: row.id },
-                    }),
-                },
-              )
-            }
+            onSubmit={async (body, intent) => {
+              const row = await mutation.mutateAsync({
+                path: `/projects/${projectId}/ptas/${year}/activities`,
+                body,
+                silentSuccess: intent === 'submit',
+              })
+              if (intent === 'submit') {
+                try {
+                  await mutation.mutateAsync({
+                    path: `/activities/${row.id}/submissions`,
+                    body: { expected_version: row.version },
+                  })
+                } finally {
+                  await navigate({
+                    to: '/activities/$activityId',
+                    params: { activityId: row.id },
+                  })
+                }
+                return
+              }
+              await navigate({
+                to: '/activities/$activityId',
+                params: { activityId: row.id },
+              })
+            }}
           />
         </div>
       )}
@@ -695,7 +717,7 @@ function ReferenceList({
             }}
           >
             <label>
-              {inputLabel}
+              {inputLabel} *
               <input
                 name={label}
                 required
@@ -906,7 +928,7 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
               </RetryableError>
             )}
             <label>
-              {strings.name}
+              {strings.name} *
               <input
                 name="name"
                 required
@@ -915,7 +937,7 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
               />
             </label>
             <label>
-              {strings.partner}
+              {strings.partner} *
               <Select
                 name="partner_id"
                 required
@@ -1055,6 +1077,7 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
 }
 
 function PTA({
+  ownActivities,
   context,
   result,
   navigate,
@@ -1227,7 +1250,10 @@ function PTA({
       )}
       <PlanningSummary summary={context.summary} />
       {context.pta && !result ? (
-        <PageLoading title={strings.annualPlan} />
+        <PageLoading
+          title={strings.annualPlan}
+          className="min-h-45 rounded-panel border border-border bg-white"
+        />
       ) : (
         <PlanningActivities
           result={result}
@@ -1235,6 +1261,7 @@ function PTA({
           ptaId={context.pta?.id}
           month={search.month}
           filters={search}
+          ownActivities={ownActivities}
           onFilter={(values) =>
             navigate({
               search: (current) => ({
@@ -1324,17 +1351,43 @@ export function ActivityForm({
   onSubmit,
   onCancel,
 }) {
+  const suggestedStart =
+    !initial && Number(year) === new Date().getFullYear()
+      ? localDateInput()
+      : ''
+  const suggestedEnd = addThreeMonths(suggestedStart)
   const [draftBase] = useState(initial)
+  const [name, setName] = useState(initial?.name || '')
+  const [description, setDescription] = useState(initial?.description || '')
   const [dateError, setDateError] = useState(false)
+  const [operationError, setOperationError] = useState(false)
   const [plannedAmount, setPlannedAmount] = useState(
     initial?.allocation ?? null,
   )
-  const [start, setStart] = useState(initial?.planned_start || '')
-  const [end, setEnd] = useState(initial?.planned_end || '')
-  const [endWasEdited, setEndWasEdited] = useState(Boolean(initial))
+  const [start, setStart] = useState(initial?.planned_start || suggestedStart)
+  const [end, setEnd] = useState(
+    initial ? initial.planned_end || '' : suggestedEnd,
+  )
+  const [endWasEdited, setEndWasEdited] = useState(
+    Boolean(initial?.planned_end),
+  )
   const requestKey = useRef(initial ? null : crypto.randomUUID())
   const [operations, setOperations] = useState(
     initial?.operations || [{ type_id: '', name: '', allocation: '' }],
+  )
+  const strictPlan = [
+    'amendment_draft',
+    'returned_supervisor',
+    'returned_validator',
+  ].includes(initial?.state)
+  const startedOperations = operations.filter((row) =>
+    [row.type_id, row.name, row.allocation].some((value) =>
+      String(value || '').trim(),
+    ),
+  )
+  const startedOperationsComplete = startedOperations.every(
+    (row) =>
+      row.type_id && row.name.trim() && /^[1-9]\d*$/.test(row.allocation),
   )
   const availableTypes = [...types]
   for (const operation of operations)
@@ -1352,8 +1405,20 @@ export function ActivityForm({
     0n,
   )
   const allOperationAmounts =
-    operations.length > 0 &&
-    operations.every((row) => /^[1-9]\d*$/.test(row.allocation))
+    startedOperations.length > 0 &&
+    startedOperations.every((row) => /^[1-9]\d*$/.test(row.allocation))
+  const plannedAmountMatches =
+    plannedAmount === null ||
+    plannedAmount === '' ||
+    (/^[1-9]\d*$/.test(plannedAmount) && BigInt(plannedAmount) === total)
+  const submissionIssues = [
+    !name.trim() && strings.submissionTitleMissing,
+    !description.trim() && strings.submissionDescriptionMissing,
+    (!start || !end || end < start) && strings.submissionDatesMissing,
+    (startedOperations.length === 0 || !startedOperationsComplete) &&
+      strings.submissionOperationsMissing,
+    !plannedAmountMatches && strings.submissionBudgetMissing,
+  ].filter(Boolean)
   return (
     <Panel
       as={BusinessForm}
@@ -1361,7 +1426,17 @@ export function ActivityForm({
       onSubmit={(event) => {
         event.preventDefault()
         if (pending || optionsUnavailable) return false
-        if (!start || !end || end < start) {
+        const intent = event.nativeEvent.submitter?.value || 'draft'
+        const requiresCompletePlan = strictPlan || intent === 'submit'
+        if (!startedOperationsComplete) {
+          setOperationError(true)
+          return false
+        }
+        setOperationError(false)
+        if (
+          (start && end && end < start) ||
+          (requiresCompletePlan && (!start || !end))
+        ) {
           setDateError(true)
           event.currentTarget
             .querySelector('[data-date-invalid="true"]')
@@ -1370,22 +1445,28 @@ export function ActivityForm({
         }
         setDateError(false)
         const data = new FormData(event.currentTarget)
-        return onSubmit({
-          name: data.get('name'),
-          description: data.get('description'),
-          planned_start: start,
-          planned_end: end,
-          allocation: plannedAmount ?? total.toString(),
-          operations: operations.map((row) => ({
-            id: row.id || undefined,
-            type_id: row.type_id,
-            name: row.name,
-            allocation: row.allocation,
-          })),
-          ...(initial
-            ? { expected_version: draftBase.version }
-            : { request_key: requestKey.current }),
-        })
+        return onSubmit(
+          {
+            name: data.get('name'),
+            description: data.get('description'),
+            planned_start: start || null,
+            planned_end: end || null,
+            allocation:
+              startedOperations.length > 0
+                ? (plannedAmount ?? total.toString())
+                : null,
+            operations: startedOperations.map((row) => ({
+              id: row.id || undefined,
+              type_id: row.type_id,
+              name: row.name,
+              allocation: row.allocation,
+            })),
+            ...(initial
+              ? { expected_version: draftBase.version }
+              : { request_key: requestKey.current }),
+          },
+          intent,
+        )
       }}
     >
       <div className="grid min-w-0 gap-6">
@@ -1395,21 +1476,24 @@ export function ActivityForm({
           </h2>
           <div className="grid gap-6 p-5">
             <label>
-              {strings.activityName}
+              {strings.activityName} *
               <input
                 name="name"
                 required
                 maxLength="200"
-                defaultValue={draftBase?.name}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
               />
             </label>
             <label>
               {strings.description}
+              {strictPlan && ' *'}
               <textarea
                 name="description"
-                required
+                required={strictPlan}
                 maxLength="4000"
-                defaultValue={draftBase?.description}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
               />
             </label>
           </div>
@@ -1421,6 +1505,7 @@ export function ActivityForm({
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <label>
               {strings.start}
+              {strictPlan && ' *'}
               <DatePicker
                 label={strings.start}
                 aria-invalid={dateError && !start}
@@ -1432,10 +1517,12 @@ export function ActivityForm({
                   setStart(value)
                   if (!endWasEdited) setEnd(addThreeMonths(value))
                 }}
+                optional={!strictPlan}
               />
             </label>
             <label>
               {strings.end}
+              {strictPlan && ' *'}
               <DatePicker
                 label={strings.end}
                 aria-invalid={dateError && (!end || end < start)}
@@ -1446,6 +1533,7 @@ export function ActivityForm({
                   setEnd(value)
                   setEndWasEdited(true)
                 }}
+                optional={!strictPlan}
               />
             </label>
           </div>
@@ -1462,10 +1550,10 @@ export function ActivityForm({
           <div className="grid gap-5 p-5">
             <label className="max-w-80">
               {strings.plannedAmount}
+              {strictPlan && ' *'}
               <input
                 inputMode="numeric"
                 pattern="[1-9][0-9]*"
-                required
                 value={
                   plannedAmount ?? (allOperationAmounts ? total.toString() : '')
                 }
@@ -1474,126 +1562,137 @@ export function ActivityForm({
             </label>
             <fieldset className="grid gap-4">
               <legend className="sr-only">{strings.operations}</legend>
-              {operations.map((row, index) => (
-                <div
-                  className="grid items-start gap-4 rounded-card border border-border p-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]"
-                  key={row.id || index}
-                >
-                  <div className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-3">
-                    <h3 className="font-semibold">
-                      {strings.operation} {index + 1}
-                    </h3>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={operations.length === 1}
-                      aria-label={strings.formatString(
-                        strings.operationRemoveNumber,
-                        index + 1,
-                      )}
-                      data-edits-form
-                      onClick={() =>
-                        setOperations(operations.filter((_, i) => i !== index))
-                      }
-                    >
-                      {strings.remove}
-                    </Button>
-                  </div>
-                  <label>
-                    {strings.operationName}
-                    <input
-                      aria-label={strings.formatString(
-                        strings.operationNameNumber,
-                        index + 1,
-                      )}
-                      required
-                      maxLength="200"
-                      value={row.name}
-                      onChange={(e) =>
-                        setOperations(
-                          operations.map((item, i) =>
-                            i === index
-                              ? { ...item, name: e.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <div className="grid gap-2">
-                    <label>
-                      {strings.activityOperationType}
-                      <Select
+              {operations.map((row, index) => {
+                const rowStarted = [row.type_id, row.name, row.allocation].some(
+                  (value) => String(value || '').trim(),
+                )
+                return (
+                  <div
+                    className="grid items-start gap-4 rounded-card border border-border p-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]"
+                    key={row.id || index}
+                  >
+                    <div className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-3">
+                      <h3 className="font-semibold">
+                        {strings.operation} {index + 1}
+                      </h3>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
                         aria-label={strings.formatString(
-                          strings.operationTypeNumber,
+                          strings.operationRemoveNumber,
                           index + 1,
                         )}
-                        required
-                        value={row.type_id}
+                        data-edits-form
+                        onClick={() =>
+                          setOperations(
+                            operations.filter((_, i) => i !== index),
+                          )
+                        }
+                      >
+                        {strings.remove}
+                      </Button>
+                    </div>
+                    <label>
+                      {strings.operationName}
+                      {rowStarted && ' *'}
+                      <input
+                        aria-label={strings.formatString(
+                          strings.operationNameNumber,
+                          index + 1,
+                        )}
+                        maxLength="200"
+                        value={row.name}
                         onChange={(e) =>
                           setOperations(
                             operations.map((item, i) =>
                               i === index
-                                ? { ...item, type_id: e.target.value }
-                                : item,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="">Choisir</option>
-                        {availableTypes.map((type) => (
-                          <option value={type.id} key={type.id}>
-                            {type.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </label>
-                    {onCreateType && (
-                      <CategoryCreator
-                        onCreate={onCreateType}
-                        disabled={pending || optionsUnavailable}
-                        onCreated={(type) =>
-                          setOperations((current) =>
-                            current.map((item, i) =>
-                              i === index
-                                ? {
-                                    ...item,
-                                    type_id: type.id,
-                                    type_label: type.label,
-                                  }
+                                ? { ...item, name: e.target.value }
                                 : item,
                             ),
                           )
                         }
                       />
-                    )}
-                  </div>
-                  <label>
-                    {strings.operationAmount}
-                    <input
-                      aria-label={strings.formatString(
-                        strings.operationBudgetNumber,
-                        index + 1,
+                    </label>
+                    <div className="grid gap-2">
+                      <label>
+                        {strings.activityOperationType}
+                        {rowStarted && ' *'}
+                        <Select
+                          aria-label={strings.formatString(
+                            strings.operationTypeNumber,
+                            index + 1,
+                          )}
+                          value={row.type_id}
+                          onChange={(e) =>
+                            setOperations(
+                              operations.map((item, i) =>
+                                i === index
+                                  ? { ...item, type_id: e.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                        >
+                          <option value="">Choisir</option>
+                          {availableTypes.map((type) => (
+                            <option value={type.id} key={type.id}>
+                              {type.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                      {onCreateType && (
+                        <CategoryCreator
+                          onCreate={onCreateType}
+                          disabled={pending || optionsUnavailable}
+                          onCreated={(type) =>
+                            setOperations((current) =>
+                              current.map((item, i) =>
+                                i === index
+                                  ? {
+                                      ...item,
+                                      type_id: type.id,
+                                      type_label: type.label,
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
                       )}
-                      inputMode="numeric"
-                      required
-                      pattern="[1-9][0-9]*"
-                      value={row.allocation}
-                      onChange={(e) =>
-                        setOperations(
-                          operations.map((item, i) =>
-                            i === index
-                              ? { ...item, allocation: e.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-              ))}
+                    </div>
+                    <label>
+                      {strings.operationAmount}
+                      {rowStarted && ' *'}
+                      <input
+                        aria-label={strings.formatString(
+                          strings.operationBudgetNumber,
+                          index + 1,
+                        )}
+                        inputMode="numeric"
+                        pattern="[1-9][0-9]*"
+                        value={row.allocation}
+                        onChange={(e) =>
+                          setOperations(
+                            operations.map((item, i) =>
+                              i === index
+                                ? { ...item, allocation: e.target.value }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                )
+              })}
             </fieldset>
+            {operationError && (
+              <p role="alert" className="text-sm text-destructive">
+                {strings.completeOrRemoveOperation}
+              </p>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -1621,16 +1720,45 @@ export function ActivityForm({
         <div className="flex flex-wrap justify-end gap-3">
           <Button
             type="submit"
+            name="intent"
+            value="draft"
+            aria-describedby={
+              strictPlan && submissionIssues.length
+                ? 'activity-submission-guidance'
+                : undefined
+            }
             disabled={
               pending ||
               optionsUnavailable ||
-              (plannedAmount !== null &&
-                (!/^[1-9]\d*$/.test(plannedAmount) ||
-                  BigInt(plannedAmount) !== total))
+              !plannedAmountMatches ||
+              (strictPlan && submissionIssues.length > 0)
             }
           >
-            <Save size={16} /> {strings.save}
+            <Save size={16} /> {strings.saveDraft}
           </Button>
+          <Button
+            type="submit"
+            name="intent"
+            value="submit"
+            aria-describedby={
+              submissionIssues.length
+                ? 'activity-submission-guidance'
+                : undefined
+            }
+            disabled={
+              pending || optionsUnavailable || submissionIssues.length > 0
+            }
+          >
+            {strings.submitReview}
+          </Button>
+          {submissionIssues.length > 0 && (
+            <p
+              id="activity-submission-guidance"
+              className="basis-full text-right text-sm text-muted-foreground"
+            >
+              {strings.submissionMissing} {submissionIssues.join(' · ')}
+            </p>
+          )}
           {onCancel && (
             <Button
               type="button"
@@ -2274,8 +2402,12 @@ function ActivityDetail({
           </RetryableError>
         )}
         <ActivityForm
-          onCreateType={(label) =>
-            mutation.mutateAsync({ path: '/operation-types', body: { label } })
+          onCreateType={(body) =>
+            mutation.mutateAsync({
+              path: '/operation-types',
+              body,
+              silentSuccess: true,
+            })
           }
           types={types}
           typeResult={typeResult}
@@ -2286,12 +2418,26 @@ function ActivityDetail({
           }
           initial={item}
           year={item.placement_year}
-          onSubmit={(body) =>
-            mutation.mutateAsync(
-              { path: `/activities/${item.id}`, method: 'PATCH', body },
-              { onSuccess: () => setEditing(false) },
-            )
-          }
+          onSubmit={async (body, intent) => {
+            const saved = await mutation.mutateAsync({
+              path: `/activities/${item.id}`,
+              method: 'PATCH',
+              body,
+              silentSuccess: intent === 'submit',
+            })
+            if (intent === 'submit') {
+              try {
+                await mutation.mutateAsync({
+                  path: `/activities/${item.id}/submissions`,
+                  body: { expected_version: saved.version },
+                })
+              } finally {
+                setEditing(false)
+              }
+              return
+            }
+            setEditing(false)
+          }}
         />
       </Panel>
     )
@@ -2307,7 +2453,11 @@ function ActivityDetail({
     strings.unknownActor
   const programmingIncomplete =
     item.state === 'draft' &&
-    (!item.planned_end || item.allocation === null || !item.operations.length)
+    (!item.description?.trim() ||
+      !item.planned_start ||
+      !item.planned_end ||
+      item.allocation === null ||
+      !item.operations.length)
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <nav
@@ -3022,6 +3172,7 @@ function ActivityDetail({
                       : workflowAction === 'request_transfer'
                         ? strings.transferReason
                         : strings.reason}
+                {' *'}
                 <textarea name="reason" required maxLength="4000" autoFocus />
               </label>
               {workflowAction === 'request_transfer' && (
@@ -3057,7 +3208,7 @@ function ActivityDetail({
                   </ul>
                   <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_18rem),_1fr))] gap-4 my-5">
                     <label>
-                      {strings.targetStart}
+                      {strings.targetStart} *
                       <input
                         name="planned_start"
                         type="date"
@@ -3072,7 +3223,7 @@ function ActivityDetail({
                       />
                     </label>
                     <label>
-                      {strings.targetEnd}
+                      {strings.targetEnd} *
                       <input name="planned_end" type="date" required />
                     </label>
                   </div>
@@ -3590,7 +3741,7 @@ export function ActivityDocuments({
         >
           {uploadNotice}
           <label>
-            {strings.chooseAttachment}
+            {strings.chooseAttachment} *
             <input
               name="attachment"
               type="file"
@@ -3646,7 +3797,7 @@ export function ActivityDocuments({
               {strings.withdrawAttachment} — {withdrawing.name}
             </h3>
             <label>
-              {strings.attachmentWithdrawalReason}
+              {strings.attachmentWithdrawalReason} *
               <textarea name="reason" required maxLength="4000" autoFocus />
             </label>
             <label>

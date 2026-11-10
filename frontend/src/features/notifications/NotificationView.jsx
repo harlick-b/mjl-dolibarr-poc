@@ -115,7 +115,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
       {!embedded && (
         <>
           <Helmet>
-            <title>Notifications — MJL</title>
+            <title>Notifications - MJL</title>
           </Helmet>
           <div
             className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
@@ -152,13 +152,21 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                   </time>
                 </div>
                 <h3 className="mb-2 text-sm font-semibold text-navy">
-                  {strings.deadlineTitle}
+                  {item.kind === 'assignment'
+                    ? strings.assignmentTitle
+                    : strings.deadlineTitle}
                 </h3>
                 <p className="text-sm text-navy">{item.activity_name}</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {strings.formatString(strings.deadline, {
-                    date: formatDate(item.planned_end),
-                  })}
+                  {item.kind === 'assignment'
+                    ? strings.formatString(strings.assignment, {
+                        assigner: item.assigned_by,
+                        pta: item.pta_name,
+                        project: item.project_name,
+                      })
+                    : strings.formatString(strings.deadline, {
+                        date: formatDate(item.planned_end),
+                      })}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <span className="text-muted-foreground">

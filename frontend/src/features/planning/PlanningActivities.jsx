@@ -34,6 +34,7 @@ export function PlanningActivities({
   onMonth,
   filters,
   onFilter,
+  ownActivities = false,
 }) {
   const rows = result?.data || []
   const hasFilters = Boolean(
@@ -41,7 +42,8 @@ export function PlanningActivities({
     filters?.state ||
     filters?.agent ||
     filters?.from ||
-    filters?.to,
+    filters?.to ||
+    (ownActivities && filters?.mine !== 'all'),
   )
   return (
     <section className="overflow-hidden rounded-panel border border-border bg-white">
@@ -49,6 +51,7 @@ export function PlanningActivities({
         value={filters}
         onChange={onFilter}
         agentPath={ptaId ? `/ptas/${ptaId}/activity-agents` : undefined}
+        ownActivities={ownActivities}
         searchLabel={strings.searchActivities}
         stateLabel={strings.validation}
         stateOptions={stateOptions}
@@ -114,6 +117,17 @@ export function PlanningActivities({
                       kind={hasFilters ? 'search' : 'activities'}
                       large
                     />
+                    {ownActivities && filters?.mine !== 'all' && (
+                      <div className="flex justify-center pb-6">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => onFilter({ mine: 'all' })}
+                        >
+                          {strings.viewAllActivities}
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}

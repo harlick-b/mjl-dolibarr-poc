@@ -47,7 +47,7 @@ function Password({ label, name, value, onChange, disabled }) {
   const [visible, setVisible] = useState(false)
   return (
     <label>
-      {label}
+      {label} *
       <span className="flex relative [&_input]:pr-12 [&_button]:absolute [&_button]:right-0 [&_button]:top-0 [&_button]:min-h-11 [&_button]:w-11 [&_button]:grid [&_button]:place-items-center [&_button]:text-muted-foreground">
         <input
           name={name}
@@ -381,7 +381,7 @@ function AuthPage({ path }) {
           }
         >
           <label>
-            {strings.emailLabel}
+            {strings.emailLabel} *
             <input
               name="recoveryEmail"
               disabled={busy}
@@ -659,7 +659,7 @@ function AuthPage({ path }) {
           }
         >
           <label>
-            Adresse e-mail
+            Adresse e-mail *
             <input
               name="email"
               disabled={busy}

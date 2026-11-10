@@ -18,10 +18,10 @@ test('auth feedback belongs only to the page that submitted it', async () => {
   const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
   render(<App router={router} />)
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'actor@example.test',
   )
-  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Synthetic!93')
+  await userEvent.type(screen.getByLabelText('Mot de passe *'), 'Synthetic!93')
   await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }))
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Vérification refusée',
@@ -53,7 +53,7 @@ test('login is French, keyboard accessible, and reveals password without submitt
   )
   const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
   render(<App router={router} />)
-  const password = await screen.findByLabelText('Mot de passe')
+  const password = await screen.findByLabelText('Mot de passe *')
   await userEvent.type(password, 'Synthetic!93')
   expect(password).toHaveAttribute('type', 'password')
   await userEvent.click(
@@ -91,7 +91,7 @@ test('recovery request shows only the approved neutral confirmation', async () =
     />,
   )
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'unknown@example.test',
   )
   await userEvent.click(
@@ -107,7 +107,7 @@ test('recovery request shows only the approved neutral confirmation', async () =
   await userEvent.click(
     await screen.findByRole('link', { name: 'Mot de passe oublié ?' }),
   )
-  expect(await screen.findByLabelText('Adresse e-mail')).toHaveValue('')
+  expect(await screen.findByLabelText('Adresse e-mail *')).toHaveValue('')
   expect(
     screen.queryByText('Votre demande a été prise en compte.', {
       exact: false,
@@ -146,11 +146,11 @@ test('reset proof is scrubbed before inspection and success returns to login', a
     await screen.findByDisplayValue('ordinary@example.test'),
   ).toHaveAttribute('readonly')
   await userEvent.type(
-    screen.getByLabelText('Nouveau mot de passe'),
+    screen.getByLabelText('Nouveau mot de passe *'),
     'Recovered!94',
   )
   await userEvent.type(
-    screen.getByLabelText('Confirmer le mot de passe'),
+    screen.getByLabelText('Confirmer le mot de passe *'),
     'Recovered!94',
   )
   await userEvent.click(
@@ -300,11 +300,11 @@ test('late reset completion cannot restore state after account navigation', asyn
   )
   render(<App router={router} />)
   await userEvent.type(
-    await screen.findByLabelText('Nouveau mot de passe'),
+    await screen.findByLabelText('Nouveau mot de passe *'),
     'Recovered!94',
   )
   await userEvent.type(
-    screen.getByLabelText('Confirmer le mot de passe'),
+    screen.getByLabelText('Confirmer le mot de passe *'),
     'Recovered!94',
   )
   await userEvent.click(
@@ -344,10 +344,10 @@ test('failed password submission removes sensitive mutation variables', async ()
   const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
   render(<App router={router} />)
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'first@example.test',
   )
-  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Synthetic!93')
+  await userEvent.type(screen.getByLabelText('Mot de passe *'), 'Synthetic!93')
   await userEvent.click(
     screen.getByRole('button', { name: 'Se connecter', exact: true }),
   )
@@ -357,7 +357,7 @@ test('failed password submission removes sensitive mutation variables', async ()
   expect(
     router.options.context.queryClient.getMutationCache().getAll(),
   ).toHaveLength(0)
-  expect(screen.getByLabelText('Mot de passe')).toHaveValue('')
+  expect(screen.getByLabelText('Mot de passe *')).toHaveValue('')
 })
 
 test('unmount purges a pending credential mutation', async () => {
@@ -378,10 +378,10 @@ test('unmount purges a pending credential mutation', async () => {
   const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
   const view = render(<App router={router} />)
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'first@example.test',
   )
-  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Synthetic!93')
+  await userEvent.type(screen.getByLabelText('Mot de passe *'), 'Synthetic!93')
   await userEvent.click(
     screen.getByRole('button', { name: 'Se connecter', exact: true }),
   )
@@ -449,15 +449,15 @@ test('incorrect credentials keep the login form available for correction', async
     />,
   )
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'person@example.test',
   )
-  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Incorrect!1')
+  await userEvent.type(screen.getByLabelText('Mot de passe *'), 'Incorrect!1')
   await userEvent.click(
     screen.getByRole('button', { name: 'Se connecter', exact: true }),
   )
   expect(await screen.findByRole('alert')).toBeVisible()
-  expect(screen.getByLabelText('Mot de passe')).toBeVisible()
+  expect(screen.getByLabelText('Mot de passe *')).toBeVisible()
   expect(screen.queryByText('Session à vérifier')).not.toBeInTheDocument()
 })
 
@@ -481,8 +481,8 @@ test('login fields are locked while credentials are being submitted', async () =
       router={makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))}
     />,
   )
-  const email = await screen.findByLabelText('Adresse e-mail')
-  const password = screen.getByLabelText('Mot de passe')
+  const email = await screen.findByLabelText('Adresse e-mail *')
+  const password = screen.getByLabelText('Mot de passe *')
   await userEvent.type(email, 'person@example.test')
   await userEvent.type(password, 'Synthetic!93')
   await userEvent.click(
@@ -548,10 +548,10 @@ test('login shows progress inside its button while submitting', async () => {
     />,
   )
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'actor@example.test',
   )
-  await userEvent.type(screen.getByLabelText('Mot de passe'), 'Synthetic!93')
+  await userEvent.type(screen.getByLabelText('Mot de passe *'), 'Synthetic!93')
   const button = screen.getByRole('button', { name: 'Se connecter' })
   await userEvent.click(button)
   await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'))

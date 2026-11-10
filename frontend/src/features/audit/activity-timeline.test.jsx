@@ -32,8 +32,18 @@ test('timeline shows milestones, persisted changes, reasons and revision links',
               before: '9007199254740993',
               after: '9007199254740994',
             },
+            {
+              field: 'Date du virement',
+              before: '2026-10-27',
+              after: '2026-10-28',
+            },
           ],
-          facts: [],
+          facts: [
+            {
+              field: 'Début de réalisation',
+              after: '2026-11-06T08:00:00Z',
+            },
+          ],
         },
       ]}
     />,
@@ -45,6 +55,8 @@ test('timeline shows milestones, persisted changes, reasons and revision links',
   expect(screen.getByText('Préciser le calendrier')).toBeVisible()
   await userEvent.click(screen.getAllByText('Consulter les détails')[1])
   expect(screen.getByText(/9007199254740993 → 9007199254740994/)).toBeVisible()
+  expect(screen.getByText(/27 octobre 2026 → 28 octobre 2026/)).toBeVisible()
+  expect(screen.getByText(/6 novembre 2026 à 09:00/)).toBeVisible()
   await userEvent.click(
     screen.getByRole('button', { name: 'Consulter la révision' }),
   )

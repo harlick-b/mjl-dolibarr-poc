@@ -157,7 +157,7 @@ function History({ session, onDenied }) {
   return (
     <section className="grid gap-6" aria-busy={result.isFetching}>
       <Helmet>
-        <title>Historique — MJL</title>
+        <title>Historique - MJL</title>
       </Helmet>
       <div
         className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-2xl [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"

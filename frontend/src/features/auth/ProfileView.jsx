@@ -34,7 +34,7 @@ export function ProfileView() {
   return (
     <section className="mx-auto w-full max-w-180 grid gap-6">
       <Helmet>
-        <title>{`${strings.title} — MJL`}</title>
+        <title>{`${strings.title} - MJL`}</title>
       </Helmet>
       <h1 className="text-2xl font-semibold text-navy">{strings.title}</h1>
       {query.isPending ? (
@@ -166,7 +166,7 @@ function ProfileForm({ profile, onReload }) {
               ['last_name', strings.lastName, 'family-name'],
             ].map(([field, label, complete]) => (
               <label key={field}>
-                {label}
+                {label} *
                 <input
                   name={field}
                   autoComplete={complete}

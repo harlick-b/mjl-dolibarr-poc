@@ -205,8 +205,8 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
           </label>
           {correction && (
             <label>
-              Motif de la correction
-              <textarea name="correction_reason" maxLength="4000" />
+              Motif de la correction *
+              <textarea name="correction_reason" required maxLength="4000" />
             </label>
           )}
           <Button type="submit" disabled={pending || !navigator.onLine}>

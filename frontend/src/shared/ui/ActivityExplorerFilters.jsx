@@ -10,6 +10,7 @@ export function ActivityExplorerFilters({
   value = {},
   onChange,
   agentPath,
+  ownActivities = false,
   searchLabel = strings.searchActivity,
   stateLabel = strings.state,
   stateOptions,
@@ -23,6 +24,7 @@ export function ActivityExplorerFilters({
       q: '',
       state: '',
       agent: '',
+      ...(ownActivities ? { mine: 'all' } : {}),
       ...(dates ? { from: '', to: '' } : {}),
     })
   const chips = [
@@ -48,11 +50,29 @@ export function ActivityExplorerFilters({
         value={value.q || ''}
         onSearch={(q) => onChange({ q })}
         label={searchLabel}
-        active={Boolean(value.state || value.from || value.to)}
+        active={Boolean(
+          value.state ||
+          value.from ||
+          value.to ||
+          (ownActivities && value.mine !== 'all'),
+        )}
         onReset={reset}
         disabled={disabled}
         toolbar={
-          agentPath ? (
+          ownActivities ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-pressed={value.mine !== 'all'}
+              className="aria-pressed:bg-selected aria-pressed:text-primary"
+              onClick={() =>
+                onChange({ mine: value.mine === 'all' ? 'own' : 'all' })
+              }
+            >
+              {strings.myActivities}
+            </Button>
+          ) : agentPath ? (
             <QueryFilterSelect
               kind="agent"
               path={agentPath}
@@ -103,7 +123,7 @@ export function ActivityExplorerFilters({
           </>
         )}
       </ListFilters>
-      <div className="flex flex-wrap gap-1 px-4 pb-3" aria-label={stateLabel}>
+      <div className="flex flex-wrap gap-1 px-4 py-3" aria-label={stateLabel}>
         {quickStates.map((option) => (
           <Button
             key={option.value}

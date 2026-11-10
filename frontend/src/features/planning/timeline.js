@@ -18,6 +18,7 @@ export function timelineWindow(year, month) {
 }
 
 export function timelinePosition(row, window) {
+  if (!row.planned_start) return null
   const start = utcDay(row.planned_start)
   const end = utcDay(row.planned_end || row.planned_start)
   const first = utcDay(window.start)

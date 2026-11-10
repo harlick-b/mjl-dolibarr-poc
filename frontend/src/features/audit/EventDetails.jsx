@@ -1,4 +1,21 @@
 import { strings } from '@/locales/fr/AuditHistoryView'
+import { formatDate, formatDateTime } from '@/shared/lib/format'
+
+const dateFields = new Set([
+  'Début prévu',
+  'Fin prévue',
+  'Date effective',
+  'Date du virement',
+  'Date du reversement',
+])
+
+function readable(value, field) {
+  if (!value) return '—'
+  if (dateFields.has(field) && /^\d{4}-\d{2}-\d{2}$/.test(value))
+    return formatDate(value)
+  if (field === 'Début de réalisation') return formatDateTime(value)
+  return value
+}
 
 export function EventDetails({ event }) {
   if (!event.reason && !event.changes?.length && !event.facts?.length)
@@ -16,12 +33,13 @@ export function EventDetails({ event }) {
         )}
         {event.facts?.map((fact) => (
           <p key={fact.field}>
-            {fact.field} : {fact.after ?? '—'}
+            {fact.field} : {readable(fact.after, fact.field)}
           </p>
         ))}
         {event.changes?.map((change) => (
           <p key={change.field}>
-            {change.field} : {change.before ?? '—'} → {change.after ?? '—'}
+            {change.field} : {readable(change.before, change.field)} →{' '}
+            {readable(change.after, change.field)}
           </p>
         ))}
       </div>

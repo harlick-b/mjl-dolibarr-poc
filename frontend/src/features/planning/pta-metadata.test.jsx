@@ -9,6 +9,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { toast } from 'sonner'
 import { App, makeRouter } from '@/app/router'
 
 const empty = { object: 'list', count: 0, data: [], next: null, previous: null }
@@ -35,7 +36,10 @@ beforeEach(() => {
     this.open = false
   }
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  toast.dismiss()
+  vi.unstubAllGlobals()
+})
 function setup({
   role = 'AGENT_VERIFICATEUR',
   existing = false,
@@ -129,13 +133,25 @@ test('reviewer creates a named PTA in a modal and arrives at its detail', async 
   const dialog = await screen.findByRole('dialog', { name: 'Créer un PTA' })
   await waitFor(() =>
     expect(
-      within(dialog).getByRole('combobox', { name: 'Projet' }),
+      within(dialog).getByRole('combobox', { name: 'Projet *' }),
     ).toHaveTextContent(project.name),
   )
   expect(
-    within(dialog).getByRole('combobox', { name: 'Année' }),
+    within(dialog).getByRole('combobox', { name: 'Année *' }),
   ).toHaveTextContent(String(new Date().getFullYear()))
-  fireEvent.change(within(dialog).getByLabelText('Nom du PTA'), {
+  await user.click(within(dialog).getByRole('combobox', { name: 'Année *' }))
+  const years = await screen.findAllByRole('option')
+  expect(years.map((option) => Number(option.textContent))).toEqual(
+    Array.from(
+      { length: 13 },
+      (_, index) => new Date().getFullYear() - 2 + index,
+    ),
+  )
+  await user.keyboard('{Escape}')
+  expect(within(dialog).getByLabelText('Nom du PTA *')).toBeRequired()
+  expect(within(dialog).getByLabelText('Description')).not.toBeRequired()
+  expect(within(dialog).queryByText(/facultatif/i)).not.toBeInTheDocument()
+  fireEvent.change(within(dialog).getByLabelText('Nom du PTA *'), {
     target: { value: 'Plan annuel' },
   })
   fireEvent.change(within(dialog).getByLabelText(/Description/), {
@@ -161,16 +177,16 @@ test('PTA edit preloads metadata and submits its original version without changi
     await screen.findByRole('button', { name: 'Modifier le PTA' }),
   )
   const dialog = screen.getByRole('dialog', { name: 'Modifier le PTA' })
-  expect(within(dialog).getByLabelText('Nom du PTA')).toHaveValue(
+  expect(within(dialog).getByLabelText('Nom du PTA *')).toHaveValue(
     'Priorités annuelles',
   )
   expect(within(dialog).getByLabelText(/Description/)).toHaveValue(
     'Objectifs initiaux',
   )
   expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
-  await user.clear(within(dialog).getByLabelText('Nom du PTA'))
+  await user.clear(within(dialog).getByLabelText('Nom du PTA *'))
   await user.type(
-    within(dialog).getByLabelText('Nom du PTA'),
+    within(dialog).getByLabelText('Nom du PTA *'),
     'Programme révisé',
   )
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
@@ -196,12 +212,12 @@ test('duplicate PTA leaves the draft in its own modal with a recoverable message
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'Créer un PTA' }))
   const dialog = screen.getByRole('dialog')
-  await user.type(within(dialog).getByLabelText('Nom du PTA'), 'Mon PTA')
+  await user.type(within(dialog).getByLabelText('Nom du PTA *'), 'Mon PTA')
   await user.click(within(dialog).getByRole('button', { name: 'Créer le PTA' }))
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     'Un PTA existe déjà',
   )
-  expect(within(dialog).getByLabelText('Nom du PTA')).toHaveValue('Mon PTA')
+  expect(within(dialog).getByLabelText('Nom du PTA *')).toHaveValue('Mon PTA')
   await user.click(within(dialog).getByRole('button', { name: 'Annuler' }))
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
@@ -228,7 +244,7 @@ test('a background refresh cannot replace the version of an open edit draft', as
     await screen.findByRole('button', { name: 'Modifier le PTA' }),
   )
   const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Nom du PTA'), {
+  fireEvent.change(within(dialog).getByLabelText('Nom du PTA *'), {
     target: { value: 'Mon brouillon' },
   })
   replacePTA({ name: 'Modification concurrente', version: 4 })
@@ -241,7 +257,7 @@ test('a background refresh cannot replace the version of an open edit draft', as
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     'Ce PTA a été modifié',
   )
-  expect(within(dialog).getByLabelText('Nom du PTA')).toHaveValue(
+  expect(within(dialog).getByLabelText('Nom du PTA *')).toHaveValue(
     'Mon brouillon',
   )
   expect(
@@ -274,14 +290,14 @@ test('a rejected write keeps its draft and does not deny the readable page', asy
     await screen.findByRole('button', { name: 'Modifier le PTA' }),
   )
   const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Nom du PTA'), {
+  fireEvent.change(within(dialog).getByLabelText('Nom du PTA *'), {
     target: { value: 'Mon brouillon' },
   })
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     'Votre saisie a été conservée',
   )
-  expect(within(dialog).getByLabelText('Nom du PTA')).toHaveValue(
+  expect(within(dialog).getByLabelText('Nom du PTA *')).toHaveValue(
     'Mon brouillon',
   )
   expect(screen.queryByText('Accès refusé')).not.toBeInTheDocument()
@@ -302,7 +318,7 @@ test('a lost write response is reconciled against the saved PTA instead of repor
     await screen.findByRole('button', { name: 'Modifier le PTA' }),
   )
   const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Nom du PTA'), {
+  fireEvent.change(within(dialog).getByLabelText('Nom du PTA *'), {
     target: { value: 'Nom enregistré' },
   })
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
@@ -312,6 +328,7 @@ test('a lost write response is reconciled against the saved PTA instead of repor
   expect(
     await screen.findByRole('heading', { name: 'Nom enregistré', level: 1 }),
   ).toBeVisible()
+  expect(await screen.findByText('PTA modifié.')).toBeVisible()
 })
 
 test.each([403, 404])(
@@ -333,7 +350,7 @@ test.each([403, 404])(
     await user.click(
       await screen.findByRole('button', { name: 'Créer un PTA' }),
     )
-    fireEvent.change(screen.getByLabelText('Nom du PTA'), {
+    fireEvent.change(screen.getByLabelText('Nom du PTA *'), {
       target: { value: 'Privé' },
     })
     denied = true
@@ -366,7 +383,7 @@ test('dismissing a submitted PTA edit lets it settle and refreshes the owning pa
     await screen.findByRole('button', { name: 'Modifier le PTA' }),
   )
   const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Nom du PTA'), {
+  fireEvent.change(within(dialog).getByLabelText('Nom du PTA *'), {
     target: { value: 'Enregistré après fermeture' },
   })
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))

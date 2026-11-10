@@ -5,6 +5,9 @@ export const strings = new LocalizedStrings({
     read: 'Lue',
     unread: 'Non lue',
     deadlineTitle: 'Échéance de l’activité à venir',
+    assignmentTitle: 'Nouvelle activité assignée',
+    assignment:
+      '{assigner} vous a assigné cette activité dans {pta} - {project}.',
     deadline: 'La fin prévue de cette activité est fixée au {date}.',
     openActivity: 'Ouvrir l’activité',
     readFailed: 'La relance n’a pas pu être marquée comme lue. Réessayez.',

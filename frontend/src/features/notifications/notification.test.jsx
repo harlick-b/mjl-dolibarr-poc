@@ -6,7 +6,7 @@ import { App, makeRouter } from '@/app/router'
 
 afterEach(() => vi.unstubAllGlobals())
 
-test('the sidebar notification centre marks a reminder read and refreshes its badge', async () => {
+test('an assignment notification is readable and uses the standard read flow', async () => {
   let read = false
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
@@ -30,12 +30,16 @@ test('the sidebar notification centre marks a reminder read and refreshes its ba
       return Promise.resolve(
         new Response(
           JSON.stringify({
+            kind: 'assignment',
             id: 'notice-1',
             activity_id: 'activity-1',
             activity_reference: 'ACT-001',
             activity_name: 'Formation',
             planned_end: '2028-02-29',
             due_on: '2028-02-08',
+            pta_name: 'PTA Protection',
+            project_name: 'Protection de l’enfant',
+            assigned_by: 'Yoann Validateur',
             created_at: '2028-02-08T08:00:00Z',
             read_at: '2028-02-08T09:00:00Z',
             email_status: 'delivered',
@@ -48,12 +52,16 @@ test('the sidebar notification centre marks a reminder read and refreshes its ba
       ? []
       : [
           {
+            kind: 'assignment',
             id: 'notice-1',
             activity_id: 'activity-1',
             activity_reference: 'ACT-001',
             activity_name: 'Formation',
             planned_end: '2028-02-29',
             due_on: '2028-02-08',
+            pta_name: 'PTA Protection',
+            project_name: 'Protection de l’enfant',
+            assigned_by: 'Yoann Validateur',
             created_at: '2028-02-08T08:00:00Z',
             read_at: null,
             email_status: 'delivered',
@@ -84,6 +92,12 @@ test('the sidebar notification centre marks a reminder read and refreshes its ba
   await screen.findByText(/ACT-001/)
   expect(screen.getByRole('heading', { name: 'Notifications' })).toBeVisible()
   expect(await screen.findByText(/ACT-001/)).toBeVisible()
+  expect(screen.getByText('Nouvelle activité assignée')).toBeVisible()
+  expect(
+    screen.getByText(
+      'Yoann Validateur vous a assigné cette activité dans PTA Protection - Protection de l’enfant.',
+    ),
+  ).toBeVisible()
   expect(screen.getByLabelText('1 non lues')).toBeVisible()
   const online = vi.spyOn(window.navigator, 'onLine', 'get')
   online.mockReturnValue(false)

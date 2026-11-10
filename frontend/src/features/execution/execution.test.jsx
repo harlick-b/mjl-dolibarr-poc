@@ -276,7 +276,7 @@ test('an observation draft keeps its version across refresh and can be explicitl
     ' Précision locale.',
   )
   await user.type(
-    screen.getByLabelText('Motif de la correction'),
+    screen.getByLabelText('Motif de la correction *'),
     'Préciser le compte rendu.',
   )
   current = {
@@ -320,7 +320,10 @@ test('an observation draft keeps its version across refresh and can be explicitl
   expect(screen.getByLabelText('Montant dépensé (F CFA)')).toHaveValue('110000')
   expect(screen.getByLabelText('Opération terminée')).not.toBeChecked()
   await user.type(screen.getByLabelText('Observation'), ' Complément.')
-  await user.type(screen.getByLabelText('Motif de la correction'), 'Compléter.')
+  await user.type(
+    screen.getByLabelText('Motif de la correction *'),
+    'Compléter.',
+  )
   await user.click(
     screen.getByRole('button', { name: 'Enregistrer', exact: true }),
   )
@@ -542,7 +545,7 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   expect(screen.queryByText('Autorisation de décaissement')).toBeNull()
   expect(screen.queryByText('Autorisation de virement')).toBeNull()
   await user.type(
-    screen.getByLabelText('Motif de l’absence de dépense'),
+    screen.getByLabelText('Motif de l’absence de dépense *'),
     'Les moyens propres ont suffi.',
   )
   await user.click(
@@ -704,7 +707,7 @@ test.each([
       />,
     )
     if (decision === 'prevalidate') {
-      expect(await screen.findByLabelText('Motif du retour')).toBeVisible()
+      expect(await screen.findByLabelText('Motif du retour *')).toBeVisible()
     }
     await user.click(await screen.findByRole('button', { name: buttonLabel }))
     expect(await screen.findByText(finalLabel)).toBeVisible()
@@ -1386,10 +1389,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     ),
   )
-  await user.type(
-    screen.getByLabelText('Motif obligatoire'),
-    'Corriger les montants.',
-  )
+  await user.type(screen.getByLabelText('Motif *'), 'Corriger les montants.')
   await user.click(screen.getByRole('button', { name: 'Annuler la demande' }))
   expect(
     await screen.findByRole('button', { name: /Soumettre 100.*000 F CFA/ }),
@@ -1827,7 +1827,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     await screen.findByText(/MJL enregistre la déclaration/i),
   ).toBeVisible()
   await user.type(
-    screen.getByLabelText('Date effective du virement'),
+    screen.getByLabelText('Date effective du virement *'),
     '2026-10-28',
   )
   await user.type(screen.getByLabelText(/Référence ou commentaire/), 'TEST-001')
@@ -1851,9 +1851,9 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     .getByRole('heading', { name: 'Autorisation de virement' })
     .closest('section')
   const virementPanel = within(virementSection)
-  await user.clear(virementPanel.getByLabelText('Date effective du virement'))
+  await user.clear(virementPanel.getByLabelText('Date effective du virement *'))
   await user.type(
-    virementPanel.getByLabelText('Date effective du virement'),
+    virementPanel.getByLabelText('Date effective du virement *'),
     '2026-10-27',
   )
   await user.clear(virementPanel.getByLabelText(/Référence ou commentaire/))
@@ -1862,7 +1862,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     'TEST-002',
   )
   await user.type(
-    virementPanel.getByLabelText('Motif de la correction'),
+    virementPanel.getByLabelText('Motif de la correction *'),
     'Première correction.',
   )
   await user.click(virementPanel.getByLabelText(/Je confirme que ce montant/))
@@ -1870,15 +1870,15 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     virementPanel.getByRole('button', { name: 'Corriger la déclaration' }),
   )
   await waitFor(() =>
-    expect(virementPanel.getByLabelText('Motif de la correction')).toHaveValue(
-      '',
-    ),
+    expect(
+      virementPanel.getByLabelText('Motif de la correction *'),
+    ).toHaveValue(''),
   )
   expect(
-    virementPanel.getByLabelText('Date effective du virement'),
+    virementPanel.getByLabelText('Date effective du virement *'),
   ).toHaveValue('2026-10-27')
   await user.type(
-    virementPanel.getByLabelText('Motif de la correction'),
+    virementPanel.getByLabelText('Motif de la correction *'),
     'Deuxième correction.',
   )
   await user.clear(virementPanel.getByLabelText(/Référence ou commentaire/))
@@ -2133,7 +2133,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     }),
   )
   await user.type(
-    dialog.getByLabelText('Motif de la correction du reversement'),
+    dialog.getByLabelText('Motif de la correction du reversement *'),
     'Date corrigée.',
   )
   await user.click(dialog.getByLabelText(/montant exact a été reversé/))
@@ -2583,7 +2583,7 @@ test('a reasoned execution correction refreshes the funding version without rele
   await user.clear(amount)
   await user.type(amount, '90000')
   await user.type(
-    screen.getByLabelText('Motif de la correction'),
+    screen.getByLabelText('Motif de la correction *'),
     'Montant rectifié après vérification.',
   )
   await user.click(

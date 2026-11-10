@@ -37,21 +37,30 @@ test('application updates wait for an edited planning form to be saved', async (
       <PwaUpdate queryClient={client} />
     </>,
   )
-  fireEvent.change(screen.getByLabelText('Nom', { exact: true }), {
-    target: { value: 'Atelier modifié' },
-  })
+  fireEvent.change(
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
+    {
+      target: { value: 'Atelier modifié' },
+    },
+  )
   fireEvent.click(
     screen.getByRole('button', { name: 'Actualiser l’application' }),
   )
   expect(update).not.toHaveBeenCalled()
-  fireEvent.submit(screen.getByRole('button', { name: 'Enregistrer' }).form)
-  expect(screen.getByLabelText('Nom', { exact: true })).toBeDisabled()
+  fireEvent.submit(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }).form,
+  )
+  expect(
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
+  ).toBeDisabled()
   fireEvent.click(
     screen.getByRole('button', { name: 'Actualiser l’application' }),
   )
   expect(update).not.toHaveBeenCalled()
   await act(async () => finishSave())
-  expect(screen.getByLabelText('Nom', { exact: true })).toBeEnabled()
+  expect(
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
+  ).toBeEnabled()
   fireEvent.click(
     screen.getByRole('button', { name: 'Actualiser l’application' }),
   )

@@ -468,12 +468,12 @@ test('reviewer brief uses nested calendars, searchable assignment and retained s
   })
   await opener.click()
   const modal = page.getByRole('dialog', {
-    name: 'Créer et affecter une activité',
+    name: 'Créer une activité',
   })
   await expect(modal).toBeVisible()
   await page.screenshot({ path: '/tmp/brief-reference.png' })
   await modal
-    .getByLabel('Intitulé de l’activité')
+    .getByLabel('Intitulé de l’activité *')
     .fill('Concertation communale')
   await modal.getByRole('button', { name: /Date de début/ }).click()
   await expect(page.getByRole('grid')).toBeVisible()
@@ -488,16 +488,16 @@ test('reviewer brief uses nested calendars, searchable assignment and retained s
   await modal.getByRole('option', { name: 'Aïcha HOUNKPATIN' }).click()
   await page.screenshot({ path: '/tmp/brief-selection.png' })
   await modal
-    .getByRole('button', { name: 'Créer et affecter', exact: true })
+    .getByRole('button', { name: 'Créer l’activité', exact: true })
     .click()
   await expect(modal.getByRole('alert')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(modal).not.toBeVisible()
   await opener.click()
-  await expect(modal.getByLabel('Intitulé de l’activité')).toHaveValue(
+  await expect(modal.getByLabel('Intitulé de l’activité *')).toHaveValue(
     'Concertation communale',
   )
-  await expect(modal.getByLabel('Intitulé de l’activité')).toBeDisabled()
+  await expect(modal.getByLabel('Intitulé de l’activité *')).toBeDisabled()
   await modal.getByRole('button', { name: 'Vérifier l’enregistrement' }).click()
   await expect(modal).toHaveCount(0)
   expect(sent).toHaveLength(2)

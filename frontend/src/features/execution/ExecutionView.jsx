@@ -648,7 +648,7 @@ export function ExecutionList({
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>{`${strings.listTitle} — MJL`}</title>
+        <title>{`${strings.listTitle} - MJL`}</title>
       </Helmet>
       {!embedded && (
         <h1 className="text-2xl font-semibold text-navy">
@@ -882,7 +882,7 @@ function ExecutionDetail({
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>{`${detail.name} — Réalisation MJL`}</title>
+        <title>{`${detail.name} - Réalisation MJL`}</title>
       </Helmet>
       <nav
         className="flex flex-wrap gap-3 text-sm text-primary"
@@ -1339,7 +1339,7 @@ function ZeroSpendingSection({
               }}
             >
               <label>
-                Motif du retour
+                Motif du retour *
                 <textarea name="reason" required maxLength="4000" />
               </label>
               <Button
@@ -1375,7 +1375,7 @@ function ZeroSpendingSection({
           }}
         >
           <label>
-            Motif de l’absence de dépense
+            Motif de l’absence de dépense *
             <textarea name="reason" required maxLength="4000" />
           </label>
           <Button type="submit" disabled={pending || !navigator.onLine}>
@@ -1490,7 +1490,7 @@ function ClosureSection({ detail, pending, mutate }) {
             >
               <label>
                 <input type="checkbox" required /> Je confirme que l’Activité
-                est entièrement réalisée et réglée.
+                est entièrement réalisée et réglée. *
               </label>
               <Button type="submit" disabled={pending || !navigator.onLine}>
                 Clôturer l’activité
@@ -1639,7 +1639,7 @@ function DisbursementSection({
               }}
             >
               <label>
-                Motif obligatoire
+                Motif *
                 <textarea name="reason" required maxLength="4000" />
               </label>
               <div className="flex gap-2 items-end flex-wrap">
@@ -1898,7 +1898,7 @@ function VirementSection({
                   }}
                 >
                   <label>
-                    Date effective du virement
+                    Date effective du virement *
                     <input
                       type="date"
                       name="transfer_date"
@@ -1907,7 +1907,7 @@ function VirementSection({
                     />
                   </label>
                   <label>
-                    Référence ou commentaire (facultatif)
+                    Référence ou commentaire
                     <textarea
                       name="note"
                       maxLength="4000"
@@ -1916,13 +1916,13 @@ function VirementSection({
                   </label>
                   {current.current_confirmation && (
                     <label>
-                      Motif de la correction
+                      Motif de la correction *
                       <textarea name="reason" required maxLength="4000" />
                     </label>
                   )}
                   <label>
                     <input type="checkbox" required /> Je confirme que ce
-                    montant a été viré.
+                    montant a été viré. *
                   </label>
                   <Button type="submit" disabled={pending || !navigator.onLine}>
                     {current.current_confirmation
@@ -2119,7 +2119,7 @@ function VirementSection({
                             </strong>
                           </p>
                           <div className="grid gap-[6px] text-[0.8125rem] font-medium">
-                            <span>Date effective du reversement</span>
+                            <span>Date effective du reversement *</span>
                             <DatePicker
                               label="Date effective du reversement"
                               value={reversementDate}
@@ -2132,7 +2132,7 @@ function VirementSection({
                             />
                           </div>
                           <label>
-                            Référence ou commentaire du reversement (facultatif)
+                            Référence ou commentaire du reversement
                             <textarea
                               name="reversement_note"
                               maxLength="4000"
@@ -2144,7 +2144,7 @@ function VirementSection({
                           </label>
                           {current.reversement.current_declaration && (
                             <label>
-                              Motif de la correction du reversement
+                              Motif de la correction du reversement *
                               <textarea
                                 name="reversement_reason"
                                 required
@@ -2154,7 +2154,7 @@ function VirementSection({
                           )}
                           <label>
                             <input type="checkbox" required /> Je confirme que
-                            ce montant exact a été reversé au Partenaire.
+                            ce montant exact a été reversé au Partenaire. *
                           </label>
                           <div data-ui="modal-actions">
                             <Button
@@ -2262,7 +2262,7 @@ function VirementSection({
               }}
             >
               <label>
-                Motif obligatoire
+                Motif *
                 <textarea name="reason" required maxLength="4000" />
               </label>
               <div className="flex gap-2 items-end flex-wrap">

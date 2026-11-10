@@ -13,6 +13,10 @@ export function addThreeMonths(value) {
   return `${targetYear}-${String(normalizedMonth + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`
 }
 
+export function localDateInput(value = new Date()) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+}
+
 export function formatXof(value) {
   if (value === null || value === undefined || value === '') return '—'
   const amount = typeof value === 'bigint' ? value : BigInt(value || 0)

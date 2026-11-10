@@ -160,11 +160,11 @@ test('assignment loss closes an upload and refreshes retained document permissio
   )
   const modal = screen.getByRole('dialog', { name: 'Ajouter une pièce' })
   await userEvent.upload(
-    within(modal).getByLabelText('Choisir un fichier PDF, JPEG ou PNG'),
+    within(modal).getByLabelText('Choisir un fichier PDF, JPEG ou PNG *'),
     new File(['image'], 'preuve.png', { type: 'image/png' }),
   )
   expect(
-    within(modal).getByLabelText('Choisir un fichier PDF, JPEG ou PNG').files,
+    within(modal).getByLabelText('Choisir un fichier PDF, JPEG ou PNG *').files,
   ).toHaveLength(1)
   fireEvent.submit(
     within(modal).getByRole('button', { name: 'Ajouter', exact: true }).form,

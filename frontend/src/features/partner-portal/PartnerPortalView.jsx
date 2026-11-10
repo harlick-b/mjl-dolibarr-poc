@@ -297,7 +297,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
     return (
       <section className="grid gap-6">
         <Helmet>
-          <title>{`${strings.exportsTitle} — MJL`}</title>
+          <title>{`${strings.exportsTitle} - MJL`}</title>
         </Helmet>
         <h1 className="text-2xl font-semibold text-navy">
           {strings.exportsTitle}
@@ -421,7 +421,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
   return (
     <section className="grid gap-6 [&_[data-ui~='planning-list']_li]:flex [&_[data-ui~='planning-list']_li]:justify-between [&_[data-ui~='planning-list']_li]:gap-6 [&_[data-ui~='planning-list']_div]:grid [&_[data-ui~='planning-list']_div]:gap-1 [&_[data-ui~='planning-list']_small]:text-muted-foreground [&_[data-ui~='planning-list']_span]:text-muted-foreground">
       <Helmet>
-        <title>Espace Partenaire · MJL</title>
+        <title>Espace Partenaire - MJL</title>
       </Helmet>
       <header
         className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"

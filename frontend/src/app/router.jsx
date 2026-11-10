@@ -561,6 +561,7 @@ export function makeRouter(history, componentOverrides = {}) {
         q: String(search.q || '').slice(0, 200),
         state: String(search.state || '').slice(0, 32),
         agent: String(search.agent || '').slice(0, 36),
+        mine: search.mine === 'all' ? 'all' : 'own',
         from: String(search.from || '').slice(0, 10),
         to: String(search.to || '').slice(0, 10),
         view: search.view === 'calendar' ? 'calendar' : 'table',

@@ -42,7 +42,10 @@ for (const [role, links] of Object.entries(roles))
     await page.goto('/')
     await expect(page).toHaveURL(/\/dashboard$/)
     await expect(
-      page.getByRole('heading', { name: 'Tableau de bord' }),
+      page.getByRole('heading', {
+        name:
+          role === 'ADMIN_PLATEFORME' ? 'Administration' : 'Tableau de bord',
+      }),
     ).toBeVisible()
     await expect(page.locator('aside nav a')).toHaveText(links)
     await expect(
@@ -85,6 +88,33 @@ test('PTA entry pages load bounded selected project data and keep sidebar visibl
       },
     }),
   )
+  await page.route('**/api/v1/ptas', (route) =>
+    route.fulfill({
+      json: {
+        ...list,
+        count: 1,
+        data: [
+          {
+            id: 'pta-1',
+            project_id: 'project-1',
+            project_name: 'Projet de test',
+            partner_name: 'Partenaire test',
+            project_state: 'active',
+            name: 'PTA 2026',
+            description: null,
+            year: 2026,
+            summary: {
+              activities: 4,
+              approved: 4,
+              review: 0,
+              correction: 0,
+              approved_allocation: '100',
+            },
+          },
+        ],
+      },
+    }),
+  )
   await page.route('**/api/v1/ptas/pta-1/metrics', (route) =>
     route.fulfill({
       json: {
@@ -93,9 +123,88 @@ test('PTA entry pages load bounded selected project data and keep sidebar visibl
       },
     }),
   )
+  await page.route('**/api/v1/ptas/pta-1/dashboard', (route) =>
+    route.fulfill({
+      json: {
+        pta_id: 'pta-1',
+        as_of: '2026-11-09T12:00:00Z',
+        physical: { closed_activities: 2, approved_activities: 4 },
+        financial: { closed_spending: '25', approved_allocation: '100' },
+        finance: {
+          approved_allocation: '100',
+          recorded_spending: '60',
+          recorded_operations: 2,
+          approved_operations: 4,
+          closed_spending: '25',
+          reversement_due: '15',
+          reversement_confirmed: null,
+        },
+        attention: {
+          count: 3,
+          items: [
+            {
+              activity_id: 'activity-1',
+              reference: 'ACT-001',
+              name: 'Forums communaux d’accès au droit',
+              reason: 'correction_requested',
+              action: 'review_planning',
+              destination: 'planning',
+            },
+            {
+              activity_id: 'activity-2',
+              reference: 'ACT-002',
+              name: 'Campagne d’information communautaire',
+              reason: 'draft_to_complete',
+              action: 'review_planning',
+              destination: 'planning',
+            },
+            {
+              activity_id: 'activity-3',
+              reference: 'ACT-003',
+              name: 'Formation des acteurs de la justice des mineurs',
+              reason: 'reversement_required',
+              action: 'declare_reversement',
+              destination: 'execution',
+            },
+          ],
+        },
+      },
+    }),
+  )
   await page.goto('/dashboard')
   await expect(page.getByText('50 %', { exact: true })).toBeVisible()
   await expect(page.getByText('25 %', { exact: true })).toBeVisible()
+  const finance = page.getByRole('region', { name: 'Suivi financier' })
+  await expect(finance.getByText('100 F CFA', { exact: true })).toBeVisible()
+  await expect(finance.getByText('60 F CFA', { exact: true })).toBeVisible()
+  await expect(finance.getByText('2 / 4 opérations')).toBeVisible()
+  await expect(finance.getByText('15 F CFA', { exact: true })).toBeVisible()
+  await expect(finance.getByText('-', { exact: true })).toBeVisible()
+  const attention = page.getByRole('region', { name: 'À votre attention' })
+  await expect(
+    attention.getByText('Correction demandée', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    attention.getByRole('link', { name: 'Revoir la programmation' }).first(),
+  ).toHaveAttribute('href', '/activities/activity-1')
+  await expect(
+    attention.getByRole('link', { name: 'Déclarer le reversement' }),
+  ).toHaveAttribute('href', '/execution/activities/activity-3')
+  await page.screenshot({
+    path: '/tmp/mjl-dashboard-populated.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true)
+  await page.screenshot({
+    path: '/tmp/mjl-dashboard-populated-mobile.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 1280, height: 720 })
   await page
     .getByRole('link', { name: 'Prévisions (PTA)', exact: true })
     .click()
@@ -106,10 +215,10 @@ test('PTA entry pages load bounded selected project data and keep sidebar visibl
   )
   await page.screenshot({ path: '/tmp/mjl-role-planning.png' })
   await page.getByRole('link', { name: 'Réalisation', exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Consulter' })).toHaveAttribute(
-    'href',
-    '/execution/pta-1',
-  )
+  await expect(
+    page.getByRole('combobox', { name: 'PTA annuel' }),
+  ).toContainText('2026')
+  await expect(page.getByText('0 activité', { exact: true })).toBeVisible()
 })
 test('long identity stays contained and menu reveals full identity', async ({
   page,

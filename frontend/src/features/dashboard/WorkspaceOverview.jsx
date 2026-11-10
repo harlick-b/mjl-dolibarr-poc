@@ -12,7 +12,7 @@ import { Panel } from '@/shared/ui/layout'
 import { Button } from '@/shared/ui/button'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { RetryableError } from '@/shared/ui/RetryableError'
-import { formatPercentage } from '@/shared/lib/format'
+import { formatPercentage, formatXof } from '@/shared/lib/format'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { strings } from '@/locales/fr/WorkspaceOverview'
 
@@ -22,7 +22,7 @@ export function WorkspaceOverview({ screen = 'dashboard' }) {
   return (
     <section className="grid gap-6">
       <Helmet>
-        <title>{`${title} — MJL`}</title>
+        <title>{`${title} - MJL`}</title>
       </Helmet>
       {!policy.can('accounts') && screen !== 'planning' && (
         <h1 className="text-2xl font-semibold text-navy">{title}</h1>
@@ -167,9 +167,9 @@ function BusinessOverview({ screen, user }) {
   const pta =
     ptas.data?.data.find((p) => p.id === selectedPta) || ptas.data?.data[0]
   const metrics = useQuery({
-    queryKey: ['planning', user.id, 'pta-metrics', pta?.id],
+    queryKey: ['planning', user.id, 'pta-dashboard', pta?.id],
     queryFn: ({ signal }) =>
-      api.request(`/api/v1/ptas/${pta.id}/metrics`, { signal }),
+      api.request(`/api/v1/ptas/${pta.id}/dashboard`, { signal }),
     enabled: screen === 'dashboard' && Boolean(pta),
   })
   const executionFilters = Object.fromEntries(
@@ -370,8 +370,10 @@ function BusinessOverview({ screen, user }) {
                       metrics.data.financial.approved_allocation,
                     )}
                     basis={strings.financialBasis}
-                    value={`${new Intl.NumberFormat('fr-FR').format(BigInt(metrics.data.financial.closed_spending)) + ' F CFA'} / ${new Intl.NumberFormat('fr-FR').format(BigInt(metrics.data.financial.approved_allocation)) + ' F CFA'}`}
+                    value={`${formatXof(metrics.data.financial.closed_spending)} / ${formatXof(metrics.data.financial.approved_allocation)}`}
                   />
+                  <AttentionSummary attention={metrics.data.attention} />
+                  <FinanceSummary finance={metrics.data.finance} />
                 </div>
               )}
             </>
@@ -389,6 +391,138 @@ function BusinessOverview({ screen, user }) {
       )}
     </>
   )
+}
+
+function AttentionSummary({ attention }) {
+  return (
+    <Panel
+      className="col-span-full gap-0 p-0"
+      aria-labelledby="dashboard-attention-title"
+    >
+      <div className="flex items-center justify-between gap-4 border-b border-border p-5">
+        <h2 id="dashboard-attention-title">{strings.attention}</h2>
+        {attention.count > attention.items.length && (
+          <p className="text-xs text-muted-foreground">
+            {strings.formatString(strings.attentionShown, {
+              shown: attention.items.length,
+              total: attention.count,
+            })}
+          </p>
+        )}
+      </div>
+      {attention.items.length ? (
+        <ul className="px-5">
+          {attention.items.map((item) => {
+            const path = attentionPath(item)
+            return (
+              <li
+                key={item.activity_id}
+                className="flex min-h-19 flex-wrap items-center justify-between gap-4 border-b border-border py-4 last:border-0"
+              >
+                <div className="min-w-0">
+                  <Link
+                    to={path}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {item.name}
+                  </Link>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {attentionReason(item.reason)}
+                  </p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={path}>{attentionAction(item.action)}</Link>
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
+        <EmptyContent kind="actions" />
+      )}
+    </Panel>
+  )
+}
+
+function attentionPath(item) {
+  return item.destination === 'planning'
+    ? `/activities/${item.activity_id}`
+    : `/execution/activities/${item.activity_id}`
+}
+
+function attentionReason(reason) {
+  return (
+    {
+      draft_to_complete: strings.draftToComplete,
+      correction_requested: strings.correctionRequested,
+      planning_prevalidation: strings.planningPrevalidation,
+      planning_approval: strings.planningApproval,
+      funding_prevalidation: strings.fundingPrevalidation,
+      funding_approval: strings.fundingApproval,
+      disbursement_prevalidation: strings.disbursementPrevalidation,
+      disbursement_approval: strings.disbursementApproval,
+      zero_spending_prevalidation: strings.zeroSpendingPrevalidation,
+      zero_spending_approval: strings.zeroSpendingApproval,
+      virement_prevalidation: strings.virementPrevalidation,
+      virement_approval: strings.virementApproval,
+      reversement_required: strings.reversementRequired,
+    }[reason] || strings.actionRequired
+  )
+}
+
+function attentionAction(action) {
+  return (
+    {
+      review_planning: strings.reviewPlanning,
+      review_finance: strings.reviewFinance,
+      declare_reversement: strings.declareReversement,
+    }[action] || strings.consult
+  )
+}
+
+function FinanceSummary({ finance }) {
+  const partial = finance.recorded_operations < finance.approved_operations
+  const values = [
+    [strings.approvedBudget, dashboardMoney(finance.approved_allocation)],
+    [
+      `${strings.recordedSpending}${partial ? ` · ${strings.partial}` : ''}`,
+      dashboardMoney(finance.recorded_spending),
+      strings.formatString(strings.operationCount, {
+        known: finance.recorded_operations,
+        total: finance.approved_operations,
+      }),
+    ],
+    [strings.closedSpending, dashboardMoney(finance.closed_spending)],
+    [strings.returnDue, dashboardMoney(finance.reversement_due)],
+    [strings.returnConfirmed, dashboardMoney(finance.reversement_confirmed)],
+  ]
+  return (
+    <Panel
+      className="col-span-full gap-0 p-0"
+      aria-labelledby="dashboard-finance-title"
+    >
+      <h2 id="dashboard-finance-title" className="border-b border-border p-5">
+        {strings.financeTitle}
+      </h2>
+      <dl className="grid gap-6 p-5 sm:grid-cols-2 lg:grid-cols-5">
+        {values.map(([label, value, detail]) => (
+          <div key={label}>
+            <dt className="text-[0.8125rem] text-muted-foreground">{label}</dt>
+            <dd className="mt-2 text-base font-semibold">{value}</dd>
+            {detail && (
+              <dd className="mt-1 text-xs text-muted-foreground">{detail}</dd>
+            )}
+          </div>
+        ))}
+      </dl>
+    </Panel>
+  )
+}
+
+function dashboardMoney(value) {
+  return value === null || value === undefined
+    ? strings.notEntered
+    : formatXof(value)
 }
 function Metric({ title, rate, basis, value }) {
   return (
@@ -455,7 +589,7 @@ function EmptyDashboard() {
             [strings.recordedSpending, strings.notEntered],
             [strings.closedSpending, '0 F CFA'],
             [strings.returnDue, strings.notEntered],
-            [strings.returnConfirmed, strings.notConfirmed],
+            [strings.returnConfirmed, strings.notEntered],
           ].map(([label, value]) => (
             <div key={label}>
               <dt className="text-[0.8125rem] text-muted-foreground">

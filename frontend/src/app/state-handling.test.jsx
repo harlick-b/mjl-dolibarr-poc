@@ -33,7 +33,7 @@ test.each(['success', 'failure'])(
       planned_end: '2027-04-01',
       allocation: '100',
       operations: [],
-      agent_ids: [],
+      agent_ids: ['agent'],
       allowed_actions: ['read'],
     }
     const empty = {
@@ -78,7 +78,7 @@ test.each(['success', 'failure'])(
         router={makeRouter(
           createMemoryHistory({
             initialEntries: [
-              '/activities/activity-upload?documentCursor=older',
+              '/activities/activity-upload?tab=files&documentCursor=older',
             ],
           }),
         )}
@@ -88,7 +88,7 @@ test.each(['success', 'failure'])(
       await screen.findByRole('button', { name: 'Ajouter une pièce' }),
     )
     await user.upload(
-      screen.getByLabelText('Choisir un fichier PDF, JPEG ou PNG'),
+      screen.getByLabelText('Choisir un fichier PDF, JPEG ou PNG *'),
       new File(['png'], 'preuve.png', { type: 'image/png' }),
     )
     fireEvent.submit(

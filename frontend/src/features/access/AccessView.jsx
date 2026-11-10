@@ -768,7 +768,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
             <div className="grid gap-6 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label>
-                  {strings.firstName}
+                  {strings.firstName} *
                   <input
                     name="first_name"
                     onInput={(event) =>
@@ -783,7 +783,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                   />
                 </label>
                 <label>
-                  {strings.lastName}
+                  {strings.lastName} *
                   <input
                     name="last_name"
                     onInput={(event) =>
@@ -797,7 +797,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
                 </label>
               </div>
               <label>
-                Adresse e-mail
+                Adresse e-mail *
                 <input
                   name="email"
                   type="email"
@@ -825,7 +825,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
               {inviteRole === 'PARTENAIRE' && (
                 <div>
                   <label>
-                    Partenaire
+                    Partenaire *
                     <Select
                       name="partner_id"
                       required

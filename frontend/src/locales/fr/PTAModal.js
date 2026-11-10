@@ -14,7 +14,8 @@ export const strings = new LocalizedStrings({
     year: 'Année',
     name: 'Nom du PTA',
     description: 'Description',
-    optional: '(facultatif)',
+    created: 'PTA créé.',
+    updated: 'PTA modifié.',
     chooseProject: 'Sélectionner un projet',
     noProjects:
       'Aucun projet actif n’est disponible. Un Validateur doit créer un projet actif avant la création du PTA.',

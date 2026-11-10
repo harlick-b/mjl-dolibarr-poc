@@ -11,7 +11,9 @@ import { Button } from '@/shared/ui/button'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { cursorFrom } from '@/shared/lib/pagination'
+import { localDateInput } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ActivityBriefModal'
+import { toast } from 'sonner'
 
 export function ActivityBriefModal({
   context,
@@ -27,7 +29,9 @@ export function ActivityBriefModal({
   const [base] = useState(context)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [start, setStart] = useState('')
+  const [start, setStart] = useState(() =>
+    Number(context.year) === new Date().getFullYear() ? localDateInput() : '',
+  )
   const [end, setEnd] = useState('')
   const [selected, setSelected] = useState([])
   const [expanded, setExpanded] = useState(false)
@@ -65,7 +69,7 @@ export function ActivityBriefModal({
     queryFn: async ({ signal }) => {
       try {
         return await api.request(
-          `/api/v1/assignment-agents?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(cursor ? { cursor } : {}) })}`,
+          `/api/v1/assignment-agents?${new URLSearchParams({ limit: '10', ...(search ? { q: search } : {}), ...(cursor ? { cursor } : {}) })}`,
           { signal },
         )
       } catch (error) {
@@ -77,7 +81,7 @@ export function ActivityBriefModal({
         throw error
       }
     },
-    enabled: open && expanded,
+    enabled: open,
   })
   const save = useMutation({
     retry: false,
@@ -88,7 +92,7 @@ export function ActivityBriefModal({
         request_key: requestKey,
         name: name.trim(),
         description: description.trim(),
-        planned_start: start,
+        planned_start: start || null,
         planned_end: end || null,
         agent_ids: selected.map((agent) => agent.id),
       }
@@ -100,7 +104,10 @@ export function ActivityBriefModal({
     onSuccess: async (result) => {
       if (!sameSession()) return
       await refresh()
-      if (active.current && sameSession()) onSaved(result)
+      if (active.current && sameSession()) {
+        toast.success(strings.created)
+        onSaved(result)
+      }
     },
     onError: async (error) => {
       if (error.name === 'AbortError' || !sameSession()) return
@@ -138,7 +145,7 @@ export function ActivityBriefModal({
             PTA {base.year} · {base.pta.name}
           </p>
           <label>
-            {strings.name}
+            {strings.name} *
             <input
               autoFocus
               required
@@ -150,9 +157,6 @@ export function ActivityBriefModal({
           </label>
           <label>
             {strings.description}
-            <span className="text-xs font-normal text-muted-foreground">
-              {strings.optional}
-            </span>
             <textarea
               rows={2}
               maxLength={4000}
@@ -170,15 +174,11 @@ export function ActivityBriefModal({
                 onChange={setStart}
                 min={`${base.year}-01-01`}
                 max={`${base.year}-12-31`}
+                optional
               />
             </div>
             <div className="grid gap-3 text-sm">
-              <span>
-                {strings.end}{' '}
-                <small className="text-muted-foreground">
-                  {strings.optional}
-                </small>
-              </span>
+              <span>{strings.end}</span>
               <DatePicker
                 label={strings.end}
                 value={end}
@@ -189,7 +189,7 @@ export function ActivityBriefModal({
             </div>
           </div>
           <div className="grid gap-3 text-sm">
-            <span>{strings.agents}</span>
+            <span>{strings.agents} *</span>
             <Button
               type="button"
               variant="outline"
@@ -330,8 +330,7 @@ export function ActivityBriefModal({
           <Button
             disabled={
               !name.trim() ||
-              !start ||
-              (end && end < start) ||
+              (start && end && end < start) ||
               !selected.length ||
               selected.length > 100
             }

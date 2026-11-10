@@ -28,7 +28,7 @@ export function OtpInput({ value, onChange, onComplete, disabled }) {
       className="[&_legend]:grid [&_legend]:gap-2 [&_legend]:text-[0.8125rem] [&_legend]:leading-5 [&_legend]:font-medium [&_legend]:mb-2 min-w-0"
       disabled={disabled}
     >
-      <legend>{strings.otpLabel}</legend>
+      <legend>{strings.otpLabel} *</legend>
       <div
         className="grid grid-cols-[repeat(3,_minmax(0,_1fr))_8px_repeat(3,_minmax(0,_1fr))] gap-2 mx-auto max-w-90 [&_input]:h-12 [&_input]:p-1 [&_input]:text-center [&_input]:text-2xl [&_input]:leading-8 [&_:where(input:nth-child(4))]:col-start-5 max-[761px]:gap-1"
         data-ui="auth-otp-slots"

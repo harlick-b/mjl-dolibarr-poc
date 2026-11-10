@@ -17,6 +17,7 @@ export const strings = new LocalizedStrings({
     to: 'Au',
     state: 'Réalisation',
     agent: 'Agent affecté',
+    myActivities: 'Mes activités',
     ongoing: 'Réalisation en cours',
     physical: 'Réalisation terminée',
     review: 'Autorisation à examiner',

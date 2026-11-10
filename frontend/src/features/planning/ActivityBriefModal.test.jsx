@@ -67,7 +67,7 @@ function setup(post, extra = {}) {
 async function fillBrief() {
   const user = userEvent.setup()
   await user.type(
-    screen.getByLabelText('Intitulé de l’activité'),
+    screen.getByLabelText('Intitulé de l’activité *'),
     'Concertation communale',
   )
   await user.click(screen.getByRole('button', { name: /Date de début/ }))
@@ -86,9 +86,14 @@ async function fillBrief() {
 
 test('reviewer assigns a brief without inventing an end date, operations or budget', async () => {
   const { api, saved } = setup()
-  expect(api.request).not.toHaveBeenCalled()
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      '/api/v1/assignment-agents?limit=10',
+      expect.any(Object),
+    ),
+  )
   const user = await fillBrief()
-  await user.click(screen.getByRole('button', { name: 'Créer et affecter' }))
+  await user.click(screen.getByRole('button', { name: 'Créer l’activité' }))
   await waitFor(() => expect(saved).toHaveBeenCalled())
   const call = api.request.mock.calls.find(([, o]) => o?.method === 'POST')
   expect(call[1].body).toEqual({
@@ -113,9 +118,9 @@ test('unknown creation retries the identical command and freezes the draft', asy
     .mockResolvedValue({ id: 'saved' })
   const { saved } = setup(post)
   const user = await fillBrief()
-  await user.click(screen.getByRole('button', { name: 'Créer et affecter' }))
+  await user.click(screen.getByRole('button', { name: 'Créer l’activité' }))
   await screen.findByRole('alert')
-  expect(screen.getByLabelText('Intitulé de l’activité')).toBeDisabled()
+  expect(screen.getByLabelText('Intitulé de l’activité *')).toBeDisabled()
   await user.click(
     screen.getByRole('button', { name: 'Vérifier l’enregistrement' }),
   )
@@ -143,19 +148,17 @@ test('a conclusive retry failure unlocks the retained draft for correction', asy
     )
   setup(post)
   const user = await fillBrief()
-  await user.click(screen.getByRole('button', { name: 'Créer et affecter' }))
+  await user.click(screen.getByRole('button', { name: 'Créer l’activité' }))
   await user.click(
     await screen.findByRole('button', { name: 'Vérifier l’enregistrement' }),
   )
   await waitFor(() =>
-    expect(screen.getByLabelText('Intitulé de l’activité')).toBeEnabled(),
+    expect(screen.getByLabelText('Intitulé de l’activité *')).toBeEnabled(),
   )
   expect(screen.getByRole('alert')).toHaveTextContent(
     'Un Agent sélectionné n’est plus disponible',
   )
-  expect(
-    screen.getByRole('button', { name: 'Créer et affecter' }),
-  ).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Créer l’activité' })).toBeEnabled()
 })
 
 test('a rate limit during recovery keeps the same command frozen', async () => {
@@ -173,12 +176,12 @@ test('a rate limit during recovery keeps the same command frozen', async () => {
     .mockResolvedValue({ id: 'saved' })
   const { saved } = setup(post)
   const user = await fillBrief()
-  await user.click(screen.getByRole('button', { name: 'Créer et affecter' }))
+  await user.click(screen.getByRole('button', { name: 'Créer l’activité' }))
   await user.click(
     await screen.findByRole('button', { name: 'Vérifier l’enregistrement' }),
   )
   await waitFor(() => expect(post).toHaveBeenCalledTimes(2))
-  expect(screen.getByLabelText('Intitulé de l’activité')).toBeDisabled()
+  expect(screen.getByLabelText('Intitulé de l’activité *')).toBeDisabled()
   await user.click(
     screen.getByRole('button', { name: 'Vérifier l’enregistrement' }),
   )
@@ -199,7 +202,7 @@ test('dismissing an in-flight write retains recovery and still invalidates on su
   )
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   const user = await fillBrief()
-  await user.click(screen.getByRole('button', { name: 'Créer et affecter' }))
+  await user.click(screen.getByRole('button', { name: 'Créer l’activité' }))
   await user.click(screen.getByRole('button', { name: 'Fermer' }))
   expect(close).toHaveBeenCalledWith(true)
   finish({ id: 'created' })

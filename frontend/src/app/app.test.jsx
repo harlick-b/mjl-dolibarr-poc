@@ -235,11 +235,11 @@ test('Agent login and OTP reach the default Dashboard without a refresh', async 
   const router = makeRouter(createMemoryHistory({ initialEntries: ['/login'] }))
   render(<App router={router} />)
   await userEvent.type(
-    await screen.findByLabelText('Adresse e-mail'),
+    await screen.findByLabelText('Adresse e-mail *'),
     'agent@example.test',
   )
   await userEvent.type(
-    screen.getByLabelText('Mot de passe', { exact: true }),
+    screen.getByLabelText('Mot de passe *', { exact: true }),
     'ValidPass1!',
   )
   await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }))
