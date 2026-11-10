@@ -264,6 +264,9 @@ def test_m13_cancellation_restores_approved_content_and_preserves_evidence(plann
             "reason": "Modification finalement inutile.",
         },
     ).json()
+    opened = assign_agents(
+        planning, opened, planning["agent"], planning["agent2"]
+    )
     changed = patch(
         planning["agent2"],
         f"/api/v1/activities/{approved['id']}",

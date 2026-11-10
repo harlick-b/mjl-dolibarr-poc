@@ -1,7 +1,7 @@
 """Durable notifications for supported financial review workflows."""
 
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,12 +11,17 @@ from app.auth.service import AuthService
 from app.planning.models import (
     Activity,
     ActivityAssignment,
+    DisbursementDecision,
     DisbursementRequest,
     FinancialWorkflowNotification,
+    FundingDecision,
     FundingRequest,
+    VirementDecision,
     VirementRequest,
+    ZeroSpendingDecision,
     ZeroSpendingDeclaration,
 )
+from app.planning.notification_delivery import attempt_notification_email
 from app.planning.service import CONTEXT, locked_mutation
 
 FinancialRequest = (
@@ -24,10 +29,10 @@ FinancialRequest = (
 )
 
 REQUEST_LABELS = {
-    "funding": "demande de financement complémentaire",
-    "disbursement": "demande d’autorisation de décaissement",
-    "virement": "demande de virement",
-    "zero_spending": "déclaration sans dépense",
+    "funding": "Demande de financement complémentaire",
+    "disbursement": "Demande d’autorisation de décaissement",
+    "virement": "Demande de virement",
+    "zero_spending": "Déclaration sans dépense",
 }
 
 REQUEST_MODELS: dict[str, type[FinancialRequest]] = {
@@ -35,6 +40,13 @@ REQUEST_MODELS: dict[str, type[FinancialRequest]] = {
     "disbursement": DisbursementRequest,
     "virement": VirementRequest,
     "zero_spending": ZeroSpendingDeclaration,
+}
+
+DECISION_MODELS: dict[str, Any] = {
+    "funding": FundingDecision,
+    "disbursement": DisbursementDecision,
+    "virement": VirementDecision,
+    "zero_spending": ZeroSpendingDecision,
 }
 
 
@@ -177,6 +189,42 @@ def mark_review_handled(
         item.handled_at = handled_at
 
 
+def _request_amount(db: Session, source: FinancialRequest) -> int | None:
+    if isinstance(source, (FundingRequest, DisbursementRequest)):
+        return source.amount
+    if isinstance(source, ZeroSpendingDeclaration):
+        return 0
+    if isinstance(source, VirementRequest):
+        return db.scalar(
+            select(DisbursementRequest.amount).where(
+                DisbursementRequest.id == source.disbursement_request_id
+            )
+        )
+    return None
+
+
+def _actor_id(
+    db: Session,
+    item: FinancialWorkflowNotification,
+    source: FinancialRequest,
+) -> str | None:
+    if item.stage == "supervisor" and item.kind == "financial_review":
+        return source.submitter_id
+    decision_model = DECISION_MODELS.get(item.request_kind)
+    if decision_model is None:
+        return None
+    outcome = "prevalidated" if item.stage == "validator" else "returned"
+    return db.scalar(
+        select(decision_model.actor_id)
+        .where(
+            decision_model.request_id == source.id,
+            decision_model.outcome == outcome,
+        )
+        .order_by(decision_model.decided_at.desc())
+        .limit(1)
+    )
+
+
 def deliver_financial_notification(auth: AuthService, identifier: str) -> str | None:
     delivery: tuple[str, str, dict[str, object]] | None = None
     with Session(auth.engine) as db, db.begin():
@@ -191,7 +239,10 @@ def deliver_financial_notification(auth: AuthService, identifier: str) -> str | 
         recipient = db.get(User, item.recipient_id)
         activity = db.get(Activity, item.activity_id)
         model = REQUEST_MODELS.get(item.request_kind)
-        source = db.get(model, item.request_id) if model else None
+        source = cast(
+            FinancialRequest | None,
+            db.get(model, item.request_id) if model else None,
+        )
         if recipient and recipient.state == "active" and activity and source:
             mail_kind = (
                 "financial_correction"
@@ -200,32 +251,39 @@ def deliver_financial_notification(auth: AuthService, identifier: str) -> str | 
                 if item.stage == "supervisor"
                 else "financial_review_validator"
             )
-            delivery = (
-                recipient.email,
-                mail_kind,
-                {
-                    "recipient_name": recipient.full_name,
-                    "request_label": REQUEST_LABELS[item.request_kind],
-                    "activity_reference": activity.reference,
-                    "activity_name": activity.name,
-                    **(
-                        {"reason": item.reason}
-                        if item.kind == "financial_correction"
-                        else {}
-                    ),
-                },
-            )
+            amount = _request_amount(db, source)
+            actor_id = _actor_id(db, item, source)
+            actor = db.get(User, actor_id) if actor_id else None
+            if amount is not None:
+                delivery = (
+                    recipient.email,
+                    mail_kind,
+                    {
+                        "recipient_name": recipient.full_name,
+                        "actor_name": actor.full_name if actor else None,
+                        "request_label": REQUEST_LABELS[item.request_kind],
+                        "request_amount": f"{amount:,}".replace(",", " "),
+                        "activity_reference": activity.reference,
+                        "activity_name": activity.name,
+                        "action_url": (
+                            f"{auth.policy.origin}/execution/activities/{activity.id}"
+                        ),
+                        **(
+                            {"reason": item.reason}
+                            if item.kind == "financial_correction"
+                            else {}
+                        ),
+                    },
+                )
         item.email_completed_at = auth.now(db)
         if delivery is None:
             item.email_status = "skipped"
             return "skipped"
 
-    status = "delivered"
-    try:
-        recipient_email, mail_kind, context = delivery
-        auth.send_mail(recipient_email, mail_kind, **context)
-    except OSError:
-        status = "failed"
+    recipient_email, mail_kind, context = delivery
+    status, _provider_id = attempt_notification_email(
+        auth, recipient_email, mail_kind, context
+    )
     with Session(auth.engine) as db, db.begin():
         item = db.get(FinancialWorkflowNotification, identifier, with_for_update=True)
         if not item or item.email_status != "unconfirmed":

@@ -25,7 +25,10 @@ export function ReminderMenu() {
         ref={opener}
         variant="ghost"
         className="mb-3 w-full justify-start gap-3 px-3 text-navy"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true)
+          void unread.refetch()
+        }}
       >
         <Clock size={14} aria-hidden="true" />
         {strings.reminders}

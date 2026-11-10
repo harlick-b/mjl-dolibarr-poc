@@ -1993,7 +1993,11 @@ def lifecycle_eligible(db: Session, auth: Auth, item: Activity) -> None:
     openapi_extra=MUTATION_HEADERS,
 )
 def request_transfer(
-    identifier: str, body: TransferInput, request: Request, auth: Auth
+    identifier: str,
+    body: TransferInput,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
 ) -> Response:
     import json
 
@@ -2136,6 +2140,13 @@ def request_transfer(
         workflow_audit(
             auth, db, "activity.transfer_submit", actor, item, before, after, revision
         )
+        notification_ids = record_review_notifications(
+            db, auth, item, revision, "supervisor"
+        )
+        for notification_id in notification_ids:
+            background_tasks.add_task(
+                deliver_workflow_notification, auth, notification_id
+            )
         payload = revision_item(db, revision)
         payload["activity_version"] = item.version
         return created(
@@ -2188,6 +2199,8 @@ def cancel_transfer(
             raise AuthError(409, "transfer_stale")
         before = activity_item(db, item, actor.role, actor.id)
         now = auth.now(db)
+        mark_review_handled(db, revision.id, "supervisor", now)
+        mark_review_handled(db, revision.id, "validator", now)
         item.current_revision_id = item.approved_revision_id
         item.transfer_id = None
         item.state = "approved"
@@ -2223,7 +2236,11 @@ def cancel_transfer(
     openapi_extra=MUTATION_HEADERS,
 )
 def request_withdrawal(
-    identifier: str, body: WithdrawalInput, request: Request, auth: Auth
+    identifier: str,
+    body: WithdrawalInput,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
 ) -> Response:
     import json
 
@@ -2338,6 +2355,13 @@ def request_withdrawal(
         workflow_audit(
             auth, db, "activity.withdrawal_submit", actor, item, before, after, revision
         )
+        notification_ids = record_review_notifications(
+            db, auth, item, revision, "supervisor"
+        )
+        for notification_id in notification_ids:
+            background_tasks.add_task(
+                deliver_workflow_notification, auth, notification_id
+            )
         payload = revision_item(db, revision)
         payload["activity_version"] = item.version
         return created(
@@ -2390,6 +2414,8 @@ def cancel_withdrawal(
             raise AuthError(409, "withdrawal_stale")
         before = activity_item(db, item, actor.role, actor.id)
         now = auth.now(db)
+        mark_review_handled(db, revision.id, "supervisor", now)
+        mark_review_handled(db, revision.id, "validator", now)
         item.current_revision_id = item.approved_revision_id
         item.withdrawal_id = None
         item.state = "approved"
@@ -2699,6 +2725,9 @@ def cancel_amendment(
             if item.current_revision_id != item.approved_revision_id
             else None
         )
+        if last_revision_id:
+            mark_review_handled(db, last_revision_id, "supervisor", now)
+            mark_review_handled(db, last_revision_id, "validator", now)
         item.current_revision_id = item.approved_revision_id
         item.state = "approved"
         item.amendment_id = None

@@ -1056,6 +1056,66 @@ development launcher and metadata alignment for already-existing indexes are
 included; the launcher was not run against the user's development database in
 this review.
 
+## Review and correction email templates, 2026-11-10
+
+The six supplied email designs now live with the application templates and have
+matching plain-text alternatives: Activity and financial review at Supervisor and
+Validator stages, plus both correction returns. Their subjects use the six agreed
+actions. Activity copy identifies initial submission, amendment, withdrawal or
+annual transfer and uses neutral wording when a person's name is absent. Financial
+copy uses the Activity reference and the exact stored request amount; a declaration
+without spending is shown as `Déclaration sans dépense — 0 F CFA`. A financial
+return tells the Agent to correct the request and submit it again. The templates do
+not create request numbers or substitute unrelated values for missing facts.
+
+Withdrawal and annual-transfer submissions now create Supervisor review notices,
+while their existing prevalidation path creates Validator notices. Cancelling an
+amendment, withdrawal or transfer handles notices from both stages so obsolete work
+no longer appears actionable. Login and OTP keep an authorized path from a mail or
+inbox link. Opening the notification menu refreshes its unread count without adding
+periodic polling.
+
+All durable notification emails use one bounded delivery-attempt helper. Explicit
+provider rejection is recorded as failed; a network or malformed-success outcome is
+recorded as uncertain and is not retried. Migration
+`0035_uncertain_notification_mail` adds that status to the four existing durable
+notification records and refuses a downgrade that would discard uncertain history.
+The mixed notification inbox reads one repeatable database snapshot and batches
+reminder projections; its UI presentation and localized pagination no longer rely
+on repeated nested kind checks.
+
+Candidate evidence: the six mail pairs passed **23 tests**. The complete
+PostgreSQL-backed reminder/notification file passed **20 tests**; focused financial,
+withdrawal, transfer, amendment and repeatable-migration checks passed **8 tests**
+on disposable PostgreSQL. Focused Ruff and strict mypy passed. Frontend ESLint,
+Prettier and production build passed, with the existing large-chunk warning. The
+full frontend run completed **220 passed, 5 failed**: the failures were in unrelated
+execution/planning journeys during the concurrent run. Rerunning those two files
+alone with one worker passed **73 tests**; this focused pass does not turn the broad
+run into a pass. Real Resend delivery, Gmail/Outlook rendering and browser visual or
+accessibility acceptance were not run. No historical notification backfill or
+resend, retry queue, polling or generic event system was added.
+
+Independent specification and standards review found that missing decision facts
+could incorrectly attribute prevalidation or return to the original submitter, and
+that a malformed reminder snapshot could be displayed as the name `None`. The
+corrected context builders now keep an unknown decision actor neutral, and reminder
+projection rejects a missing/non-text Activity name. Focused regressions passed
+**2 tests**; the normal Activity and financial attribution journeys then passed
+**2 PostgreSQL-backed tests**. Focused Ruff and strict mypy passed again. The same
+reviewers cleared the corrected candidate with no remaining blocking finding.
+
+Pre-commit review independently cleared both specification and standards again.
+`npm --prefix frontend run test:unit -- --maxWorkers=1` completed with **224 passed,
+1 failed**: the execution-history 404 case timed out finding its initial button.
+Its focused rerun (`src/features/execution/execution.test.jsx -t 'background history
+failure 404' --maxWorkers=1`) passed **1 test, 28 skipped**. The full suite remains
+recorded as failed. Explicit mail and missing-data pytest node selections passed
+**25 tests**. An earlier overly broad selection also picked five PostgreSQL cases
+without `TEST_DATABASE_URL`; those failed at fixture setup and provide no new
+database evidence. The disposable-PostgreSQL results above remain the database
+evidence for this unchanged implementation. `git diff --check` passed.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

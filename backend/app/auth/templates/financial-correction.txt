@@ -1,7 +1,12 @@
 Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
 
-La {{ request_label }} liée à l’activité {{ activity_reference }} - {{ activity_name }} vous a été retournée pour correction.
+Une demande financière nécessite des corrections.
+{% if actor_name %}{{ actor_name }} a demandé ces corrections.{% else %}Des corrections ont été demandées après examen.{% endif %}
+
+{{ request_label }} — {{ request_amount }} F CFA
+Activité : {{ activity_name }}
+Référence de l’activité : {{ activity_reference }}
 
 Motif : {{ reason }}
 
-Connectez-vous à MJL pour consulter et corriger la demande.
+Consultez les observations, apportez les corrections nécessaires puis effectuez une nouvelle soumission : {{ action_url }}

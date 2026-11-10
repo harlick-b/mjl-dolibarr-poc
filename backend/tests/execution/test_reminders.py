@@ -1,6 +1,7 @@
 # ruff: noqa: F401, F811
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+from types import SimpleNamespace
 
 import pytest
 from alembic import command
@@ -9,8 +10,15 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.auth.models import Audit, User
+from app.auth.service import AuthError
+from app.planning.financial_notifications import _actor_id as financial_actor_id
 from app.planning.models import ActivityReminder
-from app.planning.reminders import deliver_reminder, dispatch_due_reminders
+from app.planning.reminders import (
+    _reminder_outputs,
+    deliver_reminder,
+    dispatch_due_reminders,
+)
+from app.planning.workflow_notifications import _actor_id as activity_actor_id
 from tests.auth.test_access import admin, headers
 from tests.auth.test_auth import messages
 from tests.execution.test_closure import close_path, settled_activity
@@ -61,6 +69,55 @@ def assignment_mail(planning):
         for row in messages(planning["auth"].mail.directory)
         if row["kind"] == "activity_assignment"
     ]
+
+
+class _MissingDecisionSession:
+    def scalar(self, _statement):
+        return None
+
+
+def test_missing_decision_actor_uses_neutral_mail_context():
+    db = _MissingDecisionSession()
+    source = SimpleNamespace(id="request-id", submitter_id="submitter-id")
+
+    assert (
+        activity_actor_id(
+            db,
+            SimpleNamespace(stage="validator", kind="activity_review"),
+            SimpleNamespace(id="revision-id", submitter_id="submitter-id"),
+        )
+        is None
+    )
+    assert (
+        financial_actor_id(
+            db,
+            SimpleNamespace(
+                stage="validator",
+                kind="financial_review",
+                request_kind="funding",
+            ),
+            source,
+        )
+        is None
+    )
+
+
+def test_reminder_projection_rejects_a_missing_activity_name():
+    class InvalidSnapshotSession:
+        def execute(self, _statement):
+            return [
+                SimpleNamespace(
+                    notification_id="notice-id",
+                    activity_reference="ACT-1",
+                    pta_year=2027,
+                    revision_snapshot={"name": None},
+                )
+            ]
+
+    with pytest.raises(AuthError, match="reminder_source_invalid"):
+        _reminder_outputs(
+            InvalidSnapshotSession(), [SimpleNamespace(id="notice-id")]
+        )
 
 
 def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
@@ -385,6 +442,26 @@ def test_failed_mail_is_recorded_once_without_retry(planning, monkeypatch):
     assert item["email_status"] == "failed"
 
 
+def test_uncertain_mail_is_recorded_once_without_retry(planning, monkeypatch):
+    from app.auth.mail import MailDeliveryUncertain
+
+    activity, _ = approved_activity(planning)
+    assign(planning, activity, "agent")
+    calls = 0
+
+    def uncertain(*_args):
+        nonlocal calls
+        calls += 1
+        raise MailDeliveryUncertain("synthetic uncertain outcome")
+
+    monkeypatch.setattr(planning["auth"].mail, "send", uncertain)
+    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 1
+    assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 0
+    assert calls == 1
+    item = planning["agent"].get("/api/v1/notifications").json()["data"][0]
+    assert item["email_status"] == "uncertain"
+
+
 def test_assignment_survives_its_email_failure(planning, monkeypatch):
     activity, _ = approved_activity(planning)
     assigned, _ids = assign(planning, activity, "agent")
@@ -537,8 +614,11 @@ def test_activity_review_notifications_follow_the_available_decision(planning):
         if row["kind"] == "activity_review_supervisor"
     ]
     assert len(review_mail) == 1
-    assert review_mail[0]["html"] is None
-    assert activity["reference"] in review_mail[0]["text"]
+    assert review_mail[0]["html"] is not None
+    for content in (review_mail[0]["html"], review_mail[0]["text"]):
+        assert "Une activité attend votre examen" in content
+        assert activity["reference"] in content
+        assert f"/activities/{activity['id']}" in content
 
     prevalidated = post(
         planning["supervisor"],

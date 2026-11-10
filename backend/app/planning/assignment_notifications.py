@@ -12,6 +12,7 @@ from app.planning.models import (
     AnnualPTA,
     Project,
 )
+from app.planning.notification_delivery import attempt_notification_email
 from app.planning.service import CONTEXT, locked_mutation
 
 
@@ -104,12 +105,10 @@ def deliver_assignment_notification(auth: AuthService, identifier: str) -> str |
             )
             return "skipped"
 
-    status = "delivered"
-    try:
-        recipient_email, mail_context = delivery
-        auth.send_mail(recipient_email, "activity_assignment", **mail_context)
-    except OSError:
-        status = "failed"
+    recipient_email, mail_context = delivery
+    status, _provider_id = attempt_notification_email(
+        auth, recipient_email, "activity_assignment", mail_context
+    )
     with Session(auth.engine) as db, db.begin():
         item = db.get(ActivityAssignmentNotification, identifier, with_for_update=True)
         if not item or item.email_status != "unconfirmed":

@@ -35,3 +35,12 @@ test('untrusted saved destinations cannot override role access', () => {
   )
   expect(loginDestination(agent)).toBe('/dashboard')
 })
+
+test('an authorized email destination survives login without accepting unsafe paths', () => {
+  const agent = session('email-agent')
+  expect(loginDestination(agent, '/activities/activity-1')).toBe(
+    '/activities/activity-1',
+  )
+  expect(loginDestination(agent, '/access/users')).toBe('/dashboard')
+  expect(loginDestination(agent, '//evil.example')).toBe('/dashboard')
+})

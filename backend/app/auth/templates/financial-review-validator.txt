@@ -1,5 +1,10 @@
 Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
 
-La {{ request_label }} liée à l’activité {{ activity_reference }} - {{ activity_name }} a été prévalidée et nécessite votre approbation.
+Une demande financière attend votre approbation.
+{% if actor_name %}{{ actor_name }} a prévalidé cette demande.{% else %}Cette demande a été prévalidée.{% endif %}
 
-Connectez-vous à MJL pour consulter la demande et rendre votre décision.
+{{ request_label }} — {{ request_amount }} F CFA
+Activité : {{ activity_name }}
+Référence de l’activité : {{ activity_reference }}
+
+Examiner la demande : {{ action_url }}

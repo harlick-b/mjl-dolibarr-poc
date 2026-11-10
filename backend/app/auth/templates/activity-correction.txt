@@ -1,7 +1,13 @@
 Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
 
-L’activité {{ activity_reference }} - {{ activity_name }} vous a été retournée pour correction.
+Une {{ activity_action }} nécessite des corrections.
+{% if actor_name %}{{ actor_name }} a demandé ces corrections.{% else %}Des corrections ont été demandées après examen.{% endif %}
+
+{{ activity_name }}
+Référence : {{ activity_reference }}
+Projet : {{ project_name }}
+PTA : {{ pta_name }}
 
 Motif : {{ reason }}
 
-Connectez-vous à MJL pour consulter la demande et corriger l’activité.
+Consulter les corrections : {{ action_url }}

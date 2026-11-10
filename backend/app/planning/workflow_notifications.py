@@ -12,8 +12,12 @@ from app.planning.models import (
     ActivityAssignment,
     ActivityContributor,
     ActivityRevision,
+    ActivityRevisionDecision,
     ActivityWorkflowNotification,
+    AnnualPTA,
+    Project,
 )
+from app.planning.notification_delivery import attempt_notification_email
 from app.planning.service import CONTEXT, locked_mutation
 
 
@@ -145,6 +149,74 @@ def mark_review_handled(
         item.handled_at = handled_at
 
 
+def _activity_action(revision: ActivityRevision) -> str:
+    if isinstance(revision.snapshot.get("withdrawal"), dict):
+        return "demande de retrait"
+    if isinstance(revision.snapshot.get("transfer"), dict):
+        return "demande de transfert annuel"
+    if revision.snapshot.get("amendment_id"):
+        return "modification d’activité"
+    return "activité"
+
+
+def _actor_id(
+    db: Session,
+    item: ActivityWorkflowNotification,
+    revision: ActivityRevision,
+) -> str | None:
+    if item.stage == "supervisor" and item.kind == "activity_review":
+        return revision.submitter_id
+    if item.stage == "validator":
+        return db.scalar(
+            select(ActivityRevisionDecision.actor_id).where(
+                ActivityRevisionDecision.revision_id == revision.id,
+                ActivityRevisionDecision.stage == "supervisor",
+                ActivityRevisionDecision.outcome == "prevalidated",
+            )
+        )
+    if item.kind == "activity_correction":
+        return db.scalar(
+            select(ActivityRevisionDecision.actor_id)
+            .where(
+                ActivityRevisionDecision.revision_id == revision.id,
+                ActivityRevisionDecision.outcome == "returned",
+            )
+            .order_by(ActivityRevisionDecision.decided_at.desc())
+            .limit(1)
+        )
+    return None
+
+
+def _mail_context(
+    db: Session,
+    auth: AuthService,
+    item: ActivityWorkflowNotification,
+    activity: Activity,
+    revision: ActivityRevision,
+    recipient: User,
+) -> dict[str, object] | None:
+    names = db.execute(
+        select(AnnualPTA.name, Project.name)
+        .join(Project, Project.id == AnnualPTA.project_id)
+        .where(AnnualPTA.id == activity.pta_id)
+    ).one_or_none()
+    if names is None:
+        return None
+    actor_id = _actor_id(db, item, revision)
+    actor = db.get(User, actor_id) if actor_id else None
+    return {
+        "recipient_name": recipient.full_name,
+        "actor_name": actor.full_name if actor else None,
+        "activity_action": _activity_action(revision),
+        "activity_reference": activity.reference,
+        "activity_name": activity.name,
+        "pta_name": names[0],
+        "project_name": names[1],
+        "action_url": f"{auth.policy.origin}/activities/{activity.id}",
+        **({"reason": item.reason} if item.kind == "activity_correction" else {}),
+    }
+
+
 def deliver_workflow_notification(auth: AuthService, identifier: str) -> str | None:
     delivery: tuple[str, str, dict[str, object]] | None = None
     with Session(auth.engine) as db, db.begin():
@@ -167,31 +239,18 @@ def deliver_workflow_notification(auth: AuthService, identifier: str) -> str | N
                 if item.stage == "supervisor"
                 else "activity_review_validator"
             )
-            delivery = (
-                recipient.email,
-                mail_kind,
-                {
-                    "recipient_name": recipient.full_name,
-                    "activity_reference": activity.reference,
-                    "activity_name": activity.name,
-                    **(
-                        {"reason": item.reason}
-                        if item.kind == "activity_correction"
-                        else {}
-                    ),
-                },
-            )
+            context = _mail_context(db, auth, item, activity, revision, recipient)
+            if context is not None:
+                delivery = (recipient.email, mail_kind, context)
         item.email_completed_at = auth.now(db)
         if delivery is None:
             item.email_status = "skipped"
             return "skipped"
 
-    status = "delivered"
-    try:
-        recipient_email, mail_kind, context = delivery
-        auth.send_mail(recipient_email, mail_kind, **context)
-    except OSError:
-        status = "failed"
+    recipient_email, mail_kind, context = delivery
+    status, _provider_id = attempt_notification_email(
+        auth, recipient_email, mail_kind, context
+    )
     with Session(auth.engine) as db, db.begin():
         item = db.get(ActivityWorkflowNotification, identifier, with_for_update=True)
         if not item or item.email_status != "unconfirmed":

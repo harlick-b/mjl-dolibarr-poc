@@ -75,9 +75,13 @@ Unicode full name (maximum 200 characters) for new invitations/first Admin.
 Existing unnamed accounts use a generic greeting. Resend is the sole runtime
 mail provider. Existing messages cover invitation, login OTP, password recovery,
 password-change notice, Activity reminder and new Activity assignment. Activity
-and financial-request review add plain-text notices for Supervisor examination,
-Validator approval and Agent correction; their approved HTML templates remain
-deferred. Final approvals are in-app only. HTML/plain-text
+and financial-request review send HTML/plain-text notices for Supervisor
+examination, Validator approval and Agent correction. Activity review covers initial
+submission, amendment, withdrawal and annual transfer, naming the requested action.
+Financial messages show the request type, exact amount and Activity reference; a
+return explains that correction requires a fresh submission. Missing optional names
+use neutral wording and absent facts are not invented. Final approvals are in-app
+only. HTML/plain-text
 sources live in backend/app/auth/templates; rendering escapes values and rejects
 missing fields.
 Links retain secrets in fragments; OTP leading zeros are preserved. Password-change
@@ -241,7 +245,8 @@ date. Eligibility begins 21 calendar days before that date and excludes past-end
 closed and withdrawn Activities. Current active assignments and approved date
 changes determine eligibility; a new assignee/date gets its applicable cycle.
 One in-app notification/email attempt is recorded; success, failure and uncertain
-delivery are never automatically resent. Notification APIs are recipient-only;
+delivery are distinguished and never automatically resent. Notification APIs are
+recipient-only;
 Admin has no general inbox. Browser push and production scheduling are deferred.
 
 Reviewer creation and later assignment changes create an in-app notification and

@@ -101,11 +101,13 @@ function WorkspaceShell() {
 
 function ProtectedGate({ children }) {
   const access = useAccess()
+  const path = useLocation({ select: (location) => location.pathname })
   if (access.status === 'unknown' || access.status === 'checking')
     return <AccessVerificationState />
-  if (access.status === 'anonymous') return <Navigate to="/login" replace />
+  if (access.status === 'anonymous')
+    return <Navigate to="/login" state={{ returnTo: path }} replace />
   if (access.status === 'pending')
-    return <Navigate to="/verification" replace />
+    return <Navigate to="/verification" state={{ returnTo: path }} replace />
   if (access.status !== 'verified')
     return (
       <AccessVerificationState

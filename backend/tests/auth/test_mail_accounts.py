@@ -140,28 +140,94 @@ def test_resend_transport_returns_provider_id_and_rejects_bad_responses():
 
 
 @pytest.mark.parametrize(
-    ("kind", "context"),
+    ("kind", "context", "expected"),
     [
         (
             "activity_review_supervisor",
             {
                 "recipient_name": "Aminata Superviseure",
+                "actor_name": "Jean Agent",
+                "activity_action": "activité",
                 "activity_reference": "ACT-000021",
                 "activity_name": "Formation des relais",
+                "project_name": "Protection de l’enfant",
+                "pta_name": "PTA 2028",
+                "action_url": "http://localhost/activities/activity-1",
             },
+            "Une activité attend votre examen",
+        ),
+        (
+            "activity_review_validator",
+            {
+                "recipient_name": "Aminata Validatrice",
+                "actor_name": "Jean Superviseur",
+                "activity_action": "demande de transfert annuel",
+                "activity_reference": "ACT-000021",
+                "activity_name": "Formation des relais",
+                "project_name": "Protection de l’enfant",
+                "pta_name": "PTA 2028",
+                "action_url": "http://localhost/activities/activity-1",
+            },
+            "attend votre approbation",
+        ),
+        (
+            "activity_correction",
+            {
+                "recipient_name": None,
+                "actor_name": None,
+                "activity_action": "modification d’activité",
+                "activity_reference": "ACT-000021",
+                "activity_name": "Formation <terrain>",
+                "project_name": "Protection de l’enfant",
+                "pta_name": "PTA 2028",
+                "reason": "Préciser les résultats.",
+                "action_url": "http://localhost/activities/activity-1",
+            },
+            "Une modification d’activité nécessite des corrections",
         ),
         (
             "financial_review_supervisor",
             {
                 "recipient_name": "Aminata Superviseure",
-                "request_label": "demande de virement",
+                "actor_name": "Jean Agent",
+                "request_label": "Demande de virement",
+                "request_amount": "125 000",
                 "activity_reference": "ACT-000021",
                 "activity_name": "Formation des relais",
+                "action_url": "http://localhost/execution/activities/activity-1",
             },
+            "125 000 F CFA",
+        ),
+        (
+            "financial_review_validator",
+            {
+                "recipient_name": "Aminata Validatrice",
+                "actor_name": "Jean Superviseur",
+                "request_label": "Déclaration sans dépense",
+                "request_amount": "0",
+                "activity_reference": "ACT-000021",
+                "activity_name": "Formation des relais",
+                "action_url": "http://localhost/execution/activities/activity-1",
+            },
+            "Déclaration sans dépense — 0 F CFA",
+        ),
+        (
+            "financial_correction",
+            {
+                "recipient_name": "Aminata Agent",
+                "actor_name": "Jean Validateur",
+                "request_label": "Demande de financement complémentaire",
+                "request_amount": "25 000",
+                "activity_reference": "ACT-000021",
+                "activity_name": "Formation des relais",
+                "reason": "Justification à préciser.",
+                "action_url": "http://localhost/execution/activities/activity-1",
+            },
+            "une nouvelle soumission",
         ),
     ],
 )
-def test_review_email_is_plain_text_only(kind, context):
+def test_workflow_email_has_equivalent_html_and_text(kind, context, expected):
     import json
 
     from app.auth.mail import MailRenderer, ResendMailer
@@ -173,46 +239,63 @@ def test_review_email_is_plain_text_only(kind, context):
         return Response(200, json={"id": "plain-text-message"})
 
     message = MailRenderer().render(kind, **context)
-    assert message.html is None
-    assert "ACT-000021" in message.text
+    assert message.html is not None
+    for content in (message.html, message.text):
+        assert "ACT-000021" in content
+        assert expected in content
+    assert "request_reference" not in message.html
+    if context["recipient_name"] is None:
+        assert "Bonjour," in message.html
+    if "<" in context["activity_name"]:
+        assert "Formation &lt;terrain&gt;" in message.html
     mailer = ResendMailer(
         "secret",
         "MJL <mail@example.com>",
         None,
         Client(transport=MockTransport(accepted)),
     )
-    assert (
-        mailer.send("aminata@example.com", kind, message)
-        == "plain-text-message"
-    )
+    assert mailer.send("aminata@example.com", kind, message) == "plain-text-message"
     payload = json.loads(requests[0].read())
     assert payload["text"] == message.text
-    assert "html" not in payload
+    assert payload["html"] == message.html
 
 
-@pytest.mark.parametrize(
-    "transport",
-    [
-        MockTransport(lambda request: Response(429, json={"message": "limited"})),
-        MockTransport(lambda request: (_ for _ in ()).throw(ConnectTimeout("late"))),
-    ],
-)
-def test_resend_transport_safely_maps_rejection_and_timeout(transport):
-    from app.auth.mail import MailRenderer, ResendMailer
+def test_resend_transport_distinguishes_rejection_from_uncertain_delivery():
+    from app.auth.mail import MailDeliveryUncertain, MailRenderer, ResendMailer
 
     message = MailRenderer().render(
         "otp", otp_code="012345", expiration_text="10 minutes"
     )
-    mailer = ResendMailer(
-        "secret", "mail@example.com", None, Client(transport=transport)
+    rejected = ResendMailer(
+        "secret",
+        "mail@example.com",
+        None,
+        Client(
+            transport=MockTransport(
+                lambda request: Response(429, json={"message": "limited"})
+            )
+        ),
     )
     with pytest.raises(OSError, match="provider rejected"):
-        mailer.send("john@example.com", "otp", message)
+        rejected.send("john@example.com", "otp", message)
+
+    uncertain = ResendMailer(
+        "secret",
+        "mail@example.com",
+        None,
+        Client(
+            transport=MockTransport(
+                lambda request: (_ for _ in ()).throw(ConnectTimeout("late"))
+            )
+        ),
+    )
+    with pytest.raises(MailDeliveryUncertain):
+        uncertain.send("john@example.com", "otp", message)
 
 
 @pytest.mark.parametrize("body", [None, [], "accepted", 42, {"id": "x" * 65}])
-def test_resend_transport_rejects_non_object_acceptance(body):
-    from app.auth.mail import MailRenderer, ResendMailer
+def test_resend_transport_marks_malformed_acceptance_as_uncertain(body):
+    from app.auth.mail import MailDeliveryUncertain, MailRenderer, ResendMailer
 
     message = MailRenderer().render(
         "otp", otp_code="012345", expiration_text="10 minutes"
@@ -223,5 +306,5 @@ def test_resend_transport_rejects_non_object_acceptance(body):
         None,
         Client(transport=MockTransport(lambda request: Response(200, json=body))),
     )
-    with pytest.raises(OSError, match="provider rejected"):
+    with pytest.raises(MailDeliveryUncertain):
         mailer.send("john@example.com", "otp", message)

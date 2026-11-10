@@ -366,7 +366,8 @@ class ActivityReminder(Base):
         ),
         CheckConstraint("due_on = planned_end - 21", name="reminder_due_date"),
         CheckConstraint(
-            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            "email_status IN "
+            "('unconfirmed','delivered','failed','uncertain','skipped')",
             name="reminder_email_status_allowed",
         ),
         CheckConstraint("version > 0", name="reminder_version_positive"),
@@ -400,7 +401,8 @@ class ActivityAssignmentNotification(Base):
         ),
         UniqueConstraint("assignment_id", name="assignment_notification_once"),
         CheckConstraint(
-            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            "email_status IN "
+            "('unconfirmed','delivered','failed','uncertain','skipped')",
             name="assignment_notification_email_status_allowed",
         ),
         CheckConstraint("version > 0", name="assignment_notification_version_positive"),
@@ -453,7 +455,8 @@ class ActivityWorkflowNotification(Base):
             name="activity_workflow_notification_stage_allowed",
         ),
         CheckConstraint(
-            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            "email_status IN "
+            "('unconfirmed','delivered','failed','uncertain','skipped')",
             name="activity_workflow_notification_email_status_allowed",
         ),
         CheckConstraint(
@@ -510,7 +513,8 @@ class FinancialWorkflowNotification(Base):
             name="financial_workflow_notification_stage_allowed",
         ),
         CheckConstraint(
-            "email_status IN ('unconfirmed','delivered','failed','skipped')",
+            "email_status IN "
+            "('unconfirmed','delivered','failed','uncertain','skipped')",
             name="financial_workflow_notification_email_status_allowed",
         ),
         CheckConstraint(

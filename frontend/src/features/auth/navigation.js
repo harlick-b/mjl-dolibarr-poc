@@ -22,9 +22,10 @@ export function rememberPage(session, path) {
   }
 }
 
-export function loginDestination(session) {
+export function loginDestination(session, requested) {
   const policy = authorization(session)
   if (!policy.user) return '/login'
+  if (canVisit(session, requested)) return requested
   const storageKey = key(policy.user)
   let path = recent.get(storageKey)
   if (!path) {

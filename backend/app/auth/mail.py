@@ -30,28 +30,22 @@ MAILS = {
         "activity-review-validator",
         "Activité à approuver",
     ),
-    "activity_correction": ("activity-correction", "Activité à corriger"),
+    "activity_correction": (
+        "activity-correction",
+        "Activité retournée pour correction",
+    ),
     "financial_review_supervisor": (
         "financial-review-supervisor",
-        "Demande financière à examiner",
+        "Demande à examiner",
     ),
     "financial_review_validator": (
         "financial-review-validator",
-        "Demande financière à approuver",
+        "Demande à approuver",
     ),
     "financial_correction": (
         "financial-correction",
-        "Demande financière à corriger",
+        "Demande retournée pour correction",
     ),
-}
-
-TEXT_ONLY_MAILS = {
-    "activity_review_supervisor",
-    "activity_review_validator",
-    "activity_correction",
-    "financial_review_supervisor",
-    "financial_review_validator",
-    "financial_correction",
 }
 
 
@@ -61,6 +55,10 @@ class RenderedEmail:
     html: str | None
     text: str
     legacy_value: str
+
+
+class MailDeliveryUncertain(OSError):
+    """The provider may have accepted the message, so it must not be retried."""
 
 
 class MailRenderer:
@@ -86,11 +84,7 @@ class MailRenderer:
             }.get(kind),
             **context,
         }
-        html = (
-            None
-            if kind in TEXT_ONLY_MAILS
-            else self.environment.get_template(f"{template}.html").render(values)
-        )
+        html = self.environment.get_template(f"{template}.html").render(values)
         text = self.environment.get_template(f"{template}.txt").render(values)
         legacy_value = str(
             values.get("action_url")
@@ -179,5 +173,7 @@ class ResendMailer:
             ):
                 raise ValueError
             return identifier
-        except (httpx.HTTPError, ValueError, TypeError):
+        except httpx.HTTPStatusError:
             raise OSError("Email provider rejected the message") from None
+        except (httpx.RequestError, ValueError, TypeError):
+            raise MailDeliveryUncertain("Email delivery outcome is uncertain") from None

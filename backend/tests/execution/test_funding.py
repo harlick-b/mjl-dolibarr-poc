@@ -190,6 +190,16 @@ def test_funding_notifications_follow_the_available_reviewer(planning):
         "financial_review_validator",
         "financial_correction",
     } <= mail_kinds
+    correction_mail = next(
+        row
+        for row in messages(planning["auth"].mail.directory)
+        if row["kind"] == "financial_correction"
+    )
+    for content in (correction_mail["html"], correction_mail["text"]):
+        assert content is not None
+        assert "une nouvelle soumission" in content
+        assert activity["reference"] in content
+        assert f"/execution/activities/{activity['id']}" in content
 
 
 @pytest.mark.parametrize("release", ["return", "cancel"])

@@ -27,6 +27,84 @@ function financialRequestLabel(kind) {
   }[kind]
 }
 
+function notificationPresentation(item) {
+  const financial = item.kind.startsWith('financial_')
+  if (item.kind === 'assignment')
+    return {
+      title: strings.assignmentTitle,
+      description: strings.formatString(strings.assignment, {
+        assigner: item.assigned_by,
+        pta: item.pta_name,
+        project: item.project_name,
+      }),
+      target: '/activities/$activityId',
+    }
+  if (item.kind === 'activity_review')
+    return {
+      title:
+        item.stage === 'supervisor'
+          ? strings.reviewSupervisorTitle
+          : strings.reviewValidatorTitle,
+      description:
+        item.stage === 'supervisor'
+          ? strings.reviewSupervisor
+          : strings.reviewValidator,
+      target: '/activities/$activityId',
+    }
+  if (item.kind === 'activity_correction')
+    return {
+      title: strings.correctionTitle,
+      description: strings.formatString(strings.correction, {
+        reason: item.reason,
+      }),
+      target: '/activities/$activityId',
+    }
+  if (item.kind === 'activity_approved')
+    return {
+      title: strings.approvedTitle,
+      description: strings.approved,
+      target: '/activities/$activityId',
+    }
+  if (financial) {
+    const request = financialRequestLabel(item.request_kind)
+    if (item.kind === 'financial_review')
+      return {
+        title:
+          item.stage === 'supervisor'
+            ? strings.financialReviewSupervisorTitle
+            : strings.financialReviewValidatorTitle,
+        description: strings.formatString(
+          item.stage === 'supervisor'
+            ? strings.financialReviewSupervisor
+            : strings.financialReviewValidator,
+          { request },
+        ),
+        target: '/execution/activities/$activityId',
+      }
+    if (item.kind === 'financial_correction')
+      return {
+        title: strings.financialCorrectionTitle,
+        description: strings.formatString(strings.financialCorrection, {
+          request,
+          reason: item.reason,
+        }),
+        target: '/execution/activities/$activityId',
+      }
+    return {
+      title: strings.financialApprovedTitle,
+      description: strings.formatString(strings.financialApproved, { request }),
+      target: '/execution/activities/$activityId',
+    }
+  }
+  return {
+    title: strings.deadlineTitle,
+    description: strings.formatString(strings.deadline, {
+      date: formatDate(item.planned_end),
+    }),
+    target: '/activities/$activityId',
+  }
+}
+
 export function NotificationView({ embedded = false, onSelect }) {
   const session = useSessionQuery()
   if (session.isPending) return <NotificationsLoading />
@@ -147,175 +225,106 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
           </div>
         ) : (
           <ul className="m-0 list-none divide-y divide-border p-0">
-            {notifications.data.data.map((item) => (
-              <li key={item.id} className="px-6 py-5">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span
-                    className={item.read_at ? '' : 'font-medium text-primary'}
-                  >
-                    {!item.read_at && <span aria-hidden="true">● </span>}
-                    {item.handled_at
-                      ? item.read_at
-                        ? strings.handled
-                        : strings.handledUnread
-                      : item.read_at
-                        ? strings.read
-                        : strings.unread}
-                  </span>
-                  <time dateTime={item.created_at}>
-                    {formatDateTime(item.created_at)}
-                  </time>
-                </div>
-                <h3 className="mb-2 text-sm font-semibold text-navy">
-                  {item.kind === 'assignment'
-                    ? strings.assignmentTitle
-                    : item.kind === 'activity_review'
-                      ? item.stage === 'supervisor'
-                        ? strings.reviewSupervisorTitle
-                        : strings.reviewValidatorTitle
-                      : item.kind === 'activity_correction'
-                        ? strings.correctionTitle
-                        : item.kind === 'activity_approved'
-                          ? strings.approvedTitle
-                          : item.kind === 'financial_review'
-                            ? item.stage === 'supervisor'
-                              ? strings.financialReviewSupervisorTitle
-                              : strings.financialReviewValidatorTitle
-                            : item.kind === 'financial_correction'
-                              ? strings.financialCorrectionTitle
-                              : item.kind === 'financial_approved'
-                                ? strings.financialApprovedTitle
-                                : strings.deadlineTitle}
-                </h3>
-                <p className="text-sm text-navy">{item.activity_name}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {item.kind === 'assignment'
-                    ? strings.formatString(strings.assignment, {
-                        assigner: item.assigned_by,
-                        pta: item.pta_name,
-                        project: item.project_name,
-                      })
-                    : item.kind === 'activity_review'
-                      ? item.stage === 'supervisor'
-                        ? strings.reviewSupervisor
-                        : strings.reviewValidator
-                      : item.kind === 'activity_correction'
-                        ? strings.formatString(strings.correction, {
-                            reason: item.reason,
-                          })
-                        : item.kind === 'activity_approved'
-                          ? strings.approved
-                          : item.kind === 'financial_review'
-                            ? strings.formatString(
-                                item.stage === 'supervisor'
-                                  ? strings.financialReviewSupervisor
-                                  : strings.financialReviewValidator,
-                                {
-                                  request: financialRequestLabel(
-                                    item.request_kind,
-                                  ),
-                                },
-                              )
-                            : item.kind === 'financial_correction'
-                              ? strings.formatString(
-                                  strings.financialCorrection,
-                                  {
-                                    request: financialRequestLabel(
-                                      item.request_kind,
-                                    ),
-                                    reason: item.reason,
-                                  },
-                                )
-                              : item.kind === 'financial_approved'
-                                ? strings.formatString(
-                                    strings.financialApproved,
-                                    {
-                                      request: financialRequestLabel(
-                                        item.request_kind,
-                                      ),
-                                    },
-                                  )
-                                : strings.formatString(strings.deadline, {
-                                    date: formatDate(item.planned_end),
-                                  })}
-                </p>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">
-                    {item.activity_reference}
-                    {item.pta_year ? ` · PTA ${item.pta_year}` : ''}
-                  </span>
-                  <Link
-                    className="inline-flex items-center gap-2 font-medium text-primary"
-                    to={
-                      item.kind.startsWith('financial_')
-                        ? '/execution/activities/$activityId'
-                        : '/activities/$activityId'
-                    }
-                    params={{ activityId: item.activity_id }}
-                    aria-disabled={read.isPending}
-                    onClick={async (event) => {
-                      if (item.read_at) {
-                        onSelect?.()
-                        return
-                      }
-                      event.preventDefault()
-                      if (read.isPending) return
-                      const current = generation.current
-                      try {
-                        await read.mutateAsync(item)
-                        if (current !== generation.current) return
-                        await navigate({
-                          to: item.kind.startsWith('financial_')
-                            ? '/execution/activities/$activityId'
-                            : '/activities/$activityId',
-                          params: { activityId: item.activity_id },
-                        })
-                        onSelect?.()
-                      } catch (error) {
-                        if (
-                          error.name !== 'AbortError' &&
-                          current === generation.current
-                        ) {
-                          toast.error(strings.readFailed)
+            {notifications.data.data.map((item) => {
+              const presentation = notificationPresentation(item)
+              return (
+                <li key={item.id} className="px-6 py-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span
+                      className={item.read_at ? '' : 'font-medium text-primary'}
+                    >
+                      {!item.read_at && <span aria-hidden="true">● </span>}
+                      {item.handled_at
+                        ? item.read_at
+                          ? strings.handled
+                          : strings.handledUnread
+                        : item.read_at
+                          ? strings.read
+                          : strings.unread}
+                    </span>
+                    <time dateTime={item.created_at}>
+                      {formatDateTime(item.created_at)}
+                    </time>
+                  </div>
+                  <h3 className="mb-2 text-sm font-semibold text-navy">
+                    {presentation.title}
+                  </h3>
+                  <p className="text-sm text-navy">{item.activity_name}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {presentation.description}
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <span className="text-muted-foreground">
+                      {item.activity_reference}
+                      {item.pta_year ? ` · PTA ${item.pta_year}` : ''}
+                    </span>
+                    <Link
+                      className="inline-flex items-center gap-2 font-medium text-primary"
+                      to={presentation.target}
+                      params={{ activityId: item.activity_id }}
+                      aria-disabled={read.isPending}
+                      onClick={async (event) => {
+                        if (item.read_at) {
+                          onSelect?.()
+                          return
+                        }
+                        event.preventDefault()
+                        if (read.isPending) return
+                        const current = generation.current
+                        try {
+                          await read.mutateAsync(item)
+                          if (current !== generation.current) return
                           await navigate({
-                            to: item.kind.startsWith('financial_')
-                              ? '/execution/activities/$activityId'
-                              : '/activities/$activityId',
+                            to: presentation.target,
                             params: { activityId: item.activity_id },
                           })
                           onSelect?.()
+                        } catch (error) {
+                          if (
+                            error.name !== 'AbortError' &&
+                            current === generation.current
+                          ) {
+                            toast.error(strings.readFailed)
+                            await navigate({
+                              to: presentation.target,
+                              params: { activityId: item.activity_id },
+                            })
+                            onSelect?.()
+                          }
                         }
-                      }
-                    }}
-                  >
-                    {item.handled_at
-                      ? strings.consultActivity
-                      : strings.openActivity}
-                    <ArrowRight size={14} aria-hidden="true" />
-                  </Link>
-                </div>
-              </li>
-            ))}
+                      }}
+                    >
+                      {item.handled_at
+                        ? strings.consultActivity
+                        : strings.openActivity}
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </Link>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
         {(notifications.data.next || notifications.data.previous) && (
           <nav
             className="flex gap-2 items-end flex-wrap"
-            aria-label="Pages de notifications"
+            aria-label={strings.paginationLabel}
           >
             <button
               type="button"
-              disabled={!notifications.data.previous}
+              disabled={
+                !notifications.data.previous || notifications.isFetching
+              }
               onClick={() => move(notifications.data.previous)}
             >
-              Précédent
+              {strings.previous}
             </button>
             <button
               type="button"
-              disabled={!notifications.data.next}
+              disabled={!notifications.data.next || notifications.isFetching}
               onClick={() => move(notifications.data.next)}
             >
-              Suivant
+              {strings.next}
             </button>
           </nav>
         )}

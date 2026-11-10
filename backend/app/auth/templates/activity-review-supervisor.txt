@@ -1,5 +1,11 @@
 Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
 
-L’activité {{ activity_reference }} - {{ activity_name }} a été soumise et nécessite votre examen.
+Une {{ activity_action }} attend votre examen.
+{% if actor_name %}{{ actor_name }} a soumis cette demande pour prévalidation.{% else %}Cette demande a été soumise pour prévalidation.{% endif %}
 
-Connectez-vous à MJL pour consulter les informations soumises et rendre votre décision.
+{{ activity_name }}
+Référence : {{ activity_reference }}
+Projet : {{ project_name }}
+PTA : {{ pta_name }}
+
+Consulter la demande : {{ action_url }}

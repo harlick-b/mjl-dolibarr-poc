@@ -311,19 +311,17 @@ def test_w03_agent_can_cancel_pending_withdrawal_with_reason(planning):
 )
 def test_w03_cancellation_restores_approval_from_every_pending_phase(planning, phase):
     approved, _operation_type = approved_activity(planning)
-    assigned_agent_id = None
-    if phase == "prevalidated":
-        assigned_agent_id = (
-            planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
-        )
-        approved = put(
-            planning["validator"],
-            f"/api/v1/activities/{approved['id']}/assignments",
-            {
-                "expected_version": approved["version"],
-                "agent_ids": [assigned_agent_id],
-            },
-        ).json()
+    assigned_agent_id = (
+        planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
+    )
+    approved = put(
+        planning["validator"],
+        f"/api/v1/activities/{approved['id']}/assignments",
+        {
+            "expected_version": approved["version"],
+            "agent_ids": [assigned_agent_id],
+        },
+    ).json()
     revision = request_withdrawal(planning, approved)
     version = revision["activity_version"]
     decision_path = (
@@ -369,6 +367,13 @@ def test_w03_cancellation_restores_approval_from_every_pending_phase(planning, p
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["state"] == "approved"
     assert cancelled.json()["approved"] == approved["approved"]
+    for reviewer in (planning["supervisor"], planning["validator"]):
+        notices = [
+            row
+            for row in reviewer.get("/api/v1/notifications").json()["data"]
+            if row.get("revision_id") == revision["id"]
+        ]
+        assert all(row["handled_at"] is not None for row in notices)
     if phase == "prevalidated":
         with Session(planning["auth"].engine) as db:
             assignment = db.execute(

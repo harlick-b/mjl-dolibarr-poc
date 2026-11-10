@@ -181,7 +181,7 @@ test('a Supervisor sees a review notification in the shared inbox', async () => 
     />,
   )
   expect(await screen.findByText('Activité à examiner')).toBeVisible()
-  expect(screen.getByText('Demande financière à examiner')).toBeVisible()
+  expect(screen.getByText('Demande à examiner')).toBeVisible()
   expect(
     screen.getByText('La demande de virement attend votre examen.'),
   ).toBeVisible()

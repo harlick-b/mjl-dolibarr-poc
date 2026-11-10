@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, select, text, tuple_
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
@@ -33,6 +33,7 @@ from app.planning.models import (
     FinancialWorkflowNotification,
     Project,
 )
+from app.planning.notification_delivery import attempt_notification_email
 from app.planning.service import CONTEXT, Cursor, locked_mutation, principal
 
 router = APIRouter(
@@ -261,15 +262,10 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                 )
                 return "skipped"
 
-        provider_message_id = ""
-        status = "delivered"
-        try:
-            recipient_email, context = delivery
-            provider_message_id = auth.send_mail(
-                recipient_email, "activity_reminder", **context
-            )
-        except OSError:
-            status = "failed"
+        recipient_email, context = delivery
+        status, provider_message_id = attempt_notification_email(
+            auth, recipient_email, "activity_reminder", context
+        )
 
         with Session(auth.engine) as db, db.begin():
             item = db.get(ActivityReminder, reminder_id, with_for_update=True)
@@ -290,7 +286,7 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
                     "email_status": status,
                     **(
                         {"provider_message_id": provider_message_id}
-                        if provider_message_id
+                        if provider_message_id is not None
                         else {}
                     ),
                 },
@@ -301,25 +297,54 @@ def deliver_reminder(auth: AuthService, reminder_id: str) -> str | None:
         return None
 
 
-def _output(db: Session, item: ActivityReminder) -> dict[str, Any]:
-    activity = db.get(Activity, item.activity_id)
-    revision = db.get(ActivityRevision, item.approved_revision_id)
-    if not activity or not revision:
+def _reminder_outputs(
+    db: Session, items: list[ActivityReminder]
+) -> dict[str, dict[str, Any]]:
+    if not items:
+        return {}
+    contexts = {
+        row.notification_id: row
+        for row in db.execute(
+            select(
+                ActivityReminder.id.label("notification_id"),
+                Activity.reference.label("activity_reference"),
+                Activity.placement_year.label("pta_year"),
+                ActivityRevision.snapshot.label("revision_snapshot"),
+            )
+            .select_from(ActivityReminder)
+            .join(Activity, Activity.id == ActivityReminder.activity_id)
+            .join(
+                ActivityRevision,
+                ActivityRevision.id == ActivityReminder.approved_revision_id,
+            )
+            .where(ActivityReminder.id.in_([item.id for item in items]))
+        )
+    }
+    if len(contexts) != len(items):
         raise AuthError(409, "reminder_source_invalid")
-    name, _ = _snapshot(revision)
+    names: dict[str, str] = {}
+    for notification_id, context in contexts.items():
+        snapshot = context.revision_snapshot
+        name = snapshot.get("name") if isinstance(snapshot, dict) else None
+        if not isinstance(name, str):
+            raise AuthError(409, "reminder_source_invalid")
+        names[notification_id] = name
     return {
-        "kind": "deadline",
-        "id": item.id,
-        "activity_id": item.activity_id,
-        "activity_reference": activity.reference,
-        "activity_name": name,
-        "pta_year": activity.placement_year,
-        "planned_end": item.planned_end.isoformat(),
-        "due_on": item.due_on.isoformat(),
-        "created_at": item.created_at.isoformat(),
-        "read_at": item.read_at.isoformat() if item.read_at else None,
-        "email_status": item.email_status,
-        "version": item.version,
+        item.id: {
+            "kind": "deadline",
+            "id": item.id,
+            "activity_id": item.activity_id,
+            "activity_reference": contexts[item.id].activity_reference,
+            "activity_name": names[item.id],
+            "pta_year": contexts[item.id].pta_year,
+            "planned_end": item.planned_end.isoformat(),
+            "due_on": item.due_on.isoformat(),
+            "created_at": item.created_at.isoformat(),
+            "read_at": item.read_at.isoformat() if item.read_at else None,
+            "email_status": item.email_status,
+            "version": item.version,
+        }
+        for item in items
     }
 
 
@@ -481,6 +506,7 @@ def listing(
     args: Annotated[tuple[int, str | None, str], Depends(list_args)],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
         actor = principal(db, auth, evidence(request, auth)[0])
         limit, token, state = args
         cursor = Cursor(auth, "notifications", f"{actor.id}:{state}", limit)
@@ -571,11 +597,14 @@ def listing(
             db,
             [row for row in rows if isinstance(row, FinancialWorkflowNotification)],
         )
+        reminder_outputs = _reminder_outputs(
+            db, [row for row in rows if isinstance(row, ActivityReminder)]
+        )
         return {
             "object": "list",
             "count": total,
             "data": [
-                _output(db, row)
+                reminder_outputs[row.id]
                 if isinstance(row, ActivityReminder)
                 else assignment_outputs[row.id]
                 if isinstance(row, ActivityAssignmentNotification)
@@ -637,7 +666,7 @@ def mark_read(
                 if isinstance(item, FinancialWorkflowNotification)
                 else _workflow_outputs(db, [item])[item.id]
                 if isinstance(item, ActivityWorkflowNotification)
-                else _output(db, item)
+                else _reminder_outputs(db, [item])[item.id]
                 if isinstance(item, ActivityReminder)
                 else _assignment_outputs(db, [item])[item.id]
             )
@@ -654,7 +683,7 @@ def mark_read(
         )
         db.flush()
         return (
-            _output(db, item)
+            _reminder_outputs(db, [item])[item.id]
             if isinstance(item, ActivityReminder)
             else _assignment_outputs(db, [item])[item.id]
             if isinstance(item, ActivityAssignmentNotification)

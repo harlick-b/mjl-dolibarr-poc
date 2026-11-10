@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{app_name}} — Une demande financière attend votre approbation</title>
+  <style>
+    @media only screen and (max-width:600px) {
+      .email-wrap { padding:16px 12px !important; }
+      .email-header { padding:24px !important; }
+      .email-content { padding:32px 24px !important; }
+      .email-footer { padding:0 24px 20px !important; }
+      .activity-summary { padding:18px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;width:100%;background-color:#f5f7f8;font-family:Inter,Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:#f5f7f8;">Une demande financière prévalidée nécessite votre validation définitive.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;background-color:#f5f7f8;">
+    <tr>
+      <td class="email-wrap" align="center" style="padding:40px 16px;">
+        <!--[if mso]><table role="presentation" width="600" align="center" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;width:100%;border-collapse:separate;border-spacing:0;">
+          <tr>
+            <td class="email-header" style="background-color:#16324f;padding:28px 40px;border-radius:6px 6px 0 0;">
+              <span style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:700;font-size:22px;line-height:28px;color:#ffffff;">{{app_name}}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-content" style="padding:40px;background-color:#ffffff;border-left:1px solid #c8d0d5;border-right:1px solid #c8d0d5;">
+              <h1 style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:600;font-size:24px;line-height:32px;color:#202529;margin:0 0 20px;">Une demande financière attend votre approbation</h1>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 16px;">Bonjour{% if recipient_name %} {{recipient_name}}{% endif %},</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 24px;">{% if actor_name %}{{actor_name}} a prévalidé cette demande.{% else %}Cette demande a été prévalidée.{% endif %} Elle nécessite désormais votre approbation définitive.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #c8d0d5;border-radius:6px;margin:0 0 24px;">
+                <tr>
+                  <td class="activity-summary" style="padding:20px 22px;">
+                    <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;font-weight:600;color:#202529;margin:0 0 4px;">{{request_label}} — {{request_amount}} F CFA</p>
+                    <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#5c6870;margin:0 0 16px;">Référence de l’activité : {{activity_reference}}</p>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;border-top:1px solid #e0e5ea;">
+                      <tr>
+                        <td valign="top" style="padding:12px 12px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5c6870;width:70px;">Activité</td>
+                        <td valign="top" style="padding:12px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#34414a;">{{activity_name}}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:7px 12px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5c6870;">Montant</td>
+                        <td valign="top" style="padding:7px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#34414a;">{{request_amount}} F CFA</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 24px;">Vous pouvez consulter cette demande et prendre votre décision depuis votre espace MJL.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;border-spacing:0;">
+                <tr>
+                  <td align="center" bgcolor="#164f7a" style="background-color:#164f7a;border-radius:6px;">
+                    <a href="{{action_url}}" style="display:inline-block;padding:13px 24px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border:1px solid #164f7a;border-radius:6px;">Examiner pour validation</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-footer" align="center" style="background-color:#ffffff;padding:0 40px 24px;border:1px solid #c8d0d5;border-top:0;border-radius:0 0 6px 6px;">
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#5c6870;margin:0;padding-top:20px;border-top:1px solid #c8d0d5;">Message automatique envoyé par {{app_name}}. Merci de ne pas y répondre.</p>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

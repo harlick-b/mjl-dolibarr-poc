@@ -113,6 +113,9 @@ function AuthPage({ path }) {
   const loginEmail = useRouterState({
     select: (state) => state.location.state.loginEmail,
   })
+  const returnTo = useRouterState({
+    select: (state) => state.location.state.returnTo,
+  })
   const [email, setEmail] = useState(() =>
     path === '/login' && typeof loginEmail === 'string' ? loginEmail : '',
   )
@@ -254,11 +257,16 @@ function AuthPage({ path }) {
       setRevalidation(0)
       if (destination)
         await navigate({
-          to: destination === '/' ? loginDestination(fresh) : destination,
+          to:
+            destination === '/'
+              ? loginDestination(fresh, returnTo)
+              : destination,
           replace: true,
           ...(endpoint === 'invitations/accept'
             ? { state: { loginEmail: loader.email } }
-            : {}),
+            : destination === '/verification' && typeof returnTo === 'string'
+              ? { state: { returnTo } }
+              : {}),
         })
       else setNotice('Un nouveau code a été envoyé.')
     } catch (error) {
@@ -354,7 +362,7 @@ function AuthPage({ path }) {
       </>
     )
   else if (verified && ['/', '/login', '/verification'].includes(path))
-    return <Navigate to={loginDestination(session.data)} replace />
+    return <Navigate to={loginDestination(session.data, returnTo)} replace />
   else if (path === '/' || (path === '/verification' && state !== 'pending'))
     return (
       <Navigate to={state === 'pending' ? '/verification' : '/login'} replace />
