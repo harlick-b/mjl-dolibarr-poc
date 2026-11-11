@@ -437,7 +437,7 @@ def listing(
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
-        item = get_activity(db, identifier, shared=True)
+        item = get_activity(db, identifier, actor=actor, shared=True)
         limit, token = args
         cursor = Cursor(auth, "zero-spending-declarations", item.id, limit)
         marker, direction = cursor.decode(token)

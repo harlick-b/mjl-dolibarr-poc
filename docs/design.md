@@ -236,4 +236,7 @@ Agents and keeps server search. Agent PTA lists start with a removable **Mes
 activités** filter, while undated drafts appear under **Sans date**. Activity
 detail prioritizes context, responsibility, validation and one
 authorized next action. Table/calendar share search and filters, removable chips
-and reset; calendars use horizontal spans and a distinct start-only marker.
+and reset. The Agent selector stays inside the collapsible filter panel; canonical
+state wording prevents duplicate review chips. Activity History uses the supplied
+single-card compact vertical timeline with event, date, actor and recorded detail.
+Calendars use horizontal spans and a distinct start-only marker.

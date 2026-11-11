@@ -987,7 +987,8 @@ The Activity detail now keeps History on its own tab, presents business events i
 human French without raw identity IDs or email addresses, separates loading from
 empty/error states, shows assigned Agents in the validation summary and restores
 the approved status colors and finance affordance. Supervisors enter a PTA on
-`À examiner`; Validators enter on `À approuver`. Both defaults use the actual
+`Soumise pour prévalidation`; Validators enter on
+`Validation définitive attendue`. Both defaults use the actual
 server-side contributor and no-self-review eligibility and remain removable.
 
 Activity review notifications are implemented through the existing recipient
@@ -1115,6 +1116,44 @@ recorded as failed. Explicit mail and missing-data pytest node selections passed
 without `TEST_DATABASE_URL`; those failed at fixture setup and provide no new
 database evidence. The disposable-PostgreSQL results above remain the database
 evidence for this unchanged implementation. `git diff --check` passed.
+
+## PTA Activity visibility and list consistency, 2026-11-11
+
+Initial Activity drafts are scoped to their creator and currently assigned
+Agents across PTA lists and counters, direct detail reads, Activity History,
+documents, execution and financial subresources, the PTA Agent-filter choices,
+and Validator global-audit rows, options and CSV exports. Admin global-audit
+access remains complete. Submission restores the ordinary internal read scope;
+approved-Activity amendment drafts keep their existing scope. The shared
+predicate is applied before count and cursor pagination so a hidden draft cannot
+be inferred from totals or page boundaries.
+
+Planning now uses `Soumise pour prévalidation` and
+`Validation définitive attendue` as the canonical review-stage labels. Derived
+review defaults no longer create duplicate state chips, and the combined PTA
+counter is labelled `En cours de validation` because it includes both stages. The
+Agent selector lives inside the collapsible filter panel, active filters remain
+removable with a restored Agent name after reload, the responsibility action is
+an accessible pencil button, and Activity History uses the supplied compact
+vertical timeline composition. Workflow mutations continue to invalidate the
+shared Planning query family; a regression check binds that invalidation to the
+PTA summary query used by the five counters.
+
+Focused evidence on the current candidate: 45 Planning frontend tests and six
+History/audit frontend tests passed; frontend ESLint passed with one unrelated
+pre-existing hooks warning. The new PostgreSQL draft-visibility journey passed
+against an isolated temporary database. An adjacent nine-test assignment/filter
+selection initially exposed one correlated-query error and obsolete visibility
+expectations; the query was corrected with an aliased assignment relation and
+the affected filter journey passed. The final corrected three-test PostgreSQL
+campaign passed the visibility, role-read and Agent-filter journeys. The focused
+Planning reference Playwright journey passed; the broader six-test design file
+also surfaced two unrelated stale selectors in Partner editing and a decision
+dialog, so that broad run remains failed. The production build passed with the
+known large-chunk warning. A final three-test PostgreSQL campaign passed direct
+draft isolation plus Validator audit-list, option and CSV isolation on the current
+candidate. Independent specification and standards review cleared the corrected
+candidate with no remaining blocking finding.
 
 ## Remaining inputs and excluded work
 

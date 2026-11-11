@@ -51,15 +51,10 @@ test('timeline shows milestones, persisted changes, reasons and revision links',
       ]}
     />,
   )
-  expect(screen.getByText('Étape majeure')).toBeVisible()
-  expect(screen.getByText('Modification')).toBeVisible()
   expect(
     screen.getByText(/Clarisse Akpon · Validateur définitif/),
   ).toBeVisible()
-  expect(screen.getByText('Préciser le calendrier')).not.toBeVisible()
-  await userEvent.click(screen.getAllByText('Consulter les détails')[0])
   expect(screen.getByText('Préciser le calendrier')).toBeVisible()
-  await userEvent.click(screen.getAllByText('Consulter les détails')[1])
   expect(screen.getByText(/Budget \(F CFA\)/).closest('p')).toHaveTextContent(
     '9 007 199 254 740 993 F CFA → 9 007 199 254 740 994 F CFA',
   )

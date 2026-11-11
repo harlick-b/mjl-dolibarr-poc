@@ -12,6 +12,7 @@ export function ListFilters({
   onReset,
   disabled = false,
   toolbar,
+  keepMounted = false,
 }) {
   const [expanded, setExpanded] = useState(active)
   const [draft, setDraft] = useState(value)
@@ -59,8 +60,11 @@ export function ListFilters({
           </Button>
         </div>
       </div>
-      {expanded && (
-        <div className="flex flex-wrap items-end gap-4 border-t border-border px-4 py-4 [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_label]:min-w-40 [&_input]:rounded-control [&_input]:border [&_input]:border-strong-border [&_input]:px-3 [&_input]:py-2">
+      {(expanded || keepMounted) && (
+        <div
+          hidden={!expanded}
+          className="flex flex-wrap items-end gap-4 border-t border-border px-4 py-4 [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_label]:min-w-40 [&_input]:rounded-control [&_input]:border [&_input]:border-strong-border [&_input]:px-3 [&_input]:py-2"
+        >
           {children}
           <Button
             type="button"

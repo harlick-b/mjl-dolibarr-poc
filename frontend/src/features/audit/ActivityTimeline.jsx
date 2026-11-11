@@ -3,15 +3,13 @@ import { EventDetails } from './EventDetails'
 
 export function ActivityTimeline({ events, navigate }) {
   return (
-    <ol className="border-l border-border grid gap-4 ml-5 p-5">
+    <ol className="ml-6 grid gap-5 border-l border-border px-6 py-5">
       {events.map((event) => (
-        <li key={event.id} className="grid gap-1 break-words">
-          <span className="text-xs text-muted-foreground">
-            {event.milestone ? strings.milestone : strings.change}
-          </span>
-          <strong className={event.milestone ? 'text-primary' : 'font-medium'}>
-            {event.label}
-          </strong>
+        <li
+          key={event.id}
+          className={`relative grid gap-1 break-words before:absolute before:-left-[1.78rem] before:top-1.5 before:size-2 before:rounded-full before:border ${event.milestone ? 'before:border-primary before:bg-primary' : 'before:border-strong-border before:bg-white'}`}
+        >
+          <strong>{event.label}</strong>
           <span className="text-sm text-muted-foreground">
             <time dateTime={event.occurred_at}>
               {new Intl.DateTimeFormat('fr-FR', {
@@ -24,7 +22,7 @@ export function ActivityTimeline({ events, navigate }) {
             {event.actor?.full_name || strings.system}
             {event.actor?.role ? ` · ${event.actor.role}` : ''}
           </span>
-          <EventDetails event={event} />
+          <EventDetails event={event} inline />
           {event.revision_id && (
             <button
               type="button"

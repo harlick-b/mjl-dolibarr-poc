@@ -68,7 +68,7 @@ function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
           }),
         ),
       )
-    if (path.endsWith('/projects/project-1/ptas/2027'))
+    if (path.includes('/projects/project-1/ptas/2027'))
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -106,6 +106,23 @@ function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
           }),
         ),
       )
+    if (path.includes('/ptas/pta-1/activity-agents'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 1,
+            data: [
+              {
+                id: '00000000-0000-0000-0000-000000000001',
+                label: 'Aïcha Agent',
+              },
+            ],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
     return Promise.resolve(
       new Response(
         JSON.stringify({
@@ -120,12 +137,12 @@ function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
   })
 }
 
-function renderAnnualPage() {
+function renderAnnualPage(path = '/projects/project-1/ptas/2027') {
   render(
     <App
       router={makeRouter(
         createMemoryHistory({
-          initialEntries: ['/projects/project-1/ptas/2027'],
+          initialEntries: [path],
         }),
       )}
     />,
@@ -192,6 +209,20 @@ test('a Supervisor starts with Activities they can examine and can remove that f
   renderAnnualPage()
 
   await screen.findByRole('region', { name: 'Synthèse du PTA' })
+  expect(
+    screen.queryByRole('button', { name: 'À examiner' }),
+  ).not.toBeInTheDocument()
+  expect(
+    await screen.findByRole('button', {
+      name: 'Retirer le filtre Soumise pour prévalidation',
+    }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: /Agent affecté/ }),
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Filtres' }))
+  const agentFilter = await screen.findByText('Agent affecté')
+  expect(within(agentFilter.closest('label')).getByRole('button')).toBeVisible()
   await waitFor(() =>
     expect(
       fetch.mock.calls.some(([url]) => {
@@ -206,7 +237,9 @@ test('a Supervisor starts with Activities they can examine and can remove that f
   )
 
   await user.click(
-    screen.getByRole('button', { name: 'Retirer le filtre À examiner' }),
+    screen.getByRole('button', {
+      name: 'Retirer le filtre Soumise pour prévalidation',
+    }),
   )
   await waitFor(() =>
     expect(
@@ -220,6 +253,31 @@ test('a Supervisor starts with Activities they can examine and can remove that f
       }),
     ).toBe(true),
   )
+})
+
+test('an Agent filter from the URL resolves its label while remaining behind Filters', async () => {
+  const fetch = annualPageFetch(vi.fn(), 'AGENT_VERIFICATEUR')
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage(
+    '/projects/project-1/ptas/2027?agent=00000000-0000-0000-0000-000000000001',
+  )
+
+  await screen.findByRole('region', { name: 'Synthèse du PTA' })
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) =>
+        String(url).includes('agent=00000000-0000-0000-0000-000000000001'),
+      ),
+    ).toBe(true),
+  )
+
+  const chip = await screen.findByRole('button', {
+    name: 'Retirer le filtre Agent affecté',
+  })
+  expect(chip).toHaveTextContent('Aïcha Agent ×')
+  expect(
+    screen.queryByRole('button', { name: /Agent affecté ·/ }),
+  ).not.toBeInTheDocument()
 })
 
 test.each([
@@ -1556,9 +1614,12 @@ test('assignment edits retain their base version and can discard a stale draft',
   expect(
     fetch.mock.calls.some(([url]) => String(url).includes('/revisions/')),
   ).toBe(false)
-  await user.click(
-    await screen.findByRole('button', { name: 'Modifier les responsables' }),
-  )
+  const editOwners = await screen.findByRole('button', {
+    name: 'Modifier les responsables',
+  })
+  expect(editOwners.querySelector('svg')).toBeInTheDocument()
+  expect(editOwners).toHaveTextContent('')
+  await user.click(editOwners)
   await user.click(
     screen.getByRole('button', { name: 'Rechercher et ajouter un Agent' }),
   )
@@ -1756,6 +1817,7 @@ test.each([
       createMemoryHistory({ initialEntries: ['/activities/review-1'] }),
     )
     const notificationKey = ['notifications', 'supervisor', 'all', '', 60]
+    const ptaSummaryKey = ['planning', 'supervisor', 'pta', 'project-1', 2027]
     render(<App router={router} />)
     const prevalidate = await screen.findByRole('button', {
       name: 'Prévalider',
@@ -1766,6 +1828,9 @@ test.each([
       data: [{ id: 'notice-1', handled_at: null }],
       next: null,
       previous: null,
+    })
+    router.options.context.queryClient.setQueryData(ptaSummaryKey, {
+      summary: { review: 1 },
     })
     await user.click(prevalidate)
     await user.type(
@@ -1780,6 +1845,12 @@ test.each([
       screen.getByRole('button', { name: 'Prévalider et transmettre' }),
     )
     await waitFor(() => expect(decisionCalls).toBe(1))
+    await waitFor(() =>
+      expect(
+        router.options.context.queryClient.getQueryState(ptaSummaryKey)
+          ?.isInvalidated,
+      ).toBe(true),
+    )
     await waitFor(() =>
       expect(
         router.options.context.queryClient.getQueryState(notificationKey)

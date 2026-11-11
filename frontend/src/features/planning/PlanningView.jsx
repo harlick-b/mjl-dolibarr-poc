@@ -25,7 +25,16 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { Check, ChevronDown, Download, Eye, Plus, Save, X } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  Download,
+  Eye,
+  Pencil,
+  Plus,
+  Save,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
@@ -353,6 +362,12 @@ function Workspace({ screen, session, onDenied }) {
     review: reviewMine ? 'mine' : '',
     agent: effectiveAgent,
   }
+  const displayedActivityFilters = {
+    ...search,
+    state: search.state || '',
+    review: reviewMine ? 'mine' : '',
+    agent: search.agent || '',
+  }
   const list = useQuery({
     ...planningQuery(
       api,
@@ -562,7 +577,7 @@ function Workspace({ screen, session, onDenied }) {
       {screen === 'pta' && (
         <PTA
           ownActivities={ownActivities}
-          activityFilters={activityFilters}
+          activityFilters={displayedActivityFilters}
           reviewLabel={
             reviewMine
               ? user.role === 'AGENT_VERIFICATEUR'
@@ -2542,13 +2557,15 @@ function ActivityDetail({
                 <Button
                   type="button"
                   variant="outline"
-                  className="min-h-8 px-3"
+                  className="size-8 min-h-8 p-0"
+                  aria-label={strings.changeOwners}
+                  title={strings.changeOwners}
                   onClick={(event) => {
                     assignmentOpener.current = event.currentTarget
                     setAssignmentOpen(true)
                   }}
                 >
-                  {strings.changeOwners}
+                  <Pencil size={15} aria-hidden="true" />
                 </Button>
               )}
             </div>

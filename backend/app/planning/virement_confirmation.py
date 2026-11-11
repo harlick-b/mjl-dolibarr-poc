@@ -246,8 +246,8 @@ def history(
     args: Annotated[tuple[int, str | None], Depends(list_args)],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(db, auth, evidence(request, auth)[0])
-        item = get_activity(db, identifier, shared=True)
+        actor = principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier, actor=actor, shared=True)
         financial = exact_request(db, item.id, request_id)
         limit, token = args
         cursor = Cursor(auth, "virement-confirmations", financial.id, limit)

@@ -249,8 +249,8 @@ detail, History, finance and PTA-table references govern presentation.
 ### Confirmed outcome
 
 - Activity confirmation dialogs name the decision and explain its result in
-  ordinary French. `À prévalider` becomes `À examiner` in user-facing planning
-  review labels.
+  ordinary French. Submitted Activities use `Soumise pour prévalidation` and
+  prevalidated Activities use `Validation définitive attendue` consistently.
 - Activity History is visible only on its tab. Initial loading, failure, empty
   and populated states are mutually exclusive; a background refresh preserves
   existing content. Attachments follow the same state rule.
@@ -265,8 +265,9 @@ detail, History, finance and PTA-table references govern presentation.
   Shared status badges use the approved semantic colors from the supplied
   references. `Réalisation & finances` remains available after final approval;
   before approval the screen explains when it becomes available.
-- Supervisors enter a PTA with the removable actionable filter `À examiner`.
-  Validators enter with `À approuver`. These defaults show only requests the
+- Supervisors enter a PTA with the removable actionable filter
+  `Soumise pour prévalidation`. Validators enter with
+  `Validation définitive attendue`. These defaults show only requests the
   current user is eligible to decide; explicit filters and other actions remain
   available. Agent `Mes activités` behavior remains unchanged.
 
@@ -304,8 +305,9 @@ detail, History, finance and PTA-table references govern presentation.
    revision wording, finance availability and semantic badges are updated.
 2. **Role work filters** — implemented and independently reviewed. The API
    applies actual contributor/no-self-review eligibility for `review=mine`;
-   Router-backed Supervisor `À examiner` and Validator `À approuver` defaults are
-   removable, including in the calendar, while explicit state filters stay broad.
+   Router-backed Supervisor and Validator defaults use the canonical Activity
+   state wording and are removable, including in the calendar, while explicit
+   state filters stay broad.
 3. **Review notifications and inbox** — implemented and independently reviewed.
    Activity transitions create durable eligible-recipient notifications, preserve
    separate read/handled state and use plain-text-only mail for examination,

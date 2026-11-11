@@ -67,6 +67,30 @@ def is_assigned_agent(db: Session, activity_id: str, actor_id: str | None) -> bo
     )
 
 
+def visible_activity_condition(actor_id: str) -> Any:
+    """Hide initial drafts from everyone except their creator and assignees."""
+    assigned = (
+        select(ActivityAssignment.id)
+        .where(
+            ActivityAssignment.context_id == CONTEXT,
+            ActivityAssignment.activity_id == Activity.id,
+            ActivityAssignment.agent_id == actor_id,
+            ActivityAssignment.ended_at.is_(None),
+        )
+        .exists()
+    )
+    return or_(Activity.state != "draft", Activity.creator_id == actor_id, assigned)
+
+
+def require_activity_visible(db: Session, item: Activity, actor: User) -> None:
+    if (
+        item.state == "draft"
+        and item.creator_id != actor.id
+        and not is_assigned_agent(db, item.id, actor.id)
+    ):
+        raise AuthError(404, "activity_not_found")
+
+
 def require_agent_assignment(db: Session, activity_id: str, actor: User) -> None:
     # Command callers hold the mutation lock until commit, including reassignment.
     if actor.role == "AGENT_SAISIE" and not is_assigned_agent(

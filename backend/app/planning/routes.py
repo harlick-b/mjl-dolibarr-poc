@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Respons
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func, or_, select, text, tuple_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.auth.dto import ErrorResponse
@@ -52,6 +52,7 @@ from app.planning.service import (
     principal,
     project_item,
     reference,
+    require_activity_visible,
     require_agent_assignment,
     revision_item,
     snapshot_projection,
@@ -59,6 +60,7 @@ from app.planning.service import (
     type_item,
     validate_draft,
     validate_plan,
+    visible_activity_condition,
     xof,
 )
 from app.planning.workflow_notifications import (
@@ -1344,7 +1346,7 @@ def project_ptas(
         plans = approved_plans(
             db, [(row.project_id, row.year) for row in rows], auth.now(db)
         )
-        counts = planning_state_counts(db, [row.id for row in rows])
+        counts = planning_state_counts(db, [row.id for row in rows], actor.id)
         return {
             "object": "list",
             "count": total,
@@ -1395,7 +1397,7 @@ def pta_context(
         )
         cutoff = cutoff_value(db, as_of)
         plan = approved_plans(db, [(project.id, year)], cutoff)[(project.id, year)]
-        counts = planning_state_counts(db, [pta.id] if pta else [])
+        counts = planning_state_counts(db, [pta.id] if pta else [], actor.id)
         return {
             "project": {
                 **project_item(project, actor.role),
@@ -1635,7 +1637,12 @@ def create_activity(
 
 
 def get_activity(
-    db: Session, identifier: str, *, lock: bool = False, shared: bool = False
+    db: Session,
+    identifier: str,
+    *,
+    actor: User | None = None,
+    lock: bool = False,
+    shared: bool = False,
 ) -> Activity:
     if lock and shared:
         raise ValueError("Activity lock mode must be exclusive or shared")
@@ -1643,11 +1650,13 @@ def get_activity(
     item = db.get(Activity, identifier, with_for_update=lock_mode)
     if not item or item.context_id != CONTEXT:
         raise AuthError(404, "activity_not_found")
+    if actor is not None:
+        require_activity_visible(db, item, actor)
     return item
 
 
 def get_activity_for_command(db: Session, identifier: str, actor: User) -> Activity:
-    item = get_activity(db, identifier)
+    item = get_activity(db, identifier, actor=actor)
     project = db.scalar(
         select(Project)
         .join(AnnualPTA, AnnualPTA.project_id == Project.id)
@@ -1747,7 +1756,7 @@ def activities(
         scope = fingerprint({"pta": pta.id, **filters})
         cursor = Cursor(auth, "pta-activities", scope, limit)
         marker, direction = cursor.decode(token)
-        base = [Activity.pta_id == pta.id]
+        base = [Activity.pta_id == pta.id, visible_activity_condition(actor.id)]
         if q:
             pattern = (
                 "%"
@@ -1885,7 +1894,7 @@ def activity_agents(
     selected: UUID | None = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(db, auth, evidence(request, auth)[0])
+        actor = principal(db, auth, evidence(request, auth)[0])
         pta = db.get(AnnualPTA, identifier)
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
@@ -1898,13 +1907,15 @@ def activity_agents(
         )
         cursor = Cursor(auth, "pta-activity-agents", scope, limit)
         marker, direction = cursor.decode(token)
+        listed_assignment = aliased(ActivityAssignment)
         assigned = (
-            select(ActivityAssignment.id)
-            .join(Activity, Activity.id == ActivityAssignment.activity_id)
+            select(listed_assignment.id)
+            .join(Activity, Activity.id == listed_assignment.activity_id)
             .where(
                 Activity.pta_id == pta.id,
-                ActivityAssignment.agent_id == User.id,
-                ActivityAssignment.ended_at.is_(None),
+                visible_activity_condition(actor.id),
+                listed_assignment.agent_id == User.id,
+                listed_assignment.ended_at.is_(None),
             )
             .exists()
         )
@@ -1970,7 +1981,7 @@ def activity_agents(
 def activity_detail(identifier: str, request: Request, auth: Auth) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
-        item = get_activity(db, identifier, shared=True)
+        item = get_activity(db, identifier, actor=actor, shared=True)
         return activity_item(db, item, actor.role, actor.id, presentation=True)
 
 
@@ -2582,8 +2593,8 @@ def amendment_detail(
     except ValueError:
         raise AuthError(404, "amendment_not_found") from None
     with Session(auth.engine) as db, db.begin():
-        principal(db, auth, evidence(request, auth)[0])
-        item = get_activity(db, identifier, shared=True)
+        actor = principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier, actor=actor, shared=True)
         opened, cancelled = amendment_audits(db, item, amendment_id)
         opened_business = cast(dict[str, Any], opened.business)
         cancelled_business = (
@@ -2659,7 +2670,7 @@ def cancel_amendment(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity(db, identifier, lock=True)
+        item = get_activity(db, identifier, actor=actor, lock=True)
         require_agent_assignment(db, item.id, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
@@ -2858,7 +2869,7 @@ def submit_activity(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity(db, identifier, lock=True)
+        item = get_activity(db, identifier, actor=actor, lock=True)
         require_agent_assignment(db, item.id, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
@@ -3016,7 +3027,7 @@ def decide_activity(
             roles={"AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        preview = get_activity(db, identifier)
+        preview = get_activity(db, identifier, actor=actor)
         preview_revision = db.scalar(
             select(ActivityRevision).where(
                 ActivityRevision.id == revision_id,
@@ -3308,8 +3319,8 @@ def activity_revisions(
     args: Annotated[tuple[int, str | None], Depends(list_args)],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(db, auth, evidence(request, auth)[0])
-        item = get_activity(db, identifier, shared=True)
+        actor = principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier, actor=actor, shared=True)
         limit, token = args
         cursor = Cursor(auth, "activity-revisions", item.id, limit)
         marker, direction = cursor.decode(token)
@@ -3507,8 +3518,8 @@ def activity_revision_detail(
     identifier: str, revision_id: str, request: Request, auth: Auth
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(db, auth, evidence(request, auth)[0])
-        item = get_activity(db, identifier, shared=True)
+        actor = principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier, actor=actor, shared=True)
         revision = db.scalar(
             select(ActivityRevision).where(
                 ActivityRevision.id == revision_id,
@@ -3534,7 +3545,7 @@ def replace_activity(
         actor = principal(
             db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
         )
-        item = get_activity(db, identifier, lock=True)
+        item = get_activity(db, identifier, actor=actor, lock=True)
         require_agent_assignment(db, item.id, actor)
         pta = db.get(AnnualPTA, item.pta_id)
         assert pta
@@ -3728,7 +3739,7 @@ def replace_assignments(
             user.role != "AGENT_SAISIE" or user.state != "active" for user in targets
         ):
             raise AuthError(409, "assignment_ineligible")
-        item = get_activity(db, identifier, lock=True)
+        item = get_activity(db, identifier, actor=actor, lock=True)
         require_agent_assignment(db, item.id, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")

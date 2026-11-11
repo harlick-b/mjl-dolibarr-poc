@@ -13,7 +13,7 @@ from app.planning.models import (
     ActivityRevision,
     Operation,
 )
-from app.planning.service import CONTEXT
+from app.planning.service import CONTEXT, visible_activity_condition
 
 
 def approved_plans(
@@ -62,11 +62,17 @@ def approved_plans(
     }
 
 
-def planning_state_counts(db: Session, pta_ids: list[str]) -> dict[str, dict[str, int]]:
+def planning_state_counts(
+    db: Session, pta_ids: list[str], actor_id: str
+) -> dict[str, dict[str, int]]:
     counts: dict[str, dict[str, int]] = {}
     for pta_id, state, count in db.execute(
         select(Activity.pta_id, Activity.state, func.count())
-        .where(Activity.pta_id.in_(pta_ids), Activity.state != "withdrawn")
+        .where(
+            Activity.pta_id.in_(pta_ids),
+            Activity.state != "withdrawn",
+            visible_activity_condition(actor_id),
+        )
         .group_by(Activity.pta_id, Activity.state)
     ):
         counts.setdefault(pta_id, {})[state] = count

@@ -939,7 +939,10 @@ def execution_activity(identifier: str, request: Request, auth: Auth) -> dict[st
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
         return execution_detail(
-            db, get_activity(db, identifier, shared=True), actor.role, actor.id
+            db,
+            get_activity(db, identifier, actor=actor, shared=True),
+            actor.role,
+            actor.id,
         )
 
 
@@ -1098,8 +1101,8 @@ def execution_history(
     args: Annotated[tuple[int, str | None], Depends(list_args)],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
-        principal(db, auth, evidence(request, auth)[0])
-        get_activity(db, identifier, shared=True)
+        actor = principal(db, auth, evidence(request, auth)[0])
+        get_activity(db, identifier, actor=actor, shared=True)
         limit, token = args
         cursor = Cursor(auth, "execution-history", identifier, limit)
         marker, direction = cursor.decode(token)

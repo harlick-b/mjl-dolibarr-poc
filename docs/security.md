@@ -48,11 +48,12 @@ credentials. First Admin creation must be a guarded, one-time operator action
 without default credentials or sample users.
 
 Role separation applies on the server to every resource/action and again inside
-sensitive transactional mutations. Unassigned Agents retain read access, while
-only assigned Agents may edit, submit and execute Activities, including their
-financial submissions/settlement declarations and evidence changes. Assignment
-checks run inside the command transaction after acquiring the same lock as
-reassignment, so a waiting request cannot use removed responsibility. Assignments also
+sensitive transactional mutations. Initial drafts are readable only by their
+creator and currently assigned Agents; normal internal read access begins after
+submission. Only assigned Agents may edit, submit and execute Activities,
+including their financial submissions/settlement declarations and evidence
+changes. Assignment checks run inside the command transaction after acquiring the
+same lock as reassignment, so a waiting request cannot use removed responsibility. Assignments also
 coordinate work and notifications. Supervisor and Validator approval
 stages and reviewer exclusions follow [business rules](business-rules.md), including
 the planning creator exception and unchanged financial protections. Exclusive identities, technical-only

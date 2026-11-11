@@ -38,6 +38,7 @@ from app.planning.service import (
     is_assigned_agent,
     locked_mutation,
     principal,
+    require_activity_visible,
     require_agent_assignment,
 )
 
@@ -160,10 +161,11 @@ def output(
     }
 
 
-def activity(db: Session, identifier: str) -> Activity:
+def activity(db: Session, identifier: str, actor: Any) -> Activity:
     item = db.get(Activity, identifier)
     if not item or item.context_id != CONTEXT:
         raise AuthError(404, "activity_not_found")
+    require_activity_visible(db, item, actor)
     return item
 
 
@@ -261,7 +263,7 @@ def authorize_upload(
             },
             mutation=True,
         )
-        activity(db, activity_id)
+        activity(db, activity_id, actor)
         require_agent_assignment(db, activity_id, actor)
 
 
@@ -288,7 +290,7 @@ def store_upload(
             },
             mutation=True,
         )
-        parent = activity(db, activity_id)
+        parent = activity(db, activity_id, actor)
         require_agent_assignment(db, activity_id, actor)
         item = ActivityDocument(
             context_id=CONTEXT,
@@ -347,7 +349,7 @@ def listing(
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
         actor = principal(db, auth, evidence(request, auth)[0])
-        parent = activity(db, activity_id)
+        parent = activity(db, activity_id, actor)
         can_share = sharing_eligible(db, parent)
         assigned = is_assigned_agent(db, activity_id, actor.id)
         limit, token = args
@@ -530,7 +532,7 @@ def withdraw(
             roles={"AGENT_SAISIE", "VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        parent = activity(db, activity_id)
+        parent = activity(db, activity_id, actor)
         require_agent_assignment(db, activity_id, actor)
         item = db.get(ActivityDocument, document_id, with_for_update=True)
         if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
@@ -605,7 +607,7 @@ def download(
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
         actor = principal(db, auth, evidence(request, auth)[0])
-        activity(db, activity_id)
+        activity(db, activity_id, actor)
         item = db.get(ActivityDocument, document_id)
         if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
             raise AuthError(404, "document_not_found")
@@ -643,7 +645,7 @@ def preview(
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
         actor = principal(db, auth, evidence(request, auth)[0])
-        activity(db, activity_id)
+        activity(db, activity_id, actor)
         item = db.get(ActivityDocument, document_id)
         if not item or item.activity_id != activity_id or item.context_id != CONTEXT:
             raise AuthError(404, "document_not_found")
@@ -726,7 +728,7 @@ def sharing(
             roles={"VALIDATEUR_DEFINITIF"},
             mutation=True,
         )
-        parent = activity(db, activity_id)
+        parent = activity(db, activity_id, actor)
         item = db.scalar(
             select(ActivityDocument)
             .options(

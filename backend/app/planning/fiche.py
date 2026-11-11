@@ -865,7 +865,7 @@ def activity_fiche(identifier: str, request: Request, auth: Auth) -> Response:
     with Session(auth.engine) as db, db.begin():
         locked_read(db)
         actor = principal(db, auth, evidence(request, auth)[0])
-        activity = get_activity(db, identifier, shared=True)
+        activity = get_activity(db, identifier, actor=actor, shared=True)
         if not activity.approved_revision_id:
             raise AuthError(409, "fiche_unavailable")
         generated_at = auth.now(db)

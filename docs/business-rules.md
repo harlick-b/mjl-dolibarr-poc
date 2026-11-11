@@ -37,8 +37,12 @@ Activity creation always belongs to a PTA matching its planned start year.
 Internal identities have one exclusive role. Assignments identify responsibility and control Agent editing, submission and
 execution. An Agent creator is automatically assigned. Supervisor/Validator
 creation selects at least one active Agent; several may be selected. Reassignment
-must retain at least one Agent. Unassigned Agents retain viewing access. Backend role, resource,
-state and contributor checks apply to direct requests as well as visible buttons.
+must retain at least one Agent. An initial draft is visible only to its creator
+and its currently assigned Agents. A Supervisor or final Validator who created
+the draft retains access alongside those Agents. Once submitted, normal internal
+visibility applies; amendment drafts retain the approved Activity's existing
+access. Backend role, resource, state and contributor checks apply to direct
+requests as well as visible buttons.
 All business amounts are exact integer XOF, displayed F CFA; missing is not zero.
 
 ## Accounts and mail

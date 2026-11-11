@@ -5,7 +5,7 @@ export const strings = new LocalizedStrings({
     requiredDates:
       'Renseignez les dates de début et de fin. La fin ne peut pas précéder le début.',
     assignmentRequired:
-      'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
+      'Cette activité ne vous est plus affectée. Vos droits d’accès ont été actualisés.',
     plannedAmount: 'Montant prévu de l’activité (F CFA)',
     budgetDifference: 'Écart à répartir',
     project: 'Projet',
@@ -34,7 +34,7 @@ export const strings = new LocalizedStrings({
     planningSummary: 'Synthèse du PTA',
     plannedActivities: 'Activités planifiées',
     approvedCount: 'Approuvées',
-    reviewCount: 'À examiner',
+    reviewCount: 'En cours de validation',
     correctionCount: 'En correction',
     draftCount: 'Brouillon',
     activitiesLabel: 'activités',
@@ -88,8 +88,8 @@ export const strings = new LocalizedStrings({
     createdBy: 'Brief créé par',
     submittedBy: 'Soumise par',
     latestDecisionBy: 'Dernière décision par',
-    awaitingPrevalidation: 'À examiner',
-    awaitingFinalValidation: 'À approuver',
+    awaitingPrevalidation: 'Soumise pour prévalidation',
+    awaitingFinalValidation: 'Validation définitive attendue',
     unknownActor: 'Auteur non disponible',
 
     modifyPartner: 'Modifier le partenaire',
@@ -179,7 +179,7 @@ export const strings = new LocalizedStrings({
     assignmentAdded: 'Ajoutés',
     assignmentRemoved: 'Retirés',
     assignmentRemovalEffect:
-      'Les Agents retirés perdent l’accès à la modification et à la réalisation. Ils conservent l’accès en lecture seule.',
+      'Pour un brouillon initial, seuls son créateur et les Agents encore affectés conservent l’accès. Après soumission, les Agents retirés conservent un accès en lecture seule.',
     assignmentUnchanged: 'Aucune modification.',
     assignmentNonempty: 'Affectez au moins un Agent à cette activité.',
     saveAgents: 'Enregistrer les affectations',
@@ -195,7 +195,7 @@ export const strings = new LocalizedStrings({
     status: 'Statut',
     draft: 'Brouillon',
     submitted: 'Soumise pour prévalidation',
-    prevalidated: 'Prévalidée — validation définitive attendue',
+    prevalidated: 'Validation définitive attendue',
     returned_supervisor: 'Correction demandée par le Superviseur',
     returned_validator: 'Correction demandée par le Validateur définitif',
     approved: 'Validée définitivement',

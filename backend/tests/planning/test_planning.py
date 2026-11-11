@@ -1932,6 +1932,7 @@ def test_p09_p10_invalid_planning_rolls_back(planning, change):
 
 def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     partner, operation_type, project, activity, _ = create_activity(planning)
+    agent2_headers = headers(planning["agent2"])
     page = planning["agent"].get(f"/api/v1/ptas/{activity['pta_id']}/activities").json()
     assert len(page["data"]) == 1
     assert set(page["data"][0]) == {
@@ -1958,7 +1959,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
         f"/api/v1/activities/{activity['id']}",
     ]
     for actor in ("agent", "supervisor", "validator"):
-        for path in read_paths:
+        for path in read_paths[:-1]:
             assert planning[actor].get(path).status_code == 200, (actor, path)
     assert admin.get("/api/v1/partners").status_code == 200
     for path in [*read_paths[1:], "/api/v1/assignment-agents"]:
@@ -2036,34 +2037,33 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
         f"/api/v1/activities/{activity['id']}/assignments",
         {"expected_version": activity["version"], "agent_ids": [agent_id]},
     )
-    assert assigned.status_code == 200, assigned.text
-    assert assigned.json()["agent_ids"] == [agent_id]
+    assert assigned.status_code == 404, assigned.text
     validator_assigned = put(
         planning["validator"],
         f"/api/v1/activities/{activity['id']}/assignments",
-        {"expected_version": assigned.json()["version"], "agent_ids": [agent_id]},
+        {"expected_version": activity["version"], "agent_ids": [agent_id]},
     )
-    assert validator_assigned.status_code == 200
+    assert validator_assigned.status_code == 404
     assert (
         put(
             planning["agent"],
             f"/api/v1/activities/{activity['id']}/assignments",
             {
-                "expected_version": validator_assigned.json()["version"],
+                "expected_version": activity["version"],
                 "agent_ids": [agent_id],
             },
         ).status_code
         == 403
     )
-    edited = patch(
-        planning["agent2"],
+    edited = planning["agent2"].patch(
         f"/api/v1/activities/{activity['id']}",
-        {
+        headers=agent2_headers,
+        json={
             **plan(operation_type, name="Modifiée par un autre Agent"),
-            "expected_version": validator_assigned.json()["version"],
+            "expected_version": activity["version"],
         },
     )
-    assert edited.status_code == 403, edited.text
+    assert edited.status_code == 404, edited.text
 
 
 def test_activity_list_filters_share_normalized_cursor_scope(planning):

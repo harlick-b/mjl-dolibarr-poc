@@ -488,7 +488,7 @@ e.dispose()`,
     .click()
   await expect(
     supervisor.getByLabel('Progression de la validation'),
-  ).toContainText('Prévalidée — validation définitive attendue')
+  ).toContainText('Validation définitive attendue')
 
   await validator.goto(`/activities/${activity.id}`)
   await validator
@@ -529,7 +529,7 @@ e.dispose()`,
     .click()
   await expect(
     supervisor.getByLabel('Progression de la validation'),
-  ).toContainText('Prévalidée — validation définitive attendue')
+  ).toContainText('Validation définitive attendue')
   clearSharedIpBucket()
   await validator.goto(`/activities/${activity.id}`)
   await validator

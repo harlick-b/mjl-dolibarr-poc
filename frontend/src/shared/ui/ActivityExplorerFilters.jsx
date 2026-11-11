@@ -53,15 +53,9 @@ export function ActivityExplorerFilters({
         value={value.q || ''}
         onSearch={(q) => onChange({ q })}
         label={searchLabel}
-        active={Boolean(
-          value.state ||
-          value.review === 'mine' ||
-          value.from ||
-          value.to ||
-          (ownActivities && value.mine !== 'all'),
-        )}
         onReset={reset}
         disabled={disabled}
+        keepMounted={Boolean(value.agent)}
         toolbar={
           ownActivities ? (
             <Button
@@ -76,20 +70,6 @@ export function ActivityExplorerFilters({
             >
               {strings.myActivities}
             </Button>
-          ) : agentPath ? (
-            <QueryFilterSelect
-              kind="agent"
-              path={agentPath}
-              value={value.agent || ''}
-              valueLabel={agentLabel}
-              onResolvedLabel={setAgentLabel}
-              onChange={(agent, label = '') => {
-                setAgentLabel(label)
-                onChange({ agent })
-              }}
-              searchable
-              compact
-            />
           ) : null
         }
       >
@@ -111,6 +91,20 @@ export function ActivityExplorerFilters({
             ))}
           </Select>
         </label>
+        {agentPath && !ownActivities && (
+          <QueryFilterSelect
+            kind="agent"
+            path={agentPath}
+            value={value.agent || ''}
+            valueLabel={agentLabel}
+            onResolvedLabel={setAgentLabel}
+            onChange={(agent, label = '') => {
+              setAgentLabel(label)
+              onChange({ agent })
+            }}
+            searchable
+          />
+        )}
         {dates && (
           <>
             <label>

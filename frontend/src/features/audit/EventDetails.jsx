@@ -19,32 +19,36 @@ function readable(value, field) {
   return value
 }
 
-export function EventDetails({ event }) {
+export function EventDetails({ event, inline = false }) {
   if (!event.reason && !event.changes?.length && !event.facts?.length)
     return null
+  const content = (
+    <div className="grid gap-2 py-1 text-sm">
+      {event.reason && (
+        <p>
+          <strong>{strings.reason} :</strong> {event.reason}
+        </p>
+      )}
+      {event.facts?.map((fact) => (
+        <p key={fact.field}>
+          {fact.field} : {readable(fact.after, fact.field)}
+        </p>
+      ))}
+      {event.changes?.map((change) => (
+        <p key={change.field}>
+          {change.field} : {readable(change.before, change.field)} →{' '}
+          {readable(change.after, change.field)}
+        </p>
+      ))}
+    </div>
+  )
+  if (inline) return content
   return (
     <details className="mt-2 whitespace-normal break-words">
       <summary className="cursor-pointer text-primary font-medium">
         {strings.details}
       </summary>
-      <div className="grid gap-2 py-2">
-        {event.reason && (
-          <p>
-            <strong>{strings.reason} :</strong> {event.reason}
-          </p>
-        )}
-        {event.facts?.map((fact) => (
-          <p key={fact.field}>
-            {fact.field} : {readable(fact.after, fact.field)}
-          </p>
-        ))}
-        {event.changes?.map((change) => (
-          <p key={change.field}>
-            {change.field} : {readable(change.before, change.field)} →{' '}
-            {readable(change.after, change.field)}
-          </p>
-        ))}
-      </div>
+      {content}
     </details>
   )
 }

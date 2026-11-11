@@ -225,14 +225,8 @@ test('planning references: index, table, calendar, form and detail tabs', async 
     page.getByRole('columnheader', { name: 'Agents affectés' }),
   ).toBeVisible()
   await expect(page.locator('aside nav a[aria-current="page"]')).toHaveCount(1)
-  const agentFilter = page.locator('label').filter({ hasText: 'Agent affecté' })
-  await agentFilter.getByRole('button', { name: 'Agent affecté · 0' }).click()
-  await page.getByRole('option', { name: 'Agent de test' }).click()
-  const agentChip = page.getByRole('button', {
-    name: 'Retirer le filtre agent',
-  })
-  await expect(agentChip).toContainText('Agent de test')
-  await agentChip.click()
+  await page.getByRole('button', { name: 'Filtres' }).click()
+  await expect(page.getByRole('combobox', { name: 'Validation' })).toBeVisible()
   await page.screenshot({ path: '/tmp/mjl-design-pta.png' })
   await page.getByRole('button', { name: 'Calendrier', exact: true }).click()
   await expect(
@@ -268,9 +262,7 @@ test('planning references: index, table, calendar, form and detail tabs', async 
     fullPage: true,
   })
   await page.setViewportSize({ width: 918, height: 970 })
-  await expect(
-    page.getByRole('button', { name: 'Agent affecté · 0' }),
-  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Filtres' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Vue annuelle' })).toBeVisible()
   expect(
     await page.evaluate(
@@ -315,17 +307,17 @@ test('planning references: index, table, calendar, form and detail tabs', async 
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
   await page.setViewportSize({ width: 1846, height: 970 })
   await page.goto('/execution/pta-1')
-  await expect(
-    page.getByRole('button', { name: 'Agent affecté · 0' }),
-  ).toBeVisible()
+  await page.getByRole('button', { name: 'Filtres' }).click()
+  const executionAgentFilter = page
+    .locator('label')
+    .filter({ hasText: 'Agent affecté' })
+  await expect(executionAgentFilter.getByRole('button')).toBeVisible()
   await page.screenshot({
     path: '/tmp/mjl-design-execution-filters.png',
     fullPage: true,
   })
   await page.setViewportSize({ width: 918, height: 970 })
-  await expect(
-    page.getByRole('button', { name: 'Agent affecté · 0' }),
-  ).toBeVisible()
+  await expect(executionAgentFilter.getByRole('button')).toBeVisible()
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

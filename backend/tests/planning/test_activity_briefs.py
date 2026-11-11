@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from tests.planning.test_planning import admin as admin
-from tests.planning.test_planning import patch, plan, post, references
+from tests.planning.test_planning import patch, plan, post, put, references
 from tests.planning.test_planning import planning as planning
 
 
@@ -67,6 +67,77 @@ def test_agent_saves_reopens_and_submits_a_title_only_draft(planning):
         {"expected_version": completed.json()["version"]},
     )
     assert submitted.status_code == 201, submitted.text
+
+
+def test_initial_drafts_are_visible_only_to_creator_and_assigned_agents(planning):
+    _, category, project = references(planning)
+    path = f"/api/v1/projects/{project['id']}/ptas/2027/activities"
+    created = post(
+        planning["agent"],
+        path,
+        {"request_key": str(uuid4()), "name": "Brouillon confidentiel"},
+    ).json()
+    detail_path = f"/api/v1/activities/{created['id']}"
+    list_path = f"/api/v1/ptas/{created['pta_id']}/activities"
+    context_path = f"/api/v1/projects/{project['id']}/ptas/2027"
+
+    assert planning["agent"].get(detail_path).status_code == 200
+    assert planning["agent"].get(context_path).json()["summary"]["draft"] == 1
+    assert planning["supervisor"].get(context_path).json()["summary"]["draft"] == 0
+    for client in (planning["agent2"], planning["supervisor"], planning["validator"]):
+        assert client.get(detail_path).status_code == 404
+        listing = client.get(list_path)
+        assert listing.status_code == 200, listing.text
+        assert created["id"] not in {row["id"] for row in listing.json()["data"]}
+    assert planning["supervisor"].get(detail_path + "/history").status_code == 404
+    assert planning["supervisor"].get(detail_path + "/documents").status_code == 404
+    assert planning["supervisor"].get(detail_path + "/revisions").status_code == 404
+    assert planning["supervisor"].get(detail_path + "/execution").status_code == 404
+    assert (
+        planning["supervisor"].get(detail_path + "/execution/history").status_code
+        == 404
+    )
+    assert planning["supervisor"].get(detail_path + "/fiche.pdf").status_code == 404
+    agent2_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
+    rejected_assignment = put(
+        planning["validator"],
+        detail_path + "/assignments",
+        {"expected_version": created["version"], "agent_ids": [agent2_id]},
+    )
+    assert rejected_assignment.status_code == 404
+    assert planning["agent"].get(detail_path).json()["version"] == created["version"]
+
+    completed = patch(
+        planning["agent"],
+        detail_path,
+        {**plan(category), "expected_version": created["version"]},
+    ).json()
+    submitted = post(
+        planning["agent"],
+        detail_path + "/submissions",
+        {"expected_version": completed["version"]},
+    )
+    assert submitted.status_code == 201, submitted.text
+    assert planning["supervisor"].get(detail_path).status_code == 200
+    assert planning["supervisor"].get(context_path).json()["summary"]["review"] == 1
+
+    agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    reviewer_draft = post(
+        planning["supervisor"],
+        path,
+        {
+            "request_key": str(uuid4()),
+            "name": "Brief du superviseur",
+            "agent_ids": [agent_id],
+        },
+    ).json()
+    reviewer_path = f"/api/v1/activities/{reviewer_draft['id']}"
+    assert planning["supervisor"].get(reviewer_path).status_code == 200
+    assert planning["agent"].get(reviewer_path).status_code == 200
+    assert planning["agent2"].get(reviewer_path).status_code == 404
+    assert planning["validator"].get(reviewer_path).status_code == 404
+    assert planning["supervisor"].get(context_path).json()["summary"]["draft"] == 1
+    assert planning["validator"].get(context_path).json()["summary"]["draft"] == 0
 
 
 @pytest.mark.parametrize("creator", ["supervisor", "validator"])
@@ -369,9 +440,10 @@ def test_brief_validation_visibility_and_atomic_audit(planning, monkeypatch):
     created = post(planning["supervisor"], path, body)
     assert created.status_code == 201, created.text
     item = created.json()
-    assert planning["agent2"].get(f"/api/v1/activities/{item['id']}").json()[
-        "allowed_actions"
-    ] == ["read"]
+    assert (
+        planning["agent2"].get(f"/api/v1/activities/{item['id']}").status_code
+        == 404
+    )
     listed = planning["agent"].get(f"/api/v1/ptas/{item['pta_id']}/activities").json()
     assert listed["count"] == 1 and listed["data"][0]["allocation"] is None
     assert listed["data"][0]["planned_end"] is None
@@ -381,7 +453,25 @@ def test_brief_validation_visibility_and_atomic_audit(planning, monkeypatch):
     assert context["summary"]["draft"] == 1
     assert context["summary"]["approved_allocation"] == "0"
     history = planning["validator"].get("/api/v1/audit-events").json()
-    assert any(row["action"] == "activity.create" for row in history["data"])
+    assert not any(
+        row.get("activity", {}).get("id") == item["id"]
+        for row in history["data"]
+        if row.get("activity")
+    )
+    filtered_history = planning["validator"].get(
+        "/api/v1/audit-events", params={"activity": item["id"]}
+    )
+    assert filtered_history.status_code == 200
+    assert filtered_history.json()["count"] == 0
+    admin_history = planning["admin"].get(
+        "/api/v1/audit-events", params={"activity": item["id"]}
+    )
+    assert admin_history.json()["count"] == 1
+    audit_export = post(
+        planning["validator"], "/api/v1/reports/audit/exports", {"format": "csv"}
+    )
+    assert audit_export.status_code == 200
+    assert "Brief" not in audit_export.text
     export = post(
         planning["validator"],
         f"/api/v1/ptas/{item['pta_id']}/exports",

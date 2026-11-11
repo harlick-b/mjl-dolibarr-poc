@@ -13,7 +13,12 @@ from sqlalchemy import func, select, text, tuple_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.audit.filters import filter_scope, history_conditions, history_filters
+from app.audit.filters import (
+    activity_match,
+    filter_scope,
+    history_conditions,
+    history_filters,
+)
 from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
@@ -25,7 +30,14 @@ from app.planning.models import (
     Partner,
     Project,
 )
-from app.planning.service import BUSINESS_ROLES, CONTEXT, Cursor, page_rows, principal
+from app.planning.service import (
+    BUSINESS_ROLES,
+    CONTEXT,
+    Cursor,
+    page_rows,
+    principal,
+    visible_activity_condition,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -769,6 +781,15 @@ def audit_events(
     return history_page(request, auth, pagination, filters)
 
 
+def visible_audit_condition(actor: User) -> ColumnElement[bool]:
+    """Exclude events linked to an Activity draft hidden from this actor."""
+    return ~select(Activity.id).where(
+        Activity.context_id == CONTEXT,
+        activity_match(),
+        ~visible_activity_condition(actor.id),
+    ).exists()
+
+
 @router.get("/activities/{identifier}/history", response_model=ActivityAuditList)
 def activity_history(
     identifier: str,
@@ -801,16 +822,23 @@ def history_page(
         )
         if activity_id:
             from app.planning.routes import get_activity
+            from app.planning.service import require_activity_visible
 
-            get_activity(db, activity_id, shared=True)
+            activity = get_activity(db, activity_id, shared=True)
+            require_activity_visible(db, activity, actor)
         actions = BUSINESS_ACTIONS if activity_id else visible_actions(actor.role)
         path = f"/activities/{activity_id}/history" if activity_id else "/audit-events"
         limit, token = pagination
         cursor = Cursor(
-            auth, "audit-events", filter_scope(filters) + ":" + actor.role, limit
+            auth,
+            "audit-events",
+            filter_scope(filters) + ":" + actor.role + ":" + actor.id,
+            limit,
         )
         marker, direction = cursor.decode(token)
         base_conditions = history_conditions(filters, ACTION_LABELS, actions)
+        if not activity_id and actor.role == "VALIDATEUR_DEFINITIF":
+            base_conditions.append(visible_audit_condition(actor))
         conditions: list[Any] = list(base_conditions)
         if marker:
             try:
@@ -918,11 +946,14 @@ def audit_export(
             roles={"VALIDATEUR_DEFINITIF", "ADMIN_PLATEFORME"},
             mutation=True,
         )
+        export_conditions = history_conditions(
+            filters, ACTION_LABELS, visible_actions(actor.role)
+        )
+        if actor.role == "VALIDATEUR_DEFINITIF":
+            export_conditions.append(visible_audit_condition(actor))
         selected = (
             select(Audit.id)
-            .where(
-                *history_conditions(filters, ACTION_LABELS, visible_actions(actor.role))
-            )
+            .where(*export_conditions)
             .order_by(Audit.id)
             .limit(10001)
             .subquery()
@@ -1015,7 +1046,10 @@ def audit_filter_options(
         )
         limit, token = pagination
         cursor = Cursor(
-            auth, "audit-filter-options", CONTEXT + ":" + kind + ":" + actor.role, limit
+            auth,
+            "audit-filter-options",
+            CONTEXT + ":" + kind + ":" + actor.role + ":" + actor.id,
+            limit,
         )
         marker, direction = cursor.decode(token)
         actions = visible_actions(actor.role)
@@ -1044,7 +1078,15 @@ def audit_filter_options(
             if kind == "actor":
                 exists = (
                     select(Audit.id)
-                    .where(Audit.action.in_(actions), Audit.actor == model.id)
+                    .where(
+                        Audit.action.in_(actions),
+                        Audit.actor == model.id,
+                        *(
+                            [visible_audit_condition(actor)]
+                            if actor.role == "VALIDATEUR_DEFINITIF"
+                            else []
+                        ),
+                    )
                     .exists()
                 )
             elif kind == "activity":
@@ -1073,6 +1115,8 @@ def audit_filter_options(
             conditions = [exists]
             if kind != "actor":
                 conditions.append(model.context_id == CONTEXT)
+            if kind == "activity" and actor.role == "VALIDATEUR_DEFINITIF":
+                conditions.append(visible_activity_condition(actor.id))
             filtered = list(conditions)
             if marker:
                 filtered.append(
