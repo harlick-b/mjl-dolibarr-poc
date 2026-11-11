@@ -7,7 +7,7 @@ export const strings = new LocalizedStrings({
     selectedAgent: 'Agent sélectionné',
     removeFilter: 'Retirer le filtre',
     searchHistory: 'Rechercher une action, une activité, un auteur…',
-    searchActivity: 'Rechercher une activité…',
+    searchActivity: 'Rechercher par intitulé ou référence…',
     actor: 'Auteur',
     activity: 'Activité',
     project: 'Projet',

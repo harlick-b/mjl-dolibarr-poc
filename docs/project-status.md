@@ -1375,6 +1375,19 @@ frontend files passed 83 tests. Independent review also verified that date filte
 continue to use the approved schedule while a correction is awaiting approval,
 and that long valid history remains printable.
 
+## Activity orientation, 2026-11-11
+
+Activity details now surface the saved purpose with their identity facts.
+Prévisions names the next responsible role from the current workflow state, while
+Réalisations uses the approved description and keeps its existing administrative
+stage. Both explorers explicitly search by Activity title or reference and give
+filtered empty results a clear explanation and reset action. Navigation,
+permissions and workflow transitions are unchanged.
+Final focused runs passed 45 Planning tests, 30 Réalisations tests and one
+disposable-PostgreSQL execution-contract test. Frontend lint/format, backend Ruff
+and strict mypy, the PWA build and independent specification/standards reviews
+passed. Human visual and 200% zoom acceptance remains outstanding.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

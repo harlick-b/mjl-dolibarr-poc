@@ -2136,6 +2136,32 @@ function AssignmentModal({
   )
 }
 
+function activityNextStep(item) {
+  if (item.state === 'draft') return strings.nextStepDraft
+  if (item.state?.startsWith('returned'))
+    return item.transfer
+      ? strings.nextStepTransferCorrection
+      : item.withdrawal
+        ? strings.nextStepWithdrawalCorrection
+        : item.amendment
+          ? strings.nextStepAmendmentCorrection
+          : strings.nextStepActivityCorrection
+  if (item.state === 'amendment_draft') return strings.nextStepAmendment
+  const subject = item.transfer
+    ? strings.transferSubject
+    : item.withdrawal
+      ? strings.withdrawalSubject
+      : item.amendment
+        ? strings.amendmentSubject
+        : strings.activitySubject
+  if (item.state === 'submitted')
+    return strings.formatString(strings.nextStepSupervisor, { subject })
+  if (item.state === 'prevalidated')
+    return strings.formatString(strings.nextStepValidator, { subject })
+  if (item.state === 'approved') return strings.nextStepExecution
+  return ''
+}
+
 function ActivityDetail({
   item,
   user,
@@ -2456,6 +2482,7 @@ function ActivityDetail({
       !item.planned_end ||
       item.allocation === null ||
       !item.operations.length)
+  const nextStep = activityNextStep(item)
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <nav
@@ -2490,6 +2517,16 @@ function ActivityDetail({
           <p className="text-sm text-muted-foreground">
             {item.project_name} · {item.partner_name} · {item.pta_name}
           </p>
+          {item.description?.trim() && (
+            <div className="max-w-3xl">
+              <p className="text-xs font-medium text-muted-foreground">
+                {strings.activityPurpose}
+              </p>
+              <p className="mt-1 line-clamp-3 text-sm leading-6 text-foreground">
+                {item.description}
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
             <span
               className={`w-fit rounded-card px-2 py-1 text-xs ${activityStatusClass(item.state)}`}
@@ -2523,6 +2560,12 @@ function ActivityDetail({
               )}
             </span>
           </div>
+          {nextStep && (
+            <p className="max-w-3xl text-sm leading-6">
+              <strong className="font-medium">{strings.nextStep}</strong>
+              <span className="text-muted-foreground"> · {nextStep}</span>
+            </p>
+          )}
         </div>
         <div className="flex gap-2 items-end flex-wrap">
           {item.approved_revision_id && (

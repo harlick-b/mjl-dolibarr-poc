@@ -168,6 +168,7 @@ class ExecutionDetailOutput(Input):
     agents: list[str]
     reference: str
     name: str
+    description: str
     planned_start: str
     planned_end: str
     approved_allocation: str
@@ -579,6 +580,7 @@ def execution_detail(
         **context,
         "reference": item.reference,
         "name": cast(str, revision.snapshot["name"]),
+        "description": cast(str, revision.snapshot["description"]),
         "planned_start": cast(str, revision.snapshot["planned_start"]),
         "planned_end": cast(str, revision.snapshot["planned_end"]),
         "approved_allocation": cast(str, revision.snapshot["allocation"]),

@@ -536,3 +536,20 @@ removing raw IDs, CSV rows coupled to dictionary order, stale spreadsheet/CSV
 column assertions, a PDF row that could not split long valid history, and period
 filters using an unapproved candidate schedule. The same reviewers rechecked the
 corrected candidate; their final result is recorded with the commit review.
+
+### Progress — Activity orientation, 2026-11-11
+
+This small slice keeps the current navigation and workflow. Activity detail
+places the saved purpose in the identity area and states the next responsible
+role from the actual Activity state. Réalisations exposes the approved saved
+description in the same identity area. Both Activity explorers now say that
+search accepts an Activity title or reference, and filtered empty results explain
+what was searched and offer a direct reset. No dashboard, workflow mechanism or
+new business fact is introduced.
+
+Final focused evidence passed 45 Planning tests and 30 Réalisations tests in
+separate runs, plus one disposable-PostgreSQL execution-contract test. Lint,
+format, Ruff, strict mypy and the production PWA build passed. Independent
+specification and standards reviewers cleared the corrected copy after draft,
+amendment and returned-request wording was made exact. Human visual and zoom
+acceptance remains separate from this implementation review.

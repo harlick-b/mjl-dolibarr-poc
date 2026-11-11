@@ -32,6 +32,7 @@ function detail({ started = false, completed = false } = {}) {
     agents: ['Agent de test'],
     reference: 'ACT-000001',
     name: 'Former les équipes',
+    description: 'Renforcer les pratiques des équipes de terrain.',
     planned_start: '2026-10-28',
     planned_end: '2026-12-31',
     approved_allocation: '100000',
@@ -137,6 +138,11 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(screen.getByText('1 / 1 opérations terminées')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
   expect(screen.queryByText(/Révision 1/)).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('searchbox', {
+      name: 'Rechercher par intitulé ou référence…',
+    }),
+  ).toBeVisible()
 
   await user.click(screen.getByRole('button', { name: 'Filtres' }))
   expect(screen.getByText('Période de l’activité')).toBeVisible()
@@ -188,6 +194,15 @@ test('execution explorer keeps the selected activity period in its API request',
   render(<App router={router} />)
 
   await screen.findByText('0 activité')
+  expect(screen.getByText('Aucune activité trouvée')).toBeVisible()
+  expect(
+    screen.getByText(
+      'Aucune activité ne correspond à votre recherche ou aux filtres appliqués.',
+    ),
+  ).toBeVisible()
+  expect(screen.getAllByRole('button', { name: 'Réinitialiser' })).toHaveLength(
+    1,
+  )
   expect(
     requests.some(
       (url) =>
@@ -275,6 +290,10 @@ test('an observation draft keeps its version across refresh and can be explicitl
   ).toBeVisible()
   expect(
     screen.getByText('Justice des mineurs · UNICEF · PTA 2026'),
+  ).toBeVisible()
+  expect(screen.getByText('Objet de l’activité')).toBeVisible()
+  expect(
+    screen.getByText('Renforcer les pratiques des équipes de terrain.'),
   ).toBeVisible()
   expect(screen.getByText('Réalisation physique :')).toHaveTextContent(
     'Réalisation physique : Terminée',

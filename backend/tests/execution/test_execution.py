@@ -316,6 +316,7 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
     assert detail.json()["project_name"] == activity["project_name"]
     assert detail.json()["partner_name"] == activity["partner_name"]
     assert detail.json()["pta_name"] == activity["pta_name"]
+    assert detail.json()["description"] == activity["description"]
     assert detail.json()["approved_revision_number"] == 1
     assert detail.json()["agents"] == [
         row["full_name"] or row["email"] for row in activity["agents"]

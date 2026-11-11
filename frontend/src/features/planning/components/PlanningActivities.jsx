@@ -126,7 +126,7 @@ export function PlanningActivities({
                 <tr>
                   <td colSpan={6}>
                     <EmptyContent
-                      kind={hasFilters ? 'search' : 'activities'}
+                      kind={hasFilters ? 'activitySearch' : 'activities'}
                       large
                     />
                   </td>

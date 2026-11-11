@@ -12,7 +12,7 @@ export const strings = new LocalizedStrings({
     planningIndex: 'Prévisions (PTA)',
     activitySingular: 'activité',
     operationSingular: 'opération',
-    searchActivities: 'Rechercher une activité…',
+    searchActivities: 'Rechercher par intitulé ou référence…',
     allStates: 'Tous',
     viewAllActivities: 'Voir toutes les activités',
     allPtas: 'Tous les PTA',
@@ -113,6 +113,29 @@ export const strings = new LocalizedStrings({
     financialExecution: 'Exécution financière',
     newActivity: 'Nouvelle activité',
     activityDetail: 'Détail de l’activité',
+    activityPurpose: 'Objet de l’activité',
+    nextStep: 'Prochaine étape',
+    nextStepDraft:
+      'Un Agent responsable doit finaliser la programmation puis soumettre l’activité pour examen.',
+    nextStepAmendment:
+      'Un Agent responsable prépare la modification avant de la soumettre pour examen.',
+    nextStepActivityCorrection:
+      'Un Agent responsable doit corriger l’activité puis la soumettre à nouveau.',
+    nextStepAmendmentCorrection:
+      'Un Agent responsable doit corriger la modification puis la soumettre à nouveau.',
+    nextStepWithdrawalCorrection:
+      'Un Agent responsable doit corriger la demande de retrait puis la soumettre à nouveau.',
+    nextStepTransferCorrection:
+      'Un Agent responsable doit corriger la demande de transfert puis la soumettre à nouveau.',
+    activitySubject: 'Cette activité',
+    amendmentSubject: 'Cette modification',
+    withdrawalSubject: 'Cette demande de retrait',
+    transferSubject: 'Cette demande de transfert',
+    nextStepSupervisor: '{subject} attend l’examen d’un Superviseur.',
+    nextStepValidator:
+      '{subject} attend la décision d’un Validateur définitif.',
+    nextStepExecution:
+      'Les Agents responsables assurent le suivi dans Réalisation & finances.',
     downloadActivityFiche: 'Télécharger la fiche PDF',
     attachments: 'Pièces justificatives',
     addAttachment: 'Ajouter une pièce',

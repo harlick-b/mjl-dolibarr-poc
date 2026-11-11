@@ -632,8 +632,6 @@ export function ExecutionList({
   onFilterChange,
   ptaId,
 }) {
-  const reset = () =>
-    onFilterChange?.({ q: '', state: '', agent: '', from: '', to: '' })
   const filtered = Boolean(
     filters.q || filters.state || filters.agent || filters.from || filters.to,
   )
@@ -783,19 +781,12 @@ export function ExecutionList({
                   <EmptyContent
                     kind={
                       filtered
-                        ? 'search'
+                        ? 'activitySearch'
                         : ptaId
                           ? 'execution'
                           : 'executionNoPta'
                     }
                     large
-                    action={
-                      filtered ? (
-                        <Button variant="outline" onClick={reset}>
-                          {filterText.reset}
-                        </Button>
-                      ) : undefined
-                    }
                   />
                 </td>
               </tr>
@@ -910,6 +901,16 @@ function ExecutionDetail({
             <p className="text-sm text-muted-foreground">
               {detail.project_name} · {detail.partner_name} · {detail.pta_name}
             </p>
+            {detail.description && (
+              <div className="mt-2 max-w-3xl">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {strings.activityPurpose}
+                </p>
+                <p className="mt-1 line-clamp-3 text-sm leading-6 text-foreground">
+                  {detail.description}
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-3">
             <ProtectedDownload

@@ -41,6 +41,7 @@ export const strings = new LocalizedStrings({
     executionDataLoading: 'Chargement des données de réalisation…',
     executionTitle: 'Réalisations',
     executionDetailTitle: 'Détail de la réalisation',
+    activityPurpose: 'Objet de l’activité',
     approvedLabel: 'Approuvée',
     activitySections: 'Sections de l’activité',
     programmingTab: 'Programmation',

@@ -55,6 +55,10 @@ export const strings = new LocalizedStrings({
       'Aucun résultat',
       'Aucun élément ne correspond à votre recherche.',
     ],
+    activitySearch: [
+      'Aucune activité trouvée',
+      'Aucune activité ne correspond à votre recherche ou aux filtres appliqués.',
+    ],
     notifications: ['', 'Aucune notification pour le moment.'],
     actions: [
       'Aucune action en attente',

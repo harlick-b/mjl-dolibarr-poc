@@ -1028,6 +1028,21 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     screen.getByRole('region', { name: 'Modification en préparation' }),
   ).toBeVisible()
+  expect(screen.getByText('Prochaine étape').parentElement).toHaveTextContent(
+    'Un Agent responsable prépare la modification avant de la soumettre pour examen.',
+  )
+  activity = { ...activity, state: 'returned_validator' }
+  await act(async () => {
+    router.options.context.queryClient.setQueryData(
+      ['planning', 'agent', 'activity', 'activity-1'],
+      activity,
+    )
+  })
+  await waitFor(() =>
+    expect(screen.getByText('Prochaine étape').parentElement).toHaveTextContent(
+      'Un Agent responsable doit corriger la modification puis la soumettre à nouveau.',
+    ),
+  )
   await user.click(
     screen.getByRole('button', { name: 'Annuler la modification' }),
   )
@@ -1076,6 +1091,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     ),
   )
   expect(await screen.findByText('Demande de retrait en cours')).toBeVisible()
+  expect(screen.getByText('Prochaine étape').parentElement).toHaveTextContent(
+    'Cette demande de retrait attend l’examen d’un Superviseur.',
+  )
   expect(
     router.options.context.queryClient.getQueryState(accessKey)?.isInvalidated,
   ).toBeUndefined()
@@ -1145,6 +1163,18 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     ),
   )
   expect(await screen.findByText('Demande de transfert en cours')).toBeVisible()
+  activity = { ...activity, state: 'returned_supervisor' }
+  await act(async () => {
+    router.options.context.queryClient.setQueryData(
+      ['planning', 'agent', 'activity', 'activity-1'],
+      activity,
+    )
+  })
+  await waitFor(() =>
+    expect(screen.getByText('Prochaine étape').parentElement).toHaveTextContent(
+      'Un Agent responsable doit corriger la demande de transfert puis la soumettre à nouveau.',
+    ),
+  )
   await user.click(
     screen.getByRole('button', { name: 'Annuler la demande de transfert' }),
   )
@@ -1805,6 +1835,12 @@ test.each([
     const prevalidate = await screen.findByRole('button', {
       name: 'Prévalider',
     })
+    const purpose = screen.getByText('Objet de l’activité').parentElement
+    expect(purpose).toBeVisible()
+    expect(within(purpose).getByText('Préparation')).toBeVisible()
+    expect(screen.getByText('Prochaine étape').parentElement).toHaveTextContent(
+      'Prochaine étape · Cette activité attend l’examen d’un Superviseur.',
+    )
     router.options.context.queryClient.setQueryData(notificationKey, {
       object: 'list',
       count: 1,

@@ -5,6 +5,11 @@ come from [business rules](business-rules.md); this guide controls presentation.
 Use institutional, sober, calm, clear, French-first screens with one dominant
 purpose and concise actionable feedback. Reuse existing components and customize
 accessible shadcn primitives only for real consumers; use Lucide consistently.
+User-facing copy must read as intentional product language. Do not expose raw
+action or role codes, implementation notes, generated commentary, placeholder or
+demo content, duplicated labels without a user purpose, or facts the application
+does not hold. Explanations must come from the actual workflow state and identify
+the person or decision expected when that helps the reader act.
 
 ## Identity and tokens
 
