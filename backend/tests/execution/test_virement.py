@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit, User
 from app.auth.service import AuthError
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityContributor,
     VirementConfirmation,
@@ -380,7 +380,7 @@ def test_replaced_confirmation_guard_function_fails_schema_guard(planning):
 
 def test_confirmation_rechecks_the_locked_financial_basis(planning, monkeypatch):
     activity, _source, request = approved_virement(planning)
-    import app.planning.virement as virement_module
+    import app.planning.finance.virement as virement_module
 
     original = virement_module.verified_financial_basis
 
@@ -1057,7 +1057,7 @@ def test_database_rejects_equal_chronology_and_preserves_final_rows(planning):
 
 def test_each_mutation_rechecks_the_locked_financial_basis(planning, monkeypatch):
     activity, _source, request = submit_virement(planning)
-    import app.planning.virement as virement_module
+    import app.planning.finance.virement as virement_module
 
     original = virement_module.verified_financial_basis
 

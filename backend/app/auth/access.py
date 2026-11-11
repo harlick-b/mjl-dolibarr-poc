@@ -304,7 +304,7 @@ def invite(body: Invite, request: Request, auth: Auth) -> InvitationItem:
         db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
         actor = admin(db, auth, request)
         if body.partner_id:
-            from app.planning.models import Partner
+            from app.planning.core.models import Partner
 
             partner = db.get(Partner, body.partner_id, with_for_update=True)
             if not partner or partner.context_id != "MJL":

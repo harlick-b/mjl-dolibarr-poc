@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit, User
 from app.auth.service import AuthError
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     DisbursementDecision,
     DisbursementRequest,

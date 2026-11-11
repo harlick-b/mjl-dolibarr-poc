@@ -1,8 +1,9 @@
+import { Urls } from '@/app/urls'
 import { formatDate, formatDateTime } from '@/shared/lib/format'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Panel } from '@/shared/ui/layout'
-import { useSessionQuery } from '@/features/auth/SessionProvider'
-import { authorization } from '@/features/auth/authorization'
+import { useSessionQuery } from '@/features/auth/session/SessionProvider'
+import { authorization } from '@/features/auth/session/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/NotificationView'
 import { useEffect, useRef, useState } from 'react'
@@ -14,7 +15,7 @@ import { toast } from 'sonner'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
-import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
+import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 
 const notificationRoot = ['notifications']
 
@@ -37,7 +38,7 @@ function notificationPresentation(item) {
         pta: item.pta_name,
         project: item.project_name,
       }),
-      target: '/activities/$activityId',
+      target: Urls.activity,
     }
   if (item.kind === 'activity_review')
     return {
@@ -49,7 +50,7 @@ function notificationPresentation(item) {
         item.stage === 'supervisor'
           ? strings.reviewSupervisor
           : strings.reviewValidator,
-      target: '/activities/$activityId',
+      target: Urls.activity,
     }
   if (item.kind === 'activity_correction')
     return {
@@ -57,13 +58,13 @@ function notificationPresentation(item) {
       description: strings.formatString(strings.correction, {
         reason: item.reason,
       }),
-      target: '/activities/$activityId',
+      target: Urls.activity,
     }
   if (item.kind === 'activity_approved')
     return {
       title: strings.approvedTitle,
       description: strings.approved,
-      target: '/activities/$activityId',
+      target: Urls.activity,
     }
   if (financial) {
     const request = financialRequestLabel(item.request_kind)
@@ -79,7 +80,7 @@ function notificationPresentation(item) {
             : strings.financialReviewValidator,
           { request },
         ),
-        target: '/execution/activities/$activityId',
+        target: Urls.executionActivity,
       }
     if (item.kind === 'financial_correction')
       return {
@@ -88,12 +89,12 @@ function notificationPresentation(item) {
           request,
           reason: item.reason,
         }),
-        target: '/execution/activities/$activityId',
+        target: Urls.executionActivity,
       }
     return {
       title: strings.financialApprovedTitle,
       description: strings.formatString(strings.financialApproved, { request }),
-      target: '/execution/activities/$activityId',
+      target: Urls.executionActivity,
     }
   }
   return {
@@ -101,7 +102,7 @@ function notificationPresentation(item) {
     description: strings.formatString(strings.deadline, {
       date: formatDate(item.planned_end),
     }),
-    target: '/activities/$activityId',
+    target: Urls.activity,
   }
 }
 
@@ -192,10 +193,10 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
 
   const move = (link) =>
     embedded
-      ? setLocalCursor(cursorFrom(link, '/notifications'))
+      ? setLocalCursor(cursorFrom(link, Urls.notifications))
       : navigate({
-          to: '/notifications',
-          search: { cursor: cursorFrom(link, '/notifications') },
+          to: Urls.notifications,
+          search: { cursor: cursorFrom(link, Urls.notifications) },
         })
   return (
     <section className="grid gap-6" aria-busy={notifications.isFetching}>

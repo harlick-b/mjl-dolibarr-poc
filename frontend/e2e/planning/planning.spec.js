@@ -135,7 +135,7 @@ test('V19 planning, correction and final approval browser journey', async ({
     container,
     'python',
     '-m',
-    'app.planning.provision',
+    'app.planning.core.provision',
     '--reason',
     'PTA-1 Playwright journey',
   ])

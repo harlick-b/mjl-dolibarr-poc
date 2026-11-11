@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.auth.models import Audit, User
-from app.planning.models import Activity, AnnualPTA, Project
+from app.planning.core.models import Activity, AnnualPTA, Project
 from tests.auth.test_access import PASSWORD, activate, headers
 from tests.auth.test_recovery import (
     NEW_PASSWORD,

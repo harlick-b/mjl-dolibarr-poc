@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import { useAccess } from '@/features/auth/access-verification'
+import { useAccess } from '@/features/auth/session/access-verification'
 import { Select } from '@/shared/ui/select'
 import { Button } from '@/shared/ui/button'
 import { cursorFrom } from '@/shared/lib/pagination'

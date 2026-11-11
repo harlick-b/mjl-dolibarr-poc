@@ -137,9 +137,8 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(screen.getByText('1 / 1 opérations terminées')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
 
-  const agent = await screen.findByRole('button', {
-    name: 'Agent affecté · 0',
-  })
+  await user.click(screen.getByRole('button', { name: 'Filtres' }))
+  const agent = await screen.findByLabelText('Agent affecté')
   await user.click(agent)
   await user.click(screen.getByRole('option', { name: 'Agent de test' }))
   expect(

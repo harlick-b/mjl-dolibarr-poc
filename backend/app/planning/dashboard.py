@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import User
 from app.auth.service import AuthError
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityAssignment,
     ActivityContributor,
@@ -26,7 +26,7 @@ from app.planning.models import (
     ZeroSpendingDecision,
     ZeroSpendingDeclaration,
 )
-from app.planning.service import allowed
+from app.planning.core.service import allowed
 
 
 def dashboard_finance_data(
@@ -391,7 +391,7 @@ def _add_reversement_attention(
             )
         )
     }
-    from app.planning.execution import closure_blockers
+    from app.planning.operations.execution import closure_blockers
 
     for activity_id, confirmation in confirmations.items():
         item = candidates[activity_id]

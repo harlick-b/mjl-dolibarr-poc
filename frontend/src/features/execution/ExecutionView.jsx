@@ -1,9 +1,10 @@
+import { Urls } from '@/app/urls'
 import { ActivityExplorerFilters } from '@/shared/ui/ActivityExplorerFilters'
 import { strings as filterText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Panel } from '@/shared/ui/layout'
-import { useSessionQuery } from '@/features/auth/SessionProvider'
-import { authorization } from '@/features/auth/authorization'
+import { useSessionQuery } from '@/features/auth/session/SessionProvider'
+import { authorization } from '@/features/auth/session/authorization'
 import {
   PageLoading,
   RefreshIndicator,
@@ -32,7 +33,7 @@ import { formatXof, formatDate } from '@/shared/lib/format'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
-import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
+import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 
 function cursorPath(path, cursor) {
   return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path
@@ -701,7 +702,7 @@ export function ExecutionList({
                   <td className="px-3 py-4">
                     <Link
                       className="font-medium text-primary"
-                      to="/execution/activities/$activityId"
+                      to={Urls.executionActivity}
                       params={{ activityId: row.id }}
                     >
                       {row.name}
@@ -767,7 +768,7 @@ export function ExecutionList({
                   <td className="px-3 py-4">
                     <Button asChild variant="outline" size="sm">
                       <Link
-                        to="/execution/activities/$activityId"
+                        to={Urls.executionActivity}
                         params={{ activityId: row.id }}
                       >
                         {strings.followUp}
@@ -891,7 +892,7 @@ function ExecutionDetail({
         className="flex flex-wrap gap-3 text-sm text-primary"
         aria-label="Fil d’Ariane"
       >
-        <Link to="/execution/$ptaId" params={{ ptaId: detail.pta_id }}>
+        <Link to={Urls.executionPta} params={{ ptaId: detail.pta_id }}>
           {detail.pta_name}
         </Link>
         <span aria-hidden="true">/</span>
@@ -937,7 +938,7 @@ function ExecutionDetail({
               </Button>
             )}
             <Button asChild variant="outline">
-              <Link to="/execution/$ptaId" params={{ ptaId: detail.pta_id }}>
+              <Link to={Urls.executionPta} params={{ ptaId: detail.pta_id }}>
                 Retour aux réalisations
               </Link>
             </Button>
@@ -1023,7 +1024,7 @@ function ExecutionDetail({
       >
         <Link
           className="border-b-2 border-transparent py-3 text-muted-foreground"
-          to="/activities/$activityId"
+          to={Urls.activity}
           params={{ activityId: detail.id }}
         >
           {strings.programmingTab}
@@ -1031,14 +1032,14 @@ function ExecutionDetail({
         <Link
           aria-current="page"
           className="border-b-2 border-primary py-3 text-primary"
-          to="/execution/activities/$activityId"
+          to={Urls.executionActivity}
           params={{ activityId: detail.id }}
         >
           {strings.financeTab}
         </Link>
         <Link
           className="border-b-2 border-transparent py-3 text-muted-foreground"
-          to="/activities/$activityId"
+          to={Urls.activity}
           params={{ activityId: detail.id }}
           search={{ tab: 'history' }}
         >
@@ -1046,7 +1047,7 @@ function ExecutionDetail({
         </Link>
         <Link
           className="border-b-2 border-transparent py-3 text-muted-foreground"
-          to="/activities/$activityId"
+          to={Urls.activity}
           params={{ activityId: detail.id }}
           search={{ tab: 'files' }}
         >
@@ -1187,7 +1188,7 @@ function ExecutionDetail({
             <p>{strings.evidenceExplanation}</p>
             <Button asChild variant="outline">
               <Link
-                to="/activities/$activityId"
+                to={Urls.activity}
                 params={{ activityId: detail.id }}
                 search={{ tab: 'files' }}
               >

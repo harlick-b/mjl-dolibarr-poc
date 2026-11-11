@@ -19,8 +19,8 @@ from starlette.requests import Request
 
 from app.auth.models import Audit, User
 from app.auth.service import AuthError
-from app.planning import documents as document_service
-from app.planning.models import ActivityDocument, ActivityDocumentWithdrawal
+from app.planning.core.models import ActivityDocument, ActivityDocumentWithdrawal
+from app.planning.operations import documents as document_service
 from tests.auth.test_access import admin as admin
 from tests.auth.test_access import headers
 from tests.execution.test_closure import close_path, settled_activity

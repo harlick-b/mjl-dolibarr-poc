@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.models import Audit
-from app.planning import fiche
+from app.planning.operations import fiche
 from tests.execution.test_closure import close_path, settled_activity
 from tests.execution.test_disbursement import collection, finish_activity
 from tests.execution.test_execution import approved_execution_activity, execution_path

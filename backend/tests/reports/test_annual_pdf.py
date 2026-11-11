@@ -77,7 +77,7 @@ def test_pdf_scope_bound_and_audit_failure(planning, auth_env, monkeypatch):
     from sqlalchemy.orm import Session
 
     from app.auth.models import Audit
-    from app.planning import annual_export
+    from app.planning.reports import annual_export
     from tests.partner_portal.test_partner_portal import (
         activity_partner,
         invite_partner,
@@ -150,7 +150,7 @@ def test_pdf_scope_bound_and_audit_failure(planning, auth_env, monkeypatch):
 
 
 def test_pdf_pagination_literal_text_exact_amounts_and_empty_plan():
-    from app.planning.annual_pdf import pdf_artifact
+    from app.planning.reports.annual_pdf import pdf_artifact
 
     rows = [
         {

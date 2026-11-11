@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { Urls } from './src/app/urls.js'
 
 export default defineConfig({
   plugins: [
@@ -16,14 +17,32 @@ export default defineConfig({
         short_name: 'MJL',
         lang: 'fr',
         description: 'Espace MJL',
-        start_url: '/',
-        scope: '/',
+        categories: ['business', 'productivity'],
+        id: Urls.home,
+        start_url: Urls.home,
+        scope: Urls.home,
         display: 'standalone',
         theme_color: '#16324f',
         background_color: '#f5f7f8',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
         ],
       },
       workbox: {

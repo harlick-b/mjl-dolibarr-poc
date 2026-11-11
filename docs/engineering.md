@@ -47,7 +47,12 @@ backend/
     core/                   # Configuration, database and health endpoints
     auth/                   # Authentication, access administration and mail
       templates/            # HTML/plain-text mail resources
-    planning/               # PTA, execution, finance, evidence and reports
+    planning/               # PTA routes plus responsibility packages
+      core/                 # Models, planning rules and projections
+      finance/              # Funding and settlement workflows
+      operations/           # Execution, evidence and Fiche delivery
+      notifications/        # Review, assignment and reminder delivery
+      reports/              # Annual CSV, Excel and PDF output
     partner_portal/         # Partner routes, CSV and sanitized Fiche
     audit/                  # Global history and audit export
   migrations/
@@ -63,7 +68,9 @@ frontend/
     main.jsx                # Browser entry point
     app/                    # Router/providers, PWA updates and global styles
     features/
-      auth/ access/ planning/ execution/
+      auth/                 # components/, pages/, session/ and lib/
+      planning/             # components/, pages/ and lib/
+      access/ execution/
       notifications/ audit/ partner-portal/ health/
     shared/
       api/                  # REST transport and provider
@@ -86,7 +93,7 @@ live with application composition. Import another folder through the existing
 feature screens. Backend imports use explicit `app.<module>` paths. No forwarding
 modules or barrel re-exports are needed just to preserve former file locations.
 Application/CLI entry points remain `app.main:create_app`, `app.auth.bootstrap`,
-`app.planning.provision` and `app.planning.reminders`.
+`app.planning.core.provision` and `app.planning.notifications.reminders`.
 
 Backend tests import shared helpers through explicit `tests.<group>` paths;
 the root `conftest.py` supplies disposable fixtures to every group. Run a group
@@ -348,7 +355,7 @@ follow from this guide.
 ### Authorization ownership
 
 The access coordinator owns identity freshness and exposes the derived
-`authorization(session)` view from `features/auth/authorization.js`. Page guards,
+`authorization(session)` view from `features/auth/session/authorization.js`. Page guards,
 navigation and workspace destinations use this catalog; unverified/unknown roles
 have no page capabilities. Query remains the session cache, with no second mutable
 permission store. These UI capabilities are presentation checks, not authority.

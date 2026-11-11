@@ -1,26 +1,30 @@
+import { Urls } from '@/app/urls'
 import { outsideDialog } from '@/shared/ui/dialog-events'
 import { Select } from '@/shared/ui/select'
 import { EmptyTable } from '@/shared/ui/EmptyContent'
 import { AdminShell, AdminMain } from '@/shared/ui/layout'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { RetryableError } from '@/shared/ui/RetryableError'
-import { useSessionQuery } from '@/features/auth/SessionProvider'
-import { authorization, roleLabels } from '@/features/auth/authorization'
+import { useSessionQuery } from '@/features/auth/session/SessionProvider'
+import {
+  authorization,
+  roleLabels,
+} from '@/features/auth/session/authorization'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, SlidersHorizontal, X, LoaderCircle } from 'lucide-react'
-import { sessionKey } from '@/features/auth/auth'
+import { sessionKey } from '@/features/auth/session/auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/AccessView'
 import { strings as common } from '@/locales/fr/common'
 import { Button } from '@/shared/ui/button'
 import { Helmet } from 'react-helmet-async'
-import { ApplicationSidebar } from '@/features/auth/ApplicationSidebar'
+import { ApplicationSidebar } from '@/features/auth/components/ApplicationSidebar'
 import { EmptyState } from '@/shared/ui/FallbackState'
 import { PageLoading } from '@/shared/ui/PageLoading'
-import { useAccess } from '@/features/auth/access-verification'
-import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
+import { useAccess } from '@/features/auth/session/access-verification'
+import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 
 const states = {
   pending: 'En attente',
@@ -141,7 +145,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const navigate = useNavigate()
-  const search = useSearch({ from: '/access/users' })
+  const search = useSearch({ from: Urls.accessUsers })
   const [dialog, setDialog] = useState(
     search.invite ? { kind: 'invite' } : null,
   )
@@ -220,7 +224,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
     },
   })
   const changeSearch = (values) =>
-    navigate({ to: '/access/users', search: { ...search, ...values } })
+    navigate({ to: Urls.accessUsers, search: { ...search, ...values } })
   async function submit(event) {
     event.preventDefault()
     if (submitting) return

@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { RestClient } from './rest-client'
 import { QueryClient } from '@tanstack/react-query'
-import { createAccessCoordinator } from '@/features/auth/access-verification'
+import { createAccessCoordinator } from '@/features/auth/session/access-verification'
 
 function verifiedSession() {
   return {

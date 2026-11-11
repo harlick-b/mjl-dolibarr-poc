@@ -23,14 +23,14 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityRevision,
     OperationType,
     Partner,
     Project,
 )
-from app.planning.service import (
+from app.planning.core.service import (
     BUSINESS_ROLES,
     CONTEXT,
     Cursor,
@@ -821,8 +821,8 @@ def history_page(
             read_only=True,
         )
         if activity_id:
+            from app.planning.core.service import require_activity_visible
             from app.planning.routes import get_activity
-            from app.planning.service import require_activity_visible
 
             activity = get_activity(db, activity_id, shared=True)
             require_activity_visible(db, activity, actor)

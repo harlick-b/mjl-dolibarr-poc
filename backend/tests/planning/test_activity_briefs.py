@@ -391,7 +391,11 @@ def test_brief_validation_visibility_and_atomic_audit(planning, monkeypatch):
     from sqlalchemy.orm import Session
 
     from app.auth.service import AuthService
-    from app.planning.models import Activity, ActivityAssignment, ActivityContributor
+    from app.planning.core.models import (
+        Activity,
+        ActivityAssignment,
+        ActivityContributor,
+    )
 
     _, _, project = references(planning)
     agent = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]

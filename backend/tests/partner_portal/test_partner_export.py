@@ -44,7 +44,7 @@ def test_partner_export_scope_contract_and_audit(planning, auth_env, monkeypatch
     from sqlalchemy.orm import Session
 
     from app.auth.models import Audit
-    from app.planning import annual_export
+    from app.planning.reports import annual_export
     from tests.planning.test_amendments import open_amendment
 
     partner, operation, project = references(planning)

@@ -1,4 +1,5 @@
-import { PlanningIndex } from '@/features/planning/PlanningIndex'
+import { Urls } from '@/app/urls'
+import { PlanningIndex } from '@/features/planning/pages/PlanningIndex'
 import { ExecutionList } from '@/features/execution/ExecutionView'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
@@ -6,7 +7,7 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Helmet } from 'react-helmet-async'
 import { ArrowRight } from 'lucide-react'
-import { useAccess } from '@/features/auth/access-verification'
+import { useAccess } from '@/features/auth/session/access-verification'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { Panel } from '@/shared/ui/layout'
 import { Button } from '@/shared/ui/button'
@@ -83,7 +84,7 @@ function AdminOverview({ user }) {
           {strings.administration}
         </h1>
         <Button asChild>
-          <Link to="/access/users" search={{ invite: true }}>
+          <Link to={Urls.accessUsers} search={{ invite: true }}>
             {strings.invite}
           </Link>
         </Button>
@@ -103,7 +104,7 @@ function AdminOverview({ user }) {
               {strings.activeAccounts}
             </p>
             <Button variant="outline" asChild>
-              <Link to="/access/users">{strings.manageUsers}</Link>
+              <Link to={Urls.accessUsers}>{strings.manageUsers}</Link>
             </Button>
           </Panel>
           <Panel className="p-0 gap-0 flex flex-col [&>h2]:border-b [&>h2]:border-border [&>h2]:px-5 [&>h2]:py-4 [&>strong]:px-5 [&>strong]:pt-5 [&>p]:px-5 [&>p]:py-4 [&>a]:mx-5 [&>a]:mb-5 [&>a]:mt-auto [&>a]:self-start">
@@ -115,7 +116,7 @@ function AdminOverview({ user }) {
               {strings.pendingAccounts}
             </p>
             <Button variant="outline" asChild>
-              <Link to="/access/users" search={{ state: 'pending' }}>
+              <Link to={Urls.accessUsers} search={{ state: 'pending' }}>
                 {strings.viewAccounts}
               </Link>
             </Button>
@@ -126,7 +127,7 @@ function AdminOverview({ user }) {
               {strings.auditDescription}
             </p>
             <Button className="self-end" variant="outline" asChild>
-              <Link to="/history">{strings.viewHistory}</Link>
+              <Link to={Urls.history}>{strings.viewHistory}</Link>
             </Button>
           </Panel>
         </div>
@@ -143,7 +144,7 @@ function BusinessOverview({ screen, user }) {
   const selectedProject = search.project || ''
   const selectedPta = search.pta || ''
   const change = (values) =>
-    void navigate({ to: `/${screen}`, search: { ...search, ...values } })
+    void navigate({ to: Urls[screen], search: { ...search, ...values } })
   const projects = useQuery({
     queryKey: ['planning', user.id, 'projects', projectCursor],
     queryFn: ({ signal }) =>
@@ -413,7 +414,13 @@ function AttentionSummary({ attention }) {
       {attention.items.length ? (
         <ul className="px-5">
           {attention.items.map((item) => {
-            const path = attentionPath(item)
+            const destination = {
+              to:
+                item.destination === 'planning'
+                  ? Urls.activity
+                  : Urls.executionActivity,
+              params: { activityId: item.activity_id },
+            }
             return (
               <li
                 key={item.activity_id}
@@ -421,7 +428,7 @@ function AttentionSummary({ attention }) {
               >
                 <div className="min-w-0">
                   <Link
-                    to={path}
+                    {...destination}
                     className="font-medium text-primary hover:underline"
                   >
                     {item.name}
@@ -431,7 +438,7 @@ function AttentionSummary({ attention }) {
                   </p>
                 </div>
                 <Button asChild variant="outline" size="sm">
-                  <Link to={path}>{attentionAction(item.action)}</Link>
+                  <Link {...destination}>{attentionAction(item.action)}</Link>
                 </Button>
               </li>
             )
@@ -442,12 +449,6 @@ function AttentionSummary({ attention }) {
       )}
     </Panel>
   )
-}
-
-function attentionPath(item) {
-  return item.destination === 'planning'
-    ? `/activities/${item.activity_id}`
-    : `/execution/activities/${item.activity_id}`
 }
 
 function attentionReason(reason) {

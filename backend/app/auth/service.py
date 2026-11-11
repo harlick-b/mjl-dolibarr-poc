@@ -315,7 +315,7 @@ class AuthService:
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
-            from app.planning.models import OwnershipContext
+            from app.planning.core.models import OwnershipContext
 
             contexts = list(db.scalars(select(OwnershipContext.id)))
             if contexts != ["MJL"]:
@@ -325,7 +325,7 @@ class AuthService:
         """PTA-aware proof that an ordinary account has no current responsibility."""
         self.environment_verified(db)
         if user_id:
-            from app.planning.models import ActivityAssignment
+            from app.planning.core.models import ActivityAssignment
 
             if db.scalar(
                 select(ActivityAssignment.id)
@@ -341,7 +341,7 @@ class AuthService:
         reason = reason.strip()
         if not operator or len(operator) > 80 or not reason or len(reason) > 200:
             raise AuthError(403, "operator_required")
-        from app.planning.models import OwnershipContext
+        from app.planning.core.models import OwnershipContext
 
         try:
             with Session(self.engine) as db, db.begin():

@@ -11,7 +11,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit
-from app.planning.models import Activity, Operation
+from app.planning.core.models import Activity, Operation
 from tests.auth.test_access import headers
 from tests.planning.test_amendments import cancel_amendment, open_amendment
 from tests.planning.test_planning import (  # noqa: F401

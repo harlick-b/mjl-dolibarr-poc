@@ -1,9 +1,10 @@
+import { Urls } from '@/app/urls'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Button } from '@/shared/ui/button'
 import { Panel } from '@/shared/ui/layout'
-import { useSessionQuery } from '@/features/auth/SessionProvider'
-import { authorization } from '@/features/auth/authorization'
+import { useSessionQuery } from '@/features/auth/session/SessionProvider'
+import { authorization } from '@/features/auth/session/authorization'
 import { PageLoading, LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,9 +15,9 @@ import { strings } from '@/locales/fr/PartnerPortalView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { PartnerDocuments } from './PartnerDocuments'
-import { useProtectedCleanup } from '@/features/auth/access-verification'
+import { useProtectedCleanup } from '@/features/auth/session/access-verification'
 import { RetryableError } from '@/shared/ui/RetryableError'
-import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
+import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 
 const emptyList = { data: [] }
 
@@ -257,7 +258,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
   const changeSearch = (values) => {
     downloadGuard.revoke()
     return navigate({
-      to: screen === 'exports' ? '/partner/exports' : '/partner',
+      to: screen === 'exports' ? Urls.partnerExports : Urls.partner,
       search: {
         ...search,
         ...(Object.keys(values).some((key) =>
@@ -389,7 +390,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                     </Button>
                     <Button asChild variant="outline">
                       <Link
-                        to="/partner"
+                        to={Urls.partner}
                         search={{
                           project: selectedProject.id,
                           pta: selectedPta.id,

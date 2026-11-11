@@ -14,8 +14,8 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.auth.models import Audit, User
 from app.auth.service import AuthError
-from app.planning.models import Activity, Partner, Project
-from app.planning.service import CONTEXT
+from app.planning.core.models import Activity, Partner, Project
+from app.planning.core.service import CONTEXT
 
 
 def history_filters(

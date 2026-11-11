@@ -18,8 +18,7 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.partner_portal.export import artifact as partner_csv
 from app.partner_portal.fiche import render_partner_fiche
-from app.planning import annual_export as annual_csv
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityDocument,
     ActivityDocumentWithdrawal,
@@ -33,13 +32,14 @@ from app.planning.models import (
     VirementConfirmation,
     ZeroSpendingDeclaration,
 )
+from app.planning.core.service import CONTEXT, Cursor, page_rows
+from app.planning.reports import annual_export as annual_csv
 from app.planning.routes import (
     MUTATION_HEADERS,
     annual_metrics_data,
     cutoff_value,
     locked_read,
 )
-from app.planning.service import CONTEXT, Cursor, page_rows
 
 router = APIRouter(
     prefix="/api/v1/partner-portal",

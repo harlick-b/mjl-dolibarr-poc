@@ -1,3 +1,4 @@
+import { Urls } from '@/app/urls'
 import { EventDetails } from './EventDetails'
 import { ListFilters } from '@/shared/ui/ListFilters'
 import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
@@ -5,8 +6,8 @@ import { strings as filtersText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Button } from '@/shared/ui/button'
 import { Panel } from '@/shared/ui/layout'
-import { useSessionQuery } from '@/features/auth/SessionProvider'
-import { authorization } from '@/features/auth/authorization'
+import { useSessionQuery } from '@/features/auth/session/SessionProvider'
+import { authorization } from '@/features/auth/session/authorization'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/AuditHistoryView'
 import { useEffect, useRef, useState } from 'react'
@@ -23,7 +24,7 @@ import { toast } from 'sonner'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
-import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
+import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 
 const historyRoot = ['audit-history']
 
@@ -74,8 +75,8 @@ function History({ session, onDenied }) {
   )
   const filterQuery = new URLSearchParams(filters).toString()
   const changeFilters = (values) =>
-    navigate({ to: '/history', search: { ...search, ...values, cursor: '' } })
-  const resetFilters = () => navigate({ to: '/history', search: {} })
+    navigate({ to: Urls.history, search: { ...search, ...values, cursor: '' } })
+  const resetFilters = () => navigate({ to: Urls.history, search: {} })
   const canOpenActivity = authorization(session).can('business')
   const result = useQuery({
     enabled: !denied,
@@ -151,7 +152,7 @@ function History({ session, onDenied }) {
     )
   const move = (link) =>
     navigate({
-      to: '/history',
+      to: Urls.history,
       search: { ...search, cursor: cursorFrom(link, '/audit-events') },
     })
   return (
@@ -274,7 +275,7 @@ function History({ session, onDenied }) {
                     <div>
                       {item.activity && canOpenActivity ? (
                         <Link
-                          to="/activities/$activityId"
+                          to={Urls.activity}
                           params={{ activityId: item.activity.id }}
                         >
                           {item.activity.reference} — {item.activity.name}

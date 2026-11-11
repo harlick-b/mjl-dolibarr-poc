@@ -101,7 +101,7 @@ settings. This enables local development, not production hosting.
 Run `./scripts/dev.sh` from the repository root. The Docker stack is not needed
 for this mode; stop its services first if they already use the configured ports.
 If this is a new empty database, initialize the single MJL ownership record once
-with `uv run python -m app.planning.provision --reason 'Initialize local
+with `uv run python -m app.planning.core.provision --reason 'Initialize local
 development'` from `backend/` after loading `.env`. This does not create sample
 business data. For the first Admin invitation, load `.env` and run `uv run python
 -m app.auth.bootstrap --email 'you@example.com' --name 'Your Name'` from

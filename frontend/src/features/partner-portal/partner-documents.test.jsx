@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
 import { RestClientProvider } from '@/shared/api/RestClientProvider'
-import { ActivityDocuments } from '@/features/planning/PlanningView'
+import { ActivityDocuments } from '@/features/planning/pages/PlanningView'
 import { App, makeRouter } from '@/app/router'
 
 const list = (data) => ({

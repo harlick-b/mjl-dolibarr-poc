@@ -1155,6 +1155,45 @@ draft isolation plus Validator audit-list, option and CSV isolation on the curre
 candidate. Independent specification and standards review cleared the corrected
 candidate with no remaining blocking finding.
 
+## URL catalog, module ownership and PWA metadata, 2026-11-11
+
+Frontend route destinations and TanStack route patterns now come from the shared
+`Urls` catalog. Production links, redirects, route registration and programmatic
+navigation no longer embed route string literals; REST paths remain local to their
+request modules. Auth is grouped into components, pages, session and route helpers,
+while Planning is grouped into components, pages and display utilities.
+
+Backend Planning retains the same FastAPI routers, models, transactions and HTTP
+contracts, with modules grouped into core planning rules, finance, operations,
+notifications and reports. Setup, migration, test and browser-runner imports were
+updated to the new explicit module paths. No schema or business behavior changed.
+
+The existing Vite PWA now has a stable manifest identity, standard and maskable
+icons, Apple install metadata and guarded update registration. Its generated
+worker precaches public build assets only. API responses, authentication,
+documents, exports, private route fallbacks and business writes remain online-only
+and outside runtime caching.
+
+Precommit evidence against the working candidate based on `bb62137`:
+`npm run test:unit -- --maxWorkers=1` passed all **226 tests / 25 files**.
+Independent review then found two Dashboard attention links outside the catalog;
+both now use route patterns and activity parameters. After correcting an invalid
+role in the new test fixture, the focused Dashboard/router run
+`npm run test:unit -- src/features/dashboard/dashboard.test.jsx src/app/app.test.jsx --maxWorkers=1`
+passed **13 tests / 2 files**. This focused run covers the subsequent link change;
+it is not a second full-suite run.
+
+Backend `.venv/bin/ruff check app tests`, `.venv/bin/mypy app` (55 files), and
+`.venv/bin/pytest --collect-only -q` (890 tests) passed. Runtime PostgreSQL tests
+and Alembic upgrade/downgrade were not rerun: this slice moves backend modules
+without changing SQL, schema or transaction logic. Browser installation and
+Cache Storage acceptance were not performed. `npm run lint`, `npm run format:check` and the final `npm run build` passed.
+The final build emitted 13 precache entries and `assets/index-DkCq5CDZ.js`
+(SHA-256 `e90c866cf16150c9123ae94ef5d21cdd2071df0606895b80e84b7c703d6ccd49`).
+Existing hooks and bundle-size warnings remain. Review also removed unrelated historical documentation formatting.
+Final independent specification and standards reviews cleared the corrected
+candidate with no remaining blocking findings.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

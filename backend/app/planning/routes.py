@@ -14,12 +14,7 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.assignment_notifications import (
-    deliver_assignment_notification,
-    record_assignment_notification,
-)
-from app.planning.dashboard import dashboard_attention_data, dashboard_finance_data
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityAssignment,
     ActivityContributor,
@@ -31,13 +26,13 @@ from app.planning.models import (
     Partner,
     Project,
 )
-from app.planning.presentation import (
+from app.planning.core.presentation import (
     activity_rows,
     approved_plans,
     planning_state_counts,
     planning_summary,
 )
-from app.planning.service import (
+from app.planning.core.service import (
     CONTEXT,
     Cursor,
     activity_item,
@@ -63,7 +58,12 @@ from app.planning.service import (
     visible_activity_condition,
     xof,
 )
-from app.planning.workflow_notifications import (
+from app.planning.dashboard import dashboard_attention_data, dashboard_finance_data
+from app.planning.notifications.assignment_notifications import (
+    deliver_assignment_notification,
+    record_assignment_notification,
+)
+from app.planning.notifications.workflow_notifications import (
     deliver_workflow_notification,
     mark_review_handled,
     record_agent_notifications,
@@ -1991,7 +1991,7 @@ def lifecycle_environment(auth: Auth) -> None:
 
 
 def lifecycle_eligible(db: Session, auth: Auth, item: Activity) -> None:
-    from app.planning.execution import assert_never_started
+    from app.planning.operations.execution import assert_never_started
 
     lifecycle_environment(auth)
     assert_never_started(db, item)
@@ -2472,7 +2472,7 @@ def open_amendment(
         item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
-        from app.planning.disbursement import assert_disbursement_unfrozen
+        from app.planning.finance.disbursement import assert_disbursement_unfrozen
 
         assert_disbursement_unfrozen(db, item.id)
         if (

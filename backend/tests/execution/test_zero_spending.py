@@ -7,7 +7,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.auth.models import Audit
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityContributor,
     DisbursementRequest,

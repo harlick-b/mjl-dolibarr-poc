@@ -214,7 +214,7 @@ def test_sharing_rollback_serialization_and_immutable_bytes(
     from sqlalchemy.orm import Session
 
     from app.auth.models import Audit
-    from app.planning.models import ActivityDocument
+    from app.planning.core.models import ActivityDocument
     from tests.planning.test_planning import ordered_advisory_race
 
     partner, operation, project = references(planning)

@@ -21,18 +21,20 @@ from app.core.config import database_url as read_database_url
 from app.core.database import make_engine
 from app.core.health import router
 from app.partner_portal.routes import router as partner_portal_router
-from app.planning.annual_export import router as annual_export_router
-from app.planning.disbursement import router as disbursement_router
-from app.planning.documents import router as documents_router
-from app.planning.execution import router as execution_router
-from app.planning.fiche import router as fiche_router
-from app.planning.funding import router as funding_router
-from app.planning.reminders import router as reminders_router
-from app.planning.reversement import router as reversement_router
+from app.planning.finance.disbursement import router as disbursement_router
+from app.planning.finance.funding import router as funding_router
+from app.planning.finance.reversement import router as reversement_router
+from app.planning.finance.virement import router as virement_router
+from app.planning.finance.virement_confirmation import (
+    router as virement_confirmation_router,
+)
+from app.planning.finance.zero_spending import router as zero_spending_router
+from app.planning.notifications.reminders import router as reminders_router
+from app.planning.operations.documents import router as documents_router
+from app.planning.operations.execution import router as execution_router
+from app.planning.operations.fiche import router as fiche_router
+from app.planning.reports.annual_export import router as annual_export_router
 from app.planning.routes import router as planning_router
-from app.planning.virement import router as virement_router
-from app.planning.virement_confirmation import router as virement_confirmation_router
-from app.planning.zero_spending import router as zero_spending_router
 
 
 def create_app(database_url: str | None = None) -> FastAPI:

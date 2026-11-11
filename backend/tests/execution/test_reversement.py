@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit
 from app.auth.service import AuthError
-from app.planning.models import ReversementDeclaration, VirementConfirmation
-from app.planning.reversement import required_amount
+from app.planning.core.models import ReversementDeclaration, VirementConfirmation
+from app.planning.finance.reversement import required_amount
 from tests.auth.test_access import headers
 from tests.execution.test_execution import approved_execution_activity
 from tests.execution.test_virement import (
@@ -350,7 +350,7 @@ def test_reversement_rechecks_locked_financial_and_latest_confirmation_basis(
     activity, _source, request, confirmation, confirmation_path = confirmed_virement(
         planning
     )
-    import app.planning.virement as virement_module
+    import app.planning.finance.virement as virement_module
 
     original_basis = virement_module.verified_financial_basis
 
@@ -384,7 +384,7 @@ def test_reversement_rechecks_locked_financial_and_latest_confirmation_basis(
     )
     assert corrected.status_code == 201, corrected.text
 
-    import app.planning.reversement as reversement_module
+    import app.planning.finance.reversement as reversement_module
 
     original_current = reversement_module.current_confirmation
 

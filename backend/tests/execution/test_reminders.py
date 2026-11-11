@@ -11,14 +11,18 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import Audit, User
 from app.auth.service import AuthError
-from app.planning.financial_notifications import _actor_id as financial_actor_id
-from app.planning.models import ActivityReminder
-from app.planning.reminders import (
+from app.planning.core.models import ActivityReminder
+from app.planning.notifications.financial_notifications import (
+    _actor_id as financial_actor_id,
+)
+from app.planning.notifications.reminders import (
     _reminder_outputs,
     deliver_reminder,
     dispatch_due_reminders,
 )
-from app.planning.workflow_notifications import _actor_id as activity_actor_id
+from app.planning.notifications.workflow_notifications import (
+    _actor_id as activity_actor_id,
+)
 from tests.auth.test_access import admin, headers
 from tests.auth.test_auth import messages
 from tests.execution.test_closure import close_path, settled_activity
@@ -225,7 +229,8 @@ def test_same_end_date_amendment_keeps_the_existing_delivery_cycle(
     activity, operation_type = approved_activity(planning)
     assigned, _ids = assign(planning, activity, "agent")
     monkeypatch.setattr(
-        "app.planning.reminders.deliver_reminder", lambda _auth, _identifier: None
+        "app.planning.notifications.reminders.deliver_reminder",
+        lambda _auth, _identifier: None,
     )
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 1
     with Session(planning["auth"].engine) as db:

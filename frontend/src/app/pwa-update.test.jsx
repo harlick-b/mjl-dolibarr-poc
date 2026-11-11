@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, expect, test, vi } from 'vitest'
-import { ActivityForm } from '@/features/planning/PlanningView'
+import { ActivityForm } from '@/features/planning/pages/PlanningView'
 import { PwaUpdate } from './PwaUpdate'
 
 const { update } = vi.hoisted(() => ({ update: vi.fn() }))

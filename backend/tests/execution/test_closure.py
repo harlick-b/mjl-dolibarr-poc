@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit, User
-from app.planning.models import Activity, ActivityAssignment, Operation
+from app.planning.core.models import Activity, ActivityAssignment, Operation
 from tests.auth.test_access import headers
 from tests.execution.test_disbursement import finish_activity
 from tests.execution.test_execution import approved_execution_activity

@@ -4,7 +4,7 @@ import csv
 from io import StringIO
 from typing import Any
 
-from app.planning.annual_export import csv_cell, rate
+from app.planning.reports.annual_export import csv_cell, rate
 
 # Explicit column list: future internal export additions are not shared implicitly.
 COLUMNS = (

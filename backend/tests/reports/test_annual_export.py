@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.auth.models import Audit
-from app.planning import annual_export as annual_export_module
+from app.planning.reports import annual_export as annual_export_module
 from tests.auth.test_access import headers
 from tests.execution.test_closure import close_path, settled_activity
 from tests.execution.test_disbursement import finish_activity

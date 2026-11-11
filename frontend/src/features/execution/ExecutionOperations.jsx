@@ -1,3 +1,4 @@
+import { Urls } from '@/app/urls'
 import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CheckCircle2, CircleDollarSign, Play } from 'lucide-react'
@@ -229,7 +230,7 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
         </p>
         <Button asChild variant="outline" className="mt-3">
           <Link
-            to="/activities/$activityId"
+            to={Urls.activity}
             params={{ activityId: activity.id }}
             search={{ tab: 'files' }}
           >

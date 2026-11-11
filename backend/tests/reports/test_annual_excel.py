@@ -110,7 +110,7 @@ def test_excel_authorization_bounds_and_rollback(planning, auth_env, monkeypatch
     from sqlalchemy.orm import Session
 
     from app.auth.models import Audit
-    from app.planning import annual_export
+    from app.planning.reports import annual_export
     from tests.partner_portal.test_partner_portal import (
         activity_partner,
         invite_partner,
@@ -190,7 +190,7 @@ def test_excel_authorization_bounds_and_rollback(planning, auth_env, monkeypatch
 
 
 def test_workbook_exact_integers_literal_text_and_layout():
-    from app.planning.annual_report import workbook_artifact
+    from app.planning.reports.annual_report import workbook_artifact
 
     row = {
         "reference": "https://example.test",

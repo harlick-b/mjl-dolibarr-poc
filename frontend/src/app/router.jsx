@@ -1,40 +1,46 @@
+import { AuthUrls, Urls } from '@/app/urls'
 import { WorkspaceOverview } from '@/features/dashboard/WorkspaceOverview'
-import { ProfileView } from '@/features/auth/ProfileView'
+import { ProfileView } from '@/features/auth/pages/ProfileView'
 import {
   LogoutProvider,
   LogoutScreen,
   useLogout,
-} from '@/features/auth/LogoutProvider'
-import { loginDestination, rememberPage } from '@/features/auth/navigation'
+} from '@/features/auth/session/LogoutProvider'
+import {
+  loginDestination,
+  rememberPage,
+} from '@/features/auth/session/navigation'
 import { businessActionClassName } from '@/shared/ui/button-variants'
 import { WorkspaceMain, WorkspaceFrame } from '@/shared/ui/layout'
 import { strings } from '@/locales/fr/Router'
 import { strings as common } from '@/locales/fr/common'
-import { SessionProvider } from '@/features/auth/SessionProvider'
+import { SessionProvider } from '@/features/auth/session/SessionProvider'
 import {
   authorization,
   workspacePath,
   pageForPath,
-} from '@/features/auth/authorization'
-import { ApplicationSidebar } from '@/features/auth/ApplicationSidebar'
-import { AccessDeniedState } from '@/features/auth/AccessDeniedState'
+} from '@/features/auth/session/authorization'
+import { ApplicationSidebar } from '@/features/auth/components/ApplicationSidebar'
+import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import {
   AccessGate,
   AccessLoading,
   AccessView,
 } from '@/features/access/AccessView'
 import {
+  AuthView,
+  ServiceUnavailableLogin,
+} from '@/features/auth/pages/AuthView'
+import {
   AccessVerificationState,
   AuthFrame,
   AuthLoading,
-  AuthView,
-  ServiceUnavailableLogin,
-} from '@/features/auth/AuthView'
+} from '@/features/auth/components/AuthFrame'
 import {
   AccessProvider,
   createAccessCoordinator,
   useAccess,
-} from '@/features/auth/access-verification'
+} from '@/features/auth/session/access-verification'
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { redirect } from '@tanstack/react-router'
@@ -43,7 +49,10 @@ import {
   ExecutionView,
   ExecutionLoading,
 } from '@/features/execution/ExecutionView'
-import { PlanningView, PlanningLoading } from '@/features/planning/PlanningView'
+import {
+  PlanningView,
+  PlanningLoading,
+} from '@/features/planning/pages/PlanningView'
 import {
   NotificationView,
   NotificationsLoading,
@@ -105,9 +114,11 @@ function ProtectedGate({ children }) {
   if (access.status === 'unknown' || access.status === 'checking')
     return <AccessVerificationState />
   if (access.status === 'anonymous')
-    return <Navigate to="/login" state={{ returnTo: path }} replace />
+    return <Navigate to={Urls.login} state={{ returnTo: path }} replace />
   if (access.status === 'pending')
-    return <Navigate to="/verification" state={{ returnTo: path }} replace />
+    return (
+      <Navigate to={Urls.verification} state={{ returnTo: path }} replace />
+    )
   if (access.status !== 'verified')
     return (
       <AccessVerificationState
@@ -164,7 +175,11 @@ function Shell() {
     if (access.status === 'verified') rememberPage(access.session, path)
   }, [access.status, access.session, path])
   useEffect(() => {
-    if (path !== '/health' && path !== '/logout' && access.status === 'unknown')
+    if (
+      path !== Urls.health &&
+      path !== Urls.logout &&
+      access.status === 'unknown'
+    )
       void access.verify().catch(() => null)
   }, [access, path])
   useEffect(() => {
@@ -183,31 +198,22 @@ function Shell() {
     return <LogoutScreen />
   const protectedPath =
     Boolean(pageForPath(path)) ||
-    path === '/identity' ||
-    path === '/access/users' ||
-    path === '/dashboard' ||
-    path === '/profile' ||
-    path === '/planning' ||
-    path === '/execution' ||
-    path.startsWith('/partner') ||
-    path === '/notifications' ||
-    path === '/history' ||
-    path === '/partners' ||
-    path.startsWith('/projects') ||
-    path.startsWith('/activities') ||
-    path.startsWith('/execution')
+    path === Urls.identity ||
+    path === Urls.accessUsers ||
+    path === Urls.dashboard ||
+    path === Urls.profile ||
+    path === Urls.planning ||
+    path === Urls.execution ||
+    path.startsWith(Urls.partner) ||
+    path === Urls.notifications ||
+    path === Urls.history ||
+    path === Urls.partners ||
+    path.startsWith(Urls.projects) ||
+    path.startsWith(Urls.activities) ||
+    path.startsWith(Urls.execution)
   const knownPath =
     protectedPath ||
-    [
-      '/',
-      '/health',
-      '/login',
-      '/logout',
-      '/invitation',
-      '/verification',
-      '/forgot-password',
-      '/reset-password',
-    ].includes(path)
+    [Urls.home, Urls.health, Urls.logout, ...AuthUrls].includes(path)
   if (!knownPath && access.status === 'verified')
     return (
       <ProtectedGate path={path}>
@@ -215,7 +221,7 @@ function Shell() {
       </ProtectedGate>
     )
   if (
-    path === '/access/users' &&
+    path === Urls.accessUsers &&
     access.status === 'verified' &&
     access.session.user.role !== 'ADMIN_PLATEFORME'
   )
@@ -226,15 +232,15 @@ function Shell() {
     )
   if (
     [
-      '/',
-      '/login',
-      '/logout',
-      '/invitation',
-      '/verification',
-      '/identity',
-      '/forgot-password',
-      '/reset-password',
-      '/access/users',
+      Urls.home,
+      Urls.login,
+      Urls.logout,
+      Urls.invitation,
+      Urls.verification,
+      Urls.identity,
+      Urls.forgotPassword,
+      Urls.resetPassword,
+      Urls.accessUsers,
     ].includes(path)
   ) {
     const content = <Outlet />
@@ -245,17 +251,17 @@ function Shell() {
     )
   }
   if (
-    path === '/dashboard' ||
-    path === '/profile' ||
-    path === '/planning' ||
-    path === '/execution' ||
-    path.startsWith('/partner') ||
-    path === '/notifications' ||
-    path === '/history' ||
-    path === '/partners' ||
-    path.startsWith('/projects') ||
-    path.startsWith('/activities') ||
-    path.startsWith('/execution')
+    path === Urls.dashboard ||
+    path === Urls.profile ||
+    path === Urls.planning ||
+    path === Urls.execution ||
+    path.startsWith(Urls.partner) ||
+    path === Urls.notifications ||
+    path === Urls.history ||
+    path === Urls.partners ||
+    path.startsWith(Urls.projects) ||
+    path.startsWith(Urls.activities) ||
+    path.startsWith(Urls.execution)
   )
     return (
       <ProtectedGate path={path}>
@@ -282,7 +288,7 @@ function LogoutRoute() {
     }
   }, [logout, access.status])
   return access.status === 'anonymous' ? (
-    <Navigate to="/login" replace />
+    <Navigate to={Urls.login} replace />
   ) : (
     <LogoutScreen />
   )
@@ -291,7 +297,9 @@ function LogoutRoute() {
 function NotFound() {
   const access = useAccess()
   const destination =
-    access.status === 'verified' ? workspacePath(access.session.user.role) : '/'
+    access.status === 'verified'
+      ? workspacePath(access.session.user.role)
+      : Urls.home
   return (
     <FallbackState
       title={strings.notFound}
@@ -343,14 +351,18 @@ export function makeRouter(history, componentOverrides = {}) {
   })
   const home = createRoute({
     getParentRoute: () => root,
-    path: '/',
+    path: Urls.home,
     component: componentOverrides.auth || AuthView,
     errorComponent: AuthRouteFailure,
   })
-  const overviewRoutes = ['dashboard', 'planning', 'execution'].map((screen) =>
+  const overviewRoutes = [
+    [Urls.dashboard, 'dashboard'],
+    [Urls.planning, 'planning'],
+    [Urls.execution, 'execution'],
+  ].map(([path, screen]) =>
     createRoute({
       getParentRoute: () => root,
-      path: `/${screen}`,
+      path,
       validateSearch: (search) => ({
         ...(screen === 'execution'
           ? Object.fromEntries(
@@ -377,22 +389,16 @@ export function makeRouter(history, componentOverrides = {}) {
   )
   const logoutRoute = createRoute({
     getParentRoute: () => root,
-    path: '/logout',
+    path: Urls.logout,
     component: LogoutRoute,
   })
   const health = createRoute({
     getParentRoute: () => root,
-    path: '/health',
+    path: Urls.health,
     component: HealthView,
     errorComponent: RouteFailure,
   })
-  const authRoutes = [
-    '/login',
-    '/invitation',
-    '/verification',
-    '/forgot-password',
-    '/reset-password',
-  ].map((path) =>
+  const authRoutes = AuthUrls.map((path) =>
     createRoute({
       getParentRoute: () => root,
       path,
@@ -402,7 +408,7 @@ export function makeRouter(history, componentOverrides = {}) {
       pendingMs: 0,
       pendingMinMs: 0,
       gcTime: 0,
-      loader: ['/invitation', '/reset-password'].includes(path)
+      loader: [Urls.invitation, Urls.resetPassword].includes(path)
         ? async ({ context, abortController }) => {
             let proof
             if (window.location.hash) {
@@ -423,7 +429,7 @@ export function makeRouter(history, componentOverrides = {}) {
               const session = await context.access.verify()
               if (proof) {
                 const endpoint =
-                  path === '/invitation'
+                  path === Urls.invitation
                     ? 'invitations/inspect'
                     : 'password-reset/inspect'
                 const invited = await context.api.auth(endpoint, {
@@ -443,7 +449,7 @@ export function makeRouter(history, componentOverrides = {}) {
   )
   const access = createRoute({
     getParentRoute: () => root,
-    path: '/access/users',
+    path: Urls.accessUsers,
     component: AccessView,
     errorComponent: AccessRouteFailure,
     pendingComponent: AccessLoading,
@@ -502,7 +508,7 @@ export function makeRouter(history, componentOverrides = {}) {
   })
   const partnerPortal = createRoute({
     getParentRoute: () => root,
-    path: '/partner',
+    path: Urls.partner,
     component: PartnerPortalView,
     errorComponent: RouteFailure,
     pendingComponent: PartnerLoading,
@@ -521,7 +527,7 @@ export function makeRouter(history, componentOverrides = {}) {
   })
   const partnerExports = createRoute({
     getParentRoute: () => root,
-    path: '/partner/exports',
+    path: Urls.partnerExports,
     component: () => <PartnerPortalView screen="exports" />,
     errorComponent: RouteFailure,
     pendingComponent: PartnerLoading,
@@ -539,11 +545,11 @@ export function makeRouter(history, componentOverrides = {}) {
     }),
   })
   const planningRoutes = [
-    ['/partners', 'partners'],
-    ['/projects', 'projects'],
-    ['/projects/$projectId/ptas/$year', 'pta'],
-    ['/projects/$projectId/ptas/$year/activities/new', 'activityNew'],
-    ['/activities/$activityId', 'activity'],
+    [Urls.partners, 'partners'],
+    [Urls.projects, 'projects'],
+    [Urls.pta, 'pta'],
+    [Urls.newActivity, 'activityNew'],
+    [Urls.activity, 'activity'],
   ].map(([path, screen]) =>
     createRoute({
       getParentRoute: () => root,
@@ -587,8 +593,8 @@ export function makeRouter(history, componentOverrides = {}) {
     }),
   )
   const executionRoutes = [
-    ['/execution/$ptaId', 'list'],
-    ['/execution/activities/$activityId', 'detail'],
+    [Urls.executionPta, 'list'],
+    [Urls.executionActivity, 'detail'],
   ].map(([path, screen]) =>
     createRoute({
       getParentRoute: () => root,
@@ -624,7 +630,7 @@ export function makeRouter(history, componentOverrides = {}) {
   )
   const notifications = createRoute({
     getParentRoute: () => root,
-    path: '/notifications',
+    path: Urls.notifications,
     component: NotificationView,
     errorComponent: RouteFailure,
     pendingComponent: NotificationsLoading,
@@ -637,7 +643,7 @@ export function makeRouter(history, componentOverrides = {}) {
   })
   const historyRoute = createRoute({
     getParentRoute: () => root,
-    path: '/history',
+    path: Urls.history,
     component: AuditHistoryView,
     errorComponent: RouteFailure,
     pendingComponent: HistoryLoading,
@@ -688,15 +694,15 @@ export function makeRouter(history, componentOverrides = {}) {
       health,
       createRoute({
         getParentRoute: () => root,
-        path: '/profile',
+        path: Urls.profile,
         component: ProfileView,
         errorComponent: RouteFailure,
       }),
       createRoute({
         getParentRoute: () => root,
-        path: '/identity',
+        path: Urls.identity,
         beforeLoad: () => {
-          throw redirect({ to: '/profile', replace: true })
+          throw redirect({ to: Urls.profile, replace: true })
         },
       }),
       ...overviewRoutes,

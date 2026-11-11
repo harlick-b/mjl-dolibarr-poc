@@ -366,7 +366,7 @@ def test_funding_failure_rolls_back_request_version_and_audit(
     from sqlalchemy.orm import Session, SessionTransaction
 
     from app.auth.models import Audit
-    from app.planning.models import Activity, FundingRequest
+    from app.planning.core.models import Activity, FundingRequest
 
     activity = increase(planning, approved_execution_activity(planning))
     original = planning["auth"].business_audit
@@ -513,7 +513,7 @@ def test_sql_rejects_fabricated_approval_and_changed_basis(planning):
     from sqlalchemy.exc import DBAPIError
     from sqlalchemy.orm import Session
 
-    from app.planning.models import FundingRequest
+    from app.planning.core.models import FundingRequest
 
     activity = increase(planning, approved_execution_activity(planning))
     request = submit(planning, activity)
@@ -535,7 +535,7 @@ def test_migration_roundtrip_preserves_predecessor_and_refuses_frozen_increases(
     from alembic.config import Config
     from sqlalchemy.orm import Session
 
-    from app.planning.models import DisbursementRequest
+    from app.planning.core.models import DisbursementRequest
     from tests.execution.test_disbursement import finish_activity
 
     # Valid predecessor data without a funding obligation survives the roundtrip.
@@ -590,7 +590,7 @@ def test_funding_approval_rollback_keeps_pause_and_prevalidation(
     from sqlalchemy.exc import IntegrityError
     from sqlalchemy.orm import Session, SessionTransaction
 
-    from app.planning.models import FundingDecision, FundingRequest
+    from app.planning.core.models import FundingDecision, FundingRequest
 
     activity = increase(planning, approved_execution_activity(planning))
     request = submit(planning, activity)

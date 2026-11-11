@@ -11,7 +11,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit
-from app.planning.models import (
+from app.planning.core.models import (
     Activity,
     ActivityContributor,
     ActivityRevision,
