@@ -1,14 +1,22 @@
 import { test, expect } from 'vitest'
 import { authorization, workspacePath, pageForPath } from './authorization'
 const session = (role) => ({ state: 'verified', user: { id: 'fixture', role } })
+test('Admin starts on Users and does not see Dashboard', () => {
+  const policy = authorization(session('ADMIN_PLATEFORME'))
+  expect(workspacePath('ADMIN_PLATEFORME')).toBe('/access/users')
+  expect(policy.navigation.map((page) => page.path)).toEqual([
+    '/access/users',
+    '/history',
+  ])
+})
+
 test.each([
-  'ADMIN_PLATEFORME',
   'AGENT_SAISIE',
   'AGENT_VERIFICATEUR',
   'VALIDATEUR_DEFINITIF',
   'PARTENAIRE',
 ])(
-  'every %s has Dashboard as its default and navigation obeys its page access',
+  '%s has Dashboard as its default and navigation obeys its page access',
   (role) => {
     const policy = authorization(session(role))
     expect(workspacePath(role)).toBe('/dashboard')

@@ -119,12 +119,14 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
   await expect(page.getByRole('dialog')).toBeAttached()
   release()
   await expect(
-    page.getByText('Invitation envoyée.', { exact: true }),
-  ).toBeVisible()
+    page
+      .locator('[data-sonner-toast]')
+      .filter({ hasText: 'Invitation envoyée.' }),
+  ).toHaveCount(1)
   expect(posts).toBe(1)
   await page.unroute('**/api/v1/access/invitations')
   const invitedRow = page
-    .getByRole('table', { name: 'Invitations des utilisateurs' })
+    .getByRole('table', { name: 'Comptes utilisateurs' })
     .getByRole('row')
     .filter({ hasText: 'agent-browser@example.test' })
   await expect(invitedRow).toContainText('Agent superviseur et prévalidateur')
@@ -168,7 +170,7 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
     .fill('revoke-browser@example.test')
   await page.getByRole('button', { name: 'Envoyer l’invitation' }).click()
   const revokeRow = page
-    .getByRole('table', { name: 'Invitations des utilisateurs' })
+    .getByRole('table', { name: 'Comptes utilisateurs' })
     .getByRole('row')
     .filter({ hasText: 'revoke-browser@example.test' })
   await revokeRow.getByRole('button', { name: 'Révoquer' }).click()
@@ -190,13 +192,13 @@ test('C12–C14 Admin invitation journey, focus, denials, cache and online-only 
     fullPage: true,
   })
 
-  await page.getByText('Filtrer les utilisateurs', { exact: true }).click()
-  await page.getByLabel('Rechercher par e-mail').fill('absent@example.test')
-  await page.getByRole('button', { name: 'Filtrer', exact: true }).click()
-  await expect(page.getByText('Aucun utilisateur.')).toBeVisible()
-  await expect(page.getByText('Aucune invitation.')).toBeVisible()
-  await page.getByLabel('Rechercher par e-mail').fill('')
-  await page.getByRole('button', { name: 'Filtrer', exact: true }).click()
+  await page
+    .getByPlaceholder('Rechercher un utilisateur…')
+    .fill('absent@example.test')
+  await expect(
+    page.getByRole('heading', { name: 'Aucun résultat' }),
+  ).toBeVisible()
+  await page.getByPlaceholder('Rechercher un utilisateur…').fill('')
   await expect(revokeRow).toBeVisible()
   await page.route('**/api/v1/access/invitations', (route) =>
     route.fulfill({

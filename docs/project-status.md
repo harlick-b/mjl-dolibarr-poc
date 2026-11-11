@@ -1,6 +1,6 @@
 # Project status
 
-Updated 2026-11-10. MJL is under development; implemented does not mean accepted
+Updated 2026-11-11. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
@@ -1265,6 +1265,44 @@ Final local evidence for the completed candidate:
 No live Render edge, Supabase pooler/schema/search-path, migration/provisioning,
 Resend, restart or document-flow check was performed. Those provider-runtime checks
 require a separately authorized future deployment with disposable data.
+
+## Users page reference alignment, 2026-11-11
+
+Admin now opens on Users; Dashboard is omitted from Admin navigation while direct
+route authorization remains unchanged. The Users page follows the supplied Users
+and PTA-filter references: one page action, name/email search, a collapsible
+Role-only filter with removable criteria, a filtered total above the table,
+semantic state badges and outlined row actions. Ordinary delivered invitations no
+longer repeat `Envoyée · Envoyée`; only failed, unconfirmed or expired delivery
+facts add secondary text. Successful invitation creation uses the global success
+toast instead of an inline notice. Account actions now use the shared business
+modal, including consistent dismissal and focus restoration; a pending request
+cannot dismiss its dialog. Filter refreshes preserve the loaded table and usable
+controls, with a compact progress indicator until the replacement arrives.
+
+The account list API adds bounded `q` search across normalized email and full name
+while retaining its existing exact endpoint, role filter, pagination and Admin
+authorization. The legacy `email` query remains accepted for existing callers.
+
+Focused verification passed 30 frontend tests, frontend ESLint and Prettier, the
+production PWA build, backend Ruff and strict mypy across 57 source files, and
+backend collection of 24 account-access tests. The changed search journey passed
+one focused test against an isolated disposable PostgreSQL database, which was
+removed afterward. Three final rebuilt browser checks passed the Admin landing,
+Users search and Role-only filter history, desktop/mobile reflow, shared invitation
+dialog, required validation and pending submission. Earlier focused browser checks
+also passed the Admin destination/sidebar for all roles. A broader 33-test browser
+selection was stopped after 16 passes, four failures and one interrupted test; two
+failures were stale required-label selectors and passed after correction, while the
+remaining service recovery/auth failures and unrun tests are not reported as
+passing. The final rendered populated and expanded-filter screenshots were
+compared with
+`docs/inspiration/users/users.png`, `docs/inspiration/users/user-add-edit-modal.png`
+and `docs/inspiration/pta/pta-search-filter.png`. Human accessibility and visual
+acceptance remain outstanding.
+
+Final built artifact `index-BBGUNqpe.js` SHA256:
+`4c9b65b0c2483b8dbc89fefa4643efd7c0b54b8d1cd71a7981fbf5930d98cc64`.
 
 ## Remaining inputs and excluded work
 

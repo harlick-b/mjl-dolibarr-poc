@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 const list = { object: 'list', count: 0, data: [], next: null, previous: null }
 const roles = {
-  ADMIN_PLATEFORME: ['Tableau de bord', 'Utilisateurs', 'Historique'],
+  ADMIN_PLATEFORME: ['Utilisateurs', 'Historique'],
   AGENT_SAISIE: ['Tableau de bord', 'Prévisions (PTA)', 'Réalisation'],
   AGENT_VERIFICATEUR: ['Tableau de bord', 'Prévisions (PTA)', 'Réalisation'],
   VALIDATEUR_DEFINITIF: [
@@ -35,16 +35,17 @@ async function session(page, role, extra = {}) {
   )
 }
 for (const [role, links] of Object.entries(roles))
-  test(`${role} defaults to Dashboard and sees only its pages`, async ({
+  test(`${role} opens its default page and sees only its pages`, async ({
     page,
   }) => {
     await session(page, role)
     await page.goto('/')
-    await expect(page).toHaveURL(/\/dashboard$/)
+    await expect(page).toHaveURL(
+      role === 'ADMIN_PLATEFORME' ? /\/access\/users$/ : /\/dashboard$/,
+    )
     await expect(
       page.getByRole('heading', {
-        name:
-          role === 'ADMIN_PLATEFORME' ? 'Administration' : 'Tableau de bord',
+        name: role === 'ADMIN_PLATEFORME' ? 'Utilisateurs' : 'Tableau de bord',
       }),
     ).toBeVisible()
     await expect(page.locator('aside nav a')).toHaveText(links)

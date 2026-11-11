@@ -6,7 +6,7 @@ from typing import Annotated, Literal, cast
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import APIKeyCookie
 from pydantic import Field, field_validator, model_validator
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.dto import BusinessRole, ErrorResponse, Identity, InvitableRole, Role
@@ -181,6 +181,7 @@ def invitation_item(db: Session, user: User, invitation: Invitation) -> Invitati
 class UserFilters(Input):
     page: int = Field(default=1, ge=1, le=1000000)
     size: int = Field(default=20, ge=1, le=50)
+    q: str = Field(default="", max_length=200)
     email: str = Field(default="", max_length=254)
     role: Role | None = None
     state: Literal["pending", "active", "inactive"] | None = None
@@ -202,6 +203,14 @@ def users(
         query = select(User).where(
             User.email.contains(filters.email.strip().lower(), autoescape=True)
         )
+        term = filters.q.strip().lower()
+        if term:
+            query = query.where(
+                or_(
+                    User.email.contains(term, autoescape=True),
+                    func.lower(User.full_name).contains(term, autoescape=True),
+                )
+            )
         if filters.role:
             query = query.where(User.role == filters.role)
         if filters.state:

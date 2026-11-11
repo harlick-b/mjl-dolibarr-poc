@@ -19,6 +19,13 @@ export const strings = new LocalizedStrings({
       'Renseignez le prénom et le nom de famille, avec 200 caractères au total maximum.',
     firstName: 'Prénom',
     lastName: 'Nom de famille',
+    userSearchPlaceholder: 'Rechercher un utilisateur…',
+    roleFilter: 'Rôle',
+    allRoles: 'Tous les rôles',
+    searchCriterion: 'Recherche : {query}',
+    resetFilters: 'Réinitialiser',
+    userCount: '{count} utilisateur',
+    usersCount: '{count} utilisateurs',
   },
 })
 strings.setLanguage('fr')

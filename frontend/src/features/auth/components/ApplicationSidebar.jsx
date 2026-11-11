@@ -35,8 +35,12 @@ export function ApplicationSidebar({ user }) {
       className="sticky top-0 flex h-dvh min-w-0 flex-col border-r border-border bg-white max-[761px]:static max-[761px]:h-auto max-[761px]:border-r-0 max-[761px]:border-b"
     >
       <Link
-        to={Urls.dashboard}
-        aria-label={strings.brand}
+        to={policy.workspace}
+        aria-label={
+          policy.workspace === Urls.dashboard
+            ? strings.brand
+            : `MJL — ${strings.accounts}`
+        }
         className="flex h-24 shrink-0 items-center gap-3 px-6 text-xl font-semibold text-navy"
       >
         <img

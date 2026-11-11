@@ -29,10 +29,12 @@ test('invitation Select supports keyboard, required validation and FormData insi
     .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
     .click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('Prénom', { exact: true }).fill('Anne')
+  await dialog.getByLabel('Prénom *', { exact: true }).fill('Anne')
   await dialog.getByLabel('Nom de famille').fill('Martin')
   await dialog.getByLabel('Adresse e-mail').fill('anne@example.test')
-  const first = await dialog.getByLabel('Prénom', { exact: true }).boundingBox()
+  const first = await dialog
+    .getByLabel('Prénom *', { exact: true })
+    .boundingBox()
   const last = await dialog.getByLabel('Nom de famille').boundingBox()
   expect(first.y).toBe(last.y)
   await dialog.getByRole('combobox', { name: 'Rôle', exact: true }).focus()
@@ -40,12 +42,12 @@ test('invitation Select supports keyboard, required validation and FormData insi
   await page.getByRole('option', { name: 'Partenaire', exact: true }).click()
   const submit = dialog.getByRole('button', { name: 'Envoyer l’invitation' })
   await expect(
-    dialog.getByRole('combobox', { name: 'Partenaire', exact: true }),
+    dialog.getByRole('combobox', { name: 'Partenaire *', exact: true }),
   ).toBeEnabled()
   await submit.click()
   expect(sent).toBeUndefined()
   await dialog
-    .getByRole('combobox', { name: 'Partenaire', exact: true })
+    .getByRole('combobox', { name: 'Partenaire *', exact: true })
     .click()
   await page
     .getByRole('option', { name: 'Partenaire test', exact: true })
@@ -90,7 +92,7 @@ async function adminFixture(page) {
       }
     if (url.pathname === '/api/v1/access/users')
       body = {
-        items: url.searchParams.has('email')
+        items: url.searchParams.has('q')
           ? []
           : [
               {
@@ -110,7 +112,7 @@ async function adminFixture(page) {
                 version: 1,
               },
             ],
-        total: url.searchParams.has('email') ? 0 : 2,
+        total: url.searchParams.has('q') ? 0 : 2,
         page: 1,
         size: 20,
       }
@@ -125,11 +127,6 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
 }) => {
   await adminFixture(page)
   await page.goto('/')
-  await expect(page).toHaveURL('http://127.0.0.1:4173/dashboard')
-  await page
-    .locator('aside')
-    .getByRole('link', { name: 'Utilisateurs', exact: true })
-    .click()
   await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
   await expect(
     page.getByRole('table', { name: 'Comptes utilisateurs' }),
@@ -148,14 +145,14 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
   await expect(page).toHaveTitle('Utilisateurs')
   await page.setViewportSize({ width: 1850, height: 969 })
   await page.screenshot({ path: '/tmp/mjl-admin-users.png', fullPage: true })
-  await page.getByText('Filtrer les utilisateurs', { exact: true }).click()
-  await page.getByLabel('Rechercher par e-mail').fill('absent@example.test')
-  await page.getByRole('button', { name: 'Filtrer', exact: true }).click()
+  await page
+    .getByPlaceholder('Rechercher un utilisateur…')
+    .fill('absent@example.test')
   await expect(page).toHaveURL(
     (url) =>
       url.pathname === '/access/users' &&
       url.searchParams.size === 1 &&
-      url.searchParams.get('email') === 'absent@example.test',
+      url.searchParams.get('q') === 'absent@example.test',
   )
   await expect(
     page.getByRole('heading', { name: 'Aucun résultat' }),
@@ -163,11 +160,26 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
   await page.getByRole('button', { name: 'Effacer les filtres' }).click()
   await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
   await page.goBack()
-  await expect(page.getByLabel('Rechercher par e-mail')).toHaveValue(
+  await expect(page.getByPlaceholder('Rechercher un utilisateur…')).toHaveValue(
     'absent@example.test',
   )
   await page.goForward()
   await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
+  await page.getByRole('button', { name: 'Filtres' }).click()
+  await expect(page.getByRole('combobox', { name: 'Rôle' })).toBeVisible()
+  await expect(page.getByLabel('État du compte')).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'Rôle' }).click()
+  await page
+    .getByRole('option', { name: 'Agent de saisie', exact: true })
+    .click()
+  await expect(page).toHaveURL(/role=AGENT_SAISIE/)
+  await expect(
+    page.getByRole('button', { name: 'Agent de saisie' }),
+  ).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-admin-users-filter.png',
+    fullPage: true,
+  })
 })
 
 test('Admin account and history retain the same navigation and invitation dialog reflows', async ({
@@ -439,8 +451,8 @@ test('correcting the first name clears combined-name validation', async ({
     .getByRole('button', { name: 'Inviter un utilisateur', exact: true })
     .click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('Prénom', { exact: true }).fill('   ')
-  await dialog.getByLabel('Nom de famille', { exact: true }).fill('Martin')
+  await dialog.getByLabel('Prénom *', { exact: true }).fill('   ')
+  await dialog.getByLabel('Nom de famille *', { exact: true }).fill('Martin')
   await dialog.getByLabel('Adresse e-mail').fill('new@example.test')
   await dialog.getByRole('button', { name: 'Envoyer l’invitation' }).click()
   expect(sent).toBeUndefined()
@@ -449,7 +461,7 @@ test('correcting the first name clears combined-name validation', async ({
       .getByLabel('Nom de famille')
       .evaluate((node) => node.validity.customError),
   ).toBe(true)
-  await dialog.getByLabel('Prénom', { exact: true }).fill('Anne')
+  await dialog.getByLabel('Prénom *', { exact: true }).fill('Anne')
   await dialog.getByRole('button', { name: 'Envoyer l’invitation' }).click()
   await expect.poll(() => sent?.full_name).toBe('Anne Martin')
 })

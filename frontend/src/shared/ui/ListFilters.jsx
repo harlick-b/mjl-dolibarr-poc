@@ -13,6 +13,7 @@ export function ListFilters({
   disabled = false,
   toolbar,
   keepMounted = false,
+  showReset = true,
 }) {
   const [expanded, setExpanded] = useState(active)
   const [draft, setDraft] = useState(value)
@@ -43,7 +44,7 @@ export function ListFilters({
             placeholder={label}
             disabled={disabled}
             maxLength={200}
-            className="h-10 w-full rounded-control border border-strong-border bg-white py-2 pl-10 pr-3 text-[0.8125rem] disabled:bg-background"
+            className="h-10 w-full rounded-control border border-strong-border bg-white py-2 !pl-10 pr-3 text-[0.8125rem] disabled:bg-background"
           />
         </label>
         <div className="flex flex-wrap items-center gap-2">
@@ -66,16 +67,18 @@ export function ListFilters({
           className="flex flex-wrap items-end gap-4 border-t border-border px-4 py-4 [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_label]:min-w-40 [&_input]:rounded-control [&_input]:border [&_input]:border-strong-border [&_input]:px-3 [&_input]:py-2"
         >
           {children}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setDraft('')
-              onReset()
-            }}
-          >
-            {strings.reset}
-          </Button>
+          {showReset && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDraft('')
+                onReset()
+              }}
+            >
+              {strings.reset}
+            </Button>
+          )}
         </div>
       )}
     </div>

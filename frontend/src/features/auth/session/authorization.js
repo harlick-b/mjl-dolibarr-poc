@@ -5,7 +5,7 @@ import { strings } from '@/locales/fr/Navigation'
 const roles = {
   ADMIN_PLATEFORME: {
     label: 'Admin technique',
-    home: Urls.dashboard,
+    home: Urls.accessUsers,
     capabilities: ['accounts', 'audit'],
   },
   AGENT_SAISIE: {
@@ -146,7 +146,12 @@ export function authorization(session) {
       return Boolean(page && can(page.capability))
     },
     navigation: pages
-      .filter((page) => !page.hidden && can(page.capability))
+      .filter(
+        (page) =>
+          !page.hidden &&
+          can(page.capability) &&
+          !(policy === roles.ADMIN_PLATEFORME && page.id === 'dashboard'),
+      )
       .map((page) => ({ ...page, label: strings[page.id] })),
   }
 }

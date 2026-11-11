@@ -12,6 +12,7 @@ export const buttonVariants = cva(
           'bg-primary text-primary-foreground hover:opacity-90 active:opacity-80 disabled:pointer-events-none disabled:opacity-50',
         outline:
           'border border-strong-border bg-white text-navy hover:bg-selected disabled:opacity-50',
+        ghost: 'bg-transparent text-navy hover:bg-selected disabled:opacity-50',
         auth: 'min-h-11 w-full bg-primary py-3 leading-5 text-white hover:enabled:opacity-90 disabled:bg-disabled disabled:text-muted-foreground',
       },
     },

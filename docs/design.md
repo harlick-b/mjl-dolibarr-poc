@@ -170,10 +170,12 @@ denominators and `-` for missing/unconfirmed finance; API facts remain exact.
 information form within the workspace content, with initials/name/role above it,
 two name inputs, read-only email/role and a save action. The supplied profile
 screenshot governs composition; omit prototype-only demo/scenario controls.
-Admin Dashboard follows the prototype Administration overview: account summary,
-pending accounts and audit cards. Users and pending invitations share one table:
+The Admin Dashboard is hidden for now; Admin opens on Users and its sidebar shows
+Users and History. Users and pending invitations share one table:
 name with email underneath, role, attachment, state and permitted row actions.
-Filters are opt-in. Invite given/family names share a row on desktop and stack
+Search matches name or email. The only account filter is Role; its collapsible
+panel and removable criteria follow the supplied PTA filter composition. Successful
+invitations use a toast instead of an inline page notice. Invite given/family names share a row on desktop and stack
 on mobile. Shared shadcn Select popups stay inside native dialogs; submit buttons
 retain an inline spinner through submission and the required refresh.
 Password criteria use the selected blue background/primary text when satisfied;

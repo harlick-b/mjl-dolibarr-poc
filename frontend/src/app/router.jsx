@@ -458,18 +458,15 @@ export function makeRouter(history, componentOverrides = {}) {
     search: {
       middlewares: [
         stripSearchParams({
-          email: '',
+          q: '',
           role: '',
-          state: '',
-          invitationState: '',
           page: 1,
-          invitationPage: 1,
         }),
       ],
     },
     gcTime: 0,
     validateSearch: (search) => ({
-      email: String(search.email || '').slice(0, 254),
+      q: String(search.q || '').slice(0, 200),
       role: [
         'ADMIN_PLATEFORME',
         'AGENT_SAISIE',
@@ -479,17 +476,6 @@ export function makeRouter(history, componentOverrides = {}) {
       ].includes(search.role)
         ? search.role
         : '',
-      state: ['pending', 'active', 'inactive'].includes(search.state)
-        ? search.state
-        : '',
-      invitationState: [
-        'prepared',
-        'delivered',
-        'consumed',
-        'revoked',
-      ].includes(search.invitationState)
-        ? search.invitationState
-        : '',
       invite:
         search.invite === true || search.invite === 'true' ? true : undefined,
       page:
@@ -497,12 +483,6 @@ export function makeRouter(history, componentOverrides = {}) {
         Number(search.page) > 0 &&
         Number(search.page) <= 1000000
           ? Number(search.page)
-          : 1,
-      invitationPage:
-        Number.isInteger(Number(search.invitationPage)) &&
-        Number(search.invitationPage) > 0 &&
-        Number(search.invitationPage) <= 1000000
-          ? Number(search.invitationPage)
           : 1,
     }),
   })

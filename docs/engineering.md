@@ -392,8 +392,9 @@ mutation variables before publishing the newly verified session.
 
 `authorization.js` owns the page catalog (paths, owning detail routes, capability,
 label and icon) and role workspace defaults. `ApplicationSidebar` and direct route
-guards derive from that same catalog. Dashboard is currently the default for all
-known roles; changing a role’s default does not require changing its sidebar.
+guards derive from that same catalog. Users is currently the Admin default;
+Dashboard remains the default for the other known roles. Changing a role’s default
+does not require changing its sidebar.
 `navigation.js` selects a permitted
 last page for that user/role, otherwise that default. It retains resource paths in
 memory only and persists only allowlisted top-level destinations in sessionStorage;

@@ -1,6 +1,6 @@
 import { Urls } from '@/app/urls'
-import { outsideDialog } from '@/shared/ui/dialog-events'
 import { Select } from '@/shared/ui/select'
+import { ListFilters } from '@/shared/ui/ListFilters'
 import { EmptyTable } from '@/shared/ui/EmptyContent'
 import { AdminShell, AdminMain } from '@/shared/ui/layout'
 import { cursorFrom } from '@/shared/lib/pagination'
@@ -13,18 +13,20 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Plus, SlidersHorizontal, X, LoaderCircle } from 'lucide-react'
+import { Plus, X, LoaderCircle } from 'lucide-react'
 import { sessionKey } from '@/features/auth/session/auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/AccessView'
 import { strings as common } from '@/locales/fr/common'
 import { Button } from '@/shared/ui/button'
+import { Modal } from '@/shared/ui/BusinessModal'
 import { Helmet } from 'react-helmet-async'
 import { ApplicationSidebar } from '@/features/auth/components/ApplicationSidebar'
 import { EmptyState } from '@/shared/ui/FallbackState'
-import { PageLoading } from '@/shared/ui/PageLoading'
+import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { useAccess } from '@/features/auth/session/access-verification'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
+import { toast } from 'sonner'
 
 const states = {
   pending: 'En attente',
@@ -35,12 +37,6 @@ const states = {
   consumed: 'Acceptée',
   revoked: 'Révoquée',
 }
-const deliveryLabels = {
-  delivered: 'Envoyée',
-  failed: 'Envoi échoué',
-  unconfirmed: 'Envoi non confirmé',
-}
-
 export function AccessView() {
   const sessionQuery = useSessionQuery()
   const access = useAccess()
@@ -85,6 +81,7 @@ export function AccessLoading() {
 function listQuery(api, principal, kind, filters, onDenied) {
   return {
     queryKey: ['access', principal, kind, filters],
+    placeholderData: (previousData) => previousData,
     retry: false,
     networkMode: 'always',
     queryFn: async ({ signal }) => {
@@ -149,9 +146,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const [dialog, setDialog] = useState(
     search.invite ? { kind: 'invite' } : null,
   )
-  const [filtersOpen, setFiltersOpen] = useState(
-    Boolean(search.email || search.role || search.state),
-  )
   const [notice, setNotice] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const alive = useRef(true)
@@ -195,9 +189,8 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const userFilters = {
     page: search.page,
     size: 20,
-    ...(search.email ? { email: search.email } : {}),
+    ...(search.q ? { q: search.q } : {}),
     ...(search.role ? { role: search.role } : {}),
-    ...(search.state ? { state: search.state } : {}),
   }
   const users = useQuery(
     listQuery(api, session.user.id, 'users', userFilters, denied),
@@ -277,7 +270,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
         signal: controller.current.signal,
       })
       if (!alive.current) return
-      setNotice(
+      const message =
         dialog.kind === 'role'
           ? result.version === dialog.item.version
             ? 'Rôle inchangé.'
@@ -286,8 +279,9 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             ? 'Compte désactivé.'
             : dialog.kind === 'revoke'
               ? 'Invitation révoquée.'
-              : 'Invitation envoyée.',
-      )
+              : 'Invitation envoyée.'
+      if (dialog.kind === 'invite') toast.success(message)
+      else setNotice(message)
     } catch (error) {
       if (!alive.current) return
       if (error.status === 401) {
@@ -337,14 +331,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
           >
             <h1>Utilisateurs</h1>
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                aria-expanded={filtersOpen}
-                onClick={() => setFiltersOpen(!filtersOpen)}
-              >
-                <SlidersHorizontal aria-hidden="true" size={16} />
-                <span className="sr-only">{strings.usersFilters}</span>
-              </Button>
               <Button onClick={() => setDialog({ kind: 'invite' })}>
                 <Plus size={18} />
                 Inviter un utilisateur
@@ -359,227 +345,254 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               {notice}
             </p>
           )}
-          {filtersOpen && (
-            <div>
-              <form
-                className="flex items-end flex-wrap gap-4 mb-6 max-[761px]:[&_>_label]:w-full"
-                data-ui="access-filters"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  const d = new FormData(e.currentTarget)
-                  void changeSearch({
-                    email: d.get('email').trim(),
-                    role: d.get('role'),
-                    state: d.get('state'),
-                    page: 1,
-                    invitationPage: 1,
-                  })
-                }}
-              >
-                <label>
-                  Rechercher par e-mail
-                  <input
-                    key={search.email}
-                    name="email"
-                    type="search"
-                    maxLength={254}
-                    defaultValue={search.email}
-                  />
-                </label>
-                <label>
-                  Rôle
-                  <Select
-                    key={search.role}
-                    name="role"
-                    defaultValue={search.role}
-                  >
-                    <option value="">Tous les rôles</option>
-                    {Object.entries(roleLabels).map(([code, label]) => (
-                      <option key={code} value={code}>
-                        {label}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-                <label>
-                  État du compte
-                  <Select
-                    key={search.state}
-                    name="state"
-                    defaultValue={search.state}
-                  >
-                    <option value="">Tous les états</option>
-                    {['pending', 'active', 'inactive'].map((s) => (
-                      <option key={s} value={s}>
-                        {states[s]}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-                <Button>Filtrer</Button>
-              </form>
-            </div>
-          )}
-          <ListState
-            query={users}
-            empty={
-              search.email || search.role || search.state ? (
-                <EmptyState
-                  action={
-                    <button
-                      className="min-h-10 border border-border rounded-control py-2 px-4 bg-white text-navy font-medium"
-                      onClick={() =>
-                        void changeSearch({
-                          email: '',
-                          role: '',
-                          state: '',
-                          page: 1,
-                        })
-                      }
-                      type="button"
-                    >
-                      Effacer les filtres
-                    </button>
+          <section
+            className="overflow-hidden rounded-panel border border-border bg-white"
+            aria-busy={users.isFetching}
+          >
+            <ListFilters
+              value={search.q}
+              onSearch={(q) => void changeSearch({ q: q.trim(), page: 1 })}
+              label={strings.userSearchPlaceholder}
+              active={Boolean(search.role)}
+              onReset={() => void changeSearch({ q: '', role: '', page: 1 })}
+              disabled={users.isPending}
+              showReset={false}
+            >
+              <label>
+                {strings.roleFilter}
+                <Select
+                  value={search.role}
+                  onChange={(event) =>
+                    void changeSearch({ role: event.target.value, page: 1 })
                   }
                 >
-                  <p>{strings.noMatches}</p>
-                </EmptyState>
-              ) : (
-                <EmptyTable
-                  kind="users"
-                  columns={['name', 'role', 'scope', 'state']}
+                  <option value="">{strings.allRoles}</option>
+                  {Object.entries(roleLabels).map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            </ListFilters>
+            {(search.q || search.role) && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 text-[0.8125rem]">
+                {search.q && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-8 items-center gap-2 rounded-card border border-border bg-white px-3"
+                    onClick={() => void changeSearch({ q: '', page: 1 })}
+                  >
+                    {strings.formatString(strings.searchCriterion, {
+                      query: search.q,
+                    })}
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                )}
+                {search.role && (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-8 items-center gap-2 rounded-card border border-border bg-white px-3"
+                    onClick={() => void changeSearch({ role: '', page: 1 })}
+                  >
+                    {roleLabels[search.role]}
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="min-h-8 text-primary"
+                  onClick={() =>
+                    void changeSearch({ q: '', role: '', page: 1 })
+                  }
+                >
+                  {strings.resetFilters}
+                </button>
+              </div>
+            )}
+            {!users.isError && users.data && (
+              <p className="flex items-center border-b border-border px-4 py-4 text-sm font-medium">
+                <span>
+                  {strings.formatString(
+                    users.data.total === 1
+                      ? strings.userCount
+                      : strings.usersCount,
+                    { count: users.data.total },
+                  )}
+                </span>
+                <RefreshIndicator
+                  active={users.isFetching && !users.isPending}
                 />
-              )
-            }
-          >
-            <div className="relative border border-border rounded-card overflow-auto bg-white [&_+_[data-ui~='access-heading']]:mt-8">
-              <table>
-                <caption className="sr-only">Comptes utilisateurs</caption>
-                <thead>
-                  <tr>
-                    <th>{strings.userName}</th>
-                    <th>Rôle</th>
-                    <th>{strings.userScope}</th>
-                    <th>État</th>
-                    <th>
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.data?.items.map((u) => (
-                    <tr key={u.id}>
-                      <td className="[&_strong]:font-medium [&_small]:text-xs">
-                        <strong>{u.full_name || u.email}</strong>
-                        {u.full_name && (
-                          <small className="block mt-1 text-muted-foreground">
-                            {u.email}
-                          </small>
-                        )}
-                      </td>
-                      <td>{roleLabels[u.role]}</td>
-                      <td>
-                        {u.role === 'PARTENAIRE'
-                          ? partners.data?.find(
-                              (partner) => partner.id === u.partner_id,
-                            )?.name || strings.partnerScope
-                          : 'MJL'}
-                      </td>
-                      <td>
-                        <span
-                          className="inline-flex items-center gap-1 min-h-5 bg-warning-soft text-warning py-1 px-2 rounded-card text-xs [&[data-state='active']]:bg-success-badge [&[data-state='active']]:text-success [&[data-state='inactive']]:bg-disabled [&[data-state='inactive']]:text-muted-foreground"
-                          data-state={u.state}
-                        >
-                          {states[u.state]}
-                        </span>
-                        {u.invitation && (
-                          <small className="block mt-1 text-muted-foreground">
-                            {states[u.invitation.state]} ·{' '}
-                            {deliveryLabels[u.invitation.delivery_status]}
-                            {Date.parse(u.invitation.expires_at) <=
-                              users.dataUpdatedAt &&
-                            u.invitation.state !== 'revoked'
-                              ? ' · Expirée'
-                              : ''}
-                          </small>
-                        )}
-                      </td>
-                      <td>
-                        <div className="flex flex-wrap gap-3 text-primary">
-                          {u.state === 'active' &&
-                            u.role !== 'ADMIN_PLATEFORME' &&
-                            u.id !== session.user.id && (
-                              <>
-                                {u.role !== 'PARTENAIRE' && (
-                                  <button
+              </p>
+            )}
+            <ListState
+              query={users}
+              empty={
+                search.q || search.role ? (
+                  <EmptyState
+                    action={
+                      <button
+                        className="min-h-10 border border-border rounded-control py-2 px-4 bg-white text-navy font-medium"
+                        onClick={() =>
+                          void changeSearch({
+                            q: '',
+                            role: '',
+                            page: 1,
+                          })
+                        }
+                        type="button"
+                      >
+                        Effacer les filtres
+                      </button>
+                    }
+                  >
+                    <p>{strings.noMatches}</p>
+                  </EmptyState>
+                ) : (
+                  <EmptyTable
+                    kind="users"
+                    columns={['name', 'role', 'scope', 'state']}
+                  />
+                )
+              }
+            >
+              <div className="relative overflow-auto bg-white">
+                <table>
+                  <caption className="sr-only">Comptes utilisateurs</caption>
+                  <thead>
+                    <tr>
+                      <th>{strings.userName}</th>
+                      <th>Rôle</th>
+                      <th>{strings.userScope}</th>
+                      <th>État</th>
+                      <th>
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.data?.items.map((u) => (
+                      <tr key={u.id}>
+                        <td className="[&_strong]:font-medium [&_small]:text-xs">
+                          <strong>{u.full_name || u.email}</strong>
+                          {u.full_name && (
+                            <small className="block mt-1 text-muted-foreground">
+                              {u.email}
+                            </small>
+                          )}
+                        </td>
+                        <td>{roleLabels[u.role]}</td>
+                        <td>
+                          {u.role === 'PARTENAIRE'
+                            ? partners.data?.find(
+                                (partner) => partner.id === u.partner_id,
+                              )?.name || strings.partnerScope
+                            : 'MJL'}
+                        </td>
+                        <td>
+                          <span
+                            className="inline-flex items-center gap-1 min-h-5 bg-warning-soft text-warning py-1 px-2 rounded-card text-xs [&[data-state='active']]:bg-success-badge [&[data-state='active']]:text-success [&[data-state='inactive']]:bg-disabled [&[data-state='inactive']]:text-muted-foreground"
+                            data-state={u.state}
+                          >
+                            {states[u.state]}
+                          </span>
+                          {invitationStatus(u, users.dataUpdatedAt) && (
+                            <small className="block mt-1 text-muted-foreground">
+                              {invitationStatus(u, users.dataUpdatedAt)}
+                            </small>
+                          )}
+                        </td>
+                        <td>
+                          <div className="flex flex-wrap gap-3 text-primary">
+                            {u.state === 'active' &&
+                              u.role !== 'ADMIN_PLATEFORME' &&
+                              u.id !== session.user.id && (
+                                <>
+                                  {u.role !== 'PARTENAIRE' && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      type="button"
+                                      disabled={
+                                        mutation.isPending || users.isFetching
+                                      }
+                                      onClick={() =>
+                                        setDialog({ kind: 'role', item: u })
+                                      }
+                                    >
+                                      Modifier le rôle
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
                                     type="button"
                                     disabled={
                                       mutation.isPending || users.isFetching
                                     }
                                     onClick={() =>
-                                      setDialog({ kind: 'role', item: u })
+                                      setDialog({ kind: 'deactivate', item: u })
                                     }
                                   >
-                                    Modifier le rôle
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={
-                                    mutation.isPending || users.isFetching
-                                  }
-                                  onClick={() =>
-                                    setDialog({ kind: 'deactivate', item: u })
-                                  }
-                                >
-                                  Désactiver
-                                </button>
-                              </>
-                            )}
-                          {u.invitation &&
-                            u.role !== 'ADMIN_PLATEFORME' &&
-                            ['prepared', 'delivered'].includes(
-                              u.invitation.state,
-                            ) && (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    mutation.isPending || users.isFetching
-                                  }
-                                  onClick={() =>
-                                    setDialog({
-                                      kind: 'resend',
-                                      item: { ...u.invitation, email: u.email },
-                                    })
-                                  }
-                                >
-                                  Renvoyer
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    mutation.isPending || users.isFetching
-                                  }
-                                  onClick={() =>
-                                    setDialog({
-                                      kind: 'revoke',
-                                      item: { ...u.invitation, email: u.email },
-                                    })
-                                  }
-                                >
-                                  Révoquer
-                                </button>
-                              </>
-                            )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </ListState>
+                                    Désactiver
+                                  </Button>
+                                </>
+                              )}
+                            {u.invitation &&
+                              u.role !== 'ADMIN_PLATEFORME' &&
+                              ['prepared', 'delivered'].includes(
+                                u.invitation.state,
+                              ) && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    type="button"
+                                    disabled={
+                                      mutation.isPending || users.isFetching
+                                    }
+                                    onClick={() =>
+                                      setDialog({
+                                        kind: 'resend',
+                                        item: {
+                                          ...u.invitation,
+                                          email: u.email,
+                                        },
+                                      })
+                                    }
+                                  >
+                                    Renvoyer
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    type="button"
+                                    disabled={
+                                      mutation.isPending || users.isFetching
+                                    }
+                                    onClick={() =>
+                                      setDialog({
+                                        kind: 'revoke',
+                                        item: {
+                                          ...u.invitation,
+                                          email: u.email,
+                                        },
+                                      })
+                                    }
+                                  >
+                                    Révoquer
+                                  </Button>
+                                </>
+                              )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </ListState>
+          </section>
           <Pagination
             query={users}
             page={search.page}
@@ -590,7 +603,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             <AccessDialog
               dialog={dialog}
               pending={submitting}
-              checking={checking}
               close={() => setDialog(null)}
               submit={submit}
             />
@@ -601,8 +613,22 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   )
 }
 
+function invitationStatus(user, updatedAt) {
+  if (!user.invitation) return ''
+  if (user.invitation.state === 'revoked') return 'Révoquée'
+  if (
+    Date.parse(user.invitation.expires_at) <= updatedAt &&
+    user.invitation.state !== 'revoked'
+  )
+    return 'Expirée'
+  if (user.invitation.delivery_status === 'failed') return 'Envoi échoué'
+  if (user.invitation.delivery_status === 'unconfirmed')
+    return 'Envoi non confirmé'
+  return ''
+}
+
 function ListState({ query, empty, children }) {
-  if (query.isPending || query.isFetching)
+  if (query.isPending)
     return (
       <div
         className="grid gap-3 p-4 mb-6 border border-border bg-white rounded-panel [&_span]:block [&_span]:h-10 [&_span]:bg-disabled [&_span]:rounded"
@@ -661,12 +687,10 @@ function Pagination({ query, page, change, label }) {
     </nav>
   )
 }
-function AccessDialog({ dialog, pending, checking, close, submit }) {
+function AccessDialog({ dialog, pending, close, submit }) {
   const { api } = useAPI()
   const session = useSessionQuery()
   const [partnerCursor, setPartnerCursor] = useState('')
-  const ref = useRef(null)
-  const outside = useRef(false)
   const [inviteRole, setInviteRole] = useState('AGENT_SAISIE')
   const partners = useQuery({
     queryKey: [
@@ -685,15 +709,6 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
     gcTime: 0,
     networkMode: 'always',
   })
-  useEffect(() => {
-    const node = ref.current
-    const trigger = document.activeElement
-    node.showModal()
-    return () => {
-      node.close()
-      if (trigger?.isConnected) trigger.focus()
-    }
-  }, [])
   const invite = dialog.kind === 'invite'
   const optionsBlocked =
     invite &&
@@ -709,57 +724,13 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
           ? 'Révoquer cette invitation ?'
           : 'Renvoyer cette invitation ?'
   return (
-    <dialog
-      ref={ref}
-      className="data-[checking]:hidden! [&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_input]:min-h-11 [&_input]:border [&_input]:border-border [&_input]:rounded-control [&_input]:py-2 [&_input]:px-3 [&_input]:bg-white [&_input]:max-w-full [&_select]:min-h-11 [&_select]:border [&_select]:border-border [&_select]:rounded-control [&_select]:py-2 [&_select]:px-3 [&_select]:bg-white [&_select]:max-w-full [&_button]:min-h-11 [&_button:disabled]:opacity-50 [&_button:disabled]:cursor-not-allowed m-auto p-0 w-[min(560px,_calc(100%_-_32px))] border border-border rounded-panel max-h-[calc(100vh_-_32px)] overflow-auto text-foreground [&::backdrop]:bg-overlay [&_>_[data-ui~='access-heading']]:m-0 [&_>_[data-ui~='access-heading']]:py-4 [&_>_[data-ui~='access-heading']]:px-6 [&_>_[data-ui~='access-heading']]:border-b [&_>_[data-ui~='access-heading']]:border-b-border [&_h2]:text-xl [&_h2]:font-semibold [&_fieldset_>_p]:p-6 [&_footer]:flex [&_footer]:justify-end [&_footer]:flex-wrap [&_footer]:items-center [&_footer]:gap-4 [&_footer]:py-4 [&_footer]:px-6 [&_footer]:border-t [&_footer]:border-t-border [&_footer_button[type='button']]:border [&_footer_button[type='button']]:border-strong-border [&_footer_button[type='button']]:py-2 [&_footer_button[type='button']]:px-4 [&_footer_button[type='button']]:rounded-control"
-      inert={checking || undefined}
-      data-checking={checking || undefined}
-      onPointerDown={(event) => {
-        outside.current = outsideDialog(event)
-      }}
-      onClick={(event) => {
-        if (outside.current && outsideDialog(event)) close()
-      }}
-      aria-labelledby="invitation-title"
-      onKeyDown={(event) => {
-        if (event.key !== 'Tab') return
-        const controls = [
-          ...ref.current.querySelectorAll(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled)',
-          ),
-        ]
-        const first = controls[0]
-        const last = controls.at(-1)
-        if (
-          event.shiftKey &&
-          (document.activeElement === first ||
-            document.activeElement === ref.current)
-        ) {
-          event.preventDefault()
-          last?.focus()
-        } else if (
-          !event.shiftKey &&
-          (document.activeElement === last ||
-            document.activeElement === ref.current)
-        ) {
-          event.preventDefault()
-          first?.focus()
-        }
-      }}
-      onCancel={(e) => {
-        e.preventDefault()
-        if (!pending) close()
-      }}
+    <Modal
+      open
+      onClose={close}
+      label={title}
+      closeDisabled={pending}
+      className="[&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_input]:min-h-11 [&_input]:max-w-full [&_input]:rounded-control [&_input]:border [&_input]:border-border [&_input]:bg-white [&_input]:px-3 [&_input]:py-2 [&_select]:min-h-11 [&_select]:max-w-full [&_select]:rounded-control [&_select]:border [&_select]:border-border [&_select]:bg-white [&_select]:px-3 [&_select]:py-2 [&_button:disabled]:cursor-not-allowed"
     >
-      <div
-        className="flex flex-wrap items-center justify-between gap-4 mb-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold"
-        data-ui="access-heading"
-      >
-        <h2 id="invitation-title">{title}</h2>
-        <button aria-label="Fermer" disabled={pending} onClick={close}>
-          <X size={20} />
-        </button>
-      </div>
       <form
         onSubmit={(event) => {
           if (optionsBlocked) event.preventDefault()
@@ -769,7 +740,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
       >
         <fieldset disabled={pending}>
           {invite ? (
-            <div className="grid gap-6 p-6">
+            <div className="grid gap-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label>
                   {strings.firstName} *
@@ -878,7 +849,7 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
               )}
             </div>
           ) : dialog.kind === 'role' ? (
-            <div className="grid gap-6 p-6">
+            <div className="grid gap-6">
               <p>{dialog.item.email}</p>
               <label>
                 Nouveau rôle
@@ -912,10 +883,15 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
             </p>
           )}
         </fieldset>
-        <footer>
-          <button type="button" disabled={pending} onClick={close}>
+        <footer data-ui="modal-actions">
+          <Button
+            variant="outline"
+            type="button"
+            disabled={pending}
+            onClick={close}
+          >
             Annuler
-          </button>
+          </Button>
           <Button disabled={pending || optionsBlocked} aria-busy={pending}>
             {pending && (
               <LoaderCircle
@@ -935,6 +911,6 @@ function AccessDialog({ dialog, pending, checking, close, submit }) {
           </Button>
         </footer>
       </form>
-    </dialog>
+    </Modal>
   )
 }

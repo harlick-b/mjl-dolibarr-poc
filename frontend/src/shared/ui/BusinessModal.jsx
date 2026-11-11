@@ -6,21 +6,43 @@ import { strings } from '@/locales/fr/Navigation'
 
 import { outsideDialog } from './dialog-events'
 
-export function Modal({ open, onClose, label, children, opener, className }) {
+export function Modal({
+  open,
+  onClose,
+  label,
+  children,
+  opener,
+  className,
+  closeDisabled = false,
+}) {
   const ref = useRef(null)
   const outside = useRef(false)
+  const automaticOpener = useRef(null)
+  const focusOpener = () => {
+    const target = opener?.current ?? automaticOpener.current
+    if (target?.isConnected) target.focus()
+  }
   const requestClose = () => {
+    if (closeDisabled) return
     onClose()
     // The owner may unmount the dialog immediately. Restore focus after React
     // applies that update instead of relying only on the native close event.
-    setTimeout(() => opener?.current?.focus(), 0)
+    setTimeout(focusOpener, 0)
   }
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
+    let focusTarget = opener?.current ?? automaticOpener.current
+    if (open && !dialog.open) {
+      automaticOpener.current = document.activeElement
+      focusTarget ??= automaticOpener.current
+      dialog.showModal()
+    }
     if (!open && dialog.open) dialog.close()
-  }, [open])
+    return () => {
+      if (open && focusTarget?.isConnected) focusTarget.focus()
+    }
+  }, [open, opener])
   return (
     <dialog
       ref={ref}
@@ -42,7 +64,7 @@ export function Modal({ open, onClose, label, children, opener, className }) {
         requestClose()
       }}
       onClose={() => {
-        opener?.current?.focus()
+        focusOpener()
       }}
     >
       <header className="flex min-h-18 items-center justify-between gap-4 border-b border-border px-6 py-4">
@@ -52,6 +74,7 @@ export function Modal({ open, onClose, label, children, opener, className }) {
           variant="ghost"
           className="size-8 min-h-8 shrink-0 p-0"
           aria-label={strings.close}
+          disabled={closeDisabled}
           onClick={requestClose}
         >
           <X size={18} aria-hidden="true" />

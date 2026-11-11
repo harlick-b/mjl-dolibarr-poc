@@ -48,7 +48,7 @@ test('OTP supports paste, corrections and submits the exact six digits', async (
 })
 
 for (const [role, destination] of [
-  ['ADMIN_PLATEFORME', '/dashboard'],
+  ['ADMIN_PLATEFORME', '/access/users'],
   ['PARTENAIRE', '/dashboard'],
   ['AGENT_SAISIE', '/dashboard'],
   ['AGENT_VERIFICATEUR', '/dashboard'],
@@ -280,9 +280,9 @@ test('password then OTP opens the workspace without an intermediate session scre
     page.getByRole('heading', { name: 'Vérification', exact: true }),
   ).toBeVisible()
   await page.getByLabel('Code de vérification', { exact: true }).fill('012345')
-  await expect(page).toHaveURL((url) => url.pathname === '/dashboard')
+  await expect(page).toHaveURL((url) => url.pathname === '/access/users')
   await expect(
-    page.getByRole('heading', { name: 'Administration', exact: true }),
+    page.getByRole('heading', { name: 'Utilisateurs', exact: true }),
   ).toBeVisible()
 })
 

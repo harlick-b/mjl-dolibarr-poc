@@ -326,6 +326,12 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
         "/api/v1/access/users?email=pending&role=AGENT_VERIFICATEUR&size=1"
     ).json()
     assert result["total"] == 1 and len(result["items"]) == 1
+    by_name = admin.get("/api/v1/access/users?q=PENDING%20USER").json()
+    assert by_name["total"] == 1
+    assert by_name["items"][0]["email"] == "pending@example.test"
+    by_email = admin.get("/api/v1/access/users?q=NDING%40EXAMPLE").json()
+    assert by_email["total"] == 1
+    assert by_email["items"][0]["full_name"] == "Pending User"
     assert set(result["items"][0]) == {
         "invitation",
         "id",

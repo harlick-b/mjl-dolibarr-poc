@@ -10,7 +10,7 @@ test('return destinations are scoped to identity and current role', () => {
   expect(loginDestination(agent)).toBe('/notifications')
   expect(loginDestination(session('other-agent'))).toBe('/dashboard')
   expect(loginDestination(session('return-agent', 'ADMIN_PLATEFORME'))).toBe(
-    '/dashboard',
+    '/access/users',
   )
   rememberPage(agent, '/access/users')
   rememberPage(agent, '//evil.example')

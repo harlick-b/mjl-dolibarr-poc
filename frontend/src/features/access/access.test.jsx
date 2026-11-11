@@ -10,6 +10,7 @@ import {
 import { expect, test, vi } from 'vitest'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { App, makeRouter } from '@/app/router'
+import { toast } from 'sonner'
 
 test('Admin sees the empty account view and invitation action', async () => {
   vi.stubGlobal(
@@ -49,6 +50,192 @@ test('Admin sees the empty account view and invitation action', async () => {
     screen.getByRole('heading', { name: 'Utilisateurs', exact: true }),
   ).toBeVisible()
   expect(await screen.findByText('Aucun utilisateur')).toBeVisible()
+})
+
+test('Users exposes reference filters, count and no invitation delivery duplicate', async () => {
+  const items = [
+    {
+      id: 'pending',
+      full_name: 'Olive Agent',
+      email: 'olive@example.test',
+      role: 'AGENT_SAISIE',
+      state: 'pending',
+      version: 1,
+      invitation: {
+        id: 'invitation',
+        state: 'delivered',
+        delivery_status: 'delivered',
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        version: 1,
+      },
+    },
+  ]
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : { items, total: 1, page: 1, size: 20 },
+          ),
+        ),
+      ),
+    ),
+  )
+  mount()
+  expect(await screen.findByText('1 utilisateur')).toBeVisible()
+  expect(
+    screen.getByPlaceholderText('Rechercher un utilisateur…'),
+  ).toBeVisible()
+  expect(screen.queryByText('Envoyée · Envoyée')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Filtres' }))
+  expect(screen.getByLabelText('Rôle')).toBeVisible()
+  expect(screen.queryByLabelText('État du compte')).not.toBeInTheDocument()
+})
+
+test('Users keeps loaded rows and controls available during a filtered refresh', async () => {
+  const initial = {
+    items: [
+      {
+        id: 'olive',
+        full_name: 'Olive Agent',
+        email: 'olive@example.test',
+        role: 'AGENT_SAISIE',
+        state: 'active',
+        version: 1,
+      },
+    ],
+    total: 1,
+    page: 1,
+    size: 20,
+  }
+  let releaseSearch
+  const filtered = new Promise((resolve) => {
+    releaseSearch = () =>
+      resolve(
+        new Response(
+          JSON.stringify({ items: [], total: 0, page: 1, size: 20 }),
+        ),
+      )
+  })
+  const fetch = vi.fn((url) => {
+    if (url.includes('/auth/'))
+      return Promise.resolve(new Response(JSON.stringify(session())))
+    if (url.includes('q=absent')) return filtered
+    return Promise.resolve(new Response(JSON.stringify(initial)))
+  })
+  vi.stubGlobal('fetch', fetch)
+  mount()
+  expect(await screen.findByText('Olive Agent')).toBeVisible()
+  const search = screen.getByPlaceholderText('Rechercher un utilisateur…')
+  fireEvent.change(search, { target: { value: 'absent' } })
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) => String(url).includes('q=absent')),
+    ).toBe(true),
+  )
+  expect(screen.getByText('Olive Agent')).toBeVisible()
+  expect(search).toBeEnabled()
+  expect(
+    screen.getByRole('status', { name: 'Actualisation des données' }),
+  ).toBeVisible()
+  releaseSearch()
+  expect(
+    await screen.findByRole('heading', { name: 'Aucun résultat' }),
+  ).toBeVisible()
+})
+
+test('successful invitation reports through a toast', async () => {
+  const success = vi.spyOn(toast, 'success').mockImplementation(() => '')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options = {}) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : options.method === 'POST'
+                ? { state: 'delivered' }
+                : { items: [], total: 0, page: 1, size: 20 },
+          ),
+          { status: options.method === 'POST' ? 201 : 200 },
+        ),
+      ),
+    ),
+  )
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  try {
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Prénom *'), {
+      target: { value: 'Olive' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Nom de famille *'), {
+      target: { value: 'Agent' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Adresse e-mail *'), {
+      target: { value: 'olive@example.test' },
+    })
+    fireEvent.submit(dialog.querySelector('form'))
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith('Invitation envoyée.'),
+    )
+    expect(screen.queryByText('Invitation envoyée.')).not.toBeInTheDocument()
+  } finally {
+    delete HTMLDialogElement.prototype.showModal
+    delete HTMLDialogElement.prototype.close
+  }
+})
+
+test('cancelling an invitation returns focus to its opening action', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : { items: [], total: 0, page: 1, size: 20 },
+          ),
+        ),
+      ),
+    ),
+  )
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  try {
+    mount()
+    const invite = await screen.findByRole('button', {
+      name: 'Inviter un utilisateur',
+    })
+    invite.focus()
+    fireEvent.click(invite)
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Annuler',
+      }),
+    )
+    await waitFor(() => expect(invite).toHaveFocus())
+  } finally {
+    delete HTMLDialogElement.prototype.showModal
+    delete HTMLDialogElement.prototype.close
+  }
 })
 
 function session(role = 'ADMIN_PLATEFORME') {
