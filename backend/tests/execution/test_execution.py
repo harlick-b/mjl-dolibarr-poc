@@ -16,12 +16,12 @@ from tests.auth.test_access import headers
 from tests.planning.test_amendments import cancel_amendment, open_amendment
 from tests.planning.test_planning import (  # noqa: F401
     admin,
-    assign_agents,
     ordered_advisory_race,
     patch,
     plan,
     planning,
     post,
+    put,
     references,
 )
 
@@ -65,17 +65,20 @@ def approved_execution_activity(
                 ],
             }
         )
-    created = post(
+    agent_ids = [
+        clients[name].get("/api/v1/auth/session").json()["user"]["id"]
+        for name in assigned_agents
+    ]
+    created_response = post(
         clients["agent"],
         f"/api/v1/projects/{project['id']}/ptas/{today.year}/activities",
         {
             **plan(operation_type, **plan_changes),
             "request_key": str(uuid4()),
         },
-    ).json()
-    created = assign_agents(
-        clients, created, *(clients[name] for name in assigned_agents)
     )
+    assert created_response.status_code == 201, created_response.text
+    created = created_response.json()
     revision = post(
         clients["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
@@ -83,10 +86,19 @@ def approved_execution_activity(
     )
     assert revision.status_code == 201, revision.text
     revision = revision.json()
+    assigned = put(
+        clients["validator"],
+        f"/api/v1/activities/{created['id']}/assignments",
+        {
+            "expected_version": revision["activity_version"],
+            "agent_ids": agent_ids,
+        },
+    )
+    assert assigned.status_code == 200, assigned.text
     prevalidated = post(
         clients["supervisor"],
         f"/api/v1/activities/{created['id']}/revisions/{revision['id']}/decisions",
-        {"expected_version": revision["activity_version"], "decision": "prevalidate"},
+        {"expected_version": assigned.json()["version"], "decision": "prevalidate"},
     )
     assert prevalidated.status_code == 201, prevalidated.text
     prevalidated = prevalidated.json()

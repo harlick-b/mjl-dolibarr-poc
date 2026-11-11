@@ -1,14 +1,12 @@
-{{ email_title }}
-
 Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},
 
-{{ assigner_name }} vous a assigné une activité.
+{{ assigner_name }} vous a confié cette activité. Elle est disponible dans votre espace MJL.
 
+{{ activity_name }}
 Référence : {{ activity_reference }}
-Activité : {{ activity_name }}
-PTA : {{ pta_name }}
 Projet : {{ project_name }}
+PTA : {{ pta_name }}
 
-Connectez-vous à MJL pour consulter l’activité.
+Consulter l’activité : {{ action_url }}
 
 Message automatique envoyé par {{ app_name }}. Merci de ne pas y répondre.

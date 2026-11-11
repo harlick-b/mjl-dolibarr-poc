@@ -94,6 +94,7 @@ def test_all_personalized_templates_and_strict_variables():
         pta_name="PTA 2028",
         project_name="Protection de l’enfant",
         assigner_name="Jean Superviseur",
+        action_url="http://localhost:5173/activities/activity-1",
     )
 
     assert "Bonjour," in recovery.html and "réinitialiser" in recovery.text
@@ -103,6 +104,8 @@ def test_all_personalized_templates_and_strict_variables():
     assert "@media only screen and (max-width:600px)" in reminder.html
     assert "Jean Superviseur" in assignment.text
     assert "ACT-2028-002" in assignment.html
+    assert "Consulter l’activité" in assignment.html
+    assert "http://localhost:5173/activities/activity-1" in assignment.text
     with pytest.raises(UndefinedError):
         renderer.render("activity_reminder", recipient_name="Aminata Dossou")
 

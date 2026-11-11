@@ -1284,8 +1284,7 @@ function amendmentHistoryFetch({ failed = false, historyFailed = false } = {}) {
   })
 }
 
-test('approved amendment history stays human-readable and isolated to its tab', async () => {
-  const user = userEvent.setup()
+test('Activity History ignores obsolete amendment detail links', async () => {
   vi.stubGlobal('fetch', amendmentHistoryFetch())
   render(
     <App
@@ -1298,19 +1297,13 @@ test('approved amendment history stays human-readable and isolated to its tab', 
       )}
     />,
   )
-  expect(await screen.findByText('Modification approuvée')).toBeVisible()
-  expect(screen.getByText('Nouveau nom approuvé')).toBeVisible()
-  expect(screen.getByText(/Formation figée — Former/)).toBeVisible()
-  expect(screen.getByText(/Modification ouverte le/)).toBeVisible()
-  expect(screen.queryByText(/agent-1/)).not.toBeInTheDocument()
-  await user.click(
-    screen.getByRole('link', { name: 'Pièces justificatives', exact: true }),
-  )
+  expect(await screen.findByText('Aucun événement')).toBeVisible()
   expect(screen.queryByText('Modification approuvée')).not.toBeInTheDocument()
-  expect(await screen.findByText('Aucune pièce justificative')).toBeVisible()
+  expect(screen.queryByText('Nouveau nom approuvé')).not.toBeInTheDocument()
+  expect(screen.queryByText(/agent-1/)).not.toBeInTheDocument()
 })
 
-test('a failed amendment-history request blocks the workspace with an alert', async () => {
+test('an obsolete amendment detail failure does not block Activity History', async () => {
   vi.stubGlobal('fetch', amendmentHistoryFetch({ failed: true }))
   render(
     <App
@@ -1323,9 +1316,8 @@ test('a failed amendment-history request blocks the workspace with an alert', as
       )}
     />,
   )
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Les données de planification sont indisponibles.',
-  )
+  expect(await screen.findByText('Aucun événement')).toBeVisible()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a failed Activity History request does not also show the empty state', async () => {
@@ -1581,11 +1573,7 @@ test('assignment edits retain their base version and can discard a stale draft',
   )
   render(<App router={router} />)
   await screen.findByRole('heading', { name: 'Coordination' })
-  expect(
-    screen.getByText(
-      /Date de fin non renseignée\. Opérations et budget à compléter\./,
-    ),
-  ).toBeVisible()
+  expect(screen.getByText(/Opérations et budget à compléter\./)).toBeVisible()
   expect(screen.getByText(/Brief créé par Sali Superviseure\./)).toBeVisible()
   expect(
     screen.queryByRole('heading', { name: 'Opérations' }),
@@ -1598,13 +1586,8 @@ test('assignment edits retain their base version and can discard a stale draft',
     })
   })
   expect(
-    await screen.findByText(
-      /1 janvier 2027 au 1 avril 2027 · Opérations et budget à compléter\./,
-    ),
+    await screen.findByText(/Opérations et budget à compléter\./),
   ).toBeVisible()
-  expect(
-    screen.queryByText(/Date de fin non renseignée/),
-  ).not.toBeInTheDocument()
   expect(
     fetch.mock.calls.some(([url]) => String(url).includes('/history')),
   ).toBe(false)
@@ -1624,7 +1607,7 @@ test('assignment edits retain their base version and can discard a stale draft',
     screen.getByRole('button', { name: 'Rechercher et ajouter un Agent' }),
   )
   await user.click(
-    await screen.findByRole('button', { name: 'agent@example.test' }),
+    await screen.findByRole('option', { name: 'agent@example.test' }),
   )
   await user.type(
     screen.getByRole('searchbox', {
@@ -2639,27 +2622,18 @@ test('projects check Partner availability before enabling creation', async () =>
 
 test('new activity loads its context and operation choices without fetching activity lists', async () => {
   const fetch = annualPageFetch()
-  const user = userEvent.setup()
   vi.stubGlobal('fetch', fetch)
   const router = makeRouter(
     createMemoryHistory({ initialEntries: ['/projects/project-1/ptas/2027'] }),
   )
   render(<App router={router} />)
-  const viewAll = await screen.findByRole('button', {
-    name: 'Voir toutes les activités',
-  })
+  await screen.findByRole('region', { name: 'Synthèse du PTA' })
   const activityRequests = () =>
     fetch.mock.calls
       .map(([url]) => new URL(url, 'http://localhost'))
       .filter((url) => url.pathname === '/api/v1/ptas/pta-1/activities')
-  expect(
-    activityRequests().some((url) => url.searchParams.get('agent') === 'agent'),
-  ).toBe(true)
-  await user.click(viewAll)
-  await waitFor(() =>
-    expect(
-      activityRequests().some((url) => !url.searchParams.has('agent')),
-    ).toBe(true),
+  expect(activityRequests().some((url) => !url.searchParams.has('agent'))).toBe(
+    true,
   )
   const boundary = fetch.mock.calls.length
   await act(async () => {

@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/button'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { strings } from '@/locales/fr/ListFilters'
 import { strings as common } from '@/locales/fr/common'
+import { AgentSearchPanel } from './AgentSearchPanel'
 import * as Popover from '@radix-ui/react-popover'
 
 export function QueryFilterSelect({
@@ -27,6 +28,7 @@ export function QueryFilterSelect({
   const [cursor, setCursor] = useState('')
   const [draft, setDraft] = useState('')
   const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     if (!searchable || draft === search) return
     const timer = setTimeout(() => {
@@ -93,7 +95,7 @@ export function QueryFilterSelect({
       <label>
         <span className={compact ? 'sr-only' : undefined}>{strings[kind]}</span>
         {searchable ? (
-          <Popover.Root>
+          <Popover.Root open={open} onOpenChange={setOpen}>
             <Popover.Trigger asChild>
               <Button
                 type="button"
@@ -112,34 +114,21 @@ export function QueryFilterSelect({
               </Button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content
-                align="start"
-                sideOffset={6}
-                className="z-50 grid w-72 gap-2 rounded-card border border-border bg-white p-3 shadow-lg"
-              >
-                <input
-                  type="search"
+              <Popover.Content align="start" sideOffset={6} className="z-50">
+                <AgentSearchPanel
+                  title={strings.agent}
+                  searchLabel={`Rechercher un ${strings[kind]}…`}
                   value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder={`Rechercher un ${strings[kind]}…`}
-                  maxLength={200}
-                  autoFocus
-                />
-                <div
-                  className="grid max-h-52 gap-1 overflow-y-auto"
-                  role="listbox"
+                  onChange={setDraft}
+                  onClose={() => setOpen(false)}
+                  footer={
+                    !query.isPending && !query.data?.data.length ? (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">
+                        {strings.noAgentMatch}
+                      </p>
+                    ) : null
+                  }
                 >
-                  <Popover.Close asChild>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={!value}
-                      className="rounded-control px-3 py-2 text-left hover:bg-selected aria-selected:bg-selected"
-                      onClick={() => onChange('', '')}
-                    >
-                      {strings.all}
-                    </button>
-                  </Popover.Close>
                   {query.data?.data.map((row) => (
                     <Popover.Close asChild key={row.id}>
                       <button
@@ -153,8 +142,8 @@ export function QueryFilterSelect({
                       </button>
                     </Popover.Close>
                   ))}
-                </div>
-                {pagination}
+                </AgentSearchPanel>
+                {pagination && <div className="mt-2">{pagination}</div>}
               </Popover.Content>
             </Popover.Portal>
           </Popover.Root>

@@ -26,6 +26,11 @@ export const strings = new LocalizedStrings({
     ready: 'Prête à clôturer',
     closed: 'Clôturée',
     unavailable: 'Choix indisponibles',
+    noAgentMatch: 'Aucun Agent ne correspond à votre recherche.',
+    refineResults: 'Affiner les résultats',
+    activityPeriod: 'Période de l’activité',
+    overlappingDates: 'Activités dont les dates croisent cette période.',
+    showResults: 'Voir les résultats',
   },
 })
 strings.setLanguage('fr')

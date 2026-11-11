@@ -73,10 +73,8 @@ export const strings = new LocalizedStrings({
     budgetDistribution: 'Répartition du budget',
     operationTotal: 'Total des opérations',
     programming: 'Programmation',
-    programmingToCompleteWithoutEnd:
-      '{0} · Date de fin non renseignée. Opérations et budget à compléter.',
-    programmingToCompleteWithEnd:
-      '{0} au {1} · Opérations et budget à compléter.',
+    programmingToComplete: 'Opérations et budget à compléter.',
+    assignedAgent: 'Agent affecté',
     financeTab: 'Réalisation & finances',
     historyTab: 'Historique',
     filesTab: 'Pièces justificatives',

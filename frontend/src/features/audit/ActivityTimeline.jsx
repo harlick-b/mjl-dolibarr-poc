@@ -1,7 +1,7 @@
 import { strings } from '@/locales/fr/AuditHistoryView'
 import { EventDetails } from './EventDetails'
 
-export function ActivityTimeline({ events, navigate }) {
+export function ActivityTimeline({ events }) {
   return (
     <ol className="ml-6 grid gap-5 border-l border-border px-6 py-5">
       {events.map((event) => (
@@ -22,41 +22,7 @@ export function ActivityTimeline({ events, navigate }) {
             {event.actor?.full_name || strings.system}
             {event.actor?.role ? ` · ${event.actor.role}` : ''}
           </span>
-          <EventDetails event={event} inline />
-          {event.revision_id && (
-            <button
-              type="button"
-              className="text-primary text-left underline"
-              onClick={() =>
-                navigate({
-                  search: (current) => ({
-                    ...current,
-                    revision: event.revision_id,
-                    amendment: undefined,
-                  }),
-                })
-              }
-            >
-              {strings.submittedInformation}
-            </button>
-          )}
-          {event.amendment_id && (
-            <button
-              type="button"
-              className="text-primary text-left underline"
-              onClick={() =>
-                navigate({
-                  search: (current) => ({
-                    ...current,
-                    amendment: event.amendment_id,
-                    revision: undefined,
-                  }),
-                })
-              }
-            >
-              {strings.amendment}
-            </button>
-          )}
+          <EventDetails event={event} inline changesOnly />
         </li>
       ))}
     </ol>

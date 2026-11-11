@@ -26,6 +26,15 @@ const quickStates = [
   ['returned', strings.correctionCount],
 ].map(([value, label]) => ({ value, label }))
 
+const filterStates = [
+  ['draft', strings.draft],
+  ['submitted', strings.awaitingPrevalidation],
+  ['prevalidated', strings.awaitingFinalValidation],
+  ['returned', strings.correctionCount],
+  ['approved', strings.approved],
+  ['closed', strings.closed],
+].map(([value, label]) => ({ value, label }))
+
 export function PlanningActivities({
   result,
   year,
@@ -36,7 +45,6 @@ export function PlanningActivities({
   onMonth,
   filters,
   onFilter,
-  ownActivities = false,
   reviewLabel = '',
 }) {
   const rows = result?.data || []
@@ -46,8 +54,7 @@ export function PlanningActivities({
     filters?.agent ||
     filters?.from ||
     filters?.to ||
-    filters?.review === 'mine' ||
-    (ownActivities && filters?.mine !== 'all'),
+    filters?.review === 'mine',
   )
   return (
     <section className="overflow-hidden rounded-panel border border-border bg-white">
@@ -55,11 +62,11 @@ export function PlanningActivities({
         value={filters}
         onChange={onFilter}
         agentPath={ptaId ? `/ptas/${ptaId}/activity-agents` : undefined}
-        ownActivities={ownActivities}
         reviewLabel={reviewLabel}
         searchLabel={strings.searchActivities}
         stateLabel={strings.validation}
         stateOptions={stateOptions}
+        filterStates={filterStates}
         quickStates={quickStates}
         dates
         disabled={!ptaId}
@@ -122,17 +129,6 @@ export function PlanningActivities({
                       kind={hasFilters ? 'search' : 'activities'}
                       large
                     />
-                    {ownActivities && filters?.mine !== 'all' && (
-                      <div className="flex justify-center pb-6">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => onFilter({ mine: 'all' })}
-                        >
-                          {strings.viewAllActivities}
-                        </Button>
-                      </div>
-                    )}
                   </td>
                 </tr>
               )}

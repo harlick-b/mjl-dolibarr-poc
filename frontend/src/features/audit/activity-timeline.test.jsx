@@ -1,13 +1,10 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
+import { expect, test } from 'vitest'
 import { ActivityTimeline } from './ActivityTimeline'
 
-test('timeline shows milestones, persisted changes, reasons and revision links', async () => {
-  const navigate = vi.fn()
+test('activity timeline shows useful changes and omits event metadata', () => {
   render(
     <ActivityTimeline
-      navigate={navigate}
       events={[
         {
           id: 2,
@@ -59,13 +56,8 @@ test('timeline shows milestones, persisted changes, reasons and revision links',
     '9 007 199 254 740 993 F CFA → 9 007 199 254 740 994 F CFA',
   )
   expect(screen.getByText(/27 octobre 2026 → 28 octobre 2026/)).toBeVisible()
-  expect(screen.getByText(/6 novembre 2026 à 09:00/)).toBeVisible()
-  await userEvent.click(
-    screen.getByRole('button', { name: 'Voir les informations soumises' }),
-  )
-  expect(navigate.mock.calls[0][0].search({ revisionCursor: 'page' })).toEqual({
-    revisionCursor: 'page',
-    revision: 'revision-1',
-    amendment: undefined,
-  })
+  expect(screen.queryByText(/Début de réalisation/)).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Voir les informations soumises' }),
+  ).not.toBeInTheDocument()
 })

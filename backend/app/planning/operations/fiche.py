@@ -8,7 +8,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import APIKeyCookie
 from reportlab.lib import colors  # type: ignore[import-untyped]
-from reportlab.lib.enums import TA_CENTER  # type: ignore[import-untyped]
+from reportlab.lib.enums import TA_LEFT  # type: ignore[import-untyped]
 from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # type: ignore[import-untyped]
 from reportlab.lib.units import mm  # type: ignore[import-untyped]
@@ -20,7 +20,7 @@ from reportlab.platypus import (  # type: ignore[import-untyped]
     Table,
     TableStyle,
 )
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, load_only
 
 from app.auth.dto import ErrorResponse
@@ -29,6 +29,7 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.core.models import (
     Activity,
+    ActivityAssignment,
     ActivityDocument,
     ActivityDocumentWithdrawal,
     ActivityRevision,
@@ -36,6 +37,8 @@ from app.planning.core.models import (
     AnnualPTA,
     DisbursementDecision,
     DisbursementRequest,
+    FundingDecision,
+    FundingRequest,
     Operation,
     OperationType,
     Partner,
@@ -68,20 +71,20 @@ router = APIRouter(
     },
 )
 
-NAVY = colors.HexColor("#102A43")
-GOLD = colors.HexColor("#D4A72C")
-PALE = colors.HexColor("#F3F6F8")
+NAVY = colors.HexColor("#16324F")
+BORDER = colors.HexColor("#C8D0D5")
+PALE = colors.HexColor("#F5F7F8")
 
 ROLE_LABELS = {
     "AGENT_SAISIE": "Agent de saisie",
-    "AGENT_VERIFICATEUR": "Agent vérificateur",
+    "AGENT_VERIFICATEUR": "Agent superviseur et prévalidateur",
     "VALIDATEUR_DEFINITIF": "Validateur définitif",
 }
 STATE_LABELS = {
     "draft": "Brouillon",
     "amendment_draft": "Modification en préparation",
-    "submitted": "Soumise",
-    "prevalidated": "Prévalidée",
+    "submitted": "Soumise pour prévalidation",
+    "prevalidated": "Validation définitive attendue",
     "returned_supervisor": "Retournée par le superviseur",
     "returned_validator": "Retournée par le validateur",
     "returned": "Retournée",
@@ -216,6 +219,17 @@ def projection(
             .order_by(DisbursementDecision.decided_at)
         )
     )
+    funding_requests = rows(
+        db, FundingRequest, activity.id, FundingRequest.submitted_at
+    )
+    funding_ids = {item.id for item in funding_requests}
+    funding_decisions = list(
+        db.scalars(
+            select(FundingDecision)
+            .where(FundingDecision.request_id.in_(funding_ids))
+            .order_by(FundingDecision.decided_at)
+        )
+    )
     virements = rows(db, VirementRequest, activity.id, VirementRequest.submitted_at)
     virement_ids = {item.id for item in virements}
     virement_decisions = list(
@@ -261,6 +275,27 @@ def projection(
             .order_by(ActivityDocument.uploaded_at)
         )
     )
+    if activity.state == "closed" and activity.closed_at is not None:
+        assignment_condition = ActivityAssignment.ended_at == activity.closed_at
+    elif activity.state == "withdrawn":
+        last_assignment_end = (
+            select(func.max(ActivityAssignment.ended_at))
+            .where(ActivityAssignment.activity_id == activity.id)
+            .scalar_subquery()
+        )
+        assignment_condition = ActivityAssignment.ended_at == last_assignment_end
+    else:
+        assignment_condition = ActivityAssignment.ended_at.is_(None)
+    assignments = list(
+        db.scalars(
+            select(ActivityAssignment)
+            .where(
+                ActivityAssignment.activity_id == activity.id,
+                assignment_condition,
+            )
+            .order_by(ActivityAssignment.assigned_at, ActivityAssignment.id)
+        )
+    )
     document_ids = {item.id for item in documents}
     withdrawals = {
         item.document_id: item
@@ -302,6 +337,9 @@ def projection(
             activity.closed_by_id,
             *(item.submitter_id for item in revisions),
             *(item.actor_id for item in decisions),
+            *(item.submitter_id for item in funding_requests),
+            *(item.cancelled_by_id for item in funding_requests),
+            *(item.actor_id for item in funding_decisions),
             *(item.submitter_id for item in disbursements),
             *(item.cancelled_by_id for item in disbursements),
             *(item.actor_id for item in disbursement_decisions),
@@ -313,13 +351,16 @@ def projection(
             *(item.submitter_id for item in zero_declarations),
             *(item.actor_id for item in zero_decisions),
             *(item.uploaded_by_id for item in documents),
+            *(item.agent_id for item in assignments),
             *(item.withdrawn_by_id for item in withdrawals.values()),
             *(item.actor for item in audits),
         ]
         if value
     }
     actors = {
-        item.id: f"{item.email} ({ROLE_LABELS.get(item.role, item.role)})"
+        item.id: (
+            f"{item.full_name or item.email} ({ROLE_LABELS.get(item.role, item.role)})"
+        )
         for item in db.scalars(select(User).where(User.id.in_(actor_ids)))
     }
     return {
@@ -333,6 +374,8 @@ def projection(
         "decisions": decisions,
         "operations": {item.id: item for item in operations},
         "operation_types": operation_types,
+        "funding_requests": funding_requests,
+        "funding_decisions": funding_decisions,
         "disbursements": disbursements,
         "disbursement_decisions": disbursement_decisions,
         "virements": virements,
@@ -342,6 +385,7 @@ def projection(
         "zero_declarations": zero_declarations,
         "zero_decisions": zero_decisions,
         "documents": documents,
+        "assignments": assignments,
         "document_withdrawals": withdrawals,
         "audits": audits,
         "actors": actors,
@@ -362,7 +406,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             textColor=NAVY,
             fontSize=20,
             leading=24,
-            alignment=TA_CENTER,
+            alignment=TA_LEFT,
             spaceAfter=4 * mm,
         )
     )
@@ -388,14 +432,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     small = styles["Small"]
     story: list[Any] = [
         Paragraph("FICHE RÉCAPITULATIVE D’ACTIVITÉ", styles["FicheTitle"]),
-        Paragraph(
-            f"{text(activity.reference)} · {text(snapshot.get('name'))}",
-            styles["Heading2"],
-        ),
-        Paragraph(
-            "Document administratif régénéré depuis les données autorisées de MJL.",
-            small,
-        ),
+        Paragraph(text(snapshot.get("name")), styles["Heading2"]),
+        Paragraph(text(activity.reference), small),
         Spacer(1, 3 * mm),
     ]
 
@@ -419,7 +457,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 [
                     ("BACKGROUND", (0, 0), (0, -1), PALE),
                     ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
-                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
+                    ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
                     ("LEFTPADDING", (0, 0), (-1, -1), 5),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -430,7 +468,36 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         )
         story.append(result)
 
-    section("1. Contexte")
+    def grid_table(
+        headers: list[str], values: list[list[str]], widths: list[float]
+    ) -> None:
+        result = Table(
+            [
+                [Paragraph(f"<b>{heading}</b>", small) for heading in headers],
+                *[[Paragraph(value, small) for value in row] for row in values],
+            ],
+            colWidths=widths,
+            repeatRows=1,
+            splitInRow=1,
+        )
+        result.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("TEXTCOLOR", (0, 1), (-1, -1), NAVY),
+                    ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        story.append(result)
+
+    section("Identité de l’activité")
     table(
         [
             ("Partenaire", text(data["partner"].name)),
@@ -444,7 +511,11 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         ]
     )
 
-    section("2. Planification approuvée")
+    section("Planification approuvée")
+    assigned_agents = ", ".join(
+        actors.get(item.agent_id, "Personne non disponible")
+        for item in data["assignments"]
+    )
     table(
         [
             ("Description", text(snapshot.get("description"))),
@@ -457,8 +528,63 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             ),
             ("Allocation approuvée", xof(snapshot.get("allocation"))),
             ("Révision approuvée", f"N° {data['revision'].revision_number}"),
+            ("Agents affectés", text(assigned_agents)),
         ]
     )
+    section("Budget et opérations")
+    approved_revision_ids = {
+        item.revision_id for item in data["decisions"] if item.outcome == "approved"
+    }
+    initial_revision = next(
+        (item for item in data["revisions"] if item.id in approved_revision_ids),
+        data["revision"],
+    )
+    approved_operation_ids = {
+        str(item.get("id"))
+        for item in snapshot.get("operations", [])
+        if isinstance(item, dict)
+    }
+    approved_current_operations = [
+        data["operations"].get(identifier) for identifier in approved_operation_ids
+    ]
+    spending_known = bool(approved_current_operations) and all(
+        item is not None and item.actual_spent is not None
+        for item in approved_current_operations
+    )
+    spent_total = (
+        sum(item.actual_spent or 0 for item in approved_current_operations if item)
+        if spending_known
+        else None
+    )
+    budget_summary = Table(
+        [
+            [
+                Paragraph("<b>Budget initial</b>", small),
+                Paragraph("<b>Budget approuvé actuel</b>", small),
+                Paragraph("<b>Dépenses enregistrées</b>", small),
+            ],
+            [
+                Paragraph(xof(initial_revision.snapshot.get("allocation")), small),
+                Paragraph(xof(snapshot.get("allocation")), small),
+                Paragraph(xof(spent_total), small),
+            ],
+        ],
+        colWidths=[170 * mm / 3] * 3,
+    )
+    budget_summary.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), PALE),
+                ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
+                ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (0, 1), (-1, 1), "RIGHT"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.extend([budget_summary, Spacer(1, 3 * mm)])
     operation_rows: list[list[Any]] = [
         [
             Paragraph("<b>Opération</b>", small),
@@ -495,6 +621,14 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 Paragraph(status, small),
             ]
         )
+    operation_rows.append(
+        [
+            Paragraph("<b>Total</b>", small),
+            Paragraph(f"<b>{xof(snapshot.get('allocation'))}</b>", small),
+            Paragraph(f"<b>{xof(spent_total)}</b>", small),
+            Paragraph("", small),
+        ]
+    )
     operation_table = Table(
         operation_rows,
         colWidths=[82 * mm, 30 * mm, 30 * mm, 28 * mm],
@@ -506,7 +640,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             [
                 ("BACKGROUND", (0, 0), (-1, 0), NAVY),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
+                ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
@@ -515,7 +649,6 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     )
     story.append(operation_table)
 
-    section("3. Révisions et décisions")
     chronology: list[Any] = []
     decisions_by_revision: dict[str, list[ActivityRevisionDecision]] = {}
     for decision in data["decisions"]:
@@ -556,109 +689,148 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 )
             )
         chronology.append(Spacer(1, 1.5 * mm))
-    story.append(
-        KeepTogether(chronology[:3])
-        if chronology
-        else Paragraph("Aucune révision.", small)
-    )
-    if len(chronology) > 3:
-        story.extend(chronology[3:])
+    validation_chronology = chronology
 
-    section("4. Autorisations financières")
-    financial: list[tuple[str, str]] = []
+    section("Autorisations administratives")
+    authorization_count = 0
+
+    def authorization_table(
+        title: str,
+        request_state: str,
+        submitter_id: str,
+        submitted_at: datetime,
+        decisions: list[Any],
+        *,
+        amount: str = "—",
+        reason: str = "—",
+        cancellation: str | None = None,
+    ) -> None:
+        nonlocal authorization_count
+        authorization_count += 1
+        story.append(Paragraph(f"<b>{title}</b>", small))
+        summary = (
+            f"{request_state} · {amount} · soumise le {day(submitted_at)} par "
+            f"{text(actors.get(submitter_id, submitter_id))}"
+        )
+        if reason != "—":
+            summary += f" · Motif : {reason}"
+        if cancellation:
+            summary += f" · {cancellation}"
+        story.append(Paragraph(summary, small))
+        rows = []
+        for decision in decisions:
+            rows.append(
+                [
+                    text(ROLE_LABELS.get(decision.actor_role, decision.actor_role)),
+                    text(OUTCOME_LABELS.get(decision.outcome, decision.outcome)),
+                    text(actors.get(decision.actor_id, decision.actor_id)),
+                    day(decision.decided_at),
+                    text(decision.reason),
+                ]
+            )
+        if rows:
+            grid_table(
+                ["Étape", "Décision", "Responsable", "Date", "Motif"],
+                rows,
+                [34 * mm, 28 * mm, 42 * mm, 31 * mm, 35 * mm],
+            )
+        else:
+            story.append(Paragraph("Aucune décision enregistrée.", small))
+        story.append(Spacer(1, 3 * mm))
+
     for declaration in data["zero_declarations"]:
         state = STATE_LABELS.get(declaration.state, text(declaration.state))
-        submitter = text(actors.get(declaration.submitter_id, declaration.submitter_id))
-        financial.append(
-            (
-                "Déclaration sans dépense",
-                f"{state} · soumise le {day(declaration.submitted_at)} par "
-                f"{submitter} · Motif : {text(declaration.reason)}",
-            )
+        authorization_table(
+            "Déclaration sans dépense — 0 F CFA",
+            state,
+            declaration.submitter_id,
+            declaration.submitted_at,
+            [
+                item
+                for item in data["zero_decisions"]
+                if item.declaration_id == declaration.id
+            ],
+            amount=xof(0),
+            reason=text(declaration.reason),
         )
-    for decision in data["zero_decisions"]:
-        outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
-        decision_actor = text(actors.get(decision.actor_id, decision.actor_id))
-        role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
-        reason = f" · Motif : {text(decision.reason)}" if decision.reason else ""
-        financial.append(
-            (
-                "Décision sans dépense",
-                f"{outcome} · {role} · {decision_actor} · "
-                f"{day(decision.decided_at)}{reason}",
-            )
-        )
-    for request in data["disbursements"]:
+    for request in data["funding_requests"]:
         state = STATE_LABELS.get(request.state, text(request.state))
-        submitter = text(actors.get(request.submitter_id, request.submitter_id))
-        financial.append(
-            (
-                "Demande de décaissement",
-                f"{xof(request.amount)} · {state} · soumise le "
-                f"{day(request.submitted_at)} par {submitter}",
-            )
-        )
+        cancellation = None
         if request.cancelled_at:
             cancelled_by = text(
                 actors.get(request.cancelled_by_id, request.cancelled_by_id)
             )
-            financial.append(
-                (
-                    "Annulation décaissement",
-                    f"{day(request.cancelled_at)} · {cancelled_by} · Motif : "
-                    f"{text(request.cancellation_reason)}",
-                )
+            cancellation = (
+                f"Annulée le {day(request.cancelled_at)} par {cancelled_by} · "
+                f"Motif : {text(request.cancellation_reason)}"
             )
-    for decision in data["disbursement_decisions"]:
-        outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
-        decision_actor = text(actors.get(decision.actor_id, decision.actor_id))
-        role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
-        reason = f" · Motif : {text(decision.reason)}" if decision.reason else ""
-        financial.append(
-            (
-                "Décision décaissement",
-                f"{outcome} · {role} · {decision_actor} · "
-                f"{day(decision.decided_at)}{reason}",
+        authorization_table(
+            "Demande de financement complémentaire",
+            state,
+            request.submitter_id,
+            request.submitted_at,
+            [
+                item
+                for item in data["funding_decisions"]
+                if item.request_id == request.id
+            ],
+            amount=xof(request.amount),
+            cancellation=cancellation,
+        )
+    for request in data["disbursements"]:
+        state = STATE_LABELS.get(request.state, text(request.state))
+        cancellation = None
+        if request.cancelled_at:
+            cancelled_by = text(
+                actors.get(request.cancelled_by_id, request.cancelled_by_id)
             )
+            cancellation = (
+                f"Annulée le {day(request.cancelled_at)} par {cancelled_by} · "
+                f"Motif : {text(request.cancellation_reason)}"
+            )
+        authorization_table(
+            "Demande de décaissement",
+            state,
+            request.submitter_id,
+            request.submitted_at,
+            [
+                item
+                for item in data["disbursement_decisions"]
+                if item.request_id == request.id
+            ],
+            amount=xof(request.amount),
+            cancellation=cancellation,
         )
     disbursement_amounts = {item.id: item.amount for item in data["disbursements"]}
     for request in data["virements"]:
         state = STATE_LABELS.get(request.state, text(request.state))
         amount = xof(disbursement_amounts.get(request.disbursement_request_id))
-        submitter = text(actors.get(request.submitter_id, request.submitter_id))
-        financial.append(
-            (
-                "Demande de virement",
-                f"{amount} · {state} · soumise le {day(request.submitted_at)} "
-                f"par {submitter}",
-            )
-        )
+        cancellation = None
         if request.cancelled_at:
             cancelled_by = text(
                 actors.get(request.cancelled_by_id, request.cancelled_by_id)
             )
-            financial.append(
-                (
-                    "Annulation virement",
-                    f"{day(request.cancelled_at)} · {cancelled_by} · Motif : "
-                    f"{text(request.cancellation_reason)}",
-                )
+            cancellation = (
+                f"Annulée le {day(request.cancelled_at)} par {cancelled_by} · "
+                f"Motif : {text(request.cancellation_reason)}"
             )
-    for decision in data["virement_decisions"]:
-        outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
-        decision_actor = text(actors.get(decision.actor_id, decision.actor_id))
-        role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
-        reason = f" · Motif : {text(decision.reason)}" if decision.reason else ""
-        financial.append(
-            (
-                "Décision virement",
-                f"{outcome} · {role} · {decision_actor} · "
-                f"{day(decision.decided_at)}{reason}",
-            )
+        authorization_table(
+            "Demande de virement",
+            state,
+            request.submitter_id,
+            request.submitted_at,
+            [
+                item
+                for item in data["virement_decisions"]
+                if item.request_id == request.id
+            ],
+            amount=amount,
+            cancellation=cancellation,
         )
-    table(financial or [("Situation", "Aucune autorisation financière enregistrée.")])
+    if not authorization_count:
+        story.append(Paragraph("Aucune autorisation financière enregistrée.", small))
 
-    section("5. Virements externes et reversement")
+    section("Déclarations externes et clôture")
     settlement: list[tuple[str, str]] = []
     for item in data["confirmations"]:
         correction = (
@@ -723,12 +895,20 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         else "Non renseigné"
     )
     settlement.append(("Montant reversé", returned))
+    closure_actor = text(actors.get(activity.closed_by_id or "", activity.closed_by_id))
+    settlement.append(
+        (
+            "Clôture",
+            f"{day(activity.closed_at)} · {closure_actor}"
+            if activity.closed_at
+            else "Activité non clôturée.",
+        )
+    )
     table(settlement)
 
-    section("6. Clôture et pièces justificatives")
-    closure_actor = text(actors.get(activity.closed_by_id or "", activity.closed_by_id))
+    section("Pièces justificatives")
     documents_by_id = {item.id: item for item in data["documents"]}
-    document_rows: list[tuple[str, str]] = []
+    document_rows: list[list[str]] = []
     for document in data["documents"]:
         withdrawal = data["document_withdrawals"].get(document.id)
         uploader = text(actors.get(document.uploaded_by_id, document.uploaded_by_id))
@@ -743,40 +923,54 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 else ""
             )
             document_rows.append(
-                (
-                    "Pièce retirée",
-                    f"{text(document.display_name)} · ajoutée le "
-                    f"{day(document.uploaded_at)} par {uploader} · retirée le "
-                    f"{day(withdrawal.withdrawn_at)} par {withdrawer} · Motif : "
-                    f"{text(withdrawal.reason)}{replacement_text}",
-                )
+                [
+                    f"{text(document.display_name)}<br/><i>Retirée par "
+                    f"{withdrawer} · Motif : {text(withdrawal.reason)}"
+                    f"{replacement_text}</i>",
+                    uploader,
+                    f"Déposée le {day(document.uploaded_at)}<br/>Retirée le "
+                    f"{day(withdrawal.withdrawn_at)}",
+                ]
             )
         else:
             document_rows.append(
-                (
-                    "Pièce actuelle",
-                    f"{text(document.display_name)} · ajoutée le "
-                    f"{day(document.uploaded_at)} par {uploader}",
-                )
+                [
+                    f"{text(document.display_name)}<br/><i>Pièce actuelle</i>",
+                    uploader,
+                    day(document.uploaded_at),
+                ]
             )
-    table(
-        [
-            (
-                "Clôture",
-                f"{day(activity.closed_at)} · {closure_actor}"
-                if activity.closed_at
-                else "Activité non clôturée.",
-            ),
-            *(
-                document_rows
-                or [("Pièces justificatives", "Aucune pièce enregistrée.")]
-            ),
-        ]
-    )
+    if document_rows:
+        grid_table(
+            ["Document / Contexte", "Déposé par", "Date"],
+            document_rows,
+            [85 * mm, 50 * mm, 35 * mm],
+        )
+    else:
+        story.append(Paragraph("Aucune pièce enregistrée.", small))
 
-    section("7. Journal des événements")
+    section("Chronologie administrative")
     audit_lines: list[Any] = []
+    validation_audit_actions = {
+        "activity.submit",
+        "activity.prevalidate",
+        "activity.return_supervisor",
+        "activity.approve",
+        "activity.return_validator",
+        "activity.withdrawal_submit",
+        "activity.withdrawal_prevalidate",
+        "activity.withdrawal_return_supervisor",
+        "activity.withdrawal_approve",
+        "activity.withdrawal_return_validator",
+        "activity.transfer_submit",
+        "activity.transfer_prevalidate",
+        "activity.transfer_return_supervisor",
+        "activity.transfer_approve",
+        "activity.transfer_return_validator",
+    }
     for item in data["audits"]:
+        if item.action in validation_audit_actions:
+            continue
         actor = text(actors.get(item.actor, item.actor))
         action = AUDIT_ACTION_LABELS.get(item.action, item.action)
         line = f"{day(item.occurred_at)} · {text(action)} · {actor}"
@@ -822,17 +1016,35 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             if audit_reason:
                 line += f" · Motif : {text(audit_reason)}"
         audit_lines.append(Paragraph(line, small))
-    story.extend(audit_lines or [Paragraph("Aucun événement enregistré.", small)])
+    if validation_chronology:
+        story.append(KeepTogether(validation_chronology[:3]))
+        story.extend(validation_chronology[3:])
+    if audit_lines:
+        story.extend(audit_lines)
+    elif not validation_chronology:
+        story.append(Paragraph("Aucun événement enregistré.", small))
 
     generated_at: datetime = data["generated_at"]
 
     def decorate(canvas: Any, document: Any) -> None:
         canvas.saveState()
-        canvas.setStrokeColor(GOLD)
+        canvas.setStrokeColor(NAVY)
         canvas.setLineWidth(1.2)
-        canvas.line(20 * mm, A4[1] - 14 * mm, A4[0] - 20 * mm, A4[1] - 14 * mm)
-        canvas.setFont("Helvetica", 8)
+        canvas.setFont("Helvetica-Bold", 13)
         canvas.setFillColor(NAVY)
+        canvas.drawString(20 * mm, A4[1] - 16 * mm, "MJL")
+        canvas.setFont("Helvetica", 8)
+        canvas.drawRightString(
+            A4[0] - 20 * mm,
+            A4[1] - 13 * mm,
+            f"Référence : {activity.reference}",
+        )
+        canvas.drawRightString(
+            A4[0] - 20 * mm,
+            A4[1] - 18 * mm,
+            f"Générée le {generated_at.strftime('%d/%m/%Y')}",
+        )
+        canvas.line(20 * mm, A4[1] - 22 * mm, A4[0] - 20 * mm, A4[1] - 22 * mm)
         canvas.drawString(
             20 * mm,
             10 * mm,
@@ -846,7 +1058,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         pagesize=A4,
         rightMargin=20 * mm,
         leftMargin=20 * mm,
-        topMargin=20 * mm,
+        topMargin=28 * mm,
         bottomMargin=18 * mm,
         title=f"Fiche activité {activity.reference}",
         author="MJL",

@@ -228,12 +228,23 @@ def users(
             .correlate(User, Invitation)
             .scalar_subquery()
         )
+        created_at = (
+            select(Audit.occurred_at)
+            .where(
+                Audit.action.in_(("bootstrap", "invitation_create")),
+                Audit.target == User.id,
+            )
+            .order_by(Audit.occurred_at.asc(), Audit.id.asc())
+            .limit(1)
+            .correlate(User)
+            .scalar_subquery()
+        )
         rows = cast(
             list[tuple[User, Invitation | None, str | None]],
             db.execute(
                 query.add_columns(Invitation, delivery)
                 .outerjoin(Invitation, Invitation.user_id == User.id)
-                .order_by(User.id)
+                .order_by(created_at.desc().nullslast(), User.id.desc())
                 .offset((filters.page - 1) * filters.size)
                 .limit(filters.size)
             ).all(),

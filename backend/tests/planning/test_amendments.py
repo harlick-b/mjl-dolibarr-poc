@@ -72,7 +72,7 @@ def open_amendment(clients, activity, reason="Modification synthétique"):
 
 
 def edit_amendment(clients, activity, operation_type, description):
-    activity = assign_agents(clients, activity, clients["agent2"])
+    activity = assign_agents(clients, activity, clients["agent"], clients["agent2"])
     response = patch(
         clients["agent2"],
         f"/api/v1/activities/{activity['id']}",
@@ -264,9 +264,7 @@ def test_m13_cancellation_restores_approved_content_and_preserves_evidence(plann
             "reason": "Modification finalement inutile.",
         },
     ).json()
-    opened = assign_agents(
-        planning, opened, planning["agent"], planning["agent2"]
-    )
+    opened = assign_agents(planning, opened, planning["agent"], planning["agent2"])
     changed = patch(
         planning["agent2"],
         f"/api/v1/activities/{approved['id']}",

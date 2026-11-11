@@ -13,6 +13,9 @@ from app.planning.operations import fiche
 from tests.execution.test_closure import close_path, settled_activity
 from tests.execution.test_disbursement import collection, finish_activity
 from tests.execution.test_execution import approved_execution_activity, execution_path
+from tests.execution.test_funding import decide as decide_funding
+from tests.execution.test_funding import increase
+from tests.execution.test_funding import submit as submit_funding
 from tests.planning.test_amendments import (
     approved_activity,
     cancel_amendment,
@@ -71,14 +74,18 @@ def test_closed_activity_fiche_contains_authoritative_history_and_is_audited(pla
         assert expected in content
     assert re.search(r"Montant à reverser\s+100 000 F CFA", content)
     assert re.search(r"Montant reversé\s+100 000 F CFA", content)
+    assert re.search(r"Agents affectés\s+Test User", content)
     normalized = re.sub(r"\s+", " ", content)
     assert "activity." not in normalized
+    assert normalized.count("Révision 1 · soumise le") == 1
     assert re.search(
-        r"Confirmation virement · révision 1 .*? par agent@example\.test",
+        r"Confirmation virement · révision 1 .*? par Test User "
+        r"\(Agent de saisie\)",
         normalized,
     )
     assert re.search(
-        r"Reversement déclaré · révision 1 .*? par agent@example\.test",
+        r"Reversement déclaré · révision 1 .*? par Test User "
+        r"\(Agent de saisie\)",
         normalized,
     )
 
@@ -146,7 +153,7 @@ def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
     ).json()
     opened = open_amendment(planning, approved, "Changer le type d’opération.")
     changed = patch(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{approved['id']}",
         plan(
             candidate_type,
@@ -226,12 +233,26 @@ def test_fiche_renders_requested_amount_and_audit_reasons_in_french(planning):
     assert "activity." not in cancelled_content
 
 
+def test_fiche_renders_complementary_funding_decisions(planning):
+    activity = increase(planning, approved_execution_activity(planning))
+    request = submit_funding(planning, activity)
+    prevalidated = decide_funding(
+        planning, activity, request, "supervisor", "prevalidate"
+    )
+    assert prevalidated.status_code == 201, prevalidated.text
+
+    content = re.sub(r"\s+", " ", pdf_text(planning["agent"].get(fiche_path(activity))))
+    assert "Demande de financement complémentaire" in content
+    assert "20 000 F CFA" in content
+    assert re.search(r"Agent superviseur et prévalidateur\s+Prévalidé", content)
+
+
 def test_fiche_renders_withdrawal_submission_reason(planning):
     approved, _operation_type = approved_activity(planning)
     enable_withdrawals(planning)
     withdrawal_reason = "Le programme annuel ne permet plus cette activité."
     response = post(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{approved['id']}/withdrawals",
         {
             "expected_version": approved["version"],

@@ -90,6 +90,7 @@ def deliver_assignment_notification(auth: AuthService, identifier: str) -> str |
                     "pta_name": context[0],
                     "project_name": context[1],
                     "assigner_name": assigner.full_name or assigner.email,
+                    "action_url": f"{auth.policy.origin}/activities/{activity.id}",
                 },
             )
         item.email_completed_at = auth.now(db)

@@ -1,6 +1,6 @@
 # Activity UX improvements — reviewed plan
 
-2026-11-10. Implementation authorized and completed; focused verification and
+2026-11-10, updated 2026-11-11. Implementation authorized and completed; focused verification and
 independent code review are complete. Human visual review remains acceptance.
 Source: user findings, supplied screenshots and follow-up decisions.
 Existing unrelated working-tree changes must be preserved.
@@ -32,8 +32,8 @@ Confirmed requirements:
 - Agent creation generates no assignment notification in either channel.
   Assignment by another person notifies each newly assigned Agent in-app and by
   email, including reviewer creation; retain existing inbox/read conventions.
-- Agents initially see their assigned Activities in a PTA, with a visible,
-  removable filter to see all permitted Activities.
+- Draft visibility follows the server assignment rules. The later approved list
+  refinement removes the separate `Mes activités` control.
 - History uses readable French, formatted dates and Agent identities, never raw
   identity IDs. Category modal follows Project composition with saved Nom and
   Description fields.
@@ -105,13 +105,10 @@ remain allowed. This rule was explicitly confirmed by the user after review.
 
 ### Assigned work and notifications
 
-- Show a visible `Mes activités` filter by default for Agents entering a PTA
-  without an explicit filter choice. Removing/resetting it means all permitted
-  Activities; preserve that explicit choice through pagination, view changes,
-  reload and browser Back via Router search state, not a new preference store.
-  Filter before pagination; counts for results match table/calendar. Whole-PTA
-  summary metrics remain unfiltered. Empty own results offer `Voir toutes les
-  activités`, not a misleading empty-PTA message.
+- Do not show a separate `Mes activités` filter. Initial drafts remain limited by
+  the approved creator/assignment visibility rules; submitted Activities use the
+  normal permitted list. Counts continue to match table/calendar and whole-PTA
+  summary metrics remain unfiltered.
 - No assignment notification for Agent creation. Reviewer creation and later
   assignment changes notify newly added Agents only. Unchanged/removed assignees
   receive none; a genuine later re-add is a new assignment. Replayed writes must
@@ -188,7 +185,9 @@ No additional fake table layered over the real table.
   feedback, readable History and Activity loading. Slice 2 persists category
   descriptions. Slice 3 supports resumable incomplete initial drafts, strict
   submission, complete-or-remove Operations, optional dates and `Sans date`.
-  Slice 4 applies the removable Agent-owned filter through Router state. Slice 5
+  Slice 4 originally applied a removable Agent-owned filter through Router state;
+  the approved 2026-11-11 refinement removes that control while retaining server
+  draft visibility. Slice 5
   records recipient assignment notifications atomically and attempts email after
   commit while preserving the existing inbox/read flow.
 - Implementation lessons: nullable initial drafts also required updating strict
@@ -259,8 +258,9 @@ detail, History, finance and PTA-table references govern presentation.
   raw identifiers, internal role codes and contributor dumps. Older unavailable
   facts use a neutral fallback and are never invented.
 - Revision numbers disappear from routine Activity headers and PTA rows. The
-  immutable saved revisions remain the approval mechanism and may be opened from
-  History through human wording such as `Voir les informations soumises`.
+  immutable saved revisions remain the approval mechanism. History shows the
+  resulting business event and actual before/after changes without raw snapshot
+  panels or internal metadata.
 - `Budget et validation` includes `Assignée à` with the responsible Agent names.
   Shared status badges use the approved semantic colors from the supplied
   references. `Réalisation & finances` remains available after final approval;
@@ -269,7 +269,7 @@ detail, History, finance and PTA-table references govern presentation.
   `Soumise pour prévalidation`. Validators enter with
   `Validation définitive attendue`. These defaults show only requests the
   current user is eligible to decide; explicit filters and other actions remain
-  available. Agent `Mes activités` behavior remains unchanged.
+  available. Agent lists do not expose a separate `Mes activités` control.
 
 ### Notification contract
 

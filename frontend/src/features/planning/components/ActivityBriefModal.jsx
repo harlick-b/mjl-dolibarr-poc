@@ -10,6 +10,7 @@ import { Panel } from '@/shared/ui/layout'
 import { Button } from '@/shared/ui/button'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { RetryableError } from '@/shared/ui/RetryableError'
+import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { localDateInput } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ActivityBriefModal'
@@ -207,105 +208,82 @@ export function ActivityBriefModal({
               <ChevronDown size={16} />
             </Button>
             {expanded && (
-              <div className="rounded-control border border-border p-2">
-                <input
-                  aria-label={strings.search}
-                  placeholder={strings.search}
-                  value={q}
-                  onChange={(event) => setQ(event.target.value)}
-                />
-                {agents.isError ? (
-                  <RetryableError onRetry={() => agents.refetch()}>
-                    {strings.unavailable}
-                  </RetryableError>
-                ) : (
-                  <div
-                    role="listbox"
-                    aria-label={strings.agents}
-                    aria-multiselectable="true"
-                    aria-busy={agents.isFetching}
-                    className="mt-1 max-h-48 overflow-auto"
-                    onKeyDown={(event) => {
-                      if (
-                        !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(
-                          event.key,
-                        )
-                      )
-                        return
-                      event.preventDefault()
-                      const options = [
-                        ...event.currentTarget.querySelectorAll(
-                          '[role=option]',
-                        ),
-                      ]
-                      const index = options.indexOf(document.activeElement)
-                      const next =
-                        event.key === 'Home'
-                          ? 0
-                          : event.key === 'End'
-                            ? options.length - 1
-                            : (index +
-                                (event.key === 'ArrowDown' ? 1 : -1) +
-                                options.length) %
-                              options.length
-                      options[next]?.focus()
-                    }}
-                  >
-                    {agents.data?.data.map((agent) => {
-                      const checked = selected.some(
-                        (row) => row.id === agent.id,
-                      )
-                      return (
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={checked}
-                          key={agent.id}
-                          className={`flex min-h-10 w-full items-center justify-between rounded-control px-3 text-left text-sm hover:bg-selected ${checked ? 'bg-selected' : ''}`}
-                          onClick={() =>
-                            setSelected(
-                              checked
-                                ? selected.filter((row) => row.id !== agent.id)
-                                : [...selected, agent],
-                            )
-                          }
-                        >
-                          {agent.full_name || agent.email}
-                          {checked && <Check size={15} />}
-                        </button>
-                      )
-                    })}
+              <AgentSearchPanel
+                title={strings.agents}
+                searchLabel={strings.search}
+                value={q}
+                onChange={setQ}
+                onClose={() => setExpanded(false)}
+                className="w-full"
+                footer={
+                  <>
+                    {agents.isError && (
+                      <RetryableError onRetry={() => agents.refetch()}>
+                        {strings.unavailable}
+                      </RetryableError>
+                    )}
                     {agents.isSuccess && !agents.data.count && (
                       <p className="p-3 text-center text-muted-foreground">
                         {strings.none}
                       </p>
                     )}
-                  </div>
-                )}
-                {(agents.data?.next || agents.data?.previous) && (
-                  <div className="mt-2 flex justify-end gap-2">
-                    {['previous', 'next'].map((direction) => (
-                      <Button
+                    {(agents.data?.next || agents.data?.previous) && (
+                      <div className="flex justify-end gap-2">
+                        {['previous', 'next'].map((direction) => (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            key={direction}
+                            disabled={
+                              !agents.data[direction] || agents.isFetching
+                            }
+                            onClick={() =>
+                              setCursor(
+                                cursorFrom(
+                                  agents.data[direction],
+                                  '/assignment-agents',
+                                ),
+                              )
+                            }
+                          >
+                            {strings[direction]}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                }
+                listProps={{
+                  'aria-label': strings.agents,
+                  'aria-multiselectable': 'true',
+                  'aria-busy': agents.isFetching,
+                }}
+              >
+                {!agents.isError &&
+                  agents.data?.data.map((agent) => {
+                    const checked = selected.some((row) => row.id === agent.id)
+                    return (
+                      <button
                         type="button"
-                        size="sm"
-                        variant="outline"
-                        key={direction}
-                        disabled={!agents.data[direction] || agents.isFetching}
+                        role="option"
+                        aria-selected={checked}
+                        key={agent.id}
+                        className={`flex min-h-10 w-full items-center justify-between rounded-control px-3 text-left text-sm hover:bg-selected ${checked ? 'bg-selected' : ''}`}
                         onClick={() =>
-                          setCursor(
-                            cursorFrom(
-                              agents.data[direction],
-                              '/assignment-agents',
-                            ),
+                          setSelected(
+                            checked
+                              ? selected.filter((row) => row.id !== agent.id)
+                              : [...selected, agent],
                           )
                         }
                       >
-                        {strings[direction]}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        {agent.full_name || agent.email}
+                        {checked && <Check size={15} />}
+                      </button>
+                    )
+                  })}
+              </AgentSearchPanel>
             )}
             <p className="-mt-2 text-xs text-muted-foreground">
               {strings.assignmentHelp}

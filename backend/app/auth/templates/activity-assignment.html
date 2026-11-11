@@ -1,18 +1,48 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ app_name }} - {{ email_title }}</title></head>
-<body style="margin:0;padding:32px 16px;background:#f5f7f8;font-family:Inter,Arial,Helvetica,sans-serif;color:#202529">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:auto;background:#fff;border:1px solid #c8d0d5;border-radius:6px">
-    <tr><td style="padding:24px 32px;background:#16324f;color:#fff;font-size:22px;font-weight:700">{{ app_name }}</td></tr>
-    <tr><td style="padding:32px">
-      <h1 style="margin:0 0 20px;font-size:24px">{{ email_title }}</h1>
-      <p>Bonjour{% if recipient_name %} {{ recipient_name }}{% endif %},</p>
-      <p>{{ assigner_name }} vous a assigné une activité.</p>
-      <p><strong>{{ activity_reference }} - {{ activity_name }}</strong></p>
-      <p>PTA : {{ pta_name }}<br>Projet : {{ project_name }}</p>
-      <p style="color:#5c6870">Connectez-vous à MJL pour consulter l’activité.</p>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{app_name}} — {{email_title}}</title>
+  <style>
+    @media only screen and (max-width:600px) {
+      .email-wrap { padding:16px 12px !important; }
+      .email-header { padding:24px !important; }
+      .email-content { padding:32px 24px !important; }
+      .email-footer { padding:0 24px 20px !important; }
+      .activity-summary { padding:18px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;width:100%;background-color:#f5f7f8;font-family:Inter,Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:#f5f7f8;">Une nouvelle activité vous a été confiée.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;background-color:#f5f7f8;">
+    <tr><td class="email-wrap" align="center" style="padding:40px 16px;">
+      <!--[if mso]><table role="presentation" width="600" align="center" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;width:100%;border-collapse:separate;border-spacing:0;">
+        <tr><td class="email-header" style="background-color:#16324f;padding:28px 40px;border-radius:6px 6px 0 0;"><span style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:700;font-size:22px;line-height:28px;color:#ffffff;">{{app_name}}</span></td></tr>
+        <tr><td class="email-content" style="padding:40px;background-color:#ffffff;border-left:1px solid #c8d0d5;border-right:1px solid #c8d0d5;">
+          <h1 style="font-family:Inter,Arial,Helvetica,sans-serif;font-weight:600;font-size:24px;line-height:32px;color:#202529;margin:0 0 20px;">{{email_title}}</h1>
+          <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 16px;">Bonjour{% if recipient_name %} {{recipient_name}}{% endif %},</p>
+          <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 24px;">{{assigner_name}} vous a confié cette activité. Elle est disponible dans votre espace MJL.</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #c8d0d5;border-radius:6px;margin:0 0 24px;">
+            <tr><td class="activity-summary" style="padding:20px 22px;">
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;font-weight:600;color:#202529;margin:0 0 4px;">{{activity_name}}</p>
+              <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#5c6870;margin:0 0 16px;">{{activity_reference}}</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;border-top:1px solid #e0e5ea;">
+                <tr><td valign="top" style="padding:12px 12px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5c6870;width:70px;">Projet</td><td valign="top" style="padding:12px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#34414a;">{{project_name}}</td></tr>
+                <tr><td valign="top" style="padding:7px 12px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5c6870;">PTA</td><td valign="top" style="padding:7px 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#34414a;">{{pta_name}}</td></tr>
+              </table>
+            </td></tr>
+          </table>
+          <p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:24px;color:#34414a;margin:0 0 24px;">Consultez l’activité pour compléter sa programmation ou suivre son avancement.</p>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;border-spacing:0;"><tr><td align="center" bgcolor="#164f7a" style="background-color:#164f7a;border-radius:6px;"><a href="{{action_url}}" style="display:inline-block;padding:13px 24px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border:1px solid #164f7a;border-radius:6px;">Consulter l’activité</a></td></tr></table>
+        </td></tr>
+        <tr><td class="email-footer" align="center" style="background-color:#ffffff;padding:0 40px 24px;border:1px solid #c8d0d5;border-top:0;border-radius:0 0 6px 6px;"><p style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;color:#5c6870;margin:0;padding-top:20px;border-top:1px solid #c8d0d5;">Message automatique envoyé par {{app_name}}. Merci de ne pas y répondre.</p></td></tr>
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
     </td></tr>
-    <tr><td style="padding:20px 32px;border-top:1px solid #c8d0d5;color:#5c6870;font-size:12px">Message automatique envoyé par {{ app_name }}. Merci de ne pas y répondre.</td></tr>
   </table>
 </body>
 </html>

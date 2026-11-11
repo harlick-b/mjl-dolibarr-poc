@@ -173,7 +173,8 @@ screenshot governs composition; omit prototype-only demo/scenario controls.
 The Admin Dashboard is hidden for now; Admin opens on Users and its sidebar shows
 Users and History. Users and pending invitations share one table:
 name with email underneath, role, attachment, state and permitted row actions.
-Search matches name or email. The only account filter is Role; its collapsible
+The table shows newest accounts first. Search matches name or email. The only
+account filter is Role; its collapsible
 panel and removable criteria follow the supplied PTA filter composition. Successful
 invitations use a toast instead of an inline page notice. Invite given/family names share a row on desktop and stack
 on mobile. Shared shadcn Select popups stay inside native dialogs; submit buttons
@@ -234,11 +235,25 @@ the **Créer une activité** modal directly from the PTA; Agent creation
 opens the full editing workspace. Do not use the old standalone **Brief initial**
 page. Required form labels end with `*`; optional labels have no parenthetical
 suffix. The reviewer modal uses **Assigner à**, preloads the first ten active
-Agents and keeps server search. Agent PTA lists start with a removable **Mes
-activités** filter, while undated drafts appear under **Sans date**. Activity
-detail prioritizes context, responsibility, validation and one
+Agents and keeps server search. PTA Activity lists do not expose a **Mes activités**
+button; draft visibility is already enforced by the server. Undated drafts appear
+under **Sans date**. Activity detail keeps reference, title, Project/Partner/PTA,
+state, period and responsible Agents in one compact identity block. Its
+tabs always place **Réalisation & finances** second when available; Programming
+does not repeat the dates already shown above. Activity detail prioritizes context, responsibility, validation and one
 authorized next action. Table/calendar share search and filters, removable chips
-and reset. The Agent selector stays inside the collapsible filter panel; canonical
-state wording prevents duplicate review chips. Activity History uses the supplied
-single-card compact vertical timeline with event, date, actor and recorded detail.
+and reset. The filter trigger opens the supplied floating panel with canonical
+state chips and an overlapping date range. The Agent selector stays inside that
+panel and all searchable Agent lists reuse the supplied titled search composition.
+Canonical state wording prevents duplicate review chips. Activity History uses the
+supplied compact vertical timeline with event, date, actor and reason; it shows
+before/after values only for facts that changed and omits raw snapshots and metadata.
 Calendars use horizontal spans and a distinct start-only marker.
+
+The Activity fiche follows the supplied administrative report composition: MJL
+identity and Activity reference in the page header, a clear Activity title,
+institutional navy section hierarchy, Planification, budget/Operations,
+authorizations, external declarations, evidence and administrative chronology.
+It retains authoritative approved values and unknown values without inventing data.
+The new-Activity assignment email reuses the approved Activity-review visual shell,
+with its Activity summary and direct Activity link in HTML and plain text.

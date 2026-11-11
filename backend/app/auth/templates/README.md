@@ -22,6 +22,7 @@ Eleven email designs are consolidated for backend integration. Each `.html` file
 | `password-recovery.html` | `Réinitialisation du mot de passe` | `recipient_name`, `action_url`, `action_label` = `Réinitialiser mon mot de passe`, `expiration_text` |
 | `password-change-notice.html` | `Mot de passe modifié` | `recipient_name`. No CTA. |
 | `activity-reminder.html` | `Rappel d’échéance` | `recipient_name`, `activity_reference`, `activity_name`, `activity_end_date` (French-formatted). No CTA. |
+| `activity-assignment.html` | `Nouvelle activité assignée` | `recipient_name`, `assigner_name`, Activity/Project/PTA facts and `action_url` |
 | `activity-review-supervisor.html` | `Activité à examiner` | `recipient_name`, optional `actor_name`, `activity_action`, Activity/Project/PTA facts and `action_url` |
 | `activity-review-validator.html` | `Activité à approuver` | Same Activity facts, with the prevalidator as optional `actor_name` |
 | `activity-correction.html` | `Activité retournée pour correction` | Same Activity facts, optional reviewer name, `reason` and `action_url` |

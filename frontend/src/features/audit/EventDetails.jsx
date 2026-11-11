@@ -19,8 +19,12 @@ function readable(value, field) {
   return value
 }
 
-export function EventDetails({ event, inline = false }) {
-  if (!event.reason && !event.changes?.length && !event.facts?.length)
+export function EventDetails({ event, inline = false, changesOnly = false }) {
+  if (
+    !event.reason &&
+    !event.changes?.length &&
+    (changesOnly || !event.facts?.length)
+  )
     return null
   const content = (
     <div className="grid gap-2 py-1 text-sm">
@@ -29,11 +33,12 @@ export function EventDetails({ event, inline = false }) {
           <strong>{strings.reason} :</strong> {event.reason}
         </p>
       )}
-      {event.facts?.map((fact) => (
-        <p key={fact.field}>
-          {fact.field} : {readable(fact.after, fact.field)}
-        </p>
-      ))}
+      {!changesOnly &&
+        event.facts?.map((fact) => (
+          <p key={fact.field}>
+            {fact.field} : {readable(fact.after, fact.field)}
+          </p>
+        ))}
       {event.changes?.map((change) => (
         <p key={change.field}>
           {change.field} : {readable(change.before, change.field)} →{' '}

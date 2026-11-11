@@ -26,16 +26,7 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import {
-  Check,
-  ChevronDown,
-  Download,
-  Eye,
-  Pencil,
-  Plus,
-  Save,
-  X,
-} from 'lucide-react'
+import { ChevronDown, Download, Eye, Pencil, Plus, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
@@ -43,7 +34,6 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import {
   addThreeMonths,
   formatDate,
-  formatDateTime,
   formatXof,
   localDateInput,
 } from '@/shared/lib/format'
@@ -54,6 +44,7 @@ import { Modal } from '@/shared/ui/BusinessModal'
 import { useProtectedCleanup } from '@/features/auth/session/access-verification'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
+import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
 
 const labels = {
   partners: strings.partners,
@@ -311,26 +302,6 @@ function Workspace({ screen, session, onDenied }) {
     ),
     enabled: historyActive,
   })
-  const selectedRevision = useQuery({
-    ...planningQuery(
-      api,
-      user.id,
-      ['activity-revision', params.activityId, search.revision],
-      `/activities/${params.activityId}/revisions/${search.revision}`,
-      onDenied,
-    ),
-    enabled: Boolean(historyActive && search.revision),
-  })
-  const selectedAmendment = useQuery({
-    ...planningQuery(
-      api,
-      user.id,
-      ['activity-amendment', params.activityId, search.amendment],
-      `/activities/${params.activityId}/amendments/${search.amendment}`,
-      onDenied,
-    ),
-    enabled: Boolean(historyActive && search.amendment),
-  })
   const reconciliationBlocked = Boolean(
     workflowReconciliation &&
     (activity.data?.id !== workflowReconciliation.activityId ||
@@ -344,7 +315,6 @@ function Workspace({ screen, session, onDenied }) {
             workflowReconciliation.revisionsUpdatedAt))),
   )
   const calendarView = search.view === 'calendar'
-  const ownActivities = user.role === 'AGENT_SAISIE'
   const reviewerState =
     user.role === 'AGENT_VERIFICATEUR'
       ? 'submitted'
@@ -355,8 +325,7 @@ function Workspace({ screen, session, onDenied }) {
     reviewerState && search.review !== 'all' && !search.state,
   )
   const effectiveState = reviewMine ? reviewerState : search.state
-  const effectiveAgent =
-    ownActivities && search.mine !== 'all' ? user.id : search.agent
+  const effectiveAgent = search.agent
   const activityFilters = {
     ...search,
     state: effectiveState,
@@ -421,12 +390,7 @@ function Workspace({ screen, session, onDenied }) {
           ? [context, ...(context.data?.pta?.id ? [list] : [])]
           : screen === 'activityNew'
             ? [types, context]
-            : [
-                activity,
-                ...(historyActive ? [revisions] : []),
-                ...(search.revision ? [selectedRevision] : []),
-                ...(search.amendment ? [selectedAmendment] : []),
-              ]
+            : [activity, ...(historyActive ? [revisions] : [])]
   const loading = planningQueries.some(
     (query) => query.isFetching && query.fetchStatus !== 'idle',
   )
@@ -577,7 +541,6 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'pta' && (
         <PTA
-          ownActivities={ownActivities}
           activityFilters={displayedActivityFilters}
           reviewLabel={
             reviewMine
@@ -681,14 +644,8 @@ function Workspace({ screen, session, onDenied }) {
           mutation={mutation}
           mutationBlocked={mutation.isPending || reconciliationBlocked}
           revisions={revisions.data}
-          historyLoading={
-            (historyActive && revisions.isFetching) ||
-            selectedRevision.isFetching ||
-            selectedAmendment.isFetching
-          }
+          historyLoading={historyActive && revisions.isFetching}
           historyFailed={historyActive && revisions.isError && !revisions.data}
-          selectedRevision={selectedRevision.data}
-          selectedAmendment={selectedAmendment.data}
           onDenied={denyWorkspace}
         />
       )}
@@ -1119,7 +1076,6 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
 }
 
 function PTA({
-  ownActivities,
   activityFilters,
   reviewLabel,
   context,
@@ -1305,7 +1261,6 @@ function PTA({
           ptaId={context.pta?.id}
           month={search.month}
           filters={activityFilters}
-          ownActivities={ownActivities}
           reviewLabel={reviewLabel}
           onFilter={(values) =>
             navigate({
@@ -2048,84 +2003,83 @@ function AssignmentModal({
             <ChevronDown size={16} aria-hidden="true" />
           </Button>
           {expanded && (
-            <div className="grid gap-2 rounded-control border border-border p-3">
-              <input
-                type="search"
-                aria-label={strings.searchOwner}
-                value={query}
-                placeholder={strings.searchOwner}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              {choices.isPending && (
-                <LoadingPlaceholder
-                  label={strings.coordinatedAgents}
-                  variant="form"
-                />
-              )}
-              {choices.isError && (
-                <RetryableError onRetry={() => void choices.refetch()}>
-                  {strings.unavailablePlanning}
-                </RetryableError>
-              )}
-              <div className="grid gap-1">
-                {availableChoices.map((agent) => {
-                  return (
-                    <Button
-                      key={agent.id}
-                      type="button"
-                      variant="ghost"
-                      aria-pressed="false"
-                      className="h-auto justify-start px-2 py-2 text-left font-normal"
-                      disabled={blocked}
-                      onClick={() => update(agent, true)}
-                    >
-                      <Check
-                        size={16}
-                        className="opacity-0"
-                        aria-hidden="true"
-                      />
-                      <span>
-                        <strong className="block">
-                          {agent.full_name || agent.email}
-                        </strong>
-                        {agent.full_name && (
-                          <span className="text-sm text-muted-foreground">
-                            {agent.email}
-                          </span>
-                        )}
-                      </span>
-                    </Button>
-                  )
-                })}
-                {!choices.isPending &&
-                  !choices.isError &&
-                  !availableChoices.length && (
-                    <p className="px-3 py-2 text-sm text-muted-foreground">
-                      {strings.noOwnerMatch}
-                    </p>
+            <AgentSearchPanel
+              title={strings.assignedAgent}
+              searchLabel={strings.searchOwner}
+              value={query}
+              onChange={setQuery}
+              onClose={() => setExpanded(false)}
+              className="w-full"
+              footer={
+                <>
+                  {choices.isPending && (
+                    <LoadingPlaceholder
+                      label={strings.coordinatedAgents}
+                      variant="form"
+                    />
                   )}
-              </div>
-              {(choices.data?.previous || choices.data?.next) && (
-                <nav className="flex gap-2" aria-label="Pagination">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!choices.data.previous}
-                    onClick={() => setCursor(cursorFrom(choices.data.previous))}
-                  >
-                    {common.previous}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!choices.data.next}
-                    onClick={() => setCursor(cursorFrom(choices.data.next))}
-                  >
-                    {common.next}
-                  </Button>
-                </nav>
-              )}
-            </div>
+                  {choices.isError && (
+                    <RetryableError onRetry={() => void choices.refetch()}>
+                      {strings.unavailablePlanning}
+                    </RetryableError>
+                  )}
+                  {!choices.isPending &&
+                    !choices.isError &&
+                    !availableChoices.length && (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">
+                        {strings.noOwnerMatch}
+                      </p>
+                    )}
+                  {(choices.data?.previous || choices.data?.next) && (
+                    <nav className="flex gap-2" aria-label="Pagination">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!choices.data.previous}
+                        onClick={() =>
+                          setCursor(cursorFrom(choices.data.previous))
+                        }
+                      >
+                        {common.previous}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!choices.data.next}
+                        onClick={() => setCursor(cursorFrom(choices.data.next))}
+                      >
+                        {common.next}
+                      </Button>
+                    </nav>
+                  )}
+                </>
+              }
+              listProps={{ 'aria-label': strings.coordinatedAgents }}
+            >
+              {availableChoices.map((agent) => (
+                <Button
+                  key={agent.id}
+                  type="button"
+                  variant="ghost"
+                  role="option"
+                  aria-selected="false"
+                  className="h-auto justify-start px-2 py-2 text-left font-normal"
+                  disabled={blocked}
+                  onClick={() => update(agent, true)}
+                >
+                  <span>
+                    <strong className="block">
+                      {agent.full_name || agent.email}
+                    </strong>
+                    {agent.full_name && (
+                      <span className="text-sm text-muted-foreground">
+                        {agent.email}
+                      </span>
+                    )}
+                  </span>
+                </Button>
+              ))}
+            </AgentSearchPanel>
           )}
         </section>
         <section
@@ -2193,8 +2147,6 @@ function ActivityDetail({
   revisions,
   historyLoading,
   historyFailed,
-  selectedRevision,
-  selectedAmendment,
   onDenied,
 }) {
   const [editing, setEditing] = useState(false)
@@ -2532,25 +2484,28 @@ function ActivityDetail({
           <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
             {item.reference}
           </p>
-          <h1 className="text-2xl font-semibold text-navy">{item.name}</h1>
+          <h1 className="text-[1.75rem] font-semibold leading-8 text-navy">
+            {item.name}
+          </h1>
           <p className="text-sm text-muted-foreground">
             {item.project_name} · {item.partner_name} · {item.pta_name}
           </p>
-          <span
-            className={`w-fit rounded-card px-2 py-1 text-xs ${activityStatusClass(item.state)}`}
-          >
-            {strings[item.state] || item.state}
-          </span>
-          <div className="grid gap-2">
-            <p className="text-xs text-muted-foreground">
-              {strings.currentOwners}
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <strong>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+            <span
+              className={`w-fit rounded-card px-2 py-1 text-xs ${activityStatusClass(item.state)}`}
+            >
+              {strings[item.state] || item.state}
+            </span>
+            <span className="font-medium">
+              {formatDate(item.planned_start)} {strings.until}{' '}
+              {item.planned_end ? formatDate(item.planned_end) : '—'}
+            </span>
+            <span className="flex flex-wrap items-center gap-3">
+              <span className="font-medium">
                 {(item.agents || [])
                   .map((agent) => agent.full_name || agent.email)
                   .join(', ') || '—'}
-              </strong>
+              </span>
               {canAssign && (
                 <Button
                   type="button"
@@ -2566,26 +2521,8 @@ function ActivityDetail({
                   <Pencil size={15} aria-hidden="true" />
                 </Button>
               )}
-            </div>
+            </span>
           </div>
-          <dl className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                {strings.plannedStart}
-              </dt>
-              <dd className="mt-1 font-medium">
-                {formatDate(item.planned_start)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                {strings.plannedEnd}
-              </dt>
-              <dd className="mt-1 font-medium">
-                {item.planned_end ? formatDate(item.planned_end) : '—'}
-              </dd>
-            </div>
-          </dl>
         </div>
         <div className="flex gap-2 items-end flex-wrap">
           {item.approved_revision_id && (
@@ -2751,8 +2688,33 @@ function ActivityDetail({
         aria-label={strings.activitySections}
         className="flex flex-wrap gap-6 border-b border-border text-sm"
       >
+        {[['programming', strings.programming]].map(([tab, label]) => (
+          <Link
+            key={tab}
+            to={Urls.activity}
+            params={{ activityId: item.id }}
+            search={(current) => ({
+              ...current,
+              tab,
+              revision: undefined,
+              amendment: undefined,
+            })}
+            activeOptions={{ exact: true, includeSearch: true }}
+            className={`border-b-2 py-3 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+          >
+            {label}
+          </Link>
+        ))}
+        {item.approved_revision_id && (
+          <Link
+            className="border-b-2 border-transparent py-3 text-primary"
+            to={Urls.executionActivity}
+            params={{ activityId: item.id }}
+          >
+            {strings.financeTab}
+          </Link>
+        )}
         {[
-          ['programming', strings.programming],
           ['history', strings.historyTab],
           ['files', strings.filesTab],
         ].map(([tab, label]) => (
@@ -2763,8 +2725,8 @@ function ActivityDetail({
             search={(current) => ({
               ...current,
               tab,
-              revision: tab === 'history' ? current.revision : undefined,
-              amendment: tab === 'history' ? current.amendment : undefined,
+              revision: undefined,
+              amendment: undefined,
             })}
             activeOptions={{ exact: true, includeSearch: true }}
             className={`border-b-2 py-3 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
@@ -2772,15 +2734,6 @@ function ActivityDetail({
             {label}
           </Link>
         ))}
-        {item.approved_revision_id && (
-          <Link
-            className="py-3 text-primary"
-            to={Urls.executionActivity}
-            params={{ activityId: item.id }}
-          >
-            {strings.financeTab}
-          </Link>
-        )}
       </nav>
       {!item.approved_revision_id && (
         <p className="text-sm text-muted-foreground">
@@ -2798,33 +2751,10 @@ function ActivityDetail({
                 className={`grid p-5 ${programmingIncomplete ? 'gap-4' : 'gap-6'}`}
               >
                 <p>{item.description}</p>
-                {programmingIncomplete ? (
+                {programmingIncomplete && (
                   <p className="text-sm text-muted-foreground">
-                    {strings.formatString(
-                      item.planned_end
-                        ? strings.programmingToCompleteWithEnd
-                        : strings.programmingToCompleteWithoutEnd,
-                      formatDate(item.planned_start),
-                      ...(item.planned_end
-                        ? [formatDate(item.planned_end)]
-                        : []),
-                    )}
+                    {strings.programmingToComplete}
                   </p>
-                ) : (
-                  <dl className="grid gap-4 sm:grid-cols-2 text-sm">
-                    <div>
-                      <dt className="text-[0.8125rem] text-muted-foreground">
-                        {strings.start}
-                      </dt>
-                      <dd className="mt-2">{formatDate(item.planned_start)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[0.8125rem] text-muted-foreground">
-                        {strings.end}
-                      </dt>
-                      <dd className="mt-2">{formatDate(item.planned_end)}</dd>
-                    </div>
-                  </dl>
                 )}
               </div>
             </section>
@@ -2976,97 +2906,7 @@ function ActivityDetail({
           ) : !revisions?.data?.length ? (
             <EmptyContent kind="activityHistory" />
           ) : (
-            <ActivityTimeline events={revisions.data} navigate={navigate} />
-          )}
-          {selectedRevision?.snapshot && (
-            <div className="m-5 grid gap-4 rounded-card border border-border p-4">
-              <h4 className="font-semibold">{strings.submittedInformation}</h4>
-              <p className="text-sm text-muted-foreground">
-                {selectedRevision.snapshot.project.name} ·{' '}
-                {selectedRevision.snapshot.partner.name} · PTA{' '}
-                {selectedRevision.snapshot.pta.year}
-              </p>
-              {selectedRevision.snapshot.withdrawal && (
-                <p>
-                  <strong>{strings.withdrawalReason} :</strong>{' '}
-                  {selectedRevision.snapshot.withdrawal.reason}
-                </p>
-              )}
-              {selectedRevision.snapshot.transfer && (
-                <p>
-                  <strong>{strings.transferReason} :</strong>{' '}
-                  {selectedRevision.snapshot.transfer.reason} · PTA{' '}
-                  {selectedRevision.snapshot.transfer.source_pta.year} vers PTA{' '}
-                  {selectedRevision.snapshot.transfer.target_year}
-                </p>
-              )}
-              <p className="font-medium">{selectedRevision.snapshot.name}</p>
-              <p>
-                {formatDate(selectedRevision.snapshot.planned_start)} au{' '}
-                {formatDate(selectedRevision.snapshot.planned_end)}
-              </p>
-              <p>{selectedRevision.snapshot.description}</p>
-              <p>
-                <strong>{strings.budget} :</strong>{' '}
-                {formatXof(selectedRevision.snapshot.allocation)}
-              </p>
-              <h5 className="font-semibold">{strings.operations}</h5>
-              <ol className="grid gap-2">
-                {selectedRevision.snapshot.operations.map((operation) => (
-                  <li key={operation.id}>
-                    {operation.type_label} — {operation.name} ·{' '}
-                    {formatXof(operation.allocation)}
-                  </li>
-                ))}
-              </ol>
-              <p className="text-sm text-muted-foreground">
-                {strings.submittedOn}{' '}
-                {formatDateTime(selectedRevision.snapshot.submitted_at)}
-              </p>
-              <h5 className="font-semibold">{strings.decisions}</h5>
-              {!selectedRevision.decisions.length ? (
-                <p>Aucune décision.</p>
-              ) : (
-                <ol>
-                  {selectedRevision.decisions.map((decision) => (
-                    <li key={decision.id}>
-                      {strings[decision.outcome] || decision.outcome} ·{' '}
-                      {formatDateTime(decision.decided_at)}
-                      {decision.reason ? ` — ${decision.reason}` : ''}
-                      {decision.requested_amount
-                        ? ` — ${formatXof(decision.requested_amount)}`
-                        : ''}
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
-          )}
-          {selectedAmendment && (
-            <div className="m-5 grid gap-3 rounded-card border border-border p-4">
-              <h4>
-                {selectedAmendment.status === 'cancelled'
-                  ? 'Modification annulée'
-                  : selectedAmendment.status === 'approved'
-                    ? 'Modification approuvée'
-                    : 'Modification en cours'}
-              </h4>
-              <p>{selectedAmendment.reason}</p>
-              <p className="text-sm text-muted-foreground">
-                {strings.openedOn} {formatDateTime(selectedAmendment.opened_at)}
-              </p>
-              <PlanningVersion
-                title={strings.candidateVersion}
-                value={selectedAmendment.candidate}
-              />
-              {selectedAmendment.cancellation && (
-                <p>
-                  {strings.cancelledOn}{' '}
-                  {formatDateTime(selectedAmendment.cancellation.occurred_at)} —{' '}
-                  {selectedAmendment.cancellation.reason}
-                </p>
-              )}
-            </div>
+            <ActivityTimeline events={revisions.data} />
           )}
           {revisions && (
             <Pager

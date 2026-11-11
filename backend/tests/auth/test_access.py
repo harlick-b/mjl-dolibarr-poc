@@ -332,6 +332,9 @@ def test_guards_filters_privacy_duplicates_and_terminal_targets(admin, auth_env)
     by_email = admin.get("/api/v1/access/users?q=NDING%40EXAMPLE").json()
     assert by_email["total"] == 1
     assert by_email["items"][0]["full_name"] == "Pending User"
+    newest_first = admin.get("/api/v1/access/users?size=50").json()["items"]
+    assert newest_first[0]["email"] == "pending@example.test"
+    assert newest_first[-1]["email"] == "admin@example.test"
     assert set(result["items"][0]) == {
         "invitation",
         "id",

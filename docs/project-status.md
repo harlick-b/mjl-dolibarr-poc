@@ -1304,6 +1304,44 @@ acceptance remain outstanding.
 Final built artifact `index-BBGUNqpe.js` SHA256:
 `4c9b65b0c2483b8dbc89fefa4643efd7c0b54b8d1cd71a7981fbf5930d98cc64`.
 
+## Activity presentation, assignment mail and account order, 2026-11-11
+
+The PTA Activity explorer now uses the supplied floating filter composition with
+the six current user-facing states, date-overlap controls and Agent search kept
+behind Filters. The separate **Mes activités** button is removed. Searchable Agent
+lists in filters, reviewer creation and responsibility editing share the supplied
+titled search panel. Activity detail keeps its identity facts together, places
+**Réalisation & finances** second, and no longer repeats dates inside
+Programming. History is a compact timeline: reasons remain visible and only
+actual before/after changes are expanded; raw submitted snapshots and metadata
+are no longer loaded or displayed.
+
+The Activity fiche uses the approved institutional report hierarchy and page
+header while preserving the approved snapshot, exact XOF values, unknown values,
+financial evidence and chronology. It names assigned Agents, separates initial,
+approved and recorded spending totals, gives each financial request its own
+decision table, presents documents in the approved three-column layout, and keeps
+validation and administrative events in one chronology. The new-Activity assignment email now uses the
+same visual shell as the approved Activity-review message and includes a direct
+Activity link in both HTML and text. The Users API orders accounts by their
+authoritative bootstrap/invitation creation audit time, newest first; no missing
+date is invented and no schema migration is required.
+
+Focused frontend verification passed **81 tests** in the final unified rerun
+after the shared Agent listbox received contextual close labels, common keyboard
+navigation and status/pagination content outside the option list. ESLint passed with the existing
+unrelated effect-cleanup warning, and the production PWA build passed with the
+existing large-chunk warning. Mail rendering passed **23 tests**; backend Ruff
+passed. The final disposable-PostgreSQL Fiche/account selection passed **12 tests**,
+including closed-Activity Agent attribution, unique validation chronology,
+complementary-funding decisions, approved-baseline rendering, maximum description
+splitting, PDF OpenAPI and newest-account ordering. Its shared setup now follows the approved private-draft
+rule: the Agent submits its private draft before a reviewer changes assignments.
+A mocked planning
+browser selection also failed on stale selectors and unrelated partner/modal
+expectations and was stopped; it is not reported as passing. Human visual, print
+and accessibility acceptance remain outstanding.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |
