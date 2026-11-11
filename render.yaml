@@ -1,0 +1,29 @@
+services:
+  - type: web
+    runtime: docker
+    name: mjl-demo-staging
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile.staging
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: MJL_AUTH_MODE
+        value: staging
+      - key: MJL_ENVIRONMENT
+        value: demo-staging
+      - key: MJL_STAGING_ACK
+        sync: false
+      - key: MJL_AUTH_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: MJL_FRONTEND_DIRECTORY
+        value: /app/static

@@ -1194,6 +1194,71 @@ Existing hooks and bundle-size warnings remain. Review also removed unrelated hi
 Final independent specification and standards reviews cleared the corrected
 candidate with no remaining blocking findings.
 
+## Demo-staging deployment readiness, 2026-11-11
+
+The repository now contains an inert Render/Supabase demo-staging package. A
+multi-stage image builds the Vite application and serves its immutable output with
+FastAPI on the same origin as `/api`; browser deep links fall back to the public
+shell while API paths remain API-owned. Render's assigned port is honored and the
+Blueprint keeps automatic deployment disabled. Migrations, ownership provisioning
+and first-Admin bootstrap are not container startup actions.
+
+The new `staging` authentication mode accepts only the `demo-staging` environment,
+an exact HTTPS origin, a 64-or-more-character lowercase hexadecimal key, real
+Resend settings and the literal `non-sensitive-demo-only` operator acknowledgment.
+It uses Secure host-only cookies and permits Supabase provider schemas while still
+requiring MJL's exact public schema and search-path guard. Local and isolated-test
+policies remain unchanged. A tracked placeholder environment file and README
+operator procedure contain no credentials.
+
+This capability is limited to disposable, non-sensitive demonstration data. No
+Render or Supabase resource was created or changed, no migration was run, no email
+was sent and no production configuration was enabled. Provider/region acceptance,
+real-data authorization, automatic backups, persistent protected logs, retention,
+monitoring, restore evidence and the other external security dependencies remain
+open. The free tiers are not production infrastructure.
+
+Final local evidence for the completed candidate:
+
+- From `backend/`, `.venv/bin/ruff check` and `.venv/bin/ruff format --check`
+  passed on `app/auth/client_address.py`, `app/auth/policy.py`,
+  `app/auth/routes.py`, `app/auth/service.py`, `app/core/frontend.py`,
+  `app/core/health.py`, `app/main.py`, `tests/auth/test_client_address.py`,
+  `tests/auth/test_auth_policy.py` and `tests/core/test_frontend.py`.
+  `.venv/bin/mypy app` and `.venv/bin/pytest
+  tests/auth/test_client_address.py
+  tests/auth/test_auth_policy.py::test_auth_cannot_enable_real_accounts
+  tests/auth/test_auth_policy.py::test_local_policy_requires_resend_and_loopback_app_configuration
+  tests/auth/test_auth_policy.py::test_staging_policy_requires_explicit_https_demo_configuration
+  tests/auth/test_auth_policy.py::test_synthetic_password_unicode_categories_match_browser
+  tests/core/test_frontend.py -q` passed: Ruff and format clean, strict mypy clean
+  across 57 source files, and 6 focused tests passed.
+- The broader selected authentication/frontend run reached 5 passes and 2 setup
+  errors because `TEST_DATABASE_URL` was not configured; those database-backed
+  cases are not reported as passed.
+- `docker build --file Dockerfile.staging --tag mjl-demo-staging:verify .` passed
+  and produced image digest
+  `sha256:995ab6bb9c6e6dff3ab1e1cc517f7e7329e948b0623112c563df709bf48f0133`.
+  A disposable network-disabled local container smoke exercised the packaged app
+  through HTTPX's ASGI transport and returned HTML `200` for `/` and a deep
+  browser route, `{"status":"ok"}` for `/api/health/live`, and the documented
+  JSON `404` envelope for an unknown `/api` route. HEAD preserved GET content
+  length with an empty body; the container was then removed. The earlier local
+  Uvicorn smoke verified the configured listening port before the HEAD correction.
+- `bash -n .env.staging.example`, the focused Prettier checks and
+  `git diff --check` passed. The frontend image build retained its existing large
+  chunk warning and reported 10 build-stage npm advisories; Node and `node_modules`
+  are not copied into the Python runtime image.
+- Separate specification and standards reviewers inspected the requirements,
+  diff and evidence, independently reran focused checks, and cleared the corrected
+  candidate with no remaining blocking finding.
+  The pre-commit review removed a trivial frontend wrapper and corrected HEAD
+  response metadata; both reviewers cleared those fixes after focused rechecks.
+
+No live Render edge, Supabase pooler/schema/search-path, migration/provisioning,
+Resend, restart or document-flow check was performed. Those provider-runtime checks
+require a separately authorized future deployment with disposable data.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

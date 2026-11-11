@@ -142,6 +142,69 @@ duration or provider integration is configured by this change.
 View logs with `docker compose logs -f backend`. Stop the stack with
 `docker compose down`; the database volume is retained.
 
+## Prepare a non-sensitive demo staging environment
+
+The staging package builds the React frontend and FastAPI backend into one Render
+web service. The browser and `/api` therefore keep the same HTTPS origin required
+by the session-cookie, host, Origin and CSRF checks. This package is for disposable
+demonstration data only. It does not authorize production or sensitive data, run
+migrations automatically, create users, deploy anything, or configure backups.
+
+Before creating a Render service, create a dedicated empty Supabase project. Do
+not reuse a development or production database. Disable its Data API, require SSL,
+and copy the **Session pooler** connection from Supabase's Connect dialog. Convert
+the scheme to `postgresql+psycopg://`, URL-encode the password, keep port `5432`,
+and append `?sslmode=require`.
+
+Prepare private operator configuration without committing it:
+
+```bash
+cp .env.staging.example .env.staging.local
+chmod 600 .env.staging.local
+openssl rand -hex 32
+```
+
+Put the generated value in `MJL_AUTH_KEY`. Set `APP_BASE_URL` to the exact HTTPS
+Render hostname that will serve the app, and fill in the dedicated Supabase and
+verified Resend values. Replace the staging acknowledgment placeholder with the
+exact value `non-sensitive-demo-only`; the process refuses to start until the
+operator explicitly enters that non-sensitive-demo boundary.
+
+Load the private values and initialize only that new empty database:
+
+```bash
+set -a
+. ./.env.staging.local
+set +a
+(cd backend && .venv/bin/alembic upgrade head)
+(cd backend && .venv/bin/python -m app.planning.core.provision \
+  --reason 'Initialize non-sensitive demo staging')
+(cd backend && .venv/bin/python -m app.auth.bootstrap \
+  --email 'you@example.com' --name 'Your Name')
+```
+
+These are deliberate operator actions. Verify the database host and project before
+each command. The bootstrap command sends a real invitation through Resend and is
+single-use for an empty identity store.
+
+`render.yaml` describes one free Docker web service in Frankfurt with automatic
+deploys disabled. Importing that Blueprint is a separate, explicit deployment
+action. In Render, enter the same private values for `DATABASE_URL`,
+`MJL_AUTH_KEY`, `APP_BASE_URL`, `RESEND_API_KEY`, `EMAIL_FROM` and
+`MJL_STAGING_ACK`; never store them in Git. The image uses Render's assigned port,
+serves the immutable Vite build from `/`, and keeps API routes under `/api`. It
+intentionally does not run Alembic or bootstrap on startup. Uvicorn does not trust
+generic forwarded headers. In this staging policy, per-client abuse limits use
+Cloudflare's validated single `CF-Connecting-IP` only when Render's `CF-Ray`
+evidence is present; local and test modes keep the socket address.
+
+After a future authorized deployment, check `/api/health/live`,
+`/api/health/ready`, a direct browser deep link, invitation acceptance, password +
+OTP login, logout, one small private document, and behavior after a Render restart.
+Free Render services sleep and share the workspace's monthly free-instance hours;
+free Supabase projects can pause and have no automatic backups. Those limits make
+this staging package unsuitable for production or important data.
+
 ## Find your way around
 
 | Location                       | Contents                                                                                               |

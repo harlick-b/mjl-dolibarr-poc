@@ -21,7 +21,7 @@ class Unavailable(BaseModel):
 
 
 @router.get("/live", response_model=Healthy)
-def live(response: Response) -> Healthy:
+async def live(response: Response) -> Healthy:
     response.headers["Cache-Control"] = "no-store"
     return Healthy()
 

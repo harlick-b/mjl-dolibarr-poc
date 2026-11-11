@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
+from app.auth.client_address import client_address
 from app.auth.dto import (
     Anonymous,
     ChallengeSent,
@@ -143,7 +144,7 @@ def request_password_reset(
     with Session(auth.engine) as db, db.begin():
         auth.guard(db, *evidence(request, auth))
     normalized, allowed = auth.recovery_request_allowed(
-        body.email, request.client.host if request.client else "unknown"
+        body.email, client_address(request, auth.policy.fixture)
     )
     if allowed and not getattr(request.state, "endpoint_limited", False):
         background.add_task(
@@ -183,7 +184,7 @@ def login(body: Login, request: Request, auth: Auth) -> dict[str, object]:
         *evidence(request, auth),
         body.email,
         body.password,
-        request.client.host if request.client else "unknown",
+        client_address(request, auth.policy.fixture),
     )
 
 

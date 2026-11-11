@@ -126,6 +126,21 @@ then check encrypted connectivity and migration/guard results on the configured
 empty development database. A separate reviewer inspects the diff and evidence;
 fix any blocking findings and return them for re-review before completion.
 
+Non-sensitive demo staging may use the same provider-metadata compatibility under
+the distinct `supabase-staging-v1` policy. That policy requires an exact HTTPS
+origin, real Resend configuration, a generated authentication key and the explicit
+`non-sensitive-demo-only` operator acknowledgment. It does not authorize production
+or sensitive data. The Render staging image serves the immutable Vite build and
+FastAPI from one origin; local development keeps separate Vite/FastAPI processes.
+Migrations, MJL ownership provisioning and first-Admin bootstrap remain explicit
+operator actions and never run during application startup.
+
+Keep generic Uvicorn proxy-header trust disabled. Render staging derives abuse-
+limit client addresses only from a syntactically valid `CF-Connecting-IP` paired
+with `CF-Ray`, because Cloudflare overwrites that provider header at Render's edge.
+Other policies and missing/malformed edge evidence use the socket address. Do not
+use a caller-controlled `X-Forwarded-For` value.
+
 ## REST and shared client
 
 FastAPI generates OpenAPI from actual routes; do not maintain a second static
@@ -299,8 +314,9 @@ Rotate after authentication; enforce server revocation, idle/absolute deadlines
 and contributor/resource checks. First Admin is an operator-only one-time CLI
 for an empty identity store, with explicit email/name and no default credentials.
 
-Local Vite proxies /api. Frontend and backend deploy separately; the intended
-browser topology uses one origin with /api ingress. Cookies are HttpOnly, Secure,
+Local Vite proxies /api. Production retains separate frontend/backend deployment;
+the authorized demo-staging image may package their built artifacts in one web
+process. Both browser topologies use one origin with /api ingress. Cookies are HttpOnly, Secure,
 host-only, SameSite=Lax (local HTTP exception only). CSRF/Origin checks protect
 unsafe requests including auth. Same-origin disables CORS; any separately approved
 cross-origin credential topology needs exact allowlists, never wildcard, and

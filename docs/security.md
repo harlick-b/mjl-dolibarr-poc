@@ -193,6 +193,16 @@ defined by the business rules. External acceptance and operational deliverables
 remain open as listed above. Local real-account/Resend authorization does not
 resolve legal/RSSI requirements or authorize production.
 
+The non-sensitive demo-staging policy is a development deliverable, not an
+acceptance decision. It fails closed unless the operator supplies an HTTPS origin,
+strong private key, Resend settings and the exact `non-sensitive-demo-only`
+acknowledgment. It may contain only disposable demonstration identities and data.
+It does not resolve SEC-E1 through SEC-E6, provide backups or retention, approve
+Render/Supabase for ministry data, or enable production mode.
+Per-client staging abuse limits accept Cloudflare's single validated
+`CF-Connecting-IP` only alongside Render's `CF-Ray`; generic forwarded headers
+remain untrusted and other environments retain the socket address.
+
 ## Evidence, status and maintenance
 
 Use NOT_ASSESSED, TO_VERIFY, EXTERNAL_DEPENDENCY, COMPLIANT,

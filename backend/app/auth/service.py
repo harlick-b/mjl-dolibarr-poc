@@ -79,7 +79,7 @@ class AuthService:
             )
         ):
             raise AuthError(409, "eligibility_unverified")
-        # Hosted local development may share a database with provider metadata.
+        # Hosted development/staging may share a database with provider metadata.
         # MJL still owns the complete public schema; unknown schemas fail closed.
         provider_schemas = (
             {
@@ -91,7 +91,7 @@ class AuthService:
                 "storage",
                 "vault",
             }
-            if self.policy.fixture == "local-v1"
+            if self.policy.fixture in {"local-v1", "supabase-staging-v1"}
             else set()
         )
         if provider_schemas:

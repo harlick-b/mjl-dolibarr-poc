@@ -49,7 +49,7 @@ class Policy(BaseModel):
 
     @property
     def recovery_enabled(self) -> bool:
-        return self.recovery_fixture in {"TEST_ONLY", "LOCAL"}
+        return self.recovery_fixture in {"TEST_ONLY", "LOCAL", "STAGING"}
 
     @property
     def secure(self) -> bool:
@@ -65,7 +65,7 @@ def load_policy(url: str | URL) -> Policy | None:
     if mode == "off":
         return None
     parsed_url = make_url(url)
-    if mode == "local":
+    if mode in {"local", "staging"}:
         try:
             origin_value = os.environ["APP_BASE_URL"]
             origin = urlsplit(origin_value)
@@ -75,11 +75,10 @@ def load_policy(url: str | URL) -> Policy | None:
                 TypeAdapter(NameEmail).validate_python(os.environ["EMAIL_FROM"])
             )
             reply_to = os.environ.get("EMAIL_REPLY_TO") or None
-            if (
-                os.environ.get("MJL_ENVIRONMENT") != "local-development"
-                or origin.hostname not in {"localhost", "127.0.0.1"}
-                or origin.scheme != "http"
-                or origin.path not in {"", "/"}
+            if reply_to:
+                reply_to = normalize_email(reply_to)
+            common_invalid = (
+                origin.path not in {"", "/"}
                 or origin.query
                 or origin.fragment
                 or origin.username
@@ -88,12 +87,27 @@ def load_policy(url: str | URL) -> Policy | None:
                 or not api_key
                 or not sender
                 or not parsed_url.database
-            ):
+            )
+            local = mode == "local"
+            if local:
+                mode_invalid = (
+                    os.environ.get("MJL_ENVIRONMENT") != "local-development"
+                    or origin.hostname not in {"localhost", "127.0.0.1"}
+                    or origin.scheme != "http"
+                )
+            else:
+                mode_invalid = (
+                    os.environ.get("MJL_ENVIRONMENT") != "demo-staging"
+                    or os.environ.get("MJL_STAGING_ACK") != "non-sensitive-demo-only"
+                    or origin.scheme != "https"
+                    or not origin.hostname
+                    or origin.password is not None
+                    or parsed_url.query.get("sslmode") not in {"require", "verify-full"}
+                )
+            if common_invalid or mode_invalid:
                 raise ValueError
-            if reply_to:
-                reply_to = normalize_email(reply_to)
             return Policy(
-                fixture="local-v1",
+                fixture="local-v1" if local else "supabase-staging-v1",
                 password_min=8,
                 invitation_seconds=604800,
                 otp_seconds=600,
@@ -113,16 +127,16 @@ def load_policy(url: str | URL) -> Policy | None:
                 email_from=sender,
                 email_reply_to=reply_to,
                 lifecycle_database=parsed_url.database,
-                recovery_fixture="LOCAL",
+                recovery_fixture="LOCAL" if local else "STAGING",
                 recovery_seconds=600,
                 recovery_email_window_seconds=600,
                 recovery_email_limit=3,
                 recovery_ip_window_seconds=60,
                 recovery_ip_limit=20,
-                planning_lifecycle_fixture="LOCAL",
+                planning_lifecycle_fixture="LOCAL" if local else None,
             )
         except (KeyError, ValueError):
-            raise ValueError("Invalid local authentication configuration") from None
+            raise ValueError(f"Invalid {mode} authentication configuration") from None
     if (
         mode != "synthetic"
         or os.environ.get("MJL_ENVIRONMENT") != "isolated-test"
@@ -196,6 +210,7 @@ def normalize_full_name(value: str) -> str:
     ):
         raise ValueError("Valid full name required")
     return name
+
 
 def password_valid(value: str, confirmation: str, minimum: int) -> bool:
     return (

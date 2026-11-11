@@ -36,6 +36,49 @@ def test_local_policy_requires_resend_and_loopback_app_configuration(monkeypatch
         load_policy("postgresql+psycopg://mjl:secret@postgres/mjl_foundation")
 
 
+def test_staging_policy_requires_explicit_https_demo_configuration(monkeypatch):
+    from app.auth.policy import load_policy
+
+    monkeypatch.setenv("MJL_AUTH_MODE", "staging")
+    monkeypatch.setenv("MJL_ENVIRONMENT", "demo-staging")
+    monkeypatch.setenv("MJL_STAGING_ACK", "non-sensitive-demo-only")
+    monkeypatch.setenv("APP_BASE_URL", "https://mjl-demo.onrender.com")
+    monkeypatch.setenv("MJL_AUTH_KEY", "b" * 64)
+    monkeypatch.setenv("RESEND_API_KEY", "resend-staging-secret")
+    monkeypatch.setenv("EMAIL_FROM", "MJL Demo <demo@example.com>")
+
+    policy = load_policy(
+        "postgresql+psycopg://postgres:secret@pooler.example.com/postgres"
+        "?sslmode=require"
+    )
+
+    assert policy and policy.fixture == "supabase-staging-v1"
+    assert policy.origin == "https://mjl-demo.onrender.com"
+    assert policy.secure
+    assert policy.cookie_name == "__Host-mjl"
+    assert policy.recovery_enabled
+    assert policy.lifecycle_database == "postgres"
+
+    monkeypatch.setenv("APP_BASE_URL", "http://mjl-demo.onrender.com")
+    with pytest.raises(ValueError, match="staging authentication"):
+        load_policy(
+            "postgresql+psycopg://postgres:secret@pooler.example.com/postgres"
+            "?sslmode=require"
+        )
+
+    monkeypatch.setenv("APP_BASE_URL", "https://mjl-demo.onrender.com")
+    monkeypatch.delenv("MJL_STAGING_ACK")
+    with pytest.raises(ValueError, match="staging authentication"):
+        load_policy(
+            "postgresql+psycopg://postgres:secret@pooler.example.com/postgres"
+            "?sslmode=require"
+        )
+
+    monkeypatch.setenv("MJL_STAGING_ACK", "non-sensitive-demo-only")
+    with pytest.raises(ValueError, match="staging authentication"):
+        load_policy("postgresql+psycopg://postgres:secret@pooler.example.com/postgres")
+
+
 def test_synthetic_password_unicode_categories_match_browser():
     from app.auth.policy import password_valid
 
@@ -60,9 +103,10 @@ def test_real_identity_is_accepted_and_blocks_lossy_downgrade(auth_env):
                 )
             )
         with engine.connect() as db:
-            assert db.scalar(
-                text("SELECT email FROM auth_user WHERE id='real-local'")
-            ) == "person@example.com"
+            assert (
+                db.scalar(text("SELECT email FROM auth_user WHERE id='real-local'"))
+                == "person@example.com"
+            )
         with pytest.raises(
             RuntimeError, match="Refusing to discard real-account identity data"
         ):
@@ -91,9 +135,7 @@ def test_account_migration_preserves_existing_unnamed_fixture(auth_env):
         command.upgrade(config, "head")
         with engine.connect() as db:
             row = db.execute(
-                text(
-                    "SELECT email,full_name FROM auth_user WHERE id='existing'"
-                )
+                text("SELECT email,full_name FROM auth_user WHERE id='existing'")
             ).one()
             assert row == ("existing@example.test", None)
     finally:

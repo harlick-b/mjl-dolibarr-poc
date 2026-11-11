@@ -1,6 +1,8 @@
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
@@ -13,12 +15,14 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from app.audit.routes import router as audit_history_router
 from app.auth.access import router as access_router
+from app.auth.client_address import client_address
 from app.auth.models import Context
 from app.auth.policy import load_policy
 from app.auth.routes import router as auth_router
 from app.auth.service import AuthError, AuthService, digest, request_id
 from app.core.config import database_url as read_database_url
 from app.core.database import make_engine
+from app.core.frontend import FrontendFiles
 from app.core.health import router
 from app.partner_portal.routes import router as partner_portal_router
 from app.planning.finance.disbursement import router as disbursement_router
@@ -37,9 +41,15 @@ from app.planning.reports.annual_export import router as annual_export_router
 from app.planning.routes import router as planning_router
 
 
-def create_app(database_url: str | None = None) -> FastAPI:
+def create_app(
+    database_url: str | None = None, frontend_directory: Path | None = None
+) -> FastAPI:
     url = read_database_url(database_url)
     policy = load_policy(url)
+    configured_frontend = os.environ.get("MJL_FRONTEND_DIRECTORY")
+    frontend_directory = frontend_directory or (
+        Path(configured_frontend) if configured_frontend else None
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -68,6 +78,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
     app.include_router(annual_export_router)
     app.include_router(audit_history_router)
     app.include_router(partner_portal_router)
+    if frontend_directory is not None:
+        app.mount("/", FrontendFiles(frontend_directory), name="frontend")
 
     def log_database_failure(error: SQLAlchemyError) -> None:
         # Do not log exception text, SQL, parameters, cookies or connection URLs.
@@ -110,7 +122,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
         auth: AuthService | None = request.app.state.auth
         if not auth:
             return True
-        ip = request.client.host if request.client else "unknown"
+        ip = client_address(request, auth.policy.fixture)
         with Session(auth.engine) as db, db.begin():
             return (
                 auth.limit(
