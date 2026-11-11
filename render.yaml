@@ -6,7 +6,8 @@ services:
     region: frankfurt
     dockerfilePath: ./Dockerfile.staging
     dockerContext: .
-    autoDeployTrigger: off
+    branch: staging
+    autoDeployTrigger: commit
     healthCheckPath: /api/health/ready
     envVars:
       - key: DATABASE_URL

@@ -1200,8 +1200,15 @@ The repository now contains an inert Render/Supabase demo-staging package. A
 multi-stage image builds the Vite application and serves its immutable output with
 FastAPI on the same origin as `/api`; browser deep links fall back to the public
 shell while API paths remain API-owned. Render's assigned port is honored and the
-Blueprint keeps automatic deployment disabled. Migrations, ownership provisioning
+Blueprint follows `staging` and requests deployment on each pushed commit.
+The existing Supabase project is designated for staging; preserve its accounts,
+ownership record and data rather than initializing a replacement.
+Migrations, ownership provisioning
 and first-Admin bootstrap are not container startup actions.
+This branch/database configuration correction passed `git diff --check`,
+`npx prettier --check ../render.yaml ../README.md` from `frontend/`, and an
+independent review. Runtime suites were not repeated for these configuration and
+documentation edits; live Render settings and the remote branch remain unverified.
 
 The new `staging` authentication mode accepts only the `demo-staging` environment,
 an exact HTTPS origin, a 64-or-more-character lowercase hexadecimal key, real

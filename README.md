@@ -150,9 +150,10 @@ by the session-cookie, host, Origin and CSRF checks. This package is for disposa
 demonstration data only. It does not authorize production or sensitive data, run
 migrations automatically, create users, deploy anything, or configure backups.
 
-Before creating a Render service, create a dedicated empty Supabase project. Do
-not reuse a development or production database. Disable its Data API, require SSL,
-and copy the **Session pooler** connection from Supabase's Connect dialog. Convert
+The existing Supabase project is the staging database. Preserve its current
+accounts and data; do not reset it or create a replacement project. Keep its Data
+API disabled, require SSL, and copy the **Session pooler** connection from
+Supabase's Connect dialog. Convert
 the scheme to `postgresql+psycopg://`, URL-encode the password, keep port `5432`,
 and append `?sslmode=require`.
 
@@ -161,22 +162,36 @@ Prepare private operator configuration without committing it:
 ```bash
 cp .env.staging.example .env.staging.local
 chmod 600 .env.staging.local
-openssl rand -hex 32
 ```
 
-Put the generated value in `MJL_AUTH_KEY`. Set `APP_BASE_URL` to the exact HTTPS
-Render hostname that will serve the app, and fill in the dedicated Supabase and
+Reuse the existing private `MJL_AUTH_KEY` for this database so outstanding
+authentication proofs remain verifiable. Generate one with `openssl rand -hex 32`
+only if none exists. Set `APP_BASE_URL` to the exact HTTPS
+Render hostname that will serve the app, and fill in the existing Supabase and
 verified Resend values. Replace the staging acknowledgment placeholder with the
 exact value `non-sensitive-demo-only`; the process refuses to start until the
 operator explicitly enters that non-sensitive-demo boundary.
 
-Load the private values and initialize only that new empty database:
+Load the private values and inspect the existing database's migration version:
 
 ```bash
 set -a
 . ./.env.staging.local
 set +a
+(cd backend && .venv/bin/alembic current)
+```
+
+Apply pending migrations explicitly before deploying code that requires them:
+
+```bash
 (cd backend && .venv/bin/alembic upgrade head)
+```
+
+Keep the existing MJL ownership record and administrator. The following commands
+are only for a database missing its ownership record or, for bootstrap, an empty
+identity store; skip them when already initialized:
+
+```bash
 (cd backend && .venv/bin/python -m app.planning.core.provision \
   --reason 'Initialize non-sensitive demo staging')
 (cd backend && .venv/bin/python -m app.auth.bootstrap \
@@ -187,9 +202,16 @@ These are deliberate operator actions. Verify the database host and project befo
 each command. The bootstrap command sends a real invitation through Resend and is
 single-use for an empty identity store.
 
-`render.yaml` describes one free Docker web service in Frankfurt with automatic
-deploys disabled. Importing that Blueprint is a separate, explicit deployment
-action. In Render, enter the same private values for `DATABASE_URL`,
+`render.yaml` describes one free Docker web service in Frankfurt, linked to the
+`staging` branch with `autoDeployTrigger: commit`. Connect the repository through
+Render's Git provider integration and select `staging` when importing the
+Blueprint. For an existing service, verify Settings → Branch is `staging` and
+Auto-Deploy is **On Commit**. Once configured, each push or merge to `staging`
+triggers a build and deployment; a local commit alone does not. See
+[Render's deployment settings](https://render.com/docs/deploys).
+
+Importing or syncing that Blueprint is a deployment action. In Render, enter the
+same private values for `DATABASE_URL`,
 `MJL_AUTH_KEY`, `APP_BASE_URL`, `RESEND_API_KEY`, `EMAIL_FROM` and
 `MJL_STAGING_ACK`; never store them in Git. The image uses Render's assigned port,
 serves the immutable Vite build from `/`, and keeps API routes under `/api`. It
@@ -197,6 +219,12 @@ intentionally does not run Alembic or bootstrap on startup. Uvicorn does not tru
 generic forwarded headers. In this staging policy, per-client abuse limits use
 Cloudflare's validated single `CF-Connecting-IP` only when Render's `CF-Ray`
 evidence is present; local and test modes keep the socket address.
+
+The existing database is shared staging state: a local app pointed at it can
+change the same records as the hosted app. Keep disposable integration tests on
+their separate local PostgreSQL database. Before pushing a schema-changing release,
+apply and verify its compatible migrations explicitly; auto-deploy updates the app,
+not the database schema.
 
 After a future authorized deployment, check `/api/health/live`,
 `/api/health/ready`, a direct browser deep link, invitation acceptance, password +
