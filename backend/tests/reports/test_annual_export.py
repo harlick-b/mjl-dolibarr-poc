@@ -176,6 +176,7 @@ def test_current_pta_csv_exports_metrics_and_definitive_financial_facts(planning
     assert response.headers["content-disposition"].endswith('.csv"')
     assert int(response.headers["content-length"]) == len(response.content)
     content, rows = activity_rows(response)
+    assert "Révision approuvée" not in content[content.index([]) + 1]
     metadata = {row[0]: row[1] for row in content if len(row) == 2}
     assert metadata["Activités clôturées"] == "1"
     assert metadata["Activités approuvées"] == "1"
@@ -186,9 +187,9 @@ def test_current_pta_csv_exports_metrics_and_definitive_financial_facts(planning
     assert len(rows) == 1
     row = rows[0]
     assert row[0:2] == [activity["id"], activity["reference"]]
-    assert row[6:10] == ["Clôturée", "300000", "200000", "200000"]
-    assert row[11:14] == ["100000", "100000", "2026-10-29"]
-    assert row[14]
+    assert row[5:9] == ["Clôturée", "300000", "200000", "200000"]
+    assert row[10:13] == ["100000", "100000", "2026-10-29"]
+    assert row[13]
 
     with Session(planning["auth"].engine) as db:
         audit = db.scalar(
@@ -229,7 +230,7 @@ def test_current_pta_csv_uses_latest_external_confirmation(planning):
     response = export(planning["validator"], activity["pta_id"])
     assert response.status_code == 200, response.text
     row = next(row for row in activity_rows(response)[1] if row[0] == activity["id"])
-    assert row[9:12] == ["300000", "2026-10-29", "0"]
+    assert row[8:11] == ["300000", "2026-10-29", "0"]
 
 
 def test_current_pta_csv_keeps_approved_baseline_and_current_placement(planning):
@@ -282,13 +283,13 @@ def test_current_pta_csv_distinguishes_unfinished_and_validated_zero(planning):
     unfinished_response = export(planning["agent"], unfinished["pta_id"])
     assert unfinished_response.status_code == 200, unfinished_response.text
     unfinished_rows = {row[0]: row for row in activity_rows(unfinished_response)[1]}
-    assert unfinished_rows[unfinished["id"]][8:14] == ["", "", "", "", "", ""]
+    assert unfinished_rows[unfinished["id"]][7:13] == ["", "", "", "", "", ""]
 
     zero = approve_zero_and_close(planning)
     response = export(planning["agent"], zero["pta_id"])
     assert response.status_code == 200, response.text
     rows = {row[0]: row for row in activity_rows(response)[1]}
-    assert rows[zero["id"]][8:14] == ["0", "", "", "0", "", ""]
+    assert rows[zero["id"]][7:13] == ["0", "", "", "0", "", ""]
 
 
 def test_current_pta_csv_is_formula_safe(planning):
@@ -434,5 +435,5 @@ def test_current_pta_export_serializes_with_activity_closure(planning, first):
     assert exported.status_code == 200, exported.text
     assert closed.status_code == 200, closed.text
     row = next(row for row in activity_rows(exported)[1] if row[0] == activity["id"])
-    assert row[6] == ("Approuvée" if first == "export" else "Clôturée")
-    assert row[8] == ("" if first == "export" else "200000")
+    assert row[5] == ("Approuvée" if first == "export" else "Clôturée")
+    assert row[7] == ("" if first == "export" else "200000")

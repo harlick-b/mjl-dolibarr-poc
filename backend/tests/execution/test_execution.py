@@ -344,6 +344,74 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
         planning["validator"].get(endpoint, params={"state": "ongoing"}).json()["count"]
         == 1
     )
+    assert (
+        planning["validator"]
+        .get(
+            endpoint,
+            params={
+                "from": activity["planned_end"],
+                "to": activity["planned_end"],
+            },
+        )
+        .json()["count"]
+        == 1
+    )
+    outside_period = (
+        datetime.fromisoformat(activity["planned_end"]).date() + timedelta(days=1)
+    ).isoformat()
+    assert (
+        planning["validator"]
+        .get(
+            endpoint,
+            params={"from": outside_period, "to": outside_period},
+        )
+        .json()["count"]
+        == 0
+    )
+    amendment = open_amendment(planning, assigned.json())
+    candidate_date = (
+        datetime.fromisoformat(activity["planned_start"]).date() + timedelta(days=1)
+    ).isoformat()
+    moved_candidate = patch(
+        planning["agent"],
+        f"/api/v1/activities/{activity['id']}",
+        {
+            "expected_version": amendment["version"],
+            "name": amendment["name"],
+            "description": amendment["description"],
+            "planned_start": candidate_date,
+            "planned_end": candidate_date,
+            "allocation": amendment["allocation"],
+            "operations": [
+                {
+                    "id": row["id"],
+                    "type_id": row["type_id"],
+                    "name": row["name"],
+                    "allocation": row["allocation"],
+                }
+                for row in amendment["operations"]
+            ],
+        },
+    )
+    assert moved_candidate.status_code == 200, moved_candidate.text
+    assert (
+        planning["validator"]
+        .get(
+            endpoint,
+            params={
+                "from": activity["planned_start"],
+                "to": activity["planned_start"],
+            },
+        )
+        .json()["count"]
+        == 1
+    )
+    assert (
+        planning["validator"]
+        .get(endpoint, params={"from": outside_period, "to": outside_period})
+        .json()["count"]
+        == 0
+    )
     agent_options = f"/api/v1/ptas/{activity['pta_id']}/execution/agents"
     assert planning["validator"].get(
         agent_options, params={"q": agent["full_name"] or agent["email"]}

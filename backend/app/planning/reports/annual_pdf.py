@@ -87,7 +87,7 @@ def pdf_artifact(
         story.append(
             LongTable(
                 table_rows,
-                colWidths=[66, 125, 55, 60, 60, 98, 105, 105, 105],
+                colWidths=[66, 180, 60, 60, 98, 105, 105, 105],
                 repeatRows=1,
                 splitInRow=1,
                 style=TableStyle(

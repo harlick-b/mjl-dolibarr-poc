@@ -66,7 +66,6 @@ export const strings = new LocalizedStrings({
     validation: 'Validation',
     until: 'au',
     operationsLabel: 'opérations',
-    revision: 'Révision',
     consult: 'Consulter',
     generalInformation: 'Informations générales',
     operationsBudget: 'Opérations et budget',
@@ -204,12 +203,12 @@ export const strings = new LocalizedStrings({
     cancelAmendment: 'Annuler la modification',
     amendmentReason: 'Motif de la modification',
     cancellationReason: 'Motif de l’annulation',
-    approvedVersion: 'Version approuvée',
+    approvedVersion: 'Informations approuvées',
     candidateVersion: 'Modification en préparation',
     executionPaused:
       'L’exécution de cette activité est suspendue pendant l’examen de la modification.',
     cancellationWarning:
-      'La version approuvée sera restaurée. La modification et son historique resteront consultables.',
+      'Les informations approuvées seront restaurées. La modification et son historique resteront consultables.',
     requestWithdrawal: 'Retirer l’activité',
     correctWithdrawal: 'Corriger la demande de retrait',
     cancelWithdrawal: 'Annuler la demande de retrait',
@@ -239,7 +238,7 @@ export const strings = new LocalizedStrings({
     returnCorrection: 'Demander une correction',
     workflowConfirmation: 'Confirmer la décision',
     workflowExactRevision:
-      'Cette action porte sur la révision courante affichée.',
+      'Cette décision concerne les informations soumises affichées.',
     observation: 'Observation',
     decisionAttachment: 'Pièce justificative',
     decisionSavedUploadFailed:
@@ -268,7 +267,7 @@ export const strings = new LocalizedStrings({
     decisions: 'Décisions',
     openedOn: 'Modification ouverte le',
     cancelledOn: 'Modification annulée le',
-    noRevision: 'Aucune révision soumise.',
+    noRevision: 'Aucune information soumise.',
     saved: 'Modifications enregistrées.',
     createCategory: 'Créer une catégorie',
     categoryCreated: 'Catégorie créée.',

@@ -35,6 +35,7 @@ def test_multiline_description_continues_across_pages():
     assert len(activity["description"]) <= 4000
     pdf = PdfReader(BytesIO(render_partner_fiche(activity, "2027-01-01")))
     content = "\n".join(page.extract_text() for page in pdf.pages)
+    assert "Révision" not in content
     assert len(pdf.pages) > 1
     assert content.count("Ligne de description") == 189
     assert "FIN DESCRIPTION" in content

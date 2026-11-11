@@ -55,7 +55,7 @@ def test_pdf_finance_matches_excel_and_audit(planning):
     document = PdfReader(BytesIO(response.content))
     content = "\n".join(page.extract_text() for page in document.pages)
     _, cells = workbook_cells(excel(planning["validator"], activity["pta_id"]).content)
-    for value in (cells["G2"], cells["H2"], cells["I2"]):
+    for value in (cells["F2"], cells["G2"], cells["H2"]):
         assert format(int(value), ",").replace(",", " ") in content
     with Session(planning["auth"].engine) as db:
         audit = next(
@@ -171,7 +171,8 @@ def test_pdf_pagination_literal_text_exact_amounts_and_empty_plan():
     document = PdfReader(BytesIO(content))
     assert len(document.pages) >= 3
     text = "\n".join(page.extract_text() for page in document.pages)
-    assert "9 223 372 036 854 775 807" in text
+    assert "Révision approuvée" not in text
+    assert "9 223 372 036 854 775 807" in " ".join(text.split())
     assert "<link" in text and "locale</link>" in text
     for row in rows:
         assert row["reference"] in text

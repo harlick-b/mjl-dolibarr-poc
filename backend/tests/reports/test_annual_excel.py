@@ -60,8 +60,8 @@ def test_excel_report_contains_summary_and_approved_rows(planning):
     assert "Rapport de travail — non officiel" in summary.values()
     assert "300000" in summary.values()
     assert rows["B2"] == "=SUM(1;2)"
-    assert rows["G2"] == "300000"
-    assert rows.get("H2", "") == ""
+    assert rows["F2"] == "300000"
+    assert rows.get("G2", "") == ""
 
 
 def test_excel_final_finance_and_audit(planning):
@@ -83,13 +83,13 @@ def test_excel_final_finance_and_audit(planning):
     response = excel(planning["validator"], activity["pta_id"])
     assert response.status_code == 200, response.text
     summary, rows = workbook_cells(response.content)
-    assert [rows["G2"], rows["H2"], rows["I2"]] == ["300000", "200000", "100000"]
+    assert [rows["F2"], rows["G2"], rows["H2"]] == ["300000", "200000", "100000"]
     assert summary["B12"] == "1"
     assert summary["B13"] == "1"
     assert summary["B15"] == "200000"
     assert summary["B16"] == "300000"
     csv_row = activity_rows(export(planning["validator"], activity["pta_id"]))[1][0]
-    assert [rows["G2"], rows["H2"], rows["I2"]] == [csv_row[7], csv_row[8], csv_row[12]]
+    assert [rows["F2"], rows["G2"], rows["H2"]] == [csv_row[6], csv_row[7], csv_row[11]]
     with Session(planning["auth"].engine) as db:
         audit = db.scalar(select(Audit).where(Audit.target == summary["B3"]))
         assert audit and audit.details == {
@@ -207,17 +207,18 @@ def test_workbook_exact_integers_literal_text_and_layout():
         (("Allocation approuvée XOF", "9223372036854775807"),), [row]
     )
     summary, cells = workbook_cells(content)
+    assert "Révision approuvée" not in cells.values()
     assert summary["B3"] == "9223372036854775807"
-    assert cells["G2"] == "9223372036854775807"
+    assert cells["F2"] == "9223372036854775807"
     assert cells["A2"] == "https://example.test"
     assert cells["B2"] == '=HYPERLINK("https://example.test")'
-    assert cells["H2"] == "0"
-    assert cells.get("I2", "") == ""
+    assert cells["G2"] == "0"
+    assert cells.get("H2", "") == ""
     with ZipFile(BytesIO(content)) as archive:
         root = ET.fromstring(archive.read("xl/worksheets/sheet2.xml"))
-        assert root.find('.//s:c[@r="G2"]', NS).get("t") == "s"
+        assert root.find('.//s:c[@r="F2"]', NS).get("t") == "s"
         assert root.find(".//s:hyperlinks", NS) is None
-        assert root.find("s:autoFilter", NS).get("ref") == "A1:I2"
+        assert root.find("s:autoFilter", NS).get("ref") == "A1:H2"
         assert root.find(".//s:pane", NS).get("state") == "frozen"
         workbook = ET.fromstring(archive.read("xl/workbook.xml"))
         assert [sheet.get("name") for sheet in workbook.find("s:sheets", NS)] == [

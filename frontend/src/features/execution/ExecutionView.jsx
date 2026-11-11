@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
-import { formatXof, formatDate } from '@/shared/lib/format'
+import { formatXof, formatDate, formatDateTime } from '@/shared/lib/format'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
@@ -238,7 +238,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       Boolean(selectedVirement.data?.reversement),
   })
   const filters = Object.fromEntries(
-    ['q', 'state', 'agent']
+    ['q', 'state', 'agent', 'from', 'to']
       .filter((key) => search[key])
       .map((key) => [key, search[key]]),
   )
@@ -632,8 +632,11 @@ export function ExecutionList({
   onFilterChange,
   ptaId,
 }) {
-  const reset = () => onFilterChange?.({ q: '', state: '', agent: '' })
-  const filtered = Boolean(filters.q || filters.state || filters.agent)
+  const reset = () =>
+    onFilterChange?.({ q: '', state: '', agent: '', from: '', to: '' })
+  const filtered = Boolean(
+    filters.q || filters.state || filters.agent || filters.from || filters.to,
+  )
   const rows = result?.data || []
   const stateOptions = [
     ['', filterText.all],
@@ -667,7 +670,9 @@ export function ExecutionList({
           searchLabel={filterText.searchActivity}
           stateLabel={filterText.state}
           stateOptions={stateOptions}
+          filterStates={stateOptions.filter((option) => option.value)}
           quickStates={quickStates}
+          dates
           disabled={!ptaId}
         />
         <p className="border-b border-border px-5 py-4 text-sm">
@@ -759,11 +764,6 @@ export function ExecutionList({
                     >
                       {executionStage(row)}
                     </span>
-                    {row.approved_revision_number && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {strings.revision} {row.approved_revision_number}
-                      </p>
-                    )}
                   </td>
                   <td className="px-3 py-4">
                     <Button asChild variant="outline" size="sm">
@@ -944,54 +944,32 @@ function ExecutionDetail({
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-          <span className="rounded-card bg-success-badge px-2 py-1 text-xs text-success">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+          <span className="w-fit rounded-card bg-success-badge px-2 py-1 text-xs text-success">
             {detail.closure ? strings.closedLabel : strings.approvedLabel}
           </span>
-          <span>
+          <span className="font-medium">
+            {formatDate(detail.planned_start)} au{' '}
+            {formatDate(detail.planned_end)}
+          </span>
+          <span className="font-medium">
+            {detail.agents?.join(', ') || '—'}
+          </span>
+          <span className="text-muted-foreground">
             {strings.physicalProgress} :{' '}
-            <strong className="lowercase">
+            <strong className="font-medium text-foreground lowercase">
               {detail.works_completed
                 ? strings.completedLabel
                 : strings.ongoingLabel}
             </strong>
           </span>
-          <span>
-            {strings.administration} : <strong>{executionStage(detail)}</strong>
+          <span className="text-muted-foreground">
+            {strings.administration} :{' '}
+            <strong className="font-medium text-foreground">
+              {executionStage(detail)}
+            </strong>
           </span>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">
-            {strings.currentOwners}
-          </p>
-          <strong>{detail.agents?.join(', ') || '—'}</strong>
-        </div>
-        <dl className="flex flex-wrap gap-x-10 gap-y-3 text-sm">
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              {strings.plannedStart}
-            </dt>
-            <dd className="mt-1 font-medium">
-              {formatDate(detail.planned_start)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              {strings.plannedEnd}
-            </dt>
-            <dd className="mt-1 font-medium">
-              {formatDate(detail.planned_end)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              {strings.revision}
-            </dt>
-            <dd className="mt-1 font-medium">
-              {detail.approved_revision_number}
-            </dd>
-          </div>
-        </dl>
       </header>
       {error && (
         <p role="alert" className="border-l-4 border-l-danger p-3 bg-white">
@@ -1944,14 +1922,19 @@ function VirementSection({
                     {confirmationHistory.data.map((entry) => (
                       <li key={entry.id}>
                         <strong>
-                          Version {entry.revision} · {formatXof(entry.amount)} ·{' '}
-                          {entry.transfer_date}
+                          {entry.correction_reason
+                            ? 'Déclaration corrigée'
+                            : 'Déclaration initiale'}
                         </strong>
-                        {entry.note && <p>{entry.note}</p>}
                         <p>
-                          Déclaré par {entry.actor_id} ·{' '}
+                          {formatXof(entry.amount)} · Date effective :{' '}
+                          {formatDate(entry.transfer_date)}
+                        </p>
+                        {entry.note && <p>{entry.note}</p>}
+                        <p>Déclarée par {entry.actor_name}</p>
+                        <p>
                           <time dateTime={entry.recorded_at}>
-                            {entry.recorded_at}
+                            Enregistrée le {formatDateTime(entry.recorded_at)}
                           </time>
                         </p>
                         {entry.correction_reason && (
@@ -2192,15 +2175,20 @@ function VirementSection({
                         {reversementHistory.data.map((entry) => (
                           <li key={entry.id}>
                             <strong>
-                              Version {entry.revision} ·{' '}
-                              {formatXof(entry.returned_amount)} ·{' '}
-                              {entry.return_date}
+                              {entry.correction_reason
+                                ? 'Reversement corrigé'
+                                : 'Reversement initial'}
                             </strong>
-                            {entry.note && <p>{entry.note}</p>}
                             <p>
-                              Déclaré par {entry.actor_id} ·{' '}
+                              {formatXof(entry.returned_amount)} · Date
+                              effective : {formatDate(entry.return_date)}
+                            </p>
+                            {entry.note && <p>{entry.note}</p>}
+                            <p>Déclaré par {entry.actor_name}</p>
+                            <p>
                               <time dateTime={entry.recorded_at}>
-                                {entry.recorded_at}
+                                Enregistré le{' '}
+                                {formatDateTime(entry.recorded_at)}
                               </time>
                             </p>
                             {entry.correction_reason && (

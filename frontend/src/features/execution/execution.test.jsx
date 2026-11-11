@@ -136,8 +136,13 @@ test('execution explorer searches assigned Agents and shows readable active filt
   ).toBeVisible()
   expect(screen.getByText('1 / 1 opérations terminées')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
+  expect(screen.queryByText(/Révision 1/)).not.toBeInTheDocument()
 
   await user.click(screen.getByRole('button', { name: 'Filtres' }))
+  expect(screen.getByText('Période de l’activité')).toBeVisible()
+  expect(
+    screen.getByText('Activités dont les dates croisent cette période.'),
+  ).toBeVisible()
   const agent = await screen.findByLabelText('Agent affecté')
   await user.click(agent)
   await user.click(screen.getByRole('option', { name: 'Agent de test' }))
@@ -152,6 +157,45 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(
     screen.getByRole('button', { name: 'Retirer le filtre Réalisation' }),
   ).toHaveTextContent('Autorisation à examiner')
+})
+
+test('execution explorer keeps the selected activity period in its API request', async () => {
+  const requests = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      requests.push(String(url))
+      const body = String(url).includes('/auth/session')
+        ? {
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }
+        : { object: 'list', count: 0, data: [], next: null, previous: null }
+      return new Response(JSON.stringify(body))
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/pta-1?from=2026-07-01&to=2026-09-30'],
+    }),
+  )
+  render(<App router={router} />)
+
+  await screen.findByText('0 activité')
+  expect(
+    requests.some(
+      (url) =>
+        url.includes('/ptas/pta-1/execution') &&
+        url.includes('from=2026-07-01') &&
+        url.includes('to=2026-09-30'),
+    ),
+  ).toBe(true)
 })
 
 test('an observation draft keeps its version across refresh and can be explicitly reset', async () => {
@@ -239,6 +283,7 @@ test('an observation draft keeps its version across refresh and can be explicitl
     'Administration : Traitement financier requis',
   )
   expect(screen.getByText('Agent de test')).toBeVisible()
+  expect(screen.queryByText('Révision')).not.toBeInTheDocument()
   expect(
     screen.getByRole('link', { name: 'Réalisation & finances' }),
   ).toHaveAttribute('aria-current', 'page')
@@ -1751,6 +1796,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
         transfer_date: body.transfer_date,
         note: body.note,
         actor_id: 'agent',
+        actor_name: 'Yoann Agent',
         recorded_at: `2026-10-29T1${revision}:00:00Z`,
         correction_reason: body.reason,
       }
@@ -1775,6 +1821,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
         transfer_date: body.transfer_date,
         note: body.note,
         actor_id: 'agent',
+        actor_name: 'Yoann Agent',
         recorded_at: '2026-10-29T10:00:00Z',
         correction_reason: null,
       }
@@ -1894,6 +1941,11 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       virementPanel.getByLabelText(/Référence ou commentaire/),
     ).toHaveValue('TEST-003'),
   )
+  await user.click(virementPanel.getByText('Historique des déclarations (3)'))
+  expect(virementPanel.getAllByText('Déclaration corrigée')).toHaveLength(2)
+  expect(virementPanel.getByText('Déclaration initiale')).toBeVisible()
+  expect(virementPanel.getAllByText(/Yoann Agent/)).toHaveLength(3)
+  expect(virementPanel.queryByText(/^Version /)).not.toBeInTheDocument()
 })
 
 test('Agent records the exact reversement and preserves reasoned corrections', async () => {
@@ -1917,6 +1969,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     transfer_date: '2026-10-27',
     note: 'VIREMENT-001',
     actor_id: 'agent',
+    actor_name: 'Yoann Agent',
     recorded_at: '2026-10-27T10:00:00Z',
     correction_reason: null,
   }
@@ -1989,6 +2042,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
         return_date: body.return_date,
         note: body.note,
         actor_id: 'agent',
+        actor_name: 'Yoann Agent',
         recorded_at: '2026-10-28T10:00:00Z',
         correction_reason: null,
         activity_version: 9,
@@ -2146,6 +2200,11 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       }),
     ).toBeVisible(),
   )
+  await user.click(panel.getByText('Historique des reversements (2)'))
+  expect(panel.getByText('Reversement corrigé')).toBeVisible()
+  expect(panel.getByText('Reversement initial')).toBeVisible()
+  expect(panel.getAllByText(/Yoann Agent/)).toHaveLength(2)
+  expect(panel.queryByText(/^Version /)).not.toBeInTheDocument()
 })
 
 test('zero reversement displays settlement without a declaration form', async () => {

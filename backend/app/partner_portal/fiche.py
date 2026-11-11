@@ -130,7 +130,6 @@ def render_partner_fiche(detail: dict[str, Any], generated_at: str) -> bytes:
                 f"{day(detail['planned_start'])} au {day(detail['planned_end'])}",
             ),
             ("Allocation approuvée", xof(detail["allocation"])),
-            ("Révision approuvée", f"N° {detail['approved_revision']}"),
         ]
     )
     operation_rows: list[tuple[Any, str, str]] = [
@@ -174,7 +173,7 @@ def render_partner_fiche(detail: dict[str, Any], generated_at: str) -> bytes:
         [
             (
                 labels.get(item["kind"], "Décision approuvée"),
-                f"Révision {item['revision']} · {day(item['decided_at'])}",
+                day(item["decided_at"]),
             )
             for item in detail["decisions"]
         ]

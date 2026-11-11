@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
@@ -6,7 +7,8 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import Date, func, or_, select, text
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -722,6 +724,8 @@ def execution_list(
         "", "ongoing", "physical", "review", "transfer", "reversal", "ready", "closed"
     ] = "",
     agent: UUID | None = None,
+    period_from: Annotated[date | None, Query(alias="from")] = None,
+    period_to: Annotated[date | None, Query(alias="to")] = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         actor = principal(db, auth, evidence(request, auth)[0])
@@ -729,12 +733,16 @@ def execution_list(
         if not pta or pta.context_id != CONTEXT:
             raise AuthError(404, "pta_not_found")
         limit, token = args
+        if period_from and period_to and period_from > period_to:
+            raise AuthError(422, "period_invalid")
         filters = {
             key: value
             for key, value in {
                 "q": q.strip(),
                 "state": state,
                 "agent": str(agent) if agent else "",
+                "from": period_from.isoformat() if period_from else "",
+                "to": period_to.isoformat() if period_to else "",
             }.items()
             if value
         }
@@ -838,6 +846,23 @@ def execution_list(
                 )
                 .exists()
             )
+        approved_start = (
+            select(sql_cast(ActivityRevision.snapshot["planned_start"].astext, Date))
+            .where(ActivityRevision.id == Activity.approved_revision_id)
+            .scalar_subquery()
+        )
+        approved_end = (
+            select(sql_cast(ActivityRevision.snapshot["planned_end"].astext, Date))
+            .where(ActivityRevision.id == Activity.approved_revision_id)
+            .scalar_subquery()
+        )
+        if period_from:
+            conditions.append(approved_start.is_not(None))
+            conditions.append(
+                func.coalesce(approved_end, approved_start) >= period_from
+            )
+        if period_to:
+            conditions.append(approved_start <= period_to)
         if state in {"reversal", "ready"}:
             verified_state = cast(Literal["reversal", "ready"], state)
             verified_ids = [

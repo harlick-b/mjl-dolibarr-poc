@@ -215,6 +215,7 @@ test('a Partner sees only the read-only portfolio projection', async () => {
   ).toBeVisible()
   expect(screen.getByText('Trois journées de consultations.')).toBeVisible()
   expect(screen.getByText('Modification approuvée')).toBeVisible()
+  expect(screen.queryByText(/Révision [0-9]+/)).not.toBeInTheDocument()
   expect(screen.getByText(/10 janvier 2027/)).toBeVisible()
   expect(screen.getByText(/5 février 2027/)).toBeVisible()
   expect(screen.getAllByText(/90.000 F CFA/).length).toBeGreaterThan(0)

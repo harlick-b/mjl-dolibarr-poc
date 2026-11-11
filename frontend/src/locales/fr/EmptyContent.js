@@ -6,8 +6,8 @@ export const strings = new LocalizedStrings({
       'Aucun type d’opération n’est enregistré pour le moment.',
     ],
     revisions: [
-      'Aucune révision',
-      'Aucune révision n’a été soumise pour cette activité.',
+      'Aucune information soumise',
+      'Aucune information n’a encore été soumise pour cette activité.',
     ],
     sharedDocuments: [
       'Aucune pièce partagée',

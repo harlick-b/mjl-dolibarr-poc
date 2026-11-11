@@ -255,5 +255,12 @@ identity and Activity reference in the page header, a clear Activity title,
 institutional navy section hierarchy, Planification, budget/Operations,
 authorizations, external declarations, evidence and administrative chronology.
 It retains authoritative approved values and unknown values without inventing data.
+The Réalisation Activity explorer reuses the same floating filter, overlapping
+period controls, Agent search and compact Activity identity hierarchy as
+Prévisions. Execution-specific states and financial facts keep their own wording.
+Fiche content uses ordinary French labels and displays only meaningful changes in
+its chronology; raw action names, empty before/after transitions and internal
+assignment cleanup are omitted. Tables use the light administrative header style
+from the supplied Fiche reference.
 The new-Activity assignment email reuses the approved Activity-review visual shell,
 with its Activity summary and direct Activity link in HTML and plain text.

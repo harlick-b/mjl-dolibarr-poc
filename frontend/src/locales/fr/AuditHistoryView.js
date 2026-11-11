@@ -18,7 +18,6 @@ export const strings = new LocalizedStrings({
     milestone: 'Étape majeure',
     change: 'Modification',
     system: 'Système',
-    revision: 'Consulter la révision',
     submittedInformation: 'Voir les informations soumises',
     amendment: 'Consulter la modification',
   },

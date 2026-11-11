@@ -52,7 +52,7 @@ Built artifact `index-D9OfAkV-.js` SHA256:
 Slice 1 checks:
 
 - `npm --prefix frontend run test:unit -- src/features/planning/pta-metadata.test.jsx
-  src/features/planning/planning.test.jsx --maxWorkers=1`: **45 passed**. After
+src/features/planning/planning.test.jsx --maxWorkers=1`: **45 passed**. After
   localization wrapping, the same command restricted to `pta-metadata.test.jsx`
   passed **10 tests**.
 - From `frontend`, `npm run test:e2e -- e2e/planning/planning-design.spec.js`:
@@ -62,8 +62,8 @@ Slice 1 checks:
   no errors, one existing effect-cleanup warning in `access-verification.jsx:451`.
   Prettier checks of all touched JSX/JS files passed.
 - From `backend`, `.venv/bin/ruff check app/planning/routes.py
-  tests/planning/test_explicit_pta.py tests/planning/test_planning.py
-  tests/planning/test_transfers.py`: passed; `.venv/bin/mypy app/planning`:
+tests/planning/test_explicit_pta.py tests/planning/test_planning.py
+tests/planning/test_transfers.py`: passed; `.venv/bin/mypy app/planning`:
   **20 source files passed**. `git diff --check`: passed.
 - Earlier broad PostgreSQL run of explicit PTA and transfer files finished
   **53 passed, 9 failed** after an initial **6 passed, 53 failed** fixture-cutover
@@ -72,12 +72,12 @@ Slice 1 checks:
   (exit 143), with no completed summary. Neither run is reported as a full pass.
   Final focused PostgreSQL rerun: **21 passed, 150 deselected** in 135.20s,
   using `.venv/bin/python /tmp/mjl-design-tests.py
-  tests/planning/test_explicit_pta.py tests/planning/test_transfers.py
-  tests/planning/test_planning.py -k 'explicit_pta or t05_amend_transfer or
-  original_create_replay or assignment_change_serialize or assignment_lifecycle_guard
-  or approval_rolls_back_target or used_transfer_database or
-  placement_change_without_transfer or v04_v05_assigned or p06_p10_direct'
-  -q --tb=short --show-capture=no`. This covers all nine previously failing cases,
+tests/planning/test_explicit_pta.py tests/planning/test_transfers.py
+tests/planning/test_planning.py -k 'explicit_pta or t05_amend_transfer or
+original_create_replay or assignment_change_serialize or assignment_lifecycle_guard
+or approval_rolls_back_target or used_transfer_database or
+placement_change_without_transfer or v04_v05_assigned or p06_p10_direct'
+-q --tb=short --show-capture=no`. This covers all nine previously failing cases,
   explicit-PTA prerequisites, legacy pending transfer compatibility, assignment
   races, rollback and migration 0027 round-trip on this candidate. It is not a
   rerun of the full suite. Tests used disposable PostgreSQL with teardown.
@@ -88,7 +88,6 @@ Project cursor scope and History invalidation. Final independent code/evidence
 review completed with no remaining blocking findings for slice 1.
 The existing lessons already cover snapshot-based forms and targeted verification;
 no duplicate lesson was added.
-
 
 Commit review follow-up: fixed dismissal during a pending PTA save so the request
 settles and refreshes planning/History without reopening the dialog. Session
@@ -141,7 +140,7 @@ Built artifact `index-d4tCTiMu.js` SHA256:
 Slice 2 checks:
 
 - Disposable PostgreSQL: `.venv/bin/python /tmp/mjl-design-tests.py
-  tests/planning/test_activity_briefs.py -q --tb=short --show-capture=no`:
+tests/planning/test_activity_briefs.py -q --tb=short --show-capture=no`:
   **8 passed** in 55.47s. This covers migration/constraints, role/body rules,
   replay and rollback, Agent completion, two-stage review, planning/financial
   contributor separation, visibility/exports and assignment/deactivation races.
@@ -208,8 +207,8 @@ The Activity header now includes the PTA breadcrumb and draft/review actor conte
 Candidate checks:
 
 - Disposable PostgreSQL: `pytest tests/planning/test_activity_briefs.py
-  tests/execution/test_documents.py::test_optional_attachment_upload_list_and_guarded_download
-  -q --tb=short --show-capture=no`: **10 passed** in 87.78s. This covers both
+tests/execution/test_documents.py::test_optional_attachment_upload_list_and_guarded_download
+-q --tb=short --show-capture=no`: **10 passed** in 87.78s. This covers both
   reviewer roles, observations, blank-observation rejection, downgrade guards,
   financial contributor exclusion and Supervisor upload/audit.
 - Frontend `npm run test:unit -- src/features/planning/planning.test.jsx`:
@@ -249,7 +248,7 @@ Verification of that PTA-foundation candidate:
   `tests/planning/test_catalog_editing.py -q`: **7 passed**. Includes clean upgrade,
   populated predecessor round-trip, loss-preventing downgrade and direct uniqueness.
 - Frontend `npm run test:unit -- src/features/planning/calendar.test.js
-  src/features/planning/planning.test.jsx`: **37 passed**, including denied calendar
+src/features/planning/planning.test.jsx`: **37 passed**, including denied calendar
   refetch cache removal. `npm run test:e2e -- e2e/planning/planning-design.spec.js`:
   **2 passed**, using intercepted disposable data. Calendar screenshot inspected
   against the existing reference; this is not human visual acceptance.
@@ -297,7 +296,7 @@ Verification (segmented regression campaign, not a single full-suite pass):
   This rerun follows batching the financial lists’ assignment lookup; earlier
   broad execution checks predate that localized projection change.
 - Historical predecessor migration checks: `tests/planning/test_planning.py
-  -k predecessor_upgrade -q`: **8 passed**. Fixtures reproduce the older full
+-k predecessor_upgrade -q`: **8 passed**. Fixtures reproduce the older full
   before/after audit format. This does not promise that current compact audit
   records support downgrade/re-upgrade through that historical schema.
 - Corrected closure/document/migration cases: **12 passed** before a remaining
@@ -902,7 +901,7 @@ mutations and a generic all-actions destination remain outside this slice.
 Final focused evidence:
 
 - On disposable PostgreSQL, `pytest -q
-  tests/planning/test_dashboard_reads.py` passed **6 tests** in 33.96s after one
+tests/planning/test_dashboard_reads.py` passed **6 tests** in 33.96s after one
   discarded setup-only run used an incomplete test URL. The journeys cover
   planning and financial role attention, exact settlement values, the explicit
   zero-reversement case, role denial and the adjacent shared-read behavior. The
@@ -1233,12 +1232,12 @@ Final local evidence for the completed candidate:
   `app/core/health.py`, `app/main.py`, `tests/auth/test_client_address.py`,
   `tests/auth/test_auth_policy.py` and `tests/core/test_frontend.py`.
   `.venv/bin/mypy app` and `.venv/bin/pytest
-  tests/auth/test_client_address.py
-  tests/auth/test_auth_policy.py::test_auth_cannot_enable_real_accounts
-  tests/auth/test_auth_policy.py::test_local_policy_requires_resend_and_loopback_app_configuration
-  tests/auth/test_auth_policy.py::test_staging_policy_requires_explicit_https_demo_configuration
-  tests/auth/test_auth_policy.py::test_synthetic_password_unicode_categories_match_browser
-  tests/core/test_frontend.py -q` passed: Ruff and format clean, strict mypy clean
+tests/auth/test_client_address.py
+tests/auth/test_auth_policy.py::test_auth_cannot_enable_real_accounts
+tests/auth/test_auth_policy.py::test_local_policy_requires_resend_and_loopback_app_configuration
+tests/auth/test_auth_policy.py::test_staging_policy_requires_explicit_https_demo_configuration
+tests/auth/test_auth_policy.py::test_synthetic_password_unicode_categories_match_browser
+tests/core/test_frontend.py -q` passed: Ruff and format clean, strict mypy clean
   across 57 source files, and 6 focused tests passed.
 - The broader selected authentication/frontend run reached 5 passes and 2 setup
   errors because `TEST_DATABASE_URL` was not configured; those database-backed
@@ -1341,6 +1340,40 @@ A mocked planning
 browser selection also failed on stale selectors and unrelated partner/modal
 expectations and was stopped; it is not reported as passing. Human visual, print
 and accessibility acceptance remain outstanding.
+
+## Réalisations and Fiche presentation alignment, 2026-11-11
+
+The Réalisations Activity list now uses the same floating filter composition as
+Prévisions, including Agent search and an overlapping Activity period backed by
+the execution list API. The detail identity block follows the same compact
+reference, title, context, status, date and responsibility hierarchy and no longer
+repeats a technical revision number.
+
+The internal Fiche follows the supplied administrative reference with a concise
+identity block, readable Programming section, three budget facts, Operations,
+authorization decisions, external declarations, evidence and a bordered
+chronology. It omits raw audit action names, unchanged before/after transitions
+and assignment cleanup caused by closure while retaining exact XOF amounts,
+approved facts, correction reasons, actors and dates. A generated three-page PDF
+was rendered to PNG and compared directly with the four supplied Fiche references.
+Focused verification passed 30 frontend tests and 13 disposable-PostgreSQL tests;
+Ruff and strict mypy passed on the touched backend sources. Human print and
+accessibility acceptance remain outstanding.
+
+## Human-readable Activity information, 2026-11-11
+
+Activity screens and human-readable fiches/exports no longer display internal
+revision numbers. History continues to show what happened, when, by whom and why;
+approved information remains distinct from changes awaiting approval. Immutable
+approval records, API fields and concurrency protection remain internal and
+unchanged. The code-level information audit and remaining human-review boundary
+are recorded in [the Activity UX plan](activity-ux-plan.md).
+
+Final focused verification used disposable PostgreSQL and passed 13 execution,
+financial-history, Fiche, annual Excel and Partner Fiche tests. The affected
+frontend files passed 83 tests. Independent review also verified that date filters
+continue to use the approved schedule while a correction is awaiting approval,
+and that long valid history remains printable.
 
 ## Remaining inputs and excluded work
 

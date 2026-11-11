@@ -9,7 +9,6 @@ XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 COLUMNS = (
     ("Référence activité", "reference"),
     ("Nom activité", "name"),
-    ("Révision approuvée", "revision"),
     ("Début approuvé", "start"),
     ("Fin approuvée", "end"),
     ("État actuel", "state"),
@@ -17,7 +16,7 @@ COLUMNS = (
     ("Dépense finale XOF", "spending"),
     ("Surplus reversé XOF", "reversement_amount"),
 )
-NUMERIC_KEYS = {"revision", "allocation", "spending", "reversement_amount"}
+NUMERIC_KEYS = {"allocation", "spending", "reversement_amount"}
 
 
 def workbook_artifact(

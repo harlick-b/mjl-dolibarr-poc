@@ -100,6 +100,10 @@ def test_agent_declares_exact_reversement_and_corrects_history(planning):
     assert history.status_code == 200, history.text
     assert history.json()["count"] == 2
     assert [row["revision"] for row in history.json()["data"]] == [2, 1]
+    assert [row["actor_name"] for row in history.json()["data"]] == [
+        "Test User",
+        "Test User",
+    ]
     assert history.json()["data"][1]["note"] == "REVERSEMENT-001"
 
     current = (

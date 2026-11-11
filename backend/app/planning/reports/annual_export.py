@@ -72,6 +72,22 @@ STATE_LABELS = {
     "closed": "Clôturée",
 }
 MAX_EXPORT_ROWS = 10_000
+CSV_COLUMNS = (
+    ("Identifiant activité", "id"),
+    ("Référence activité", "reference"),
+    ("Nom activité", "name"),
+    ("Début approuvé", "start"),
+    ("Fin approuvée", "end"),
+    ("État actuel", "state"),
+    ("Allocation approuvée XOF", "allocation"),
+    ("Dépense finale XOF", "spending"),
+    ("Virement externe confirmé XOF", "confirmation_amount"),
+    ("Date du virement externe", "confirmation_date"),
+    ("Reversement requis XOF", "reversement_required"),
+    ("Reversement déclaré XOF", "reversement_amount"),
+    ("Date du reversement", "reversement_date"),
+    ("Date de clôture UTC", "closed_at"),
+)
 
 
 def csv_cell(value: object | None) -> str:
@@ -279,27 +295,9 @@ def artifact(
     writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
     writer.writerows((csv_cell(key), csv_cell(value)) for key, value in metadata)
     writer.writerow(())
-    writer.writerow(
-        (
-            "Identifiant activité",
-            "Référence activité",
-            "Nom activité",
-            "Révision approuvée",
-            "Début approuvé",
-            "Fin approuvée",
-            "État actuel",
-            "Allocation approuvée XOF",
-            "Dépense finale XOF",
-            "Virement externe confirmé XOF",
-            "Date du virement externe",
-            "Reversement requis XOF",
-            "Reversement déclaré XOF",
-            "Date du reversement",
-            "Date de clôture UTC",
-        )
-    )
+    writer.writerow(label for label, _key in CSV_COLUMNS)
     for row in rows:
-        writer.writerow(tuple(csv_cell(value) for value in row.values()))
+        writer.writerow(csv_cell(row[key]) for _label, key in CSV_COLUMNS)
     return ("\ufeff" + output.getvalue()).encode("utf-8")
 
 

@@ -85,8 +85,8 @@ def test_partner_export_scope_contract_and_audit(planning, auth_env, monkeypatch
         assert response.status_code == 200, response.text
         content, rows = activity_rows(response)
         assert {row[0] for row in rows} == {activity["id"], second["id"]}
-        assert all(row[6] == "Approuvée" for row in rows)
-        assert all(len(row) == 15 for row in rows)
+        assert all(row[5] == "Approuvée" for row in rows)
+        assert all(len(row) == 14 for row in rows)
         assert "amendment" not in response.text.lower()
         metadata = {row[0]: row[1] for row in content if len(row) == 2}
         with Session(planning["auth"].engine) as db:
@@ -191,11 +191,11 @@ def test_partner_export_closed_finance_matches_portal(planning, auth_env):
         assert response.status_code == 200, response.text
         row = activity_rows(response)[1][0]
         finance = detail["finance"]
-        assert row[8] == finance["final_spending"]
-        assert row[9] == finance["confirmed_transfer_amount"]
-        assert row[11] == finance["reversement_required"]
-        assert row[12] == finance["reversement_amount"]
-        assert row[6] == "Clôturée"
+        assert row[7] == finance["final_spending"]
+        assert row[8] == finance["confirmed_transfer_amount"]
+        assert row[10] == finance["reversement_required"]
+        assert row[11] == finance["reversement_amount"]
+        assert row[5] == "Clôturée"
 
 
 def test_partner_export_current_placement_and_invisible_pta(planning, auth_env):

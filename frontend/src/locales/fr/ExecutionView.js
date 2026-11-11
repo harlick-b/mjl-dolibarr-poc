@@ -5,7 +5,6 @@ export const strings = new LocalizedStrings({
     assignmentRequired:
       'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
     actualSpent: 'Montant dépensé (F CFA)',
-    revision: 'Révision',
     listTitle: 'Réalisation',
     listColumns: [
       'Activité / Référence',
@@ -79,7 +78,7 @@ export const strings = new LocalizedStrings({
       'Pendant la suspension, seule une correction motivée du montant déjà saisi, sans l’augmenter, est possible. Elle ne lève pas la suspension.',
     fundingTitle: 'Financement complémentaire',
     fundingExplanation:
-      'La révision du budget et cette autorisation distincte sont nécessaires avant de poursuivre les travaux. Le décaissement reste fondé sur les dépenses finales.',
+      'La modification du budget et cette autorisation distincte sont nécessaires avant de poursuivre les travaux. Le décaissement reste fondé sur les dépenses finales.',
     fundingSubmit: 'Demander le financement complémentaire',
     fundingEmpty: 'Aucun financement complémentaire demandé.',
     fundingPagination: 'Pagination des financements complémentaires',
@@ -108,7 +107,7 @@ export const strings = new LocalizedStrings({
     fundingApprovedDecision: 'approbation',
     fundingPrevalidatedDecision: 'prévalidation',
     fundingRequired:
-      'la révision budgétaire et son financement complémentaire doivent être approuvés',
+      'la modification du budget et son financement complémentaire doivent être approuvés',
     cancelEntry: 'Annuler la saisie',
     disbursementReturned:
       'Ce retour vous permet de corriger les informations sans annuler la demande. Toute nouvelle demande devra obtenir les deux validations.',

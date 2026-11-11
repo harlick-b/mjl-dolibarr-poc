@@ -1023,7 +1023,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     await screen.findByText(/exécution de cette activité est suspendue/i),
   ).toBeVisible()
   expect(
-    screen.getByRole('region', { name: 'Version approuvée' }),
+    screen.getByRole('region', { name: 'Informations approuvées' }),
   ).toBeVisible()
   expect(
     screen.getByRole('region', { name: 'Modification en préparation' }),

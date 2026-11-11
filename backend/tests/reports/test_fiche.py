@@ -16,6 +16,7 @@ from tests.execution.test_execution import approved_execution_activity, executio
 from tests.execution.test_funding import decide as decide_funding
 from tests.execution.test_funding import increase
 from tests.execution.test_funding import submit as submit_funding
+from tests.execution.test_reversement import confirmed_virement, reversement_path
 from tests.planning.test_amendments import (
     approved_activity,
     cancel_amendment,
@@ -54,18 +55,23 @@ def test_closed_activity_fiche_contains_authoritative_history_and_is_audited(pla
     assert response.content.startswith(b"%PDF")
     content = pdf_text(response)
     for expected in (
-        "FICHE RÉCAPITULATIVE D’ACTIVITÉ",
+        "Fiche récapitulative d’activité",
         activity["reference"],
-        "Planification approuvée",
+        "Programmation",
         "Partenaire test",
         "Projet test",
-        "Générée le",
+        "générée le",
+        "Montant prévu initial",
+        "Montant autorisé actuel",
+        "Dépenses renseignées",
+        "Opération / Type",
+        "Dépense finale",
         "300 000 F CFA",
         "80 000 F CFA",
         "120 000 F CFA",
         "200 000 F CFA",
         "100 000 F CFA",
-        "Confirmation virement",
+        "Virement confirmé",
         "Reversement déclaré",
         "Clôturée",
         "Pièces justificatives",
@@ -74,18 +80,19 @@ def test_closed_activity_fiche_contains_authoritative_history_and_is_audited(pla
         assert expected in content
     assert re.search(r"Montant à reverser\s+100 000 F CFA", content)
     assert re.search(r"Montant reversé\s+100 000 F CFA", content)
-    assert re.search(r"Agents affectés\s+Test User", content)
+    assert re.search(r"Agents affectés :\s+Test User", content)
     normalized = re.sub(r"\s+", " ", content)
     assert "activity." not in normalized
-    assert normalized.count("Révision 1 · soumise le") == 1
+    assert "Identité de l’activité" not in normalized
+    assert "Personne non disponible" not in normalized
+    assert normalized.count("Activité soumise pour examen") == 1
+    assert "Révision" not in normalized
     assert re.search(
-        r"Confirmation virement · révision 1 .*? par Test User "
-        r"\(Agent de saisie\)",
+        r"Virement externe confirmé .*? Test User · Agent de saisie",
         normalized,
     )
     assert re.search(
-        r"Reversement déclaré · révision 1 .*? par Test User "
-        r"\(Agent de saisie\)",
+        r"Reversement déclaré .*? Test User · Agent de saisie",
         normalized,
     )
 
@@ -242,9 +249,12 @@ def test_fiche_renders_complementary_funding_decisions(planning):
     assert prevalidated.status_code == 201, prevalidated.text
 
     content = re.sub(r"\s+", " ", pdf_text(planning["agent"].get(fiche_path(activity))))
-    assert "Demande de financement complémentaire" in content
+    assert "Financement complémentaire · demande 1" in content
     assert "20 000 F CFA" in content
-    assert re.search(r"Agent superviseur et prévalidateur\s+Prévalidé", content)
+    assert re.search(
+        r"Prévalidation\s+Test User\s+Agent superviseur et prévalidateur",
+        content,
+    )
 
 
 def test_fiche_renders_withdrawal_submission_reason(planning):
@@ -310,9 +320,51 @@ def test_fiche_renders_execution_corrections_and_financial_return(planning):
     assert "operation.execution_corrected" not in correction_content
     normalized = re.sub(r"\s+", " ", correction_content)
     assert correction_reason in normalized
-    assert "90 000 F CFA → 80 000 F CFA" in normalized
-    assert "Première saisie. → Montant vérifié." in normalized
-    assert "terminé Oui → Oui" in normalized
+    assert "Dépense finale : 90 000 F CFA → 80 000 F CFA" in normalized
+    assert "Observation : Première saisie. → Montant vérifié." in normalized
+    assert "terminé Oui → Oui" not in normalized
+    assert "réalisé — → —" not in normalized
+
+    second_operation = activity["operations"][1]
+    second_started = patch(
+        planning["agent"],
+        execution_path(activity, second_operation),
+        {
+            "action": "start",
+            "expected_version": corrected.json()["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+        },
+    ).json()
+    second_recorded = patch(
+        planning["agent"],
+        execution_path(activity, second_operation),
+        {
+            "action": "record",
+            "expected_version": second_started["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": second_operation["allocation"],
+            "execution_completed": True,
+            "execution_observation": "Contrôle provisoire.",
+        },
+    ).json()
+    cleared = patch(
+        planning["agent2"],
+        execution_path(activity, second_operation),
+        {
+            "action": "record",
+            "expected_version": second_recorded["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": second_operation["allocation"],
+            "execution_completed": True,
+            "execution_observation": "",
+            "correction_reason": "Retirer l’observation devenue inutile.",
+        },
+    )
+    assert cleared.status_code == 200, cleared.text
+    cleared_content = re.sub(
+        r"\s+", " ", pdf_text(planning["validator"].get(fiche_path(activity)))
+    )
+    assert "Observation supprimée : Contrôle provisoire." in cleared_content
 
     complete = finish_activity(planning)
     submitted = post(
@@ -339,6 +391,72 @@ def test_fiche_renders_execution_corrections_and_financial_return(planning):
     assert "Retourné" in financial_content
     assert return_reason in financial_content
     assert "Annulation décaissement" not in financial_content
+
+
+def test_fiche_explains_external_declaration_corrections(planning):
+    activity, _source, request, confirmation, confirmation_path = confirmed_virement(
+        planning
+    )
+    confirmation_reason = "Date et note du virement corrigées."
+    corrected_confirmation = post(
+        planning["agent2"],
+        confirmation_path + "/corrections",
+        {
+            "expected_version": confirmation["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": "Virement externe corrigé",
+            "reason": confirmation_reason,
+        },
+    )
+    assert corrected_confirmation.status_code == 201, corrected_confirmation.text
+    cleared_confirmation = post(
+        planning["agent2"],
+        confirmation_path + "/corrections",
+        {
+            "expected_version": corrected_confirmation.json()["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": None,
+            "reason": "Retirer la note erronée.",
+        },
+    )
+    assert cleared_confirmation.status_code == 201, cleared_confirmation.text
+
+    path = reversement_path(activity, request)
+    declared = post(
+        planning["agent"],
+        path,
+        {
+            "expected_version": cleared_confirmation.json()["activity_version"],
+            "return_date": "2026-10-29",
+            "note": "Reversement initial",
+        },
+    )
+    assert declared.status_code == 201, declared.text
+    reversement_reason = "Date et note du reversement corrigées."
+    corrected_reversement = post(
+        planning["agent2"],
+        path + "/corrections",
+        {
+            "expected_version": declared.json()["activity_version"],
+            "return_date": "2026-10-30",
+            "note": "Reversement corrigé",
+            "reason": reversement_reason,
+        },
+    )
+    assert corrected_reversement.status_code == 201, corrected_reversement.text
+
+    content = re.sub(
+        r"\s+", " ", pdf_text(planning["validator"].get(fiche_path(activity)))
+    )
+    assert "Confirmation de virement corrigée" in content
+    assert "Date effective : 27/10/2026 → 28/10/2026" in content
+    assert "Note : Virement externe TEST → Virement externe corrigé" in content
+    assert "Note supprimée : Virement externe corrigé" in content
+    assert confirmation_reason in content
+    assert "Déclaration de reversement corrigée" in content
+    assert "Date du reversement : 29/10/2026 → 30/10/2026" in content
+    assert "Note : Reversement initial → Reversement corrigé" in content
+    assert reversement_reason in content
 
 
 def test_fiche_splits_valid_maximum_length_description(planning):
@@ -371,6 +489,50 @@ def test_fiche_splits_valid_maximum_length_description(planning):
     response = planning["agent"].get(fiche_path(created))
     assert response.status_code == 200, response.text
     assert len(PdfReader(BytesIO(response.content)).pages) > 1
+
+
+def test_fiche_splits_valid_maximum_length_correction_history(planning):
+    activity = approved_execution_activity(planning)
+    operation = activity["operations"][0]
+    started = patch(
+        planning["agent"],
+        execution_path(activity, operation),
+        {
+            "action": "start",
+            "expected_version": activity["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+        },
+    ).json()
+    recorded = patch(
+        planning["agent"],
+        execution_path(activity, operation),
+        {
+            "action": "record",
+            "expected_version": started["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": "100000",
+            "execution_completed": True,
+            "execution_observation": "A" * 3990 + " OLD-END",
+        },
+    ).json()
+    corrected = patch(
+        planning["agent2"],
+        execution_path(activity, operation),
+        {
+            "action": "record",
+            "expected_version": recorded["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": "90000",
+            "execution_completed": True,
+            "execution_observation": "B" * 3990 + " NEW-END",
+            "correction_reason": "C" * 3987 + " REASON-END",
+        },
+    )
+    assert corrected.status_code == 200, corrected.text
+    response = planning["validator"].get(fiche_path(activity))
+    assert response.status_code == 200, response.text
+    content = " ".join(pdf_text(response).split())
+    assert all(marker in content for marker in ("OLD-END", "NEW-END", "REASON-END"))
 
 
 def test_openapi_describes_the_pdf_success_response(planning):

@@ -366,9 +366,12 @@ export function makeRouter(history, componentOverrides = {}) {
       validateSearch: (search) => ({
         ...(screen === 'execution'
           ? Object.fromEntries(
-              ['q', 'state', 'agent'].map((key) => [
+              ['q', 'state', 'agent', 'from', 'to'].map((key) => [
                 key,
-                String(search[key] || '').slice(0, key === 'q' ? 200 : 36),
+                String(search[key] || '').slice(
+                  0,
+                  key === 'q' ? 200 : ['from', 'to'].includes(key) ? 10 : 36,
+                ),
               ]),
             )
           : {}),

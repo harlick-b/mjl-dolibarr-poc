@@ -9,6 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
+from app.auth.models import User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.core.models import ReversementDeclaration
@@ -78,10 +79,14 @@ class ReversementMutationOutput(ReversementDeclarationOutput):
     activity_version: int
 
 
+class ReversementHistoryOutput(ReversementDeclarationOutput):
+    actor_name: str
+
+
 class ReversementListOutput(Input):
     object: Literal["list"]
     count: int
-    data: list[ReversementDeclarationOutput]
+    data: list[ReversementHistoryOutput]
     next: str | None
     previous: str | None
 
@@ -327,6 +332,12 @@ def history(
         rows = rows[:limit]
         if direction == "previous":
             rows.reverse()
+        actors = {
+            user.id: user.full_name or user.email
+            for user in db.scalars(
+                select(User).where(User.id.in_({row.actor_id for row in rows}))
+            )
+        }
 
         def link(row: ReversementDeclaration, move: str) -> str:
             query = urlencode(
@@ -341,7 +352,13 @@ def history(
         return {
             "object": "list",
             "count": total,
-            "data": [output(row) for row in rows],
+            "data": [
+                {
+                    **output(row),
+                    "actor_name": actors.get(row.actor_id, "Utilisateur indisponible"),
+                }
+                for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

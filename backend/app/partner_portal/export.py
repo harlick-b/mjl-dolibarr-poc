@@ -11,7 +11,6 @@ COLUMNS = (
     ("Identifiant activité", "id"),
     ("Référence activité", "reference"),
     ("Nom activité", "name"),
-    ("Révision approuvée", "revision"),
     ("Début approuvé", "start"),
     ("Fin approuvée", "end"),
     ("État", "state"),

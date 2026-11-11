@@ -13,7 +13,6 @@ from reportlab.lib.pagesizes import A4  # type: ignore[import-untyped]
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # type: ignore[import-untyped]
 from reportlab.lib.units import mm  # type: ignore[import-untyped]
 from reportlab.platypus import (  # type: ignore[import-untyped]
-    KeepTogether,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -107,11 +106,11 @@ ACTIVITY_ACTION_LABELS = {
     "activity.create": "Activité créée",
     "activity.replace": "Brouillon modifié",
     "activity.assign_agents": "Agents assignés",
-    "activity.submit": "Révision soumise",
-    "activity.prevalidate": "Révision prévalidée",
-    "activity.return_supervisor": "Révision retournée par le superviseur",
-    "activity.approve": "Révision approuvée",
-    "activity.return_validator": "Révision retournée par le validateur",
+    "activity.submit": "Activité soumise pour examen",
+    "activity.prevalidate": "Activité transmise pour approbation",
+    "activity.return_supervisor": "Correction demandée par le Superviseur",
+    "activity.approve": "Activité approuvée",
+    "activity.return_validator": "Correction demandée par le Validateur",
     "activity.amendment_open": "Ouverture de modification",
     "activity.amendment_cancel": "Annulation de modification",
     "activity.withdrawal_submit": "Demande de retrait soumise",
@@ -135,6 +134,25 @@ AUDIT_ACTION_LABELS = {
     "zero_spending.prevalidated": "Dépense nulle prévalidée",
     "zero_spending.returned": "Déclaration sans dépense retournée",
     "zero_spending.approved": "Dépense nulle validée",
+    "funding.submit": "Demande de financement complémentaire soumise",
+    "funding.prevalidated": "Financement complémentaire prévalidé",
+    "funding.returned": "Financement complémentaire retourné",
+    "funding.approved": "Financement complémentaire autorisé",
+    "funding.cancel": "Demande de financement complémentaire annulée",
+    "disbursement.submit": "Demande de décaissement soumise",
+    "disbursement.prevalidated": "Décaissement prévalidé",
+    "disbursement.returned": "Décaissement retourné",
+    "disbursement.approved": "Décaissement autorisé",
+    "disbursement.cancel": "Demande de décaissement annulée",
+    "virement.submit": "Demande de virement soumise",
+    "virement.prevalidated": "Virement prévalidé",
+    "virement.returned": "Virement retourné",
+    "virement.approved": "Virement autorisé",
+    "virement.cancel": "Demande de virement annulée",
+    "virement_confirmation.declared": "Virement externe confirmé",
+    "virement_confirmation.corrected": "Confirmation de virement corrigée",
+    "reversement.declared": "Reversement déclaré",
+    "reversement.corrected": "Déclaration de reversement corrigée",
 }
 
 
@@ -305,7 +323,7 @@ def projection(
             )
         )
     }
-    execution_actions = {
+    activity_linked_actions = {
         "operation.execution_started",
         "operation.execution_recorded",
         "operation.execution_corrected",
@@ -313,6 +331,19 @@ def projection(
         "zero_spending.prevalidated",
         "zero_spending.returned",
         "zero_spending.approved",
+        *(
+            action
+            for action in AUDIT_ACTION_LABELS
+            if action.startswith(
+                (
+                    "funding.",
+                    "disbursement.",
+                    "virement.",
+                    "virement_confirmation.",
+                    "reversement.",
+                )
+            )
+        ),
     }
     audits = list(
         db.scalars(
@@ -321,7 +352,7 @@ def projection(
                 or_(
                     Audit.target == activity.id,
                     and_(
-                        Audit.action.in_(execution_actions),
+                        Audit.action.in_(activity_linked_actions),
                         Audit.business["activity_id"].as_string() == activity.id,
                     ),
                 ),
@@ -357,11 +388,10 @@ def projection(
         ]
         if value
     }
-    actors = {
-        item.id: (
-            f"{item.full_name or item.email} ({ROLE_LABELS.get(item.role, item.role)})"
-        )
-        for item in db.scalars(select(User).where(User.id.in_(actor_ids)))
+    actor_rows = list(db.scalars(select(User).where(User.id.in_(actor_ids))))
+    actors = {item.id: item.full_name or item.email for item in actor_rows}
+    actor_roles = {
+        item.id: ROLE_LABELS.get(item.role, item.role) for item in actor_rows
     }
     return {
         "activity": activity,
@@ -389,6 +419,7 @@ def projection(
         "document_withdrawals": withdrawals,
         "audits": audits,
         "actors": actors,
+        "actor_roles": actor_roles,
         "generated_at": generated_at,
     }
 
@@ -397,6 +428,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     activity: Activity = data["activity"]
     snapshot: dict[str, Any] = data["snapshot"]
     actors: dict[str, str] = data["actors"]
+    actor_roles: dict[str, str] = data["actor_roles"]
     buffer = BytesIO()
     styles = getSampleStyleSheet()
     styles.add(
@@ -404,8 +436,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             name="FicheTitle",
             parent=styles["Title"],
             textColor=NAVY,
-            fontSize=20,
-            leading=24,
+            fontSize=16,
+            leading=20,
             alignment=TA_LEFT,
             spaceAfter=4 * mm,
         )
@@ -431,42 +463,50 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     )
     small = styles["Small"]
     story: list[Any] = [
-        Paragraph("FICHE RÉCAPITULATIVE D’ACTIVITÉ", styles["FicheTitle"]),
+        Paragraph("Fiche récapitulative d’activité", styles["FicheTitle"]),
         Paragraph(text(snapshot.get("name")), styles["Heading2"]),
-        Paragraph(text(activity.reference), small),
         Spacer(1, 3 * mm),
     ]
 
     def section(title: str) -> None:
         story.append(Paragraph(title, styles["Section"]))
 
-    def table(
-        values: list[tuple[str, str]], widths: tuple[float, float] = (50 * mm, 120 * mm)
-    ) -> None:
-        result = Table(
-            [
-                [Paragraph(f"<b>{label}</b>", small), Paragraph(value, small)]
-                for label, value in values
-            ],
-            colWidths=list(widths),
-            repeatRows=0,
-            splitInRow=1,
-        )
-        result.setStyle(
+    def timeline_event(content: str) -> Table:
+        event = Table([[Paragraph(content, small)]], colWidths=[168 * mm], splitInRow=1)
+        event.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (0, -1), PALE),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
-                    ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("LINEBEFORE", (0, 0), (0, -1), 1, NAVY),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ]
             )
         )
-        story.append(result)
+        return event
+
+    def changed_fact(
+        content: str,
+        before: dict[str, Any],
+        after: dict[str, Any],
+        label: str,
+        key: str,
+        formatter: Any = text,
+    ) -> str:
+        prior = before.get(key)
+        current = after.get(key)
+        if prior == current:
+            return content
+        if current in (None, ""):
+            return f"{content}<br/>{label} supprimée : {formatter(prior)}"
+        value = (
+            formatter(current)
+            if prior in (None, "")
+            else f"{formatter(prior)} → {formatter(current)}"
+        )
+        return f"{content}<br/>{label} : {value}"
 
     def grid_table(
         headers: list[str], values: list[list[str]], widths: list[float]
@@ -483,8 +523,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         result.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, 0), (-1, 0), PALE),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), NAVY),
                     ("TEXTCOLOR", (0, 1), (-1, -1), NAVY),
                     ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -497,39 +537,49 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         )
         story.append(result)
 
-    section("Identité de l’activité")
-    table(
+    identity = Table(
         [
-            ("Partenaire", text(data["partner"].name)),
-            (
-                "Projet",
-                f"{text(data['project'].reference)} · {text(data['project'].name)}",
-            ),
-            ("PTA", str(data["pta"].year)),
-            ("État", STATE_LABELS.get(activity.state, text(activity.state))),
-            ("Générée le", day(data["generated_at"])),
-        ]
+            [Paragraph("Référence", small), Paragraph("PTA", small)],
+            [
+                Paragraph(text(activity.reference), small),
+                Paragraph(str(data["pta"].year), small),
+            ],
+            [Paragraph("Partenaire", small), Paragraph("Projet", small)],
+            [
+                Paragraph(text(data["partner"].name), small),
+                Paragraph(text(data["project"].name), small),
+            ],
+        ],
+        colWidths=[85 * mm, 85 * mm],
     )
+    identity.setStyle(
+        TableStyle(
+            [
+                ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica"),
+                ("FONTNAME", (0, 2), (-1, 2), "Helvetica"),
+            ]
+        )
+    )
+    story.extend([identity, Spacer(1, 2 * mm)])
 
-    section("Planification approuvée")
+    section("Programmation")
     assigned_agents = ", ".join(
-        actors.get(item.agent_id, "Personne non disponible")
-        for item in data["assignments"]
+        actors.get(item.agent_id, "—") for item in data["assignments"]
     )
-    table(
-        [
-            ("Description", text(snapshot.get("description"))),
-            (
-                "Période",
-                "{} au {}".format(
-                    day(snapshot.get("planned_start")),
-                    day(snapshot.get("planned_end")),
-                ),
-            ),
-            ("Allocation approuvée", xof(snapshot.get("allocation"))),
-            ("Révision approuvée", f"N° {data['revision'].revision_number}"),
-            ("Agents affectés", text(assigned_agents)),
-        ]
+    story.append(Paragraph(text(snapshot.get("description")), small))
+    story.append(
+        Paragraph(
+            f"Période : du {day(snapshot.get('planned_start'))} au "
+            f"{day(snapshot.get('planned_end'))}<br/>"
+            f"Agents affectés : {text(assigned_agents)}",
+            small,
+        )
     )
     section("Budget et opérations")
     approved_revision_ids = {
@@ -559,9 +609,9 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     budget_summary = Table(
         [
             [
-                Paragraph("<b>Budget initial</b>", small),
-                Paragraph("<b>Budget approuvé actuel</b>", small),
-                Paragraph("<b>Dépenses enregistrées</b>", small),
+                Paragraph("Montant prévu initial", small),
+                Paragraph("Montant autorisé actuel", small),
+                Paragraph("Dépenses renseignées", small),
             ],
             [
                 Paragraph(xof(initial_revision.snapshot.get("allocation")), small),
@@ -576,9 +626,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             [
                 ("BACKGROUND", (0, 0), (-1, 0), PALE),
                 ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
-                ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (0, 1), (-1, 1), "RIGHT"),
+                ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
@@ -587,10 +636,9 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     story.extend([budget_summary, Spacer(1, 3 * mm)])
     operation_rows: list[list[Any]] = [
         [
-            Paragraph("<b>Opération</b>", small),
-            Paragraph("<b>Prévu</b>", small),
-            Paragraph("<b>Réalisé</b>", small),
-            Paragraph("<b>État</b>", small),
+            Paragraph("<b>Opération / Type</b>", small),
+            Paragraph("<b>Montant autorisé</b>", small),
+            Paragraph("<b>Dépense finale</b>", small),
         ]
     ]
     current_operations: dict[str, Operation] = data["operations"]
@@ -604,21 +652,11 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             if type_label
             else text(operation.get("name"))
         )
-        status = (
-            "Terminée"
-            if current and current.execution_completed
-            else (
-                "En cours"
-                if current and current.execution_started_at
-                else "Non commencée"
-            )
-        )
         operation_rows.append(
             [
-                Paragraph(label, small),
+                Paragraph(label.replace(" — ", "<br/>"), small),
                 Paragraph(xof(operation.get("allocation")), small),
                 Paragraph(xof(current.actual_spent if current else None), small),
-                Paragraph(status, small),
             ]
         )
     operation_rows.append(
@@ -626,20 +664,19 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             Paragraph("<b>Total</b>", small),
             Paragraph(f"<b>{xof(snapshot.get('allocation'))}</b>", small),
             Paragraph(f"<b>{xof(spent_total)}</b>", small),
-            Paragraph("", small),
         ]
     )
     operation_table = Table(
         operation_rows,
-        colWidths=[82 * mm, 30 * mm, 30 * mm, 28 * mm],
+        colWidths=[82 * mm, 44 * mm, 44 * mm],
         repeatRows=1,
         splitInRow=1,
     )
     operation_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("BACKGROUND", (0, 0), (-1, 0), PALE),
+                ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
                 ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -649,12 +686,15 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     )
     story.append(operation_table)
 
-    chronology: list[Any] = []
+    chronology: list[tuple[datetime, Any]] = []
     decisions_by_revision: dict[str, list[ActivityRevisionDecision]] = {}
     for decision in data["decisions"]:
         decisions_by_revision.setdefault(decision.revision_id, []).append(decision)
     for revision in data["revisions"]:
-        revision_actor = text(actors.get(revision.submitter_id, revision.submitter_id))
+        revision_actor = text(
+            actors.get(revision.submitter_id, "Utilisateur indisponible")
+        )
+        revision_role = text(actor_roles.get(revision.submitter_id, ""))
         submission_reason: object | None = None
         for key in ("withdrawal", "transfer"):
             request = revision.snapshot.get(key)
@@ -665,10 +705,14 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             f" · Motif : {text(submission_reason)}" if submission_reason else ""
         )
         chronology.append(
-            Paragraph(
-                f"<b>Révision {revision.revision_number}</b> · soumise le "
-                f"{day(revision.submitted_at)} par {revision_actor}{reason_suffix}",
-                small,
+            (
+                revision.submitted_at,
+                timeline_event(
+                    f"<b>Activité soumise pour examen</b><br/>"
+                    f"{day(revision.submitted_at)} · {revision_actor} · "
+                    f"{revision_role}<br/>"
+                    f"Informations soumises{reason_suffix}"
+                ),
             )
         )
         for decision in decisions_by_revision.get(revision.id, []):
@@ -680,15 +724,25 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             )
             role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
             outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
-            decision_actor = text(actors.get(decision.actor_id, decision.actor_id))
+            decision_actor = text(
+                actors.get(decision.actor_id, "Utilisateur indisponible")
+            )
+            stage = (
+                "Prévalidation"
+                if decision.stage == "supervisor"
+                else "Validation définitive"
+            )
+            title = stage if decision.outcome != "returned" else f"{stage} retournée"
             chronology.append(
-                Paragraph(
-                    f"{day(decision.decided_at)} · {role} · {outcome} · "
-                    f"{decision_actor}{reason}{requested}",
-                    small,
+                (
+                    decision.decided_at,
+                    timeline_event(
+                        f"<b>{title}</b><br/>"
+                        f"{day(decision.decided_at)} · {decision_actor} · {role}<br/>"
+                        f"{outcome}{reason}{requested}"
+                    ),
                 )
             )
-        chronology.append(Spacer(1, 1.5 * mm))
     validation_chronology = chronology
 
     section("Autorisations administratives")
@@ -708,9 +762,10 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         nonlocal authorization_count
         authorization_count += 1
         story.append(Paragraph(f"<b>{title}</b>", small))
-        summary = (
-            f"{request_state} · {amount} · soumise le {day(submitted_at)} par "
-            f"{text(actors.get(submitter_id, submitter_id))}"
+        summary = f"Montant demandé : {amount} · {request_state}<br/>"
+        summary += (
+            f"Demandeur : {text(actors.get(submitter_id, submitter_id))}<br/>"
+            f"Soumise le {day(submitted_at)}"
         )
         if reason != "—":
             summary += f" · Motif : {reason}"
@@ -719,29 +774,45 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         story.append(Paragraph(summary, small))
         rows = []
         for decision in decisions:
+            stage = (
+                "Prévalidation"
+                if decision.actor_role == "AGENT_VERIFICATEUR"
+                else "Autorisation"
+            )
+            outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
+            expected = (
+                "Prévalidé"
+                if decision.actor_role == "AGENT_VERIFICATEUR"
+                else "Approuvé"
+            )
+            decision_label = stage if outcome == expected else f"{stage} — {outcome}"
             rows.append(
                 [
-                    text(ROLE_LABELS.get(decision.actor_role, decision.actor_role)),
-                    text(OUTCOME_LABELS.get(decision.outcome, decision.outcome)),
+                    decision_label,
                     text(actors.get(decision.actor_id, decision.actor_id)),
+                    text(ROLE_LABELS.get(decision.actor_role, decision.actor_role)),
                     day(decision.decided_at),
-                    text(decision.reason),
                 ]
             )
         if rows:
             grid_table(
-                ["Étape", "Décision", "Responsable", "Date", "Motif"],
+                ["Décision", "Auteur", "Rôle", "Date"],
                 rows,
-                [34 * mm, 28 * mm, 42 * mm, 31 * mm, 35 * mm],
+                [38 * mm, 44 * mm, 50 * mm, 38 * mm],
             )
+            reasons = [
+                text(decision.reason) for decision in decisions if decision.reason
+            ]
+            if reasons:
+                story.append(Paragraph(f"Motif : {'; '.join(reasons)}", small))
         else:
             story.append(Paragraph("Aucune décision enregistrée.", small))
         story.append(Spacer(1, 3 * mm))
 
-    for declaration in data["zero_declarations"]:
+    for number, declaration in enumerate(data["zero_declarations"], 1):
         state = STATE_LABELS.get(declaration.state, text(declaration.state))
         authorization_table(
-            "Déclaration sans dépense — 0 F CFA",
+            f"Déclaration sans dépense · demande {number}",
             state,
             declaration.submitter_id,
             declaration.submitted_at,
@@ -753,7 +824,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             amount=xof(0),
             reason=text(declaration.reason),
         )
-    for request in data["funding_requests"]:
+    for number, request in enumerate(data["funding_requests"], 1):
         state = STATE_LABELS.get(request.state, text(request.state))
         cancellation = None
         if request.cancelled_at:
@@ -765,7 +836,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 f"Motif : {text(request.cancellation_reason)}"
             )
         authorization_table(
-            "Demande de financement complémentaire",
+            f"Financement complémentaire · demande {number}",
             state,
             request.submitter_id,
             request.submitted_at,
@@ -777,7 +848,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             amount=xof(request.amount),
             cancellation=cancellation,
         )
-    for request in data["disbursements"]:
+    for number, request in enumerate(data["disbursements"], 1):
         state = STATE_LABELS.get(request.state, text(request.state))
         cancellation = None
         if request.cancelled_at:
@@ -789,7 +860,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 f"Motif : {text(request.cancellation_reason)}"
             )
         authorization_table(
-            "Demande de décaissement",
+            f"Décaissement · demande {number}",
             state,
             request.submitter_id,
             request.submitted_at,
@@ -802,7 +873,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             cancellation=cancellation,
         )
     disbursement_amounts = {item.id: item.amount for item in data["disbursements"]}
-    for request in data["virements"]:
+    for number, request in enumerate(data["virements"], 1):
         state = STATE_LABELS.get(request.state, text(request.state))
         amount = xof(disbursement_amounts.get(request.disbursement_request_id))
         cancellation = None
@@ -815,7 +886,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 f"Motif : {text(request.cancellation_reason)}"
             )
         authorization_table(
-            "Demande de virement",
+            f"Virement · demande {number}",
             state,
             request.submitter_id,
             request.submitted_at,
@@ -831,22 +902,16 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         story.append(Paragraph("Aucune autorisation financière enregistrée.", small))
 
     section("Déclarations externes et clôture")
-    settlement: list[tuple[str, str]] = []
-    for item in data["confirmations"]:
-        correction = (
-            f" · Correction : {text(item.correction_reason)}"
-            if item.correction_reason
-            else ""
-        )
-        settlement.append(
-            (
-                f"Confirmation virement · révision {item.revision}",
-                f"{xof(item.amount)} · date externe {day(item.transfer_date)} · "
-                f"saisie {day(item.recorded_at)} par "
-                f"{text(actors.get(item.actor_id, item.actor_id))} · "
-                f"{text(item.note)}{correction}",
-            )
-        )
+    current_confirmation = data["confirmations"][-1] if data["confirmations"] else None
+    approved_virement = next(
+        (item for item in reversed(data["virements"]) if item.state == "approved"),
+        None,
+    )
+    approved_virement_amount = (
+        disbursement_amounts.get(approved_virement.disbursement_request_id)
+        if approved_virement
+        else None
+    )
     approved_ids = {
         str(operation.get("id"))
         for operation in snapshot.get("operations", [])
@@ -865,27 +930,6 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             item.actual_spent or 0 for item in approved_operations if item
         )
         required = max(0, int(str(snapshot["allocation"])) - actual_total)
-    settlement.append(
-        (
-            "Montant à reverser",
-            xof(required) if required is not None else "Non renseigné",
-        )
-    )
-    for item in data["reversements"]:
-        correction = (
-            f" · Correction : {text(item.correction_reason)}"
-            if item.correction_reason
-            else ""
-        )
-        settlement.append(
-            (
-                f"Reversement déclaré · révision {item.revision}",
-                f"{xof(item.amount)} · date externe {day(item.return_date)} · "
-                f"saisie {day(item.recorded_at)} par "
-                f"{text(actors.get(item.actor_id, item.actor_id))} · "
-                f"{text(item.note)}{correction}",
-            )
-        )
     current_return = data["reversements"][-1] if data["reversements"] else None
     returned = (
         xof(current_return.amount)
@@ -894,17 +938,64 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         if required == 0
         else "Non renseigné"
     )
-    settlement.append(("Montant reversé", returned))
     closure_actor = text(actors.get(activity.closed_by_id or "", activity.closed_by_id))
-    settlement.append(
-        (
-            "Clôture",
-            f"{day(activity.closed_at)} · {closure_actor}"
-            if activity.closed_at
-            else "Activité non clôturée.",
+    settlement_rows = [
+        [
+            "Virement confirmé",
+            (
+                f"{xof(current_confirmation.amount)}<br/>"
+                f"{day(current_confirmation.transfer_date)}"
+                if current_confirmation
+                else "Non confirmé"
+            ),
+            "Virement autorisé",
+            xof(approved_virement_amount),
+        ],
+        [
+            "Montant à reverser",
+            xof(required) if required is not None else "Non renseigné",
+            "Montant reversé",
+            returned,
+        ],
+        [
+            "Statut de clôture",
+            (
+                f"Clôturée le {day(activity.closed_at)}<br/>par {closure_actor}"
+                if activity.closed_at
+                else "En attente"
+            ),
+            "Reversement déclaré le",
+            day(current_return.return_date) if current_return else "Non renseigné",
+        ],
+    ]
+    settlement_table = Table(
+        [
+            [
+                Paragraph(label, small),
+                Paragraph(value, small),
+                Paragraph(other_label, small),
+                Paragraph(other_value, small),
+            ]
+            for label, value, other_label, other_value in settlement_rows
+        ],
+        colWidths=[36 * mm, 49 * mm, 36 * mm, 49 * mm],
+    )
+    settlement_table.setStyle(
+        TableStyle(
+            [
+                ("TEXTCOLOR", (0, 0), (-1, -1), NAVY),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BACKGROUND", (0, 0), (0, -1), PALE),
+                ("BACKGROUND", (2, 0), (2, -1), PALE),
+                ("GRID", (0, 0), (-1, -1), 0.35, BORDER),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
         )
     )
-    table(settlement)
+    story.append(settlement_table)
 
     section("Pièces justificatives")
     documents_by_id = {item.id: item for item in data["documents"]}
@@ -950,7 +1041,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         story.append(Paragraph("Aucune pièce enregistrée.", small))
 
     section("Chronologie administrative")
-    audit_lines: list[Any] = []
+    audit_lines: list[tuple[datetime, Any]] = []
     validation_audit_actions = {
         "activity.submit",
         "activity.prevalidate",
@@ -972,8 +1063,13 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         if item.action in validation_audit_actions:
             continue
         actor = text(actors.get(item.actor, item.actor))
-        action = AUDIT_ACTION_LABELS.get(item.action, item.action)
-        line = f"{day(item.occurred_at)} · {text(action)} · {actor}"
+        actor_role = text(actor_roles.get(item.actor, ""))
+        action = AUDIT_ACTION_LABELS.get(item.action)
+        if not action:
+            continue
+        line = f"<b>{text(action)}</b><br/>{day(item.occurred_at)} · {actor}"
+        if actor_role != "—":
+            line += f" · {actor_role}"
         facts = item.business if isinstance(item.business, dict) else {}
         if item.action.startswith("operation.execution_"):
             operation = current_operations.get(str(facts.get("operation_id")))
@@ -990,22 +1086,75 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 if isinstance(after_value, dict)
                 else {}
             )
-            line += (
-                f" · {text(operation_name)} · réalisé "
-                f"{xof(before.get('actual_spent'))} → "
-                f"{xof(after.get('actual_spent'))} · terminé "
-                f"{'Oui' if before.get('execution_completed') else 'Non'} → "
-                f"{'Oui' if after.get('execution_completed') else 'Non'}"
-            )
+            line += f"<br/>Opération : {text(operation_name)}"
+            if before.get("actual_spent") != after.get("actual_spent"):
+                if before.get("actual_spent") is None:
+                    line += f"<br/>Dépense finale : {xof(after.get('actual_spent'))}"
+                else:
+                    line += (
+                        f"<br/>Dépense finale : {xof(before.get('actual_spent'))}"
+                        f" → {xof(after.get('actual_spent'))}"
+                    )
+            if before.get("execution_completed") != after.get("execution_completed"):
+                line += (
+                    "<br/>Réalisation physique : "
+                    f"{'terminée' if after.get('execution_completed') else 'rouverte'}"
+                )
             if before.get("execution_observation") != after.get(
                 "execution_observation"
             ):
-                line += (
-                    f" · Observation : {text(before.get('execution_observation'))}"
-                    f" → {text(after.get('execution_observation'))}"
-                )
+                before_observation = before.get("execution_observation")
+                after_observation = after.get("execution_observation")
+                if before_observation and after_observation:
+                    line += (
+                        f"<br/>Observation : {text(before_observation)}"
+                        f" → {text(after_observation)}"
+                    )
+                elif after_observation:
+                    line += f"<br/>Observation : {text(after_observation)}"
+                elif before_observation:
+                    line += f"<br/>Observation supprimée : {text(before_observation)}"
             if facts.get("correction_reason"):
-                line += f" · Motif : {text(facts['correction_reason'])}"
+                line += f"<br/>Motif : {text(facts['correction_reason'])}"
+        elif item.action in {
+            "virement_confirmation.declared",
+            "virement_confirmation.corrected",
+            "reversement.declared",
+            "reversement.corrected",
+        }:
+            before_value = facts.get("before")
+            after_value = facts.get("after")
+            before = (
+                cast(dict[str, Any], before_value)
+                if isinstance(before_value, dict)
+                else {}
+            )
+            after = (
+                cast(dict[str, Any], after_value)
+                if isinstance(after_value, dict)
+                else {}
+            )
+            amount_key = (
+                "returned_amount"
+                if item.action.startswith("reversement.")
+                else "amount"
+            )
+            date_key = (
+                "return_date"
+                if item.action.startswith("reversement.")
+                else "transfer_date"
+            )
+            date_label = (
+                "Date du reversement"
+                if item.action.startswith("reversement.")
+                else "Date effective"
+            )
+
+            line = changed_fact(line, before, after, "Montant", amount_key, xof)
+            line = changed_fact(line, before, after, date_label, date_key, day)
+            line = changed_fact(line, before, after, "Note", "note")
+            if facts.get("reason"):
+                line += f"<br/>Motif : {text(facts['reason'])}"
         else:
             audit_reason: object | None = None
             for key in ("cancellation", "decision", "amendment", "revision"):
@@ -1015,13 +1164,13 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                     break
             if audit_reason:
                 line += f" · Motif : {text(audit_reason)}"
-        audit_lines.append(Paragraph(line, small))
-    if validation_chronology:
-        story.append(KeepTogether(validation_chronology[:3]))
-        story.extend(validation_chronology[3:])
-    if audit_lines:
-        story.extend(audit_lines)
-    elif not validation_chronology:
+        audit_lines.append((item.occurred_at, timeline_event(line)))
+    complete_chronology = sorted(
+        [*validation_chronology, *audit_lines], key=lambda entry: entry[0]
+    )
+    if complete_chronology:
+        story.extend(event for _, event in complete_chronology)
+    else:
         story.append(Paragraph("Aucun événement enregistré.", small))
 
     generated_at: datetime = data["generated_at"]
@@ -1037,18 +1186,18 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         canvas.drawRightString(
             A4[0] - 20 * mm,
             A4[1] - 13 * mm,
-            f"Référence : {activity.reference}",
+            activity.reference,
         )
         canvas.drawRightString(
             A4[0] - 20 * mm,
             A4[1] - 18 * mm,
-            f"Générée le {generated_at.strftime('%d/%m/%Y')}",
+            f"Fiche récapitulative · générée le {generated_at.strftime('%d/%m/%Y')}",
         )
         canvas.line(20 * mm, A4[1] - 22 * mm, A4[0] - 20 * mm, A4[1] - 22 * mm)
         canvas.drawString(
             20 * mm,
             10 * mm,
-            f"MJL · {activity.reference} · {generated_at.strftime('%d/%m/%Y')}",
+            f"MJL · {activity.reference}",
         )
         canvas.drawRightString(A4[0] - 20 * mm, 10 * mm, f"Page {document.page}")
         canvas.restoreState()

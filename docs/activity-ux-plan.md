@@ -137,13 +137,13 @@ results. Agent self-assignment does not require opening reviewer-only APIs.
 
 ## Implementation slices
 
-| Slice | Changes and existing seams | Focused verification |
-| --- | --- | --- |
-| 1. Consistent presentation | Inventory titles/labels/modal success owners; locales, Helmet/loading titles, PTA year choices; readable History and stable Activity-tab loading | Representative forms, modal success/error and history journey; desktop/mobile reference comparison; preserve permissions and safe projections |
-| 2. Saved category descriptions | OperationType model/migration, create/list/output/audit, CategoryCreator and other creation consumers; Project-style modal | Disposable migration preserves old categories; create/read saved description; selecting new category neither submits nor resets Activity draft |
-| 3. Create, resume, submit | Enforce complete-or-remove for started Operations; nullable initial-draft dates; create/update/output/allowed-actions contracts; Agent full form and brief; calendar controls, prefetch, two actions, Sans date | Title-only save → GET → reopen/edit → submit; started incomplete row blocks save without losing input; empty new rows ignored; invalid direct submission rejected; migration integrity and adjacent null-safe reads; existing approved/revision workflows retained |
-| 4. Find assigned work | Router filter initialization/removal; API filtered count and pagination; table/calendar and empty state | Agent own/all journey, reload/Back and view switch, whole-PTA metrics unchanged |
-| 5. Assignment notifications | Narrow recipient notification data/projection; assignment/create transactions and mail; shared inbox/popover/read behavior | Reviewer create and reassignment notify correct recipients; Agent creation and replay do not; read isolation, mail failure and existing reminder behavior |
+| Slice                          | Changes and existing seams                                                                                                                                                                                      | Focused verification                                                                                                                                                                                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Consistent presentation     | Inventory titles/labels/modal success owners; locales, Helmet/loading titles, PTA year choices; readable History and stable Activity-tab loading                                                                | Representative forms, modal success/error and history journey; desktop/mobile reference comparison; preserve permissions and safe projections                                                                                                                      |
+| 2. Saved category descriptions | OperationType model/migration, create/list/output/audit, CategoryCreator and other creation consumers; Project-style modal                                                                                      | Disposable migration preserves old categories; create/read saved description; selecting new category neither submits nor resets Activity draft                                                                                                                     |
+| 3. Create, resume, submit      | Enforce complete-or-remove for started Operations; nullable initial-draft dates; create/update/output/allowed-actions contracts; Agent full form and brief; calendar controls, prefetch, two actions, Sans date | Title-only save → GET → reopen/edit → submit; started incomplete row blocks save without losing input; empty new rows ignored; invalid direct submission rejected; migration integrity and adjacent null-safe reads; existing approved/revision workflows retained |
+| 4. Find assigned work          | Router filter initialization/removal; API filtered count and pagination; table/calendar and empty state                                                                                                         | Agent own/all journey, reload/Back and view switch, whole-PTA metrics unchanged                                                                                                                                                                                    |
+| 5. Assignment notifications    | Narrow recipient notification data/projection; assignment/create transactions and mail; shared inbox/popover/read behavior                                                                                      | Reviewer create and reassignment notify correct recipients; Agent creation and replay do not; read isolation, mail failure and existing reminder behavior                                                                                                          |
 
 All identified business decisions are settled. Slice 3's read compatibility ships
 with its write changes, not as a later repair. Slices 4–5 do not authorize unrelated
@@ -368,3 +368,171 @@ source validation uses grouped queries rather than one query per inbox row.
 Both independent reviewers cleared the corrections. The focused PostgreSQL
 rerun passed seven funding/disbursement/virement cancellation, return, inbox and
 rollback cases; Ruff, strict planning mypy and diff checks passed.
+
+## Planned — human-readable information without revision numbers, 2026-11-11
+
+Status: implemented and independently reviewed; human acceptance remains.
+Existing uncommitted Execution, Fiche, routing and test work belongs to another
+task and remains preserved.
+
+### Outcome and boundaries
+
+Remove internal revision/version numbers and technical revision terminology from
+all human-facing Activity information, including Partner screens, History,
+dialogs, accessible labels, notifications, emails, printed fiches and exports.
+Do not simply rename `Révision 2` to `Version 2`. Keep immutable saved content,
+approval evidence, request identifiers, concurrency tokens, API fields and
+database structure intact. This is a presentation change, with no migration or
+change to approval stages, financial rules or permissions.
+
+Activity History already explains progress and changed facts adequately; preserve
+its current composition and useful content. Do not add a parallel version
+browser, comparison screen or extra approval banner just to replace a number.
+Where existing views distinguish approved information from pending changes,
+retain that distinction in ordinary language. Never make a proposed budget look
+approved by removing its context. Preserve access to existing historical facts
+where it is currently offered, with meaningful action/date wording.
+
+### Initial inventory from the current working tree
+
+These are source leads, not a claim that every string is currently rendered.
+Trace each occurrence to its real consumer before changing it.
+
+| Surface                                         | Starting points                                                                                             | Planned treatment                                                                                                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Execution list and financial correction history | `frontend/src/features/execution/ExecutionView.jsx`                                                         | Remove approved revision numbers and `Version N`; retain event, amount, date, actor and correction reason where already permitted.                                  |
+| Partner Activity decisions                      | `frontend/src/features/partner-portal/PartnerPortalView.jsx`                                                | Identify decisions by their action and date, with existing Partner privacy rules.                                                                                   |
+| Internal and Partner fiches                     | `backend/app/planning/operations/fiche.py`, `backend/app/partner_portal/fiche.py`                           | Remove numbered revision metadata; describe submission, approval and correction events plainly. Preserve approved values and chronology.                            |
+| Annual PDF/Excel/CSV and Partner CSV            | `backend/app/planning/reports/annual_report.py`, `annual_export.py`, `backend/app/partner_portal/export.py` | Remove revision columns and labels from human-readable output; retain business references and useful approval dates. Check column alignment and existing consumers. |
+| Shared messages and empty states                | `frontend/src/locales/fr/PlanningView.js`, `ExecutionView.js`, `AuditHistoryView.js`, `EmptyContent.js`     | Trace live copy, remove unused revision copy where safe, and replace technical explanations with the action or missing information.                                 |
+| Remaining app and communication surfaces        | Planning, Dashboard, global History, notifications, mail templates, dialogs, tooltips and accessible names  | Complete a rendered-text and source audit; avoid blind replacements of internal identifiers or the word `Prévisions`.                                               |
+
+Examples of copy direction, subject to the actual context:
+`Révision approuvée : 2` disappears; `Révision soumise` becomes
+`Activité soumise pour examen` or `Modifications soumises pour examen` when the
+recorded event supports that distinction. `Révision du budget` can become
+`Modification du budget`. Explain any required separate funding approval without
+changing that rule. Never invent an actor, date or event type to fill a gap.
+
+### Information audit for older, nontechnical readers
+
+Audit by user task and role, beginning with Activity creation, review, correction,
+execution and finance, then PTA lists, Dashboard, Partner views, account/Admin
+screens and documents. Source search alone is insufficient: review the rendered
+information hierarchy and relevant states, including loading, empty, error,
+returned, pending changes and approved content.
+
+For each questionable item, record its screen, example, user purpose and a
+recommendation: keep, clarify, remove, or place in existing details. An item earns
+space if it helps answer: Which Activity is this? What needs my attention? Who
+is responsible? What are the dates and amounts? What happened, and why? What can
+I do next? A business reference such as `ACT-000021` remains useful for locating
+and discussing an Activity; a UUID, concurrency counter or raw role code does not.
+
+Check repeated dates/status/budget blocks, unexplained abbreviations, technical
+errors, unnecessary precision and timestamps, redundant confirmations and vague
+actions. Do not remove financial evidence, correction reasons, responsibility,
+meaningful dates or required administrative facts merely to shorten the page.
+Account email can be useful for account management; judge relevance and privacy
+in context rather than hiding every email or identifier throughout the app.
+
+Use respectful, familiar French, short sentences and concrete action labels.
+Important instructions must be visible rather than available only on hover or
+in a disappearing toast. Check text readability, contrast, clear control labels,
+keyboard focus, comfortable click targets and 200% zoom using existing design
+tokens/components. Do not shrink text to fit more information, rely on color
+alone, or add a special "senior mode". Any change to shared tokens, navigation,
+approved composition or business meaning requires a concrete proposal to the user
+before implementation. Missing design references block only the affected redesign.
+
+### Implementation slices after authorization
+
+1. Complete the inventory and information audit. Record specific findings and
+   proposed copy/removals here, prioritizing confusing or misleading information.
+   Separate straightforward revision removal from broader UX proposals; the audit
+   does not authorize removing every item the implementer considers unhelpful.
+2. Remove revision/version presentation across screens and communications using
+   existing components and localization. Keep History's current useful behavior.
+   Reuse existing workflow checks; add coverage only for a meaningful risk such as
+   confusing pending values with approved values.
+3. Align fiches and human-readable exports. Check representative internal and
+   Partner output, column layout, dates, exact XOF amounts and retained evidence.
+   Removing the visible revision columns is in scope; do not change API contracts.
+   Surface any discovered external dependency on an export column before changing it.
+4. Apply only separately agreed broader audit improvements in small coherent
+   slices. Update this plan after each slice with completed work, remaining
+   findings, evidence and lessons that affect the next steps.
+5. End with an independent review-only agent that did not implement the changes.
+   Review actual diff, surrounding code, approved scope and verification evidence;
+   resolve concrete findings and return fixes to the same reviewer. Confirm no
+   revision/version metadata remains rendered, useful facts remain available,
+   approved and pending values retain their meaning, and History stays readable.
+   Human review of representative screens and documents remains acceptance.
+
+Planning verification: documentation diff/reference checks only; no runtime
+tests are needed because this task changes no application behavior. Implementation
+verification should use focused existing tests and representative rendered/export
+checks, not a new test for every removed label or an unbounded "100%" audit loop.
+
+### Progress — Réalisations and Fiche alignment, 2026-11-11
+
+The Réalisations list now shares the approved Prévisions filter composition,
+including overlapping Activity dates and Agent search inside the filter panel.
+Its Activity identity block uses the same compact title, context, status, period
+and responsibility hierarchy; the technical revision number is no longer repeated
+there. Execution-specific workflow states remain unchanged.
+
+The internal Fiche now follows the supplied report reference: two-column identity,
+plain Programming copy, three budget facts, a three-column Operations table,
+human-readable authorization decisions, external declarations, documents and a
+bordered chronology. Raw action identifiers and unchanged before/after values are
+not rendered. Exact approved XOF values, unknown facts, reasons, actors and audit
+dates remain authoritative. Broader revision terminology work described above is
+now implemented as the candidate below.
+
+### Progress — human-readable information, 2026-11-11
+
+The candidate removes displayed revision numbers and technical revision wording
+from the Activity list and detail, correction histories, Partner portal, dialogs,
+empty states, internal and Partner fiches, annual PDF/Excel/CSV and Partner CSV.
+Internal immutable records, approval evidence, API fields and concurrency checks
+are unchanged, except for an additive human `actor_name` on the two financial
+history responses. Approved information and changes awaiting approval remain
+visibly distinct. Financial correction histories now say whether an entry is
+initial or corrected, name the person responsible and format their dates for a
+human reader; they no longer expose raw account identifiers.
+
+The source and rendered-copy audit found no revision numbering in notification or
+email copy. It also found broader information issues that are not silently changed
+by this slice:
+
+- current virement and reversement summary cards still show raw account IDs and
+  machine-formatted dates; replacing the ID safely needs a named-user projection;
+- financial request rows still show some machine-formatted timestamps;
+- human CSV exports include internal Activity/export identifiers. They may support
+  reconciliation by an external consumer, so their removal needs confirmation of
+  that dependency rather than an assumption.
+
+These are recommended follow-up slices, not blockers to hiding revision numbers.
+No shared navigation, tokens or workflow was changed. Independent review found
+that removing raw IDs had also removed useful authorship; the narrow history
+projection above restores the name without changing mutation inputs or internal
+identity fields. Annual CSV serialization now binds each header to an explicit
+field so later internal row changes cannot silently misalign the document.
+Representative screen review at 200% zoom and printed-document review remain
+human acceptance, not a code-review claim.
+
+Focused candidate evidence: the final three-file frontend run passed 83 tests.
+ESLint had no errors and retained one existing hooks warning; touched Prettier
+checks passed. Disposable-PostgreSQL verification passed 13 focused execution,
+financial-history, Fiche, annual Excel and Partner Fiche tests, including pending
+date corrections, exact XOF, named correction actors and maximum-length PDF
+history. Four pure Partner/PDF/Excel rendering checks also passed. Ruff, backend
+formatting, strict mypy over Planning and Partner Portal, source-copy search and
+`git diff --check` passed.
+
+The required independent reviews found and corrected authorship lost while
+removing raw IDs, CSV rows coupled to dictionary order, stale spreadsheet/CSV
+column assertions, a PDF row that could not split long valid history, and period
+filters using an unapproved candidate schedule. The same reviewers rechecked the
+corrected candidate; their final result is recorded with the commit review.

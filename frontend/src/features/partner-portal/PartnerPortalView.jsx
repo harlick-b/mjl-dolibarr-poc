@@ -750,10 +750,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                           ? 'Modification approuvée'
                           : 'Transfert annuel approuvé'}
                     </strong>
-                    <span>
-                      Révision {decision.revision} ·{' '}
-                      {formatDate(decision.decided_at)}
-                    </span>
+                    <span>{formatDate(decision.decided_at)}</span>
                   </li>
                 ))}
               </ul>
