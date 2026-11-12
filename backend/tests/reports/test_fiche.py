@@ -147,8 +147,8 @@ def test_fiche_preserves_approved_baseline_and_unknown_spending(planning):
     content = pdf_text(response)
     assert "Planification complète de test" in content
     assert "CONTENU CANDIDAT NON APPROUVÉ" not in content
-    assert re.search(r"Montant à reverser\s+Non renseigné", content)
-    assert re.search(r"Montant reversé\s+Non renseigné", content)
+    assert re.search(r"Montant à reverser\s+—", content)
+    assert re.search(r"Montant reversé\s+—", content)
 
 
 def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):

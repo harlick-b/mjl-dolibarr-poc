@@ -1,5 +1,6 @@
 import { Urls } from '@/app/urls'
 import { EventDetails } from './EventDetails'
+import { formatDateTime } from '@/shared/lib/format'
 import { ListFilters } from '@/shared/ui/ListFilters'
 import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
 import { strings as filtersText } from '@/locales/fr/ListFilters'
@@ -256,10 +257,7 @@ function History({ session, onDenied }) {
                 <tr key={item.id}>
                   <td>
                     <time dateTime={item.occurred_at}>
-                      {new Intl.DateTimeFormat('fr-FR', {
-                        dateStyle: 'long',
-                        timeStyle: 'short',
-                      }).format(new Date(item.occurred_at))}
+                      {formatDateTime(item.occurred_at)}
                     </time>
                   </td>
                   <td>

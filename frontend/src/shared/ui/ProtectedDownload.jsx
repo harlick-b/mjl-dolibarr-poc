@@ -7,6 +7,7 @@ export function ProtectedDownload({
   path,
   children,
   className,
+  size,
   onDenied,
   scope,
 }) {
@@ -59,6 +60,7 @@ export function ProtectedDownload({
       onClick={() => download.mutate()}
       type="button"
       variant="outline"
+      size={size}
     >
       {children}
     </Button>

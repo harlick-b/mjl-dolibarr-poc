@@ -7,6 +7,6 @@ const router = makeRouter()
 createRoot(document.getElementById('root')).render(
   <>
     <App router={router} />
-    <PwaUpdate queryClient={router.options.context.queryClient} />
+    <PwaUpdate />
   </>,
 )

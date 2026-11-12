@@ -136,11 +136,25 @@ test('Partner access is verified again after a temporary offline interruption', 
   await expect(page.getByText('Bonjour, Partenaire synthétique')).toBeVisible()
 })
 
-test('a waiting application update preserves unsaved planning input', async ({
+test('a waiting application update replaces an unsaved screen and opens login', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 1000 })
-  await fixture(page)
+  let signedOut = false
+  await fixture(page, async (route, url) => {
+    if (url.pathname.endsWith('/auth/logout')) {
+      signedOut = true
+      await route.fulfill({ status: 204 })
+      return true
+    }
+    if (signedOut && url.pathname.endsWith('/auth/session')) {
+      await route.fulfill({
+        json: { state: 'anonymous', csrf: 'fresh-after-update' },
+      })
+      return true
+    }
+    return false
+  })
   await page.goto('/activities/state-activity')
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready
@@ -153,7 +167,7 @@ test('a waiting application update preserves unsaved planning input', async ({
     .toBe(true)
   await page.getByRole('button', { name: 'Modifier', exact: true }).click()
   await page
-    .getByLabel('Nom', { exact: true })
+    .getByLabel('Intitulé de l’activité *', { exact: true })
     .fill('Modification non enregistrée')
   const workerPath = new URL('../../dist/sw.js', import.meta.url)
   const original = await readFile(workerPath, 'utf8')
@@ -165,31 +179,12 @@ test('a waiting application update preserves unsaved planning input', async ({
     await page.evaluate(async () =>
       (await navigator.serviceWorker.getRegistration()).update(),
     )
-    await expect
-      .poll(() =>
-        page.evaluate(async () =>
-          Boolean((await navigator.serviceWorker.getRegistration())?.waiting),
-        ),
-      )
-      .toBe(true)
-    await page.getByRole('button', { name: 'Actualiser l’application' }).click()
-    await expect(page.getByLabel('Nom', { exact: true })).toHaveValue(
-      'Modification non enregistrée',
-    )
-    expect(
-      await page.evaluate(async () =>
-        Boolean((await navigator.serviceWorker.getRegistration())?.waiting),
-      ),
-    ).toBe(true)
-    await page.getByRole('button', { name: 'Annuler la modification' }).click()
-    await Promise.all([
-      page.waitForEvent(
-        'framenavigated',
-        (frame) => frame === page.mainFrame(),
-      ),
-      page.getByRole('button', { name: 'Actualiser l’application' }).click(),
-    ])
-    await page.waitForLoadState('domcontentloaded')
+    await expect(
+      page.getByText('Une nouvelle version est disponible.', { exact: false }),
+    ).toHaveCount(0)
+    await expect(page).toHaveURL(/\/login$/)
+    await expect(page.getByLabel('Adresse e-mail')).toBeVisible()
+    expect(signedOut).toBe(true)
     await expect
       .poll(() =>
         page.evaluate(async () =>
@@ -197,9 +192,6 @@ test('a waiting application update preserves unsaved planning input', async ({
         ),
       )
       .toBe(false)
-    await expect(
-      page.getByRole('button', { name: 'Modifier', exact: true }),
-    ).toBeVisible()
   } finally {
     await writeFile(workerPath, original)
   }

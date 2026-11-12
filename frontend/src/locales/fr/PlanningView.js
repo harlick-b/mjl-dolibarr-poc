@@ -136,7 +136,7 @@ export const strings = new LocalizedStrings({
       '{subject} attend la décision d’un Validateur définitif.',
     nextStepExecution:
       'Les Agents responsables assurent le suivi dans Réalisation & finances.',
-    downloadActivityFiche: 'Télécharger la fiche PDF',
+    downloadActivityFiche: 'Fiche récapitulative',
     attachments: 'Pièces justificatives',
     addAttachment: 'Ajouter une pièce',
     chooseAttachment: 'Choisir un fichier PDF, JPEG ou PNG',

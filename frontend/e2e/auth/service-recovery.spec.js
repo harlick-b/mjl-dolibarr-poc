@@ -39,15 +39,14 @@ test('session outage returns to login and surviving cookie requires server logou
   await expect(page.getByRole('alert')).toContainText(
     'momentanément indisponible',
   )
-  await page.reload()
   await expect(
     page.getByRole('button', { name: 'Réessayer la connexion' }),
-  ).toBeVisible()
-  expect(reads).toBe(1)
+  ).toHaveCount(0)
   unavailable = false
-  await page.getByRole('button', { name: 'Réessayer la connexion' }).click()
+  await page.reload()
   await expect(page.getByLabel('Adresse e-mail')).toBeVisible()
   expect(logouts).toBe(1)
+  expect(reads).toBeGreaterThanOrEqual(3)
   await expect(page.locator('[data-ui="access-sidebar"]')).toHaveCount(0)
 })
 

@@ -4,6 +4,7 @@ import { strings } from '@/locales/fr/PlanningView'
 import { formatDate, formatXof } from '@/shared/lib/format'
 import { ActivityExplorerFilters } from '@/shared/ui/ActivityExplorerFilters'
 import { Button } from '@/shared/ui/button'
+import { AgentNames } from '@/shared/ui/AgentNames'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { ActivityTimeline } from './ActivityTimeline'
 import { activityStatusClass } from '../lib/activity-status'
@@ -104,7 +105,15 @@ export function PlanningActivities({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-190 text-left text-sm">
+          <table className="w-full min-w-240 table-fixed text-left text-[0.8125rem] leading-5">
+            <colgroup>
+              <col className="w-[28%]" />
+              <col className="w-[15%]" />
+              <col className="w-[16%]" />
+              <col className="w-[16%]" />
+              <col className="w-[17%]" />
+              <col className="w-[8%]" />
+            </colgroup>
             <thead className="border-b border-border bg-background">
               <tr>
                 {[
@@ -115,7 +124,7 @@ export function PlanningActivities({
                   strings.validation,
                   '',
                 ].map((label, index) => (
-                  <th key={index} className="px-3 py-3 font-medium">
+                  <th key={index} className="px-3 py-3 font-medium align-top">
                     {label}
                   </th>
                 ))}
@@ -135,13 +144,14 @@ export function PlanningActivities({
               {rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-border last:border-0"
+                  className="border-b border-border align-top last:border-0"
                 >
-                  <td className="px-3 py-3">
+                  <td className="min-w-0 px-3 py-3">
                     <Link
-                      className="font-medium text-primary"
+                      className="block break-words font-medium text-primary"
                       to={Urls.activity}
                       params={{ activityId: row.id }}
+                      title={row.name}
                     >
                       {row.name}
                     </Link>
@@ -164,7 +174,9 @@ export function PlanningActivities({
                         : strings.operationSingular}
                     </p>
                   </td>
-                  <td className="px-3 py-3">{row.agents?.join(', ') || '—'}</td>
+                  <td className="px-3 py-3">
+                    <AgentNames activityId={row.id} names={row.agents} />
+                  </td>
                   <td className="px-3 py-3">
                     <span
                       className={`inline-block rounded-card px-2 py-1 text-xs ${activityStatusClass(row.state)}`}
@@ -172,7 +184,7 @@ export function PlanningActivities({
                       {strings[row.state] || '—'}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
                       <Link to={Urls.activity} params={{ activityId: row.id }}>
                         {strings.consult}

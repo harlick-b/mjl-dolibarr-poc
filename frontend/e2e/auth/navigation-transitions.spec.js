@@ -259,10 +259,12 @@ test('logout session-check failure returns to login without restoring identity',
   await page.getByRole('menuitem', { name: 'Se déconnecter' }).click()
   await expect(
     page.getByRole('button', { name: 'Réessayer la connexion' }),
-  ).toBeEnabled()
+  ).toHaveCount(0)
   await expect(page.getByText(user.email)).toHaveCount(0)
   expect(logoutCalls).toBe(1)
   failCheck = false
-  await page.getByRole('button', { name: 'Réessayer la connexion' }).click()
+  await page.reload()
   await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByLabel('Adresse e-mail')).toBeVisible()
+  expect(logoutCalls).toBe(2)
 })

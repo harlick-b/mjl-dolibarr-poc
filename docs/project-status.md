@@ -1388,6 +1388,33 @@ disposable-PostgreSQL execution-contract test. Frontend lint/format, backend Ruf
 and strict mypy, the PWA build and independent specification/standards reviews
 passed. Human visual and 200% zoom acceptance remains outstanding.
 
+## Automatic updates and Activity presentation, 2026-11-12
+
+Application updates no longer display a version prompt. A waiting service worker
+activates immediately, then hard-navigates through `/logout` when it takes control;
+the login form appears after server logout completes. The service-unavailable login
+clears the unusable session automatically once per page
+load; refreshing the browser provides a fresh recovery attempt without a
+**Réessayer la connexion** action.
+
+Dashboard attention rows now use the action required by their actual planning or
+financial reason. Planning and Execution Activity details use the refreshed
+identity, tab, Programming, finance, History and document compositions.
+Administrative finance uses compact, expandable steps and opens the current
+actionable step. Planning and Execution tables have bounded columns, wrap long Activity and Project names,
+and display assigned Agents one per line. Shared exact-XOF and date helpers now
+cover these surfaces and the Activity fiche; absent amounts display `—`, while a
+genuine zero displays `0 F CFA`.
+
+Focused verification passed 45 Planning tests, 32 Execution tests, 63 supporting
+frontend tests, the production PWA build, one real Chromium service-worker update
+journey and one focused session-outage recovery journey. ESLint passed with one
+existing coordinator cleanup warning; formatting and focused backend Ruff checks
+passed. The 13 focused backend fiche tests passed against a disposable PostgreSQL
+container that was removed after the run. Two unrelated
+**Relances** E2E cases still use the previous sidebar label after the product had
+already renamed that entry **Notifications**.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

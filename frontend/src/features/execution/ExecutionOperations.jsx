@@ -5,7 +5,7 @@ import { CheckCircle2, CircleDollarSign, Play } from 'lucide-react'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Panel } from '@/shared/ui/layout'
 import { Button } from '@/shared/ui/button'
-import { formatXof } from '@/shared/lib/format'
+import { formatDateTime, formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ExecutionView'
 
 export function ExecutionOperations({ detail, onSelect }) {
@@ -58,9 +58,7 @@ export function ExecutionOperations({ detail, onSelect }) {
                   {formatXof(operation.approved_allocation)}
                 </td>
                 <td className="p-3 text-right">
-                  {operation.actual_spent === null
-                    ? strings.notRecorded
-                    : formatXof(operation.actual_spent)}
+                  {formatXof(operation.actual_spent)}
                 </td>
                 <td className="p-3">
                   {operation.execution_completed
@@ -117,7 +115,7 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
       {operation.execution_started_at ? (
         <p>
           <Play size={16} aria-hidden="true" /> Démarrée le{' '}
-          {new Date(operation.execution_started_at).toLocaleString('fr-FR')}
+          {formatDateTime(operation.execution_started_at)}
         </p>
       ) : (
         operation.allowed_actions.includes('start') && (

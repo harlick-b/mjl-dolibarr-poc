@@ -701,31 +701,29 @@ test('Admin navigation omits default search values and preserves meaningful filt
   expect(router.state.location.searchStr).toBe('')
 })
 
-test('users page session failure returns to login without exposing identity', async () => {
-  let finish
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve
-        }),
-    ),
-  )
+test('users page session failure clears the stale session and opens login without a retry click', async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ state: 'anonymous', csrf: 'fresh' })),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ state: 'anonymous', csrf: 'new' })),
+    )
+  vi.stubGlobal('fetch', fetch)
   mount()
   expect(
-    await screen.findByRole('status', { name: 'Vérification de votre accès' }),
-  ).toBeVisible()
-  await act(async () => finish(new Response('{}', { status: 503 })))
-  expect(
-    await screen.findByRole('heading', { name: 'Connexion' }),
+    await screen.findByLabelText('Mot de passe *', { exact: true }),
   ).toBeVisible()
   expect(
-    screen.getByRole('button', { name: 'Réessayer la connexion' }),
-  ).toBeEnabled()
+    screen.queryByRole('button', { name: 'Réessayer la connexion' }),
+  ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('button', { name: 'Inviter un utilisateur' }),
   ).not.toBeInTheDocument()
+  expect(fetch).toHaveBeenCalledTimes(4)
 })
 
 test('Partner invitation choices load only on demand and paginate before submission', async () => {

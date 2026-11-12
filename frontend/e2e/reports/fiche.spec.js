@@ -77,7 +77,7 @@ test('an approved Activity exposes its guarded Fiche download on mobile', async 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/activities/activity-1')
   const action = page.getByRole('button', {
-    name: 'Télécharger la fiche PDF',
+    name: 'Fiche récapitulative',
   })
   await expect(action).toBeVisible()
   const download = page.waitForEvent('download')

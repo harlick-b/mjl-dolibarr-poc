@@ -94,6 +94,7 @@ export function createAccessCoordinator({
   let expiryTimer
   let deniedPath = null
   let recoveryConsumed = false
+  let serviceRecoveryStarted = false
   let authenticationChanged = false
   let logoutPreparation = null
   let lastVerifiedIdentity = null
@@ -323,6 +324,11 @@ export function createAccessCoordinator({
       storeLogoutHold('login')
       mask('service-unavailable')
     },
+    beginServiceRecovery() {
+      if (serviceRecoveryStarted) return false
+      serviceRecoveryStarted = true
+      return true
+    },
     holdLogout(csrf) {
       logoutHeld = true
       storeLogoutHold(true)
@@ -477,6 +483,7 @@ export function useAccess() {
     releaseLogout: coordinator.releaseLogout,
     prepareLogout: coordinator.prepareLogout,
     holdUnavailable: coordinator.holdUnavailable,
+    beginServiceRecovery: coordinator.beginServiceRecovery,
   }
 }
 

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { formatXof } from '@/shared/lib/format'
+import { formatDate, formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/PartnerPortalView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
@@ -44,18 +44,6 @@ class DownloadGuard {
     for (const url of this.urls) URL.revokeObjectURL(url)
     this.urls.clear()
   }
-}
-
-function formatDate(value) {
-  if (!value) return '—'
-  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!match) return '—'
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(+match[1], +match[2] - 1, +match[3])))
 }
 
 function cursor(link) {

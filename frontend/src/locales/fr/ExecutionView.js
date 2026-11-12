@@ -21,7 +21,6 @@ export const strings = new LocalizedStrings({
     operationsCompleted: 'opérations terminées',
     toProcess: 'À traiter',
     partialSpending: 'Dépenses partielles',
-    notRecorded: 'Non renseigné',
     authorizedAmount: 'sur {amount} autorisés',
     completedLabel: 'Terminée',
     ongoingLabel: 'En cours',
@@ -62,8 +61,6 @@ export const strings = new LocalizedStrings({
     recordExecution: 'Renseigner la réalisation',
     administrativeFollowUp: 'Suivi administratif',
     evidenceTitle: 'Pièces justificatives',
-    evidenceExplanation:
-      'Les justificatifs restent liés à l’Activité et sont consultables dans un seul espace.',
     evidenceLink: 'Consulter les pièces justificatives',
     operationEvidenceExplanation:
       'Les pièces restent liées à l’Activité, pas à cette Opération.',

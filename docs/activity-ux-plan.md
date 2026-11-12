@@ -553,3 +553,85 @@ format, Ruff, strict mypy and the production PWA build passed. Independent
 specification and standards reviewers cleared the corrected copy after draft,
 amendment and returned-request wording was made exact. Human visual and zoom
 acceptance remains separate from this implementation review.
+
+## Follow-up — automatic updates and faithful Activity presentation
+
+Authorized 2026-11-12. The refreshed references in
+`docs/inspiration/activities/`, `docs/inspiration/realisations/` and
+`docs/inspiration/pta/pta-activity-table.png` govern this slice. The user's
+explicit corrections take precedence over older update-prompt and presentation
+rules.
+
+### Outcome and boundaries
+
+- A downloaded application update never exposes a version prompt. The waiting
+  worker activates automatically and the browser performs a hard navigation
+  through `/logout` before displaying `/login`, ensuring that the new bundle
+  starts with the server session closed. This can
+  discard an unfinished local form; that is the approved consequence of immediate
+  replacement. No offline mutation or draft persistence is introduced.
+- A session-service failure clears the unusable local session automatically and
+  returns to the ready login form. Refreshing the login page retries normal
+  session verification without requiring **Réessayer la connexion**.
+- Dashboard attention rows keep their actual destination and use a concrete verb
+  derived from the required action: complete/correct an Activity, prevalidate or
+  validate the named planning or financial request, or declare a reversement.
+- Planning and Execution Activity identity, tab order, panels and controls follow
+  the refreshed Activity references. Existing permissions, workflow actions and
+  server facts remain authoritative; prototype-only revision labels, demo data and
+  controls are excluded.
+- Planning and Execution lists follow their respective refreshed table references.
+  Long Activity, Project and Agent names wrap inside bounded columns; the Agents
+  column displays every returned assigned name without overlapping adjacent
+  content. Empty, loading and error behavior remains distinct.
+- The existing shared date and exact-XOF helpers become the sole presentation
+  contract for touched Activity surfaces. Missing or invalid values display `—`;
+  explicit zero displays `0 F CFA`; dates never shift across time zones. Screens
+  and reports do not describe a missing amount as **Non renseigné**.
+
+### Implementation slices and checks
+
+| Slice                            | Existing seams and changes                                                                                       | Focused evidence                                                                                                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Update and login recovery     | `PwaUpdate`, root composition, access coordinator, service-unavailable login and auth E2E                        | Waiting worker activates without UI; hard navigation completes `/logout` before `/login`; refreshed failed session reaches the form without a click                |
+| 2. Attention actions             | Dashboard attention reason/action presentation, with the existing API facts and destinations                     | Agent, Supervisor and Validator examples expose the verb matching the row's actual work and retain the correct Activity link                                       |
+| 3. Shared formatting             | `shared/lib/format`, Activity/Execution consumers and fiche formatting                                           | Missing, zero, large exact XOF, date-only and Benin timestamp cases; no touched money surface emits `Non renseigné`                                                |
+| 4. Shared Activity presentation  | Planning detail, Execution detail, Programming, finance, History and documents using current actions and queries | Direct populated comparison with every applicable refreshed Activity reference; tabs remain Programming, Réalisation & finances, Historique, Pièces justificatives |
+| 5. Planning and Execution tables | Shared column sizing/wrapping patterns, Planning table and Execution list                                        | Long Activity/Project/Agent names, narrow reflow, empty/filtered states and exact desktop comparison with PTA/Execution references                                 |
+
+Use the existing Router, Query state, buttons, panels, status helpers and formatters.
+Do not introduce a second Activity model, table framework, formatter layer or
+update queue. After each vertical slice, run its focused behavioral check. At the
+end, run affected lint/format/build checks, update project status and send the
+candidate to an independent review-only agent. Visual automation is evidence;
+human visual acceptance remains separate.
+
+### Progress — automatic updates and Activity presentation, 2026-11-12
+
+The waiting-worker prompt has been removed. A downloaded update now activates
+immediately and, once the new worker controls the page, replaces the current
+location with `/logout`; the existing logout flow then opens `/login` only after
+the server session is closed. Session-service recovery clears the unusable session
+automatically once per loaded application; remounting the login route cannot start
+another logout, while a browser refresh creates a fresh coordinator and can retry.
+
+Dashboard attention actions now name the actual work for planning and financial
+requests. Planning and Execution Activity headers, tab spacing, Programming,
+History, documents, finance summaries and operation tables were aligned with the
+refreshed references without adding facts absent from the API. Administrative
+finance now uses compact, expandable steps and opens the current actionable step.
+Both Activity lists
+use bounded columns, wrap long names and render assigned Agents one per line. The
+shared formatters now own touched XOF, date-only and Benin timestamp presentation;
+missing money is `—` and a real zero remains `0 F CFA`.
+
+Focused final frontend evidence passed 45 Planning tests, 32 Execution tests and
+63 update/auth/dashboard/format/history/portal tests. The production PWA build and
+the real Chromium worker-activation journey passed, as did the focused Chromium
+session-outage journey. ESLint passed with the existing coordinator cleanup
+warning; frontend formatting, backend Ruff and backend formatting passed. The 13
+focused backend fiche tests passed against a disposable PostgreSQL container,
+which was removed after the run. A broader auth E2E file ran four tests successfully,
+including the changed recovery journey, then exposed two pre-existing stale
+**Relances** selectors after that sidebar item had already become
+**Notifications**; the focused changed journey was rerun cleanly.

@@ -19,14 +19,31 @@ export function localDateInput(value = new Date()) {
 
 export function formatXof(value) {
   if (value === null || value === undefined || value === '') return '—'
-  const amount = typeof value === 'bigint' ? value : BigInt(value || 0)
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) return '—'
+  if (typeof value === 'string' && !/^-?\d+$/.test(value)) return '—'
+  if (
+    typeof value !== 'bigint' &&
+    typeof value !== 'string' &&
+    typeof value !== 'number'
+  )
+    return '—'
+  const amount = typeof value === 'bigint' ? value : BigInt(value)
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(amount)} F CFA`
 }
 
 export function formatDate(value) {
-  if (!value) return '—'
-  const date = new Date(`${value}T00:00:00Z`)
-  if (Number.isNaN(date.getTime())) return '—'
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(value || '')
+  if (!match) return '—'
+  if (String(value).length > 10 && Number.isNaN(Date.parse(value))) return '—'
+  const calendarDay = `${match[1]}-${match[2]}-${match[3]}`
+  const date = new Date(`${calendarDay}T00:00:00Z`)
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== Number(match[1]) ||
+    date.getUTCMonth() + 1 !== Number(match[2]) ||
+    date.getUTCDate() !== Number(match[3])
+  )
+    return '—'
   return new Intl.DateTimeFormat('fr-FR', {
     dateStyle: 'long',
     timeZone: 'UTC',

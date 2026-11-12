@@ -321,7 +321,7 @@ test('an observation draft keeps its version across refresh and can be explicitl
     }),
   ).toBeVisible()
   expect(
-    administration.getByRole('heading', { name: 'Clôture de l’activité' }),
+    administration.getAllByText('Clôture de l’activité', { exact: true })[0],
   ).toBeVisible()
   expect(
     administration.getByRole('link', {
@@ -480,10 +480,22 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
   const confirmation = screen.getByLabelText(
     /Je confirme que l’Activité est entièrement réalisée/,
   )
+  expect(
+    button
+      .closest('details')
+      .querySelector('[data-administrative-state="pending"]'),
+  ).toBeInTheDocument()
   expect(confirmation).not.toBeChecked()
   await user.click(confirmation)
   await user.click(button)
-  expect(await screen.findByText('Activité clôturée')).toBeVisible()
+  await waitFor(() =>
+    expect(
+      screen
+        .getAllByText('Clôture de l’activité', { exact: true })[0]
+        .closest('details')
+        .querySelector('[data-administrative-state="complete"]'),
+    ).toBeInTheDocument(),
+  )
   expect(
     screen.queryByRole('button', { name: 'Clôturer l’activité' }),
   ).toBeNull()
@@ -495,6 +507,100 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
     }),
   )
 })
+
+test.each([
+  ['submitted', 'À examiner'],
+  ['returned', 'À corriger'],
+])(
+  'an older approved funding request does not mark a newer %s request as complete',
+  async (currentState, expectedStatus) => {
+    const current = detail({ started: true, completed: true })
+    const funding = {
+      object: 'list',
+      count: 2,
+      data: [
+        {
+          id: 'funding-new',
+          amount: '25000',
+          state: currentState,
+          snapshot: { old_allocation: '100000', new_allocation: '125000' },
+          submitted_at: '2026-11-02T09:00:00Z',
+          decisions: [],
+          cancellation: null,
+          allowed_actions: ['read'],
+        },
+        {
+          id: 'funding-old',
+          amount: '10000',
+          state: 'approved',
+          snapshot: { old_allocation: '90000', new_allocation: '100000' },
+          submitted_at: '2026-10-20T09:00:00Z',
+          decisions: [],
+          cancellation: null,
+          allowed_actions: ['read'],
+        },
+      ],
+      next: null,
+      previous: null,
+      pending: [],
+      allowed_actions: [],
+      activity_version: current.version,
+      approved_revision_id: current.approved_revision_id,
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const path = String(url)
+        if (path.includes('/auth/session'))
+          return new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: {
+                id: 'supervisor',
+                email: 'supervisor@example.test',
+                role: 'AGENT_VERIFICATEUR',
+              },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          )
+        if (path.endsWith('/funding-requests'))
+          return new Response(JSON.stringify(funding))
+        if (path.endsWith('/activities/activity-1/execution'))
+          return new Response(JSON.stringify(current))
+        return new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        )
+      }),
+    )
+    render(
+      <App
+        router={makeRouter(
+          createMemoryHistory({
+            initialEntries: ['/execution/activities/activity-1'],
+          }),
+        )}
+      />,
+    )
+
+    const step = (
+      await screen.findAllByText('Financement complémentaire', { exact: true })
+    )[0].closest('details')
+    expect(within(step).getByText(expectedStatus)).toBeVisible()
+    expect(
+      step.querySelector('[data-administrative-state="pending"]'),
+    ).toBeInTheDocument()
+    expect(
+      step.querySelector('[data-administrative-state="complete"]'),
+    ).not.toBeInTheDocument()
+  },
+)
 
 test('Agent submits a zero-spending declaration without financial requests', async () => {
   const user = userEvent.setup()
@@ -773,7 +879,18 @@ test.each([
       expect(await screen.findByLabelText('Motif du retour *')).toBeVisible()
     }
     await user.click(await screen.findByRole('button', { name: buttonLabel }))
-    expect(await screen.findByText(finalLabel)).toBeVisible()
+    if (decision === 'approve') {
+      await waitFor(() =>
+        expect(
+          screen
+            .getByText('Déclaration sans dépense', { exact: true })
+            .closest('details')
+            .querySelector('[data-administrative-state="complete"]'),
+        ).toBeInTheDocument(),
+      )
+    } else {
+      expect(await screen.findByText(finalLabel)).toBeVisible()
+    }
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/activities/activity-1/zero-spending-declarations/zero-1/decisions',
       expect.objectContaining({
@@ -1001,7 +1118,12 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
         )}
       />,
     )
-    expect(await screen.findByText('Activité clôturée')).toBeVisible()
+    expect(
+      (await screen.findAllByText('Clôture de l’activité', { exact: true }))[0]
+        .closest('details')
+        .querySelector('[data-administrative-state="complete"]'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Activité clôturée')).not.toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Clôturer l’activité' }),
     ).toBeNull()
@@ -1960,6 +2082,22 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       virementPanel.getByLabelText(/Référence ou commentaire/),
     ).toHaveValue('TEST-003'),
   )
+  await user.click(
+    screen.getByText('Autorisation de virement', { selector: 'strong' }),
+  )
+  await waitFor(() =>
+    expect(screen.getByText('Confirmation du virement externe')).toBeVisible(),
+  )
+  const confirmationDetails = screen
+    .getByText('Confirmation du virement externe')
+    .closest('details')
+  if (!confirmationDetails.open)
+    await user.click(screen.getByText('Confirmation du virement externe'))
+  await waitFor(() =>
+    expect(
+      virementPanel.getByText('Historique des déclarations (3)'),
+    ).toBeVisible(),
+  )
   await user.click(virementPanel.getByText('Historique des déclarations (3)'))
   expect(virementPanel.getAllByText('Déclaration corrigée')).toHaveLength(2)
   expect(virementPanel.getByText('Déclaration initiale')).toBeVisible()
@@ -2193,37 +2331,59 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       }),
     }),
   )
-  await dialog.findByRole('button', { name: 'Corriger le reversement' })
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Enregistrer le reversement' }),
+    ).not.toBeInTheDocument(),
+  )
   await user.click(
-    dialog.getByRole('button', {
+    await screen.findByRole('button', { name: 'Corriger le reversement' }),
+  )
+  const correctionDialog = within(
+    screen.getByRole('dialog', { name: 'Corriger le reversement' }),
+  )
+  await user.click(
+    correctionDialog.getByRole('button', {
       name: /Date effective du reversement : 28 octobre 2026/,
     }),
   )
   await user.click(
-    within(dialog.getByRole('grid')).getByRole('button', {
+    within(correctionDialog.getByRole('grid')).getByRole('button', {
       name: /jeudi 29 octobre 2026/i,
     }),
   )
   await user.type(
-    dialog.getByLabelText('Motif de la correction du reversement *'),
+    correctionDialog.getByLabelText('Motif de la correction du reversement *'),
     'Date corrigée.',
   )
-  await user.click(dialog.getByLabelText(/montant exact a été reversé/))
   await user.click(
-    dialog.getByRole('button', { name: 'Corriger le reversement' }),
+    correctionDialog.getByLabelText(/montant exact a été reversé/),
+  )
+  await user.click(
+    correctionDialog.getByRole('button', { name: 'Corriger le reversement' }),
   )
   await waitFor(() =>
     expect(
-      dialog.getByRole('button', {
-        name: /Date effective du reversement : 29 octobre 2026/,
-      }),
-    ).toBeVisible(),
+      screen.queryByRole('dialog', { name: 'Corriger le reversement' }),
+    ).not.toBeInTheDocument(),
   )
-  await user.click(panel.getByText('Historique des reversements (2)'))
-  expect(panel.getByText('Reversement corrigé')).toBeVisible()
-  expect(panel.getByText('Reversement initial')).toBeVisible()
-  expect(panel.getAllByText(/Yoann Agent/)).toHaveLength(2)
-  expect(panel.queryByText(/^Version /)).not.toBeInTheDocument()
+  expect(fetch).toHaveBeenCalledWith(
+    `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement/corrections`,
+    expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        expected_version: 9,
+        return_date: '2026-10-29',
+        note: 'REVERSEMENT-001',
+        reason: 'Date corrigée.',
+      }),
+    }),
+  )
+  await user.click(await screen.findByText('Historique des reversements (2)'))
+  expect(screen.getByText('Reversement corrigé')).toBeVisible()
+  expect(screen.getByText('Reversement initial')).toBeVisible()
+  expect(screen.getAllByText(/Yoann Agent/)).toHaveLength(2)
+  expect(screen.queryByText(/^Version /)).not.toBeInTheDocument()
 })
 
 test('zero reversement displays settlement without a declaration form', async () => {
@@ -2316,7 +2476,13 @@ test('zero reversement displays settlement without a declaration form', async ()
       )}
     />,
   )
-  expect(await screen.findByText('Aucun reversement requis.')).toBeVisible()
+  const confirmationStep = (
+    await screen.findByText('Confirmation du virement externe')
+  ).closest('details')
+  expect(
+    confirmationStep.querySelector('[data-administrative-state="complete"]'),
+  ).toBeInTheDocument()
+  expect(within(confirmationStep).getByText('Confirmé')).toBeInTheDocument()
   expect(
     screen.queryByRole('button', { name: 'Enregistrer le reversement' }),
   ).not.toBeInTheDocument()
@@ -2679,56 +2845,67 @@ test('a reasoned execution correction refreshes the funding version without rele
 })
 
 test.each([503, 403, 404])(
-  'background history failure %s preserves the draft and discards only denied data',
+  'a funding refresh failure %s preserves the operation draft and discards only denied data',
   async (status) => {
-    let failed = false
+    const user = userEvent.setup()
+    let failFunding = false
+    const funding = {
+      object: 'list',
+      count: 1,
+      data: [
+        {
+          id: 'funding-background',
+          amount: '77777',
+          snapshot: {
+            old_allocation: '100000',
+            new_allocation: '177777',
+          },
+          submitted_at: '2026-11-04T09:00:00Z',
+          state: 'submitted',
+          decisions: [],
+          cancellation: null,
+          allowed_actions: ['read'],
+        },
+      ],
+      next: null,
+      previous: null,
+      pending: [],
+      allowed_actions: [],
+      activity_version: 7,
+      approved_revision_id: '11111111-1111-4111-8111-111111111111',
+    }
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url) => {
-        if (url.endsWith('/session'))
+        const path = String(url)
+        if (path.includes('/auth/session'))
           return new Response(
             JSON.stringify({
               state: 'verified',
               csrf: 'csrf',
               user: {
                 id: 'agent',
-                email: 'agent@example.test',
+                email: 'user@example.test',
                 role: 'AGENT_SAISIE',
               },
               expires_at: new Date(Date.now() + 60000).toISOString(),
             }),
           )
-        if (url.endsWith('/execution'))
+        if (path.endsWith('/execution'))
           return new Response(
             JSON.stringify(detail({ started: true, completed: true })),
           )
-        if (url.endsWith('/execution/history')) {
-          if (failed) return new Response('{}', { status })
-          return new Response(
-            JSON.stringify({
-              data: [
-                {
-                  id: 'event',
-                  action: 'record',
-                  occurred_at: '2026-10-28T10:00:00Z',
-                  correction_reason: 'Justification protégée',
-                },
-              ],
-              count: 1,
-              next: null,
-              previous: null,
-            }),
-          )
-        }
+        if (path.endsWith('/funding-requests'))
+          return failFunding
+            ? new Response('{}', { status })
+            : new Response(JSON.stringify(funding))
         return new Response(
           JSON.stringify({
-            data: [],
+            object: 'list',
             count: 0,
+            data: [],
             next: null,
             previous: null,
-            pending: [],
-            allowed_actions: [],
-            activity_version: 7,
           }),
         )
       }),
@@ -2739,37 +2916,44 @@ test.each([503, 403, 404])(
       }),
     )
     render(<App router={router} />)
-    await userEvent.click(
-      await screen.findByRole('button', {
-        name: 'Consulter Préparer la session',
+    await user.click(
+      await screen.findByRole(
+        'button',
+        { name: 'Consulter Préparer la session' },
+        { timeout: 3000 },
+      ),
+    )
+    await user.type(
+      await screen.findByLabelText('Observation'),
+      ' Brouillon local.',
+    )
+    expect(
+      (await screen.findAllByText(/77.*777 F CFA/)).length,
+    ).toBeGreaterThan(0)
+
+    failFunding = true
+    await act(async () =>
+      router.options.context.queryClient.invalidateQueries({
+        queryKey: ['execution', 'agent', 'funding'],
       }),
     )
-    await userEvent.type(
-      await screen.findByLabelText('Observation'),
-      ' Brouillon local',
+
+    await waitFor(() =>
+      expect(
+        router.options.context.queryClient.getQueryCache().find({
+          queryKey: ['execution', 'agent', 'funding'],
+          exact: false,
+        })?.state.status,
+      ).toBe('error'),
     )
-    expect(await screen.findByText('Justification protégée')).toBeVisible()
-    failed = true
-    await act(async () => {
-      await router.options.context.queryClient.invalidateQueries({
-        queryKey: ['execution', 'agent', 'history'],
-      })
-    })
-    await screen.findAllByText('Les données de réalisation sont indisponibles.')
     expect(screen.getByLabelText('Observation')).toHaveValue(
-      'Session terminée. Brouillon local',
+      'Session terminée. Brouillon local.',
     )
-    if (status === 503)
-      expect(screen.getByText('Justification protégée')).toBeVisible()
-    else {
-      expect(
-        screen.queryByText('Justification protégée'),
-      ).not.toBeInTheDocument()
-      expect(
-        router.options.context.queryClient
-          .getQueriesData({ queryKey: ['execution', 'agent', 'history'] })
-          .every(([, data]) => !data),
-      ).toBe(true)
-    }
+    const cached = router.options.context.queryClient.getQueryCache().find({
+      queryKey: ['execution', 'agent', 'funding'],
+      exact: false,
+    })?.state.data
+    if (status === 503) expect(cached).toEqual(funding)
+    else expect(cached).toBeNull()
   },
 )

@@ -37,7 +37,7 @@ test('dashboard attention titles and actions link to their activity workflow', a
           financial: { closed_spending: '0', approved_allocation: '0' },
           finance: { approved_operations: 0, recorded_operations: 0 },
           attention: {
-            count: 2,
+            count: 4,
             items: [
               {
                 activity_id: 'planning-id',
@@ -52,6 +52,20 @@ test('dashboard attention titles and actions link to their activity workflow', a
                 destination: 'execution',
                 reason: 'reversement_required',
                 action: 'view',
+              },
+              {
+                activity_id: 'prevalidation-id',
+                name: 'Activité à prévalider',
+                destination: 'planning',
+                reason: 'planning_prevalidation',
+                action: 'review_planning',
+              },
+              {
+                activity_id: 'approval-id',
+                name: 'Décaissement à valider',
+                destination: 'execution',
+                reason: 'disbursement_approval',
+                action: 'review_finance',
               },
             ],
           },
@@ -76,4 +90,21 @@ test('dashboard attention titles and actions link to their activity workflow', a
     expect(links).toHaveLength(2)
     for (const link of links) expect(link).toHaveAttribute('href', href)
   }
+  expect(
+    within(
+      screen.getByRole('link', { name: 'Activité à préparer' }).closest('li'),
+    ).getByRole('link', { name: 'Compléter l’activité' }),
+  ).toBeVisible()
+  expect(
+    within(
+      screen.getByRole('link', { name: 'Activité à prévalider' }).closest('li'),
+    ).getByRole('link', { name: 'Prévalider l’activité' }),
+  ).toBeVisible()
+  expect(
+    within(
+      screen
+        .getByRole('link', { name: 'Décaissement à valider' })
+        .closest('li'),
+    ).getByRole('link', { name: 'Valider le décaissement' }),
+  ).toBeVisible()
 })

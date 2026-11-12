@@ -139,7 +139,26 @@ test('installable shell caches static assets only and never replays offline API 
   ).toEqual([])
 })
 
-test('service-worker update waits for user confirmation', async ({ page }) => {
+test('service-worker update activates and reopens the application on login', async ({
+  page,
+}) => {
+  await page.route('**/api/health/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'ok' }),
+    }),
+  )
+  await page.route('**/api/v1/auth/session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ state: 'anonymous', csrf: 'test-csrf' }),
+    }),
+  )
+  await page.route('**/api/v1/auth/logout', (route) =>
+    route.fulfill({ status: 204 }),
+  )
   await controlledPage(page)
   const path = new URL('../../dist/sw.js', import.meta.url)
   const original = await readFile(path, 'utf8')
@@ -150,22 +169,9 @@ test('service-worker update waits for user confirmation', async ({ page }) => {
     )
     await expect(
       page.getByText('Une nouvelle version est disponible.', { exact: false }),
-    ).toBeVisible()
-    expect(
-      await page.evaluate(async () =>
-        Boolean((await navigator.serviceWorker.ready).waiting),
-      ),
-    ).toBe(true)
-    await Promise.all([
-      page.waitForEvent(
-        'framenavigated',
-        (frame) => frame === page.mainFrame(),
-      ),
-      page.getByRole('button', { name: 'Actualiser l’application' }).click(),
-    ])
-    await expect(
-      page.getByText('Service disponible', { exact: true }),
-    ).toBeVisible()
+    ).toHaveCount(0)
+    await expect(page).toHaveURL(/\/login$/)
+    await expect(page.getByLabel('Adresse e-mail')).toBeVisible()
     await expect
       .poll(() =>
         page.evaluate(async () =>

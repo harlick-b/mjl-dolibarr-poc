@@ -26,7 +26,16 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { ChevronDown, Download, Eye, Pencil, Plus, Save, X } from 'lucide-react'
+import {
+  ChevronDown,
+  Download,
+  Eye,
+  Folder,
+  Pencil,
+  Plus,
+  Save,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
@@ -34,6 +43,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import {
   addThreeMonths,
   formatDate,
+  formatDateTime,
   formatXof,
   localDateInput,
 } from '@/shared/lib/format'
@@ -2484,10 +2494,10 @@ function ActivityDetail({
       !item.operations.length)
   const nextStep = activityNextStep(item)
   return (
-    <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
+    <Panel as="div" className="gap-5 border-0 bg-transparent p-0">
       <nav
         aria-label={strings.breadcrumb}
-        className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+        className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
       >
         <Link to={Urls.planning} className="text-primary">
           {strings.planningIndex}
@@ -2506,28 +2516,26 @@ function ActivityDetail({
         <span aria-hidden="true">/</span>
         <span>{item.reference}</span>
       </nav>
-      <div className="flex justify-between items-end gap-8 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div className="grid gap-3">
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            {item.reference}
-          </p>
-          <h1 className="text-[1.75rem] font-semibold leading-8 text-navy">
+      <div className="flex flex-wrap items-start justify-between gap-6 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
+        <div className="grid min-w-0 gap-3">
+          <h1 className="max-w-5xl break-words text-2xl font-semibold leading-8 text-navy">
             {item.name}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {item.project_name} · {item.partner_name} · {item.pta_name}
+          <p className="break-words text-[0.8125rem] text-muted-foreground">
+            {item.reference} · {item.project_name} · {item.partner_name} ·{' '}
+            {item.pta_name}
           </p>
           {item.description?.trim() && (
-            <div className="max-w-3xl">
-              <p className="text-xs font-medium text-muted-foreground">
+            <div className="max-w-4xl text-[0.8125rem] leading-5">
+              <p className="text-xs text-muted-foreground">
                 {strings.activityPurpose}
               </p>
-              <p className="mt-1 line-clamp-3 text-sm leading-6 text-foreground">
+              <p className="mt-1 line-clamp-2 break-words">
                 {item.description}
               </p>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem]">
             <span
               className={`w-fit rounded-card px-2 py-1 text-xs ${activityStatusClass(item.state)}`}
             >
@@ -2561,15 +2569,18 @@ function ActivityDetail({
             </span>
           </div>
           {nextStep && (
-            <p className="max-w-3xl text-sm leading-6">
+            <p className="max-w-4xl text-[0.8125rem] leading-5">
               <strong className="font-medium">{strings.nextStep}</strong>
               <span className="text-muted-foreground"> · {nextStep}</span>
             </p>
           )}
         </div>
-        <div className="flex gap-2 items-end flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           {item.approved_revision_id && (
-            <ProtectedDownload path={`/api/v1/activities/${item.id}/fiche.pdf`}>
+            <ProtectedDownload
+              path={`/api/v1/activities/${item.id}/fiche.pdf`}
+              size="sm"
+            >
               <Download aria-hidden="true" />
               {strings.downloadActivityFiche}
             </ProtectedDownload>
@@ -2729,7 +2740,7 @@ function ActivityDetail({
       )}
       <nav
         aria-label={strings.activitySections}
-        className="flex flex-wrap gap-6 border-b border-border text-sm"
+        className="flex flex-wrap gap-5 border-b border-border text-sm"
       >
         {[['programming', strings.programming]].map(([tab, label]) => (
           <Link
@@ -2743,14 +2754,14 @@ function ActivityDetail({
               amendment: undefined,
             })}
             activeOptions={{ exact: true, includeSearch: true }}
-            className={`border-b-2 py-3 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+            className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
           >
             {label}
           </Link>
         ))}
         {item.approved_revision_id && (
           <Link
-            className="border-b-2 border-transparent py-3 text-primary"
+            className="border-b-2 border-transparent px-1 py-2.5 text-muted-foreground"
             to={Urls.executionActivity}
             params={{ activityId: item.id }}
           >
@@ -2772,7 +2783,7 @@ function ActivityDetail({
               amendment: undefined,
             })}
             activeOptions={{ exact: true, includeSearch: true }}
-            className={`border-b-2 py-3 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+            className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
           >
             {label}
           </Link>
@@ -2790,10 +2801,10 @@ function ActivityDetail({
               <h2 className="border-b border-border px-5 py-4">
                 {strings.programming}
               </h2>
-              <div
-                className={`grid p-5 ${programmingIncomplete ? 'gap-4' : 'gap-6'}`}
-              >
-                <p>{item.description}</p>
+              <div className="grid gap-6 p-5">
+                <p className="max-w-4xl text-sm leading-6">
+                  {item.description || '—'}
+                </p>
                 {programmingIncomplete && (
                   <p className="text-sm text-muted-foreground">
                     {strings.programmingToComplete}
@@ -2941,7 +2952,7 @@ function ActivityDetail({
       {search.tab === 'history' && (
         <section
           aria-labelledby="activity-history-title"
-          className="rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:p-5 [&>h3]:font-semibold"
+          className="max-w-[86rem] rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:px-5 [&>h3]:py-4 [&>h3]:font-semibold"
         >
           <h3 id="activity-history-title">{strings.revisionHistory}</h3>
           {historyFailed ? null : historyLoading && !revisions ? (
@@ -3531,6 +3542,7 @@ export function ActivityDocuments({
         {canUpload && (
           <Button
             variant="outline"
+            size="sm"
             disabled={
               blocked ||
               upload.isPending ||
@@ -3564,27 +3576,37 @@ export function ActivityDocuments({
         <EmptyContent kind="documents" />
       ) : (
         <ul
-          className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
+          className="grid list-none gap-0 p-0 [&_li]:flex [&_li]:min-h-18 [&_li]:items-center [&_li]:justify-between [&_li]:gap-4 [&_li]:border-t [&_li]:border-t-border [&_li]:px-5 [&_li]:py-4"
           data-ui="planning-list"
         >
           {documents.data.data
             .filter((document) => !deniedDocuments.includes(document.id))
             .map((document) => (
               <li key={document.id}>
-                <span>
-                  {document.name}
-                  {document.partner_shared && (
-                    <small> · {strings.sharedWithPartner}</small>
-                  )}
-                  <small>
-                    {document.withdrawal
-                      ? ` · ${strings.withdrawnAttachment} · ${document.withdrawal.reason}`
-                      : ` · ${strings.currentAttachment}`}
-                    {document.withdrawal?.replacement_document_name &&
-                      ` · ${strings.replacedBy} ${document.withdrawal.replacement_document_name}`}
-                  </small>
+                <span className="flex min-w-0 items-start gap-3">
+                  <Folder
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0">
+                    <strong className="block break-words text-[0.8125rem] font-semibold">
+                      {document.name}
+                    </strong>
+                    {document.partner_shared && (
+                      <small className="text-muted-foreground">
+                        {strings.sharedWithPartner} ·{' '}
+                      </small>
+                    )}
+                    <small className="text-muted-foreground">
+                      {document.withdrawal
+                        ? `${strings.withdrawnAttachment} · ${document.withdrawal.reason}`
+                        : formatDateTime(document.uploaded_at)}
+                      {document.withdrawal?.replacement_document_name &&
+                        ` · ${strings.replacedBy} ${document.withdrawal.replacement_document_name}`}
+                    </small>
+                  </span>
                 </span>
-                <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {!document.withdrawal &&
                     ['image/jpeg', 'image/png'].includes(
                       document.media_type,
@@ -3592,6 +3614,7 @@ export function ActivityDocuments({
                       <Button
                         aria-label={`${common.preview} de ${document.name}`}
                         variant="outline"
+                        size="sm"
                         onClick={(event) => {
                           previewOpener.current = event.currentTarget
                           releasePreview()
@@ -3609,6 +3632,7 @@ export function ActivityDocuments({
                       path={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
                       onDenied={() => void denyDocument(document.id)}
                       scope={deliveryScope}
+                      size="sm"
                     >
                       <Download aria-hidden="true" /> {common.download}
                     </ProtectedDownload>
@@ -3617,6 +3641,7 @@ export function ActivityDocuments({
                     document.allowed_actions?.includes('unshare')) && (
                     <Button
                       variant="outline"
+                      size="sm"
                       disabled={
                         blocked ||
                         sharing.isPending ||
@@ -3633,6 +3658,7 @@ export function ActivityDocuments({
                   {document.allowed_actions?.includes('withdraw') && (
                     <Button
                       variant="outline"
+                      size="sm"
                       disabled={blocked || withdraw.isPending}
                       onClick={(event) => {
                         withdrawalOpener.current = event.currentTarget

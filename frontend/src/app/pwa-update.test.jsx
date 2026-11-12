@@ -1,94 +1,42 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { QueryClient } from '@tanstack/react-query'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import { ActivityForm } from '@/features/planning/pages/PlanningView'
+import { Urls } from '@/app/urls'
 import { PwaUpdate } from './PwaUpdate'
 
-const { update } = vi.hoisted(() => ({ update: vi.fn() }))
-vi.mock('virtual:pwa-register/react', () => ({
-  useRegisterSW: () => ({
-    needRefresh: [true, vi.fn()],
-    updateServiceWorker: update,
-  }),
+const state = vi.hoisted(() => ({
+  onNeedReload: null,
+  update: vi.fn(),
 }))
-afterEach(() => update.mockClear())
 
-test('application updates wait for an edited planning form to be saved', async () => {
-  const client = new QueryClient()
-  let finishSave
-  render(
-    <>
-      <ActivityForm
-        types={[]}
-        initial={{
-          version: 1,
-          name: 'Atelier',
-          description: 'Description',
-          planned_start: '2027-01-01',
-          planned_end: '2027-04-01',
-          operations: [],
-        }}
-        onSubmit={() =>
-          new Promise((resolve) => {
-            finishSave = resolve
-          })
-        }
-      />
-      <PwaUpdate queryClient={client} />
-    </>,
-  )
-  fireEvent.change(
-    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
-    {
-      target: { value: 'Atelier modifié' },
-    },
-  )
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Actualiser l’application' }),
-  )
-  expect(update).not.toHaveBeenCalled()
-  fireEvent.submit(
-    screen.getByRole('button', { name: 'Enregistrer le brouillon' }).form,
-  )
-  expect(
-    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
-  ).toBeDisabled()
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Actualiser l’application' }),
-  )
-  expect(update).not.toHaveBeenCalled()
-  await act(async () => finishSave())
-  expect(
-    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
-  ).toBeEnabled()
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Actualiser l’application' }),
-  )
-  expect(update).toHaveBeenCalledWith(true)
+vi.mock('virtual:pwa-register/react', () => ({
+  useRegisterSW: (options) => {
+    state.onNeedReload = options.onNeedReload
+    return {
+      needRefresh: [true, vi.fn()],
+      updateServiceWorker: state.update,
+    }
+  },
+}))
+
+afterEach(() => {
+  state.onNeedReload = null
+  state.update.mockReset()
 })
 
-test('application updates wait for pending business mutations', async () => {
-  const client = new QueryClient()
-  let finish
-  const mutation = client.getMutationCache().build(client, {
-    mutationFn: () =>
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-  })
-  const request = mutation.execute()
-  await act(async () => Promise.resolve())
-  render(<PwaUpdate queryClient={client} />)
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Actualiser l’application' }),
-  )
-  expect(update).not.toHaveBeenCalled()
-  await act(async () => {
-    finish()
-    await request
-  })
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Actualiser l’application' }),
-  )
-  expect(update).toHaveBeenCalledWith(true)
+test('a waiting application update activates without showing a prompt and opens login', async () => {
+  const openLogin = vi.fn()
+  render(<PwaUpdate onActivated={openLogin} />)
+
+  expect(
+    screen.queryByText('Une nouvelle version est disponible.', {
+      exact: false,
+    }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Actualiser l’application' }),
+  ).not.toBeInTheDocument()
+  await waitFor(() => expect(state.update).toHaveBeenCalledWith(true))
+
+  act(() => state.onNeedReload())
+  expect(openLogin).toHaveBeenCalledWith(Urls.logout)
 })

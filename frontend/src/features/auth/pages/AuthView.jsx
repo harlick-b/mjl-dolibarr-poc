@@ -726,21 +726,21 @@ function AuthPage({ path }) {
 export function ServiceUnavailableLogin() {
   const navigate = useNavigate()
   const { logout, busy } = useLogout()
+  const { beginServiceRecovery } = useAccess()
+  const logoutRef = useRef(logout)
   useEffect(() => {
     void navigate({ to: Urls.login, replace: true })
-  }, [navigate])
+    if (!beginServiceRecovery()) return
+    void logoutRef.current()
+  }, [beginServiceRecovery, navigate])
   return (
     <AuthFrame title={strings.loginHeading} busy={busy}>
       <h1>{strings.loginHeading}</h1>
-      <p role="alert">{strings.serviceLoginMessage}</p>
-      <button
-        type="button"
-        className={buttonVariants({ variant: 'auth' })}
-        disabled={busy}
-        onClick={() => void logout()}
-      >
-        {strings.retryConnection}
-      </button>
+      {busy ? (
+        <AuthMinimalLoading label={strings.logoutHeading} />
+      ) : (
+        <p role="alert">{strings.serviceLoginMessage}</p>
+      )}
     </AuthFrame>
   )
 }

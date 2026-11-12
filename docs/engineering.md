@@ -326,8 +326,12 @@ PWA caches only explicitly allowlisted public versioned static assets. Exclude
 API/auth, files, exports, private navigation and non-GET requests; authenticated
 responses are no-store. No confidential persistence, background sync or offline
 business writes. Offline shell shows unavailable actions. Version/delete static
-caches safely. Defer update/reload while forms are dirty or mutations pending;
-incompatible clients fail safely and ask reload, never retry writes.
+caches safely. Activate a downloaded update without exposing an update prompt,
+then perform a hard navigation through `/logout`; server logout must complete
+before the new bundle displays `/login`. An unfinished local form may be discarded
+by this replacement; never retry writes. A service-session failure clears the
+unusable local session once per page load, and a browser refresh starts a fresh
+verification attempt.
 
 ## Transactions, migrations and verification
 

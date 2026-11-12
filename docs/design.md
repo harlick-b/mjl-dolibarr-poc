@@ -197,8 +197,9 @@ The workspace has no horizontal navigation/header. Relances sits above sidebar
 identity and opens the administrative reminder modal from `docs/inspiration/relances/`.
 Not-found content uses the application sidebar when verified and the decorative
 auth frame otherwise. Logout links target `/logout`. Session-service failure returns
-to login with an unavailable message and deliberate recovery, never an endless
-verification loop. Invitation HTML and plain text follow the supplied
+to login, clears the unusable session automatically once per page load and never
+creates an endless retry loop. A browser refresh starts a fresh recovery attempt.
+Invitation HTML and plain text follow the supplied
 `mjl-email-invitation-final.html` wording, including the invited role.
 
 ### Shared business dialogs

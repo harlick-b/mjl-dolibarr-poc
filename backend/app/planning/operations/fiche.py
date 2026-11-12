@@ -391,7 +391,7 @@ def projection(
     actor_rows = list(db.scalars(select(User).where(User.id.in_(actor_ids))))
     actors = {item.id: item.full_name or item.email for item in actor_rows}
     actor_roles = {
-        item.id: ROLE_LABELS.get(item.role, item.role) for item in actor_rows
+        item.id: ROLE_LABELS.get(item.role, "Rôle indisponible") for item in actor_rows
     }
     return {
         "activity": activity,
@@ -722,8 +722,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 if decision.requested_amount is not None
                 else ""
             )
-            role = text(ROLE_LABELS.get(decision.actor_role, decision.actor_role))
-            outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
+            role = text(ROLE_LABELS.get(decision.actor_role, "Rôle indisponible"))
+            outcome = text(OUTCOME_LABELS.get(decision.outcome, "Décision enregistrée"))
             decision_actor = text(
                 actors.get(decision.actor_id, "Utilisateur indisponible")
             )
@@ -763,10 +763,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         authorization_count += 1
         story.append(Paragraph(f"<b>{title}</b>", small))
         summary = f"Montant demandé : {amount} · {request_state}<br/>"
-        summary += (
-            f"Demandeur : {text(actors.get(submitter_id, submitter_id))}<br/>"
-            f"Soumise le {day(submitted_at)}"
-        )
+        submitter = text(actors.get(submitter_id, "Utilisateur indisponible"))
+        summary += f"Demandeur : {submitter}<br/>Soumise le {day(submitted_at)}"
         if reason != "—":
             summary += f" · Motif : {reason}"
         if cancellation:
@@ -779,7 +777,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 if decision.actor_role == "AGENT_VERIFICATEUR"
                 else "Autorisation"
             )
-            outcome = text(OUTCOME_LABELS.get(decision.outcome, decision.outcome))
+            outcome = text(OUTCOME_LABELS.get(decision.outcome, "Décision enregistrée"))
             expected = (
                 "Prévalidé"
                 if decision.actor_role == "AGENT_VERIFICATEUR"
@@ -789,8 +787,8 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             rows.append(
                 [
                     decision_label,
-                    text(actors.get(decision.actor_id, decision.actor_id)),
-                    text(ROLE_LABELS.get(decision.actor_role, decision.actor_role)),
+                    text(actors.get(decision.actor_id, "Utilisateur indisponible")),
+                    text(ROLE_LABELS.get(decision.actor_role, "Rôle indisponible")),
                     day(decision.decided_at),
                 ]
             )
@@ -810,7 +808,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         story.append(Spacer(1, 3 * mm))
 
     for number, declaration in enumerate(data["zero_declarations"], 1):
-        state = STATE_LABELS.get(declaration.state, text(declaration.state))
+        state = STATE_LABELS.get(declaration.state, "État enregistré")
         authorization_table(
             f"Déclaration sans dépense · demande {number}",
             state,
@@ -825,11 +823,11 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             reason=text(declaration.reason),
         )
     for number, request in enumerate(data["funding_requests"], 1):
-        state = STATE_LABELS.get(request.state, text(request.state))
+        state = STATE_LABELS.get(request.state, "État enregistré")
         cancellation = None
         if request.cancelled_at:
             cancelled_by = text(
-                actors.get(request.cancelled_by_id, request.cancelled_by_id)
+                actors.get(request.cancelled_by_id, "Utilisateur indisponible")
             )
             cancellation = (
                 f"Annulée le {day(request.cancelled_at)} par {cancelled_by} · "
@@ -849,11 +847,11 @@ def render_fiche(data: dict[str, Any]) -> bytes:
             cancellation=cancellation,
         )
     for number, request in enumerate(data["disbursements"], 1):
-        state = STATE_LABELS.get(request.state, text(request.state))
+        state = STATE_LABELS.get(request.state, "État enregistré")
         cancellation = None
         if request.cancelled_at:
             cancelled_by = text(
-                actors.get(request.cancelled_by_id, request.cancelled_by_id)
+                actors.get(request.cancelled_by_id, "Utilisateur indisponible")
             )
             cancellation = (
                 f"Annulée le {day(request.cancelled_at)} par {cancelled_by} · "
@@ -874,12 +872,12 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         )
     disbursement_amounts = {item.id: item.amount for item in data["disbursements"]}
     for number, request in enumerate(data["virements"], 1):
-        state = STATE_LABELS.get(request.state, text(request.state))
+        state = STATE_LABELS.get(request.state, "État enregistré")
         amount = xof(disbursement_amounts.get(request.disbursement_request_id))
         cancellation = None
         if request.cancelled_at:
             cancelled_by = text(
-                actors.get(request.cancelled_by_id, request.cancelled_by_id)
+                actors.get(request.cancelled_by_id, "Utilisateur indisponible")
             )
             cancellation = (
                 f"Annulée le {day(request.cancelled_at)} par {cancelled_by} · "
@@ -936,9 +934,11 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         if current_return
         else xof(0)
         if required == 0
-        else "Non renseigné"
+        else xof(None)
     )
-    closure_actor = text(actors.get(activity.closed_by_id or "", activity.closed_by_id))
+    closure_actor = text(
+        actors.get(activity.closed_by_id or "", "Utilisateur indisponible")
+    )
     settlement_rows = [
         [
             "Virement confirmé",
@@ -953,7 +953,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         ],
         [
             "Montant à reverser",
-            xof(required) if required is not None else "Non renseigné",
+            xof(required),
             "Montant reversé",
             returned,
         ],
@@ -965,7 +965,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
                 else "En attente"
             ),
             "Reversement déclaré le",
-            day(current_return.return_date) if current_return else "Non renseigné",
+            day(current_return.return_date) if current_return else day(None),
         ],
     ]
     settlement_table = Table(
@@ -1002,10 +1002,10 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     document_rows: list[list[str]] = []
     for document in data["documents"]:
         withdrawal = data["document_withdrawals"].get(document.id)
-        uploader = text(actors.get(document.uploaded_by_id, document.uploaded_by_id))
+        uploader = text(actors.get(document.uploaded_by_id, "Utilisateur indisponible"))
         if withdrawal:
             withdrawer = text(
-                actors.get(withdrawal.withdrawn_by_id, withdrawal.withdrawn_by_id)
+                actors.get(withdrawal.withdrawn_by_id, "Utilisateur indisponible")
             )
             replacement = documents_by_id.get(withdrawal.replacement_document_id)
             replacement_text = (
@@ -1062,7 +1062,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
     for item in data["audits"]:
         if item.action in validation_audit_actions:
             continue
-        actor = text(actors.get(item.actor, item.actor))
+        actor = text(actors.get(item.actor, "Utilisateur indisponible"))
         actor_role = text(actor_roles.get(item.actor, ""))
         action = AUDIT_ACTION_LABELS.get(item.action)
         if not action:
@@ -1073,7 +1073,7 @@ def render_fiche(data: dict[str, Any]) -> bytes:
         facts = item.business if isinstance(item.business, dict) else {}
         if item.action.startswith("operation.execution_"):
             operation = current_operations.get(str(facts.get("operation_id")))
-            operation_name = operation.name if operation else facts.get("operation_id")
+            operation_name = operation.name if operation else "Opération indisponible"
             before_value = facts.get("before")
             after_value = facts.get("after")
             before = (

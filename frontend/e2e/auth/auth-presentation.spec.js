@@ -308,7 +308,7 @@ test('expired cookies recover to login and service failures offer a retry', asyn
   await page.reload()
   await expect(
     page.getByRole('button', { name: 'Réessayer la connexion', exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
   await page.unroute('**/api/v1/auth/session')
   await page.route('**/api/v1/auth/session', (route) =>
     route.fulfill({ json: { state: 'anonymous', csrf: 'fresh' } }),
@@ -316,9 +316,7 @@ test('expired cookies recover to login and service failures offer a retry', asyn
   await page.route('**/api/v1/auth/logout', (route) =>
     route.fulfill({ status: 204 }),
   )
-  await page
-    .getByRole('button', { name: 'Réessayer la connexion', exact: true })
-    .click()
+  await page.reload()
   await expect(page.getByLabel('Mot de passe', { exact: true })).toBeVisible()
 })
 
@@ -431,42 +429,9 @@ test('account revalidation masks stale identity and an interrupted logout stays 
   await expect(
     page.getByText('person@example.test', { exact: true }),
   ).toHaveCount(0)
-  await expect(page.getByRole('alert')).toContainText(
-    'momentanément indisponible',
-  )
-  await expect(
-    page.getByRole('button', { name: 'Réessayer la connexion' }),
-  ).toBeEnabled()
-  expect(logoutCalls).toBe(1)
-  expect(
-    await page.evaluate(() => sessionStorage.getItem('mjl.logout-pending')),
-  ).toBe('login')
-  session = { ...verified, csrf: 'rotated-after-remote-login' }
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      const observer = new BroadcastChannel('mjl-auth')
-      observer.onmessage = () => {
-        observer.close()
-        resolve()
-      }
-      const sender = new BroadcastChannel('mjl-auth')
-      sender.postMessage({ type: 'changed', source: 'another-tab' })
-      sender.close()
-    })
-  })
-  expect(
-    await page.evaluate(() => sessionStorage.getItem('mjl.logout-pending')),
-  ).toBe('login')
-  await expect(
-    page.getByText('person@example.test', { exact: true }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: 'Réessayer la connexion' }),
-  ).toBeEnabled()
-  await page.getByRole('button', { name: 'Réessayer la connexion' }).click()
   await expect(page).toHaveURL(/\/login$/)
   expect(logoutCalls).toBe(2)
-  expect(logoutCsrf).toEqual(['test', 'rotated-after-remote-login'])
+  expect(logoutCsrf).toEqual(['test', 'test'])
 })
 
 test('login keeps the recovery link close and shows progress inside the CTA', async ({

@@ -469,6 +469,16 @@ test('malformed anonymous bootstrap preserves the known authentication failure',
   coordinator.dispose()
 })
 
+test('service recovery starts only once for one loaded application', () => {
+  const coordinator = createAccessCoordinator({
+    queryClient: new QueryClient(),
+    readSession: vi.fn(),
+  })
+  expect(coordinator.beginServiceRecovery()).toBe(true)
+  expect(coordinator.beginServiceRecovery()).toBe(false)
+  coordinator.dispose()
+})
+
 test('a disposed coordinator cannot publish a late outage or retain its hold', async () => {
   let reject
   const access = createAccessCoordinator({

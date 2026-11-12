@@ -489,13 +489,13 @@ test('offline invalidation removes the Partner portfolio immediately', async () 
   fireEvent(window, new Event('online'))
   expect(
     await screen.findByText(
-      'Le service est momentanément indisponible. Votre accès local a été fermé. Réessayez pour vous connecter à nouveau.',
+      'Le service est momentanément indisponible. Votre accès local a été fermé. Actualisez la page pour revenir au formulaire de connexion.',
     ),
   ).toBeVisible()
   expect(screen.queryByText('Bonjour, Donnée privée')).not.toBeInTheDocument()
   expect(
-    screen.getByRole('button', { name: 'Réessayer la connexion' }),
-  ).toBeEnabled()
+    screen.queryByRole('button', { name: 'Réessayer la connexion' }),
+  ).not.toBeInTheDocument()
   expect(router.state.location.pathname).toBe('/login')
 })
 

@@ -438,7 +438,9 @@ function AttentionSummary({ attention }) {
                   </p>
                 </div>
                 <Button asChild variant="outline" size="sm">
-                  <Link {...destination}>{attentionAction(item.action)}</Link>
+                  <Link {...destination}>
+                    {attentionAction(item.reason, item.action)}
+                  </Link>
                 </Button>
               </li>
             )
@@ -471,13 +473,29 @@ function attentionReason(reason) {
   )
 }
 
-function attentionAction(action) {
+function attentionAction(reason, action) {
   return (
+    {
+      draft_to_complete: strings.completeActivity,
+      correction_requested: strings.correctActivity,
+      planning_prevalidation: strings.prevalidateActivity,
+      planning_approval: strings.approveActivity,
+      funding_prevalidation: strings.prevalidateFunding,
+      funding_approval: strings.approveFunding,
+      disbursement_prevalidation: strings.prevalidateDisbursement,
+      disbursement_approval: strings.approveDisbursement,
+      zero_spending_prevalidation: strings.prevalidateZeroSpending,
+      zero_spending_approval: strings.approveZeroSpending,
+      virement_prevalidation: strings.prevalidateVirement,
+      virement_approval: strings.approveVirement,
+      reversement_required: strings.declareReversement,
+    }[reason] ||
     {
       review_planning: strings.reviewPlanning,
       review_finance: strings.reviewFinance,
       declare_reversement: strings.declareReversement,
-    }[action] || strings.consult
+    }[action] ||
+    strings.consult
   )
 }
 

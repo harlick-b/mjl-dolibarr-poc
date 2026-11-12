@@ -169,16 +169,18 @@ test('T01–T18 real first Admin browser journey, cache isolation and online-onl
     )
     await expect(
       page.getByText('Une nouvelle version est disponible.', { exact: false }),
-    ).toBeVisible()
-    await page.getByRole('button', { name: 'Actualiser l’application' }).click()
+    ).toHaveCount(0)
+    await expect(page).toHaveURL(/\/login$/)
     await expect(page.getByLabel('Mot de passe', { exact: true })).toHaveValue(
-      password,
+      '',
     )
-    expect(
-      await page.evaluate(async () =>
-        Boolean((await navigator.serviceWorker.ready).waiting),
-      ),
-    ).toBe(true)
+    await expect
+      .poll(() =>
+        page.evaluate(async () =>
+          Boolean((await navigator.serviceWorker.ready).waiting),
+        ),
+      )
+      .toBe(false)
   } finally {
     await writeFile(workerPath, original)
   }
