@@ -1173,6 +1173,14 @@ worker precaches public build assets only. API responses, authentication,
 documents, exports, private route fallbacks and business writes remain online-only
 and outside runtime caching.
 
+The approved MJL logo now replaces the previous placeholder on the existing
+authentication/sidebar, browser favicon, Apple-touch and PWA icon surfaces. The
+source SVG and 192/512 px PNG assets live with the frontend public assets; no new
+logo placement was introduced. The production PWA build and focused Chromium
+installability/cache journey passed with the standard and maskable icon entries.
+Independent review cleared the authentication-logo accessible name and found no
+remaining blocking issue.
+
 Precommit evidence against the working candidate based on `bb62137`:
 `npm run test:unit -- --maxWorkers=1` passed all **226 tests / 25 files**.
 Independent review then found two Dashboard attention links outside the catalog;

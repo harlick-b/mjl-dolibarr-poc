@@ -41,16 +41,15 @@ export function ApplicationSidebar({ user }) {
             ? strings.brand
             : `MJL — ${strings.accounts}`
         }
-        className="flex h-24 shrink-0 items-center gap-3 px-6 text-xl font-semibold text-navy"
+        className="flex h-24 shrink-0 items-center px-6"
       >
         <img
-          src="/icon-192.png"
+          src="/logo-192.png"
           alt=""
           width="40"
           height="40"
           className="rounded-control"
         />
-        MJL
       </Link>
       {policy.can('partner') && (
         <p className="px-6 pb-4 text-xs text-muted-foreground">

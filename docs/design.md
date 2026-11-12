@@ -13,6 +13,12 @@ the person or decision expected when that helps the reader act.
 
 ## Identity and tokens
 
+The approved MJL logo assets live in `frontend/public` as `logo.svg`,
+`logo-192.png` and `logo-512.png`. The SVG supplies the browser favicon and the
+PNGs supply the existing application, Apple-touch and PWA icon surfaces. Use
+them only where the application already shows its identity; do not introduce
+decorative or repeated logo placements.
+
 Inter is packaged locally through @fontsource, weights 400/500/600/700, with
 Arial, Helvetica, sans-serif fallbacks. Browser rendering does not depend on a
 remote font service. Runtime mapping lives in frontend/src/app/tailwind.css; changes

@@ -53,15 +53,14 @@ export function AuthFrame({ user, title, busy, children, loading = false }) {
         )}
       >
         {!user && (
-          <header className="flex items-center gap-3 text-2xl leading-8 text-navy">
+          <header className="flex items-center text-navy">
             <img
               className="rounded-control"
-              src="/icon-192.png"
-              alt=""
+              src="/logo-192.png"
+              alt="MJL"
               width="36"
               height="36"
             />
-            <strong>MJL</strong>
           </header>
         )}
         {loading ? children : <AuthCard busy={busy}>{children}</AuthCard>}

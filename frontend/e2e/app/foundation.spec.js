@@ -69,7 +69,11 @@ test('installable shell caches static assets only and never replays offline API 
   expect(manifest.errors).toEqual([])
   const data = JSON.parse(manifest.data)
   expect(data.display).toBe('standalone')
-  expect(data.icons.map((icon) => icon.sizes)).toEqual(['192x192', '512x512'])
+  expect(data.icons.map(({ sizes, purpose }) => ({ sizes, purpose }))).toEqual([
+    { sizes: '192x192', purpose: 'any' },
+    { sizes: '512x512', purpose: 'any' },
+    { sizes: '512x512', purpose: 'maskable' },
+  ])
   expect(
     (await cdp.send('Page.getInstallabilityErrors')).installabilityErrors,
   ).toEqual([])
