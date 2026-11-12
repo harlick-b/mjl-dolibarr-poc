@@ -70,7 +70,7 @@ class Input(BaseModel):
 
 
 class ExecutionMutation(Input):
-    action: Literal["start", "record"]
+    action: Literal["record"]
     expected_version: int = Field(gt=0, strict=True)
     expected_approved_revision_id: str = Field(max_length=36)
     actual_spent: str | None = Field(
@@ -97,26 +97,7 @@ class ExecutionMutation(Input):
 
     @model_validator(mode="after")
     def action_shape(self) -> "ExecutionMutation":
-        record_values = (
-            self.actual_spent,
-            self.execution_completed,
-            self.execution_observation,
-            self.correction_reason,
-        )
-        record_fields = {
-            "actual_spent",
-            "execution_completed",
-            "execution_observation",
-            "correction_reason",
-        }
-        if self.action == "start" and (
-            any(value is not None for value in record_values)
-            or bool(self.model_fields_set & record_fields)
-        ):
-            raise ValueError("Start accepts no execution result")
-        if self.action == "record" and (
-            self.execution_completed is None or self.execution_observation is None
-        ):
+        if self.execution_completed is None or self.execution_observation is None:
             raise ValueError("Record requires its complete shape")
         if self.execution_completed and self.actual_spent is None:
             raise ValueError("Completion requires spending")
@@ -504,12 +485,8 @@ def execution_detail(
             known_total += operation.actual_spent
         allocation = int(cast(str, fact["allocation"]))
         actions: list[str] = []
-        if can_mutate:
-            if operation.execution_started_at is None:
-                if can_start:
-                    actions.append("start")
-            else:
-                actions.append("record")
+        if can_mutate and (operation.execution_started_at is not None or can_start):
+            actions.append("record")
         if (
             can_work
             and reason == "funding_required"
@@ -1073,8 +1050,7 @@ def change_execution(
             raise AuthError(404, "operation_not_found")
         operation, approved_fact = selected
         if reason == "funding_required" and not (
-            body.action == "record"
-            and body.correction_reason
+            body.correction_reason
             and operation.actual_spent is not None
             and body.actual_spent is not None
             and int(body.actual_spent) <= operation.actual_spent
@@ -1084,61 +1060,61 @@ def change_execution(
         before = execution_facts(operation)
         now = auth.now(db)
         correction_reason = body.correction_reason
-        if body.action == "start":
-            if operation.execution_started_at is not None:
-                raise AuthError(409, "execution_already_started")
+        assert body.execution_completed is not None
+        assert body.execution_observation is not None
+        if operation.execution_started_at is None:
+            if (
+                body.actual_spent is None
+                and not body.execution_completed
+                and not body.execution_observation.strip()
+            ):
+                raise AuthError(422, "execution_progress_required")
             if item.planned_start is None:
                 raise AuthError(409, "activity_incomplete")
             if now.astimezone(PORTO_NOVO).date() < item.planned_start:
                 raise AuthError(409, "execution_too_early")
             operation.execution_started_at = now
-            action = "operation.execution_started"
-        else:
-            if operation.execution_started_at is None:
-                raise AuthError(409, "execution_not_started")
-            assert body.execution_completed is not None
-            assert body.execution_observation is not None
-            actual = int(body.actual_spent) if body.actual_spent is not None else None
-            if actual is not None and actual > MAX_XOF:
-                raise AuthError(422, "input_invalid")
-            approved_allocation = int(cast(str, approved_fact["allocation"]))
-            if (
-                body.execution_completed
-                and actual != approved_allocation
-                and not body.execution_observation
-            ):
-                raise AuthError(422, "variance_observation_required")
-            changed_existing = (
-                operation.actual_spent is not None
-                and actual != operation.actual_spent
-                or bool(operation.execution_observation)
-                and body.execution_observation != operation.execution_observation
-                or operation.execution_completed
-                and not body.execution_completed
+        actual = int(body.actual_spent) if body.actual_spent is not None else None
+        if actual is not None and actual > MAX_XOF:
+            raise AuthError(422, "input_invalid")
+        approved_allocation = int(cast(str, approved_fact["allocation"]))
+        if (
+            body.execution_completed
+            and actual != approved_allocation
+            and not body.execution_observation
+        ):
+            raise AuthError(422, "variance_observation_required")
+        changed_existing = (
+            operation.actual_spent is not None
+            and actual != operation.actual_spent
+            or bool(operation.execution_observation)
+            and body.execution_observation != operation.execution_observation
+            or operation.execution_completed
+            and not body.execution_completed
+        )
+        if changed_existing and not correction_reason:
+            raise AuthError(422, "correction_reason_required")
+        if correction_reason and not changed_existing:
+            raise AuthError(422, "correction_reason_unexpected")
+        operation.actual_spent = actual
+        operation.execution_completed = body.execution_completed
+        operation.execution_observation = body.execution_observation
+        after_values = execution_facts(operation)
+        if before == after_values:
+            raise AuthError(409, "execution_unchanged")
+        aggregate = sum(
+            row.actual_spent or 0
+            for row in db.scalars(
+                select(Operation).where(Operation.activity_id == item.id)
             )
-            if changed_existing and not correction_reason:
-                raise AuthError(422, "correction_reason_required")
-            if correction_reason and not changed_existing:
-                raise AuthError(422, "correction_reason_unexpected")
-            operation.actual_spent = actual
-            operation.execution_completed = body.execution_completed
-            operation.execution_observation = body.execution_observation
-            after_values = execution_facts(operation)
-            if before == after_values:
-                raise AuthError(409, "execution_unchanged")
-            aggregate = sum(
-                row.actual_spent or 0
-                for row in db.scalars(
-                    select(Operation).where(Operation.activity_id == item.id)
-                )
-            )
-            if aggregate > MAX_XOF:
-                raise AuthError(422, "amount_overflow")
-            action = (
-                "operation.execution_corrected"
-                if changed_existing
-                else "operation.execution_recorded"
-            )
+        )
+        if aggregate > MAX_XOF:
+            raise AuthError(422, "amount_overflow")
+        action = (
+            "operation.execution_corrected"
+            if changed_existing
+            else "operation.execution_recorded"
+        )
         item.version += 1
         item.updated_at = now
         db.flush()

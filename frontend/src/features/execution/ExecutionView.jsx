@@ -14,10 +14,7 @@ import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { ExecutionOperations, OperationEditor } from './ExecutionOperations'
-import {
-  countRecordedOperations,
-  formatFinanceAmount,
-} from './executionPresentation'
+import { countRecordedOperations } from './executionPresentation'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -1107,7 +1104,7 @@ function ExecutionDetail({
                 ? strings.finalAmount
                 : strings.partialAmount}
             </dt>
-            <dd>{formatFinanceAmount(detail.spending_total)}</dd>
+            <dd>{formatXof(detail.spending_total)}</dd>
             <small className="text-muted-foreground">
               {countRecordedOperations(detail.operations)} /{' '}
               {detail.operation_count} {strings.operationsCount}
@@ -1115,31 +1112,9 @@ function ExecutionDetail({
           </div>
           <div>
             <dt>{strings.amountToReturn}</dt>
-            <dd>{formatFinanceAmount(detail.required_reversement)}</dd>
+            <dd>{formatXof(detail.required_reversement)}</dd>
           </div>
         </dl>
-        <details className="group border-t border-border">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-6 py-3 text-sm text-primary [&::-webkit-details-marker]:hidden">
-            <span>{strings.confirmedAuthorizations}</span>
-            <ChevronDown
-              className="transition-transform group-open:rotate-180"
-              size={18}
-              aria-hidden="true"
-            />
-          </summary>
-          <dl className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-8 border-t border-border px-6 py-5 max-[760px]:grid-cols-1">
-            <div>
-              <dt>{strings.realization}</dt>
-              <dd>
-                {strings.realizationStates[detail.realization_status] || '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>{strings.unusedBalance}</dt>
-              <dd>{formatXof(detail.balance)}</dd>
-            </div>
-          </dl>
-        </details>
       </Panel>
       <ExecutionOperations
         key={detail.works_completed ? 'completed' : 'in-progress'}

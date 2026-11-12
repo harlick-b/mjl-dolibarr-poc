@@ -287,7 +287,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         "expected_version": 1,
     }
     assert patch(planning["supervisor"], url, complete).status_code == 403
-    assert patch(planning["agent2"], url, complete).status_code == 403
+    assert patch(planning["agent2"], url, complete).status_code == 404
     updated = patch(planning["agent"], url, complete)
     assert updated.status_code == 200, updated.text
     submitted = post(
@@ -354,6 +354,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         from sqlalchemy.orm import Session
 
         with Session(planning["auth"].engine) as db, db.begin():
+            db.execute(text("DELETE FROM pta_activity_workflow_notification"))
             db.execute(text("DELETE FROM pta_activity_assignment_notification"))
         with pytest.raises(
             RuntimeError, match="Preserve positive decision observations"
@@ -368,17 +369,6 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
 
     detail = planning["agent"].get(url + "/execution").json()
     for operation in detail["operations"]:
-        started = patch(
-            planning["agent"],
-            execution_path(detail, operation),
-            {
-                "action": "start",
-                "expected_version": detail["version"],
-                "expected_approved_revision_id": detail["approved_revision_id"],
-            },
-        )
-        assert started.status_code == 200, started.text
-        detail = started.json()
         recorded = patch(
             planning["agent"],
             execution_path(detail, operation),
@@ -501,10 +491,7 @@ def test_brief_validation_visibility_and_atomic_audit(planning, monkeypatch):
     created = post(planning["supervisor"], path, body)
     assert created.status_code == 201, created.text
     item = created.json()
-    assert (
-        planning["agent2"].get(f"/api/v1/activities/{item['id']}").status_code
-        == 404
-    )
+    assert planning["agent2"].get(f"/api/v1/activities/{item['id']}").status_code == 404
     listed = planning["agent"].get(f"/api/v1/ptas/{item['pta_id']}/activities").json()
     assert listed["count"] == 1 and listed["data"][0]["allocation"] is None
     assert listed["data"][0]["planned_end"] is None

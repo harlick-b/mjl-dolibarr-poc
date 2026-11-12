@@ -205,3 +205,7 @@ implementation boundaries; [README](../README.md) owns setup.
 - A dialog form rendered through a React portal still bubbles submit events to
   its React parent. Stop propagation when creating a reference from another form,
   and verify that saving the reference neither submits nor resets the parent draft.
+
+- Activity headers belong to the page context, not the selected tab. When fixing
+  tab consistency, verify first visits to History and Documents as well as finance:
+  a secondary query in the whole-page loading gate can silently remount the header.

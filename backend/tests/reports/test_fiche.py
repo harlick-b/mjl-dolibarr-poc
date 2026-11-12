@@ -396,21 +396,12 @@ def test_fiche_renders_withdrawal_submission_reason(planning):
 def test_fiche_renders_execution_corrections_and_financial_return(planning):
     activity = approved_execution_activity(planning, allocations=(100_000, 200_000))
     operation = activity["operations"][0]
-    started = patch(
-        planning["agent"],
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "90000",
             "execution_completed": True,
@@ -443,21 +434,12 @@ def test_fiche_renders_execution_corrections_and_financial_return(planning):
     assert "réalisé — → —" not in normalized
 
     second_operation = activity["operations"][1]
-    second_started = patch(
-        planning["agent"],
-        execution_path(activity, second_operation),
-        {
-            "action": "start",
-            "expected_version": corrected.json()["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     second_recorded = patch(
         planning["agent"],
         execution_path(activity, second_operation),
         {
             "action": "record",
-            "expected_version": second_started["version"],
+            "expected_version": corrected.json()["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": second_operation["allocation"],
             "execution_completed": True,
@@ -611,21 +593,12 @@ def test_fiche_splits_valid_maximum_length_description(planning):
 def test_fiche_splits_valid_maximum_length_correction_history(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
-    started = patch(
-        planning["agent"],
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "100000",
             "execution_completed": True,

@@ -142,11 +142,8 @@ def test_funding_notifications_follow_the_available_reviewer(planning):
 
     supervisor_notice = next(
         row
-        for row in planning["supervisor"].get("/api/v1/notifications").json()[
-            "data"
-        ]
-        if row["kind"] == "financial_review"
-        and row["request_id"] == request["id"]
+        for row in planning["supervisor"].get("/api/v1/notifications").json()["data"]
+        if row["kind"] == "financial_review" and row["request_id"] == request["id"]
     )
     assert supervisor_notice["request_kind"] == "funding"
     assert supervisor_notice["stage"] == "supervisor"
@@ -155,16 +152,13 @@ def test_funding_notifications_follow_the_available_reviewer(planning):
         for row in planning["validator"].get("/api/v1/notifications").json()["data"]
     )
 
-    prevalidated = decide(
-        planning, activity, request, "supervisor", "prevalidate"
-    )
+    prevalidated = decide(planning, activity, request, "supervisor", "prevalidate")
     assert prevalidated.status_code == 201, prevalidated.text
     request = prevalidated.json()
     validator_notice = next(
         row
         for row in planning["validator"].get("/api/v1/notifications").json()["data"]
-        if row["kind"] == "financial_review"
-        and row["request_id"] == request["id"]
+        if row["kind"] == "financial_review" and row["request_id"] == request["id"]
     )
     assert validator_notice["stage"] == "validator"
 
@@ -180,8 +174,7 @@ def test_funding_notifications_follow_the_available_reviewer(planning):
     correction = next(
         row
         for row in planning["agent"].get("/api/v1/notifications").json()["data"]
-        if row["kind"] == "financial_correction"
-        and row["request_id"] == request["id"]
+        if row["kind"] == "financial_correction" and row["request_id"] == request["id"]
     )
     assert correction["reason"] == "Justification du financement à préciser."
     mail_kinds = {row["kind"] for row in messages(planning["auth"].mail.directory)}
@@ -437,7 +430,13 @@ def test_funding_approval_serializes_against_other_work(planning, other):
             return patch(
                 planning["agent"],
                 execution_path(current, current["operations"][0]),
-                {**body, "action": "start"},
+                {
+                    **body,
+                    "action": "record",
+                    "actual_spent": None,
+                    "execution_completed": False,
+                    "execution_observation": "Progression initiale enregistrée.",
+                },
             )
         return post(
             planning["agent"],

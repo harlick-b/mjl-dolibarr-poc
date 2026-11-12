@@ -1551,6 +1551,19 @@ source. ESLint and the production PWA build passed; the existing session-cleanup
 and large-chunk warnings remain. Independent specification and standards
 re-review cleared the candidate. Human visual acceptance remains outstanding.
 
+Operation execution no longer has a separate start action. The assigned Agent
+uses the Operation form immediately; the first accepted submission records its
+start and progress atomically. Empty submissions are rejected without creating a
+start timestamp. Historical Activities with separate start and record audit
+events remain supported by financial verification.
+
+Pre-commit PostgreSQL verification completed 30 execution/brief cases and eight
+adjacent finance, access, and report cases. Three previously identified fixture
+and downgrade cases were excluded; the full suite is not reported as passing.
+The focused frontend interaction and static checks passed. Independent standards
+and specification reviews cleared the corrected candidate; commands and limits
+are recorded in the Activity UX plan.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |
@@ -1574,3 +1587,19 @@ run for the shared-explorer candidate was stopped after an unchanged schema-admi
 fixture failed to clean up a local Supabase role (`DROP OWNED` lacked privilege).
 It is not reported as a broad pass; the seven affected focused PostgreSQL journeys
 were rerun cleanly on the final candidate.
+
+## Activity header and missing-amount correction — 2026-11-12
+
+Execution-context Activity tabs now share the execution breadcrumb and keep
+planning mutation buttons hidden across tabs. Planning entry retains its actions.
+The optional authorization-summary disclosure has been removed. Unknown amounts
+now display a dash, preserving the distinction from explicit zero.
+Final combined Planning and Execution verification completed **82 passed**
+(`npm run test:unit -- --run src/features/execution/execution.test.jsx
+src/features/planning/pages/planning.test.jsx --maxWorkers=1`). ESLint, Prettier,
+production build and `git diff --check` passed, retaining the existing hook and
+bundle-size warnings. Independent specification and standards re-review cleared
+the candidate. An earlier combined run caught the History remount (81 passed,
+1 failed); the final run includes that correction. An independent concurrent
+focused run timed out, then passed both selected tests with a 15-second timeout.
+Human visual acceptance remains outstanding.

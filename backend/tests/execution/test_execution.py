@@ -111,36 +111,16 @@ def approved_execution_activity(
     return clients["agent"].get(f"/api/v1/activities/{created['id']}").json()
 
 
-def test_agent_starts_records_and_corrects_operation_with_history(planning):
+def test_first_operation_submission_records_start_and_result_with_history(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
-
-    started = patch(
-        planning["agent2"],
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    )
-    assert started.status_code == 200, started.text
-    started_detail = started.json()
-    assert started_detail["version"] == activity["version"] + 1
-    assert started_detail["operations"][0]["execution_started_at"] is not None
-    assert started_detail["operations"][0]["actual_spent"] is None
-    assert started_detail["spending_total"] is None
-    assert started_detail["balance"] is None
-    assert started_detail["required_reversement"] is None
-    assert started_detail["realization_status"] == "in_progress"
-    assert started_detail["completed_operations"] == 0
 
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started_detail["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "100000",
             "execution_completed": True,
@@ -149,6 +129,7 @@ def test_agent_starts_records_and_corrects_operation_with_history(planning):
     )
     assert recorded.status_code == 200, recorded.text
     recorded_operation = recorded.json()["operations"][0]
+    assert recorded_operation["execution_started_at"] is not None
     assert recorded_operation["actual_spent"] == "100000"
     assert recorded_operation["execution_completed"] is True
 
@@ -161,7 +142,7 @@ def test_agent_starts_records_and_corrects_operation_with_history(planning):
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": None,
             "execution_completed": False,
-            "execution_observation": "",
+            "execution_observation": "Progression initiale enregistrée.",
         },
     )
     assert rejected.status_code == 422
@@ -175,7 +156,7 @@ def test_agent_starts_records_and_corrects_operation_with_history(planning):
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": None,
             "execution_completed": False,
-            "execution_observation": "",
+            "execution_observation": "Progression initiale enregistrée.",
             "correction_reason": "Le montant et la fin ont été saisis trop tôt.",
         },
     )
@@ -202,7 +183,6 @@ def test_agent_starts_records_and_corrects_operation_with_history(planning):
     )
     assert history.status_code == 200, history.text
     assert [row["action"] for row in history.json()["data"]] == [
-        "operation.execution_started",
         "operation.execution_recorded",
         "operation.execution_corrected",
     ]
@@ -218,10 +198,10 @@ def test_agent_starts_records_and_corrects_operation_with_history(planning):
                 )
             )
         )
-        assert len(audits) == 3
+        assert len(audits) == 2
 
 
-def test_start_rejects_record_fields_even_when_explicitly_null(planning):
+def test_explicit_start_action_is_not_available(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
     response = patch(
@@ -231,20 +211,42 @@ def test_start_rejects_record_fields_even_when_explicitly_null(planning):
             "action": "start",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
-            "actual_spent": None,
-            "execution_completed": None,
-            "execution_observation": None,
-            "correction_reason": None,
         },
     )
     assert response.status_code == 422
+
+
+def test_empty_first_operation_submission_does_not_record_a_start(planning):
+    activity = approved_execution_activity(planning)
+    operation = activity["operations"][0]
+    response = patch(
+        planning["agent"],
+        execution_path(activity, operation),
+        {
+            "action": "record",
+            "expected_version": activity["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "execution_progress_required"
+
+    refreshed = planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution")
+    assert refreshed.status_code == 200, refreshed.text
+    assert refreshed.json()["operations"][0]["execution_started_at"] is None
 
 
 def test_execution_is_role_date_revision_and_workflow_guarded(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
     body = {
-        "action": "start",
+        "action": "record",
+        "actual_spent": None,
+        "execution_completed": False,
+        "execution_observation": "Progression initiale enregistrée.",
         "expected_version": activity["version"],
         "expected_approved_revision_id": activity["approved_revision_id"],
     }
@@ -299,7 +301,10 @@ def test_execution_is_role_date_revision_and_workflow_guarded(planning):
         planning["agent"],
         execution_path(after_end, after_end_operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": after_end["version"],
             "expected_approved_revision_id": after_end["approved_revision_id"],
         },
@@ -460,7 +465,10 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
     body = {
-        "action": "start",
+        "action": "record",
+        "actual_spent": None,
+        "execution_completed": False,
+        "execution_observation": "Progression initiale enregistrée.",
         "expected_version": activity["version"],
         "expected_approved_revision_id": activity["approved_revision_id"],
     }
@@ -590,21 +598,12 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
 def test_zero_overspend_and_variance_observation_rules(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
-    started = patch(
-        planning["agent"],
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     missing_observation = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "0",
             "execution_completed": True,
@@ -617,7 +616,7 @@ def test_zero_overspend_and_variance_observation_rules(planning):
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "0",
             "execution_completed": True,
@@ -627,21 +626,12 @@ def test_zero_overspend_and_variance_observation_rules(planning):
     assert zero.status_code == 200, zero.text
     assert zero.json()["operations"][0]["actual_spent"] == "0"
     assert zero.json()["operations"][0]["variance"] == "-100000"
-    second_started = patch(
-        planning["agent"],
-        execution_path(activity, activity["operations"][1]),
-        {
-            "action": "start",
-            "expected_version": zero.json()["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     overflow = patch(
         planning["agent"],
         execution_path(activity, activity["operations"][1]),
         {
             "action": "record",
-            "expected_version": second_started["version"],
+            "expected_version": zero.json()["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "9223372036854775808",
             "execution_completed": False,
@@ -654,7 +644,7 @@ def test_zero_overspend_and_variance_observation_rules(planning):
         execution_path(activity, activity["operations"][1]),
         {
             "action": "record",
-            "expected_version": second_started["version"],
+            "expected_version": zero.json()["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "350000",
             "execution_completed": True,
@@ -668,21 +658,12 @@ def test_zero_overspend_and_variance_observation_rules(planning):
 def test_blank_initial_reason_and_bounded_unicode_observation_are_accepted(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
-    started = patch(
-        planning["agent"],
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     response = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "100000",
             "execution_completed": True,
@@ -700,7 +681,10 @@ def test_started_activity_blocks_withdrawal_transfer_and_operation_removal(plann
         planning["agent"],
         execution_path(activity, operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
@@ -759,7 +743,10 @@ def test_amendment_pause_preserves_execution_and_cancellation_resumes(planning):
         planning["agent"],
         execution_path(activity, operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
@@ -797,6 +784,7 @@ def test_amendment_pause_preserves_execution_and_cancellation_resumes(planning):
             "actual_spent": "100000",
             "execution_completed": True,
             "execution_observation": "Terminé.",
+            "correction_reason": "Progression finalisée après reprise.",
         },
     )
     assert recorded.status_code == 200, recorded.text
@@ -812,21 +800,12 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
         pytest.skip("No future same-year amendment date exists on December 31")
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
-    started = patch(
-        planning["agent"],
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "110000",
             "execution_completed": True,
@@ -896,7 +875,7 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
     )
     assert agent_execution["operations"][0]["allowed_actions"] == ["record"]
     assert agent_execution["operations"][1]["allowed_actions"] == (
-        [] if future_start else ["start"]
+        [] if future_start else ["record"]
     )
     history = (
         planning["validator"]
@@ -918,7 +897,7 @@ def test_execution_audit_failure_rolls_back_operation_and_activity(
     original = planning["auth"].business_audit
 
     def fail_execution(db, action, actor, target, business):
-        if action == "operation.execution_started":
+        if action == "operation.execution_recorded":
             raise RuntimeError("synthetic audit failure")
         return original(db, action, actor, target, business)
 
@@ -928,7 +907,10 @@ def test_execution_audit_failure_rolls_back_operation_and_activity(
             planning["agent"],
             execution_path(activity, operation),
             {
-                "action": "start",
+                "action": "record",
+                "actual_spent": None,
+                "execution_completed": False,
+                "execution_observation": "Progression initiale enregistrée.",
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
             },
@@ -941,7 +923,7 @@ def test_execution_audit_failure_rolls_back_operation_and_activity(
         assert not db.scalar(
             select(Audit.id).where(
                 Audit.target == operation["id"],
-                Audit.action == "operation.execution_started",
+                Audit.action == "operation.execution_recorded",
             )
         )
 
@@ -956,7 +938,7 @@ def test_execution_constraint_or_commit_failure_rolls_back(
 
     def mark_failure(db, action, *args, **kwargs):
         result = original_audit(db, action, *args, **kwargs)
-        if action == "operation.execution_started":
+        if action == "operation.execution_recorded":
             if failure == "constraint":
                 db.execute(
                     text(
@@ -984,7 +966,10 @@ def test_execution_constraint_or_commit_failure_rolls_back(
         planning["agent"],
         execution_path(activity, operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
@@ -998,16 +983,19 @@ def test_execution_constraint_or_commit_failure_rolls_back(
         assert not db.scalar(
             select(Audit.id).where(
                 Audit.target == operation["id"],
-                Audit.action == "operation.execution_started",
+                Audit.action == "operation.execution_recorded",
             )
         )
 
 
-def test_start_and_amendment_race_serializes_without_lost_state(planning):
+def test_first_submission_and_amendment_race_serializes_without_lost_state(planning):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
-    start_body = {
-        "action": "start",
+    record_body = {
+        "action": "record",
+        "actual_spent": None,
+        "execution_completed": False,
+        "execution_observation": "Progression initiale enregistrée.",
         "expected_version": activity["version"],
         "expected_approved_revision_id": activity["approved_revision_id"],
     }
@@ -1019,7 +1007,7 @@ def test_start_and_amendment_race_serializes_without_lost_state(planning):
     started, stale_amendment = ordered_advisory_race(
         planning["auth"],
         lambda: patch(
-            planning["agent"], execution_path(activity, operation), start_body
+            planning["agent"], execution_path(activity, operation), record_body
         ),
         lambda: post(
             planning["agent2"],
@@ -1052,7 +1040,7 @@ def test_start_and_amendment_race_serializes_without_lost_state(planning):
             planning["agent"],
             execution_path(activity2, operation2),
             {
-                **start_body,
+                **record_body,
                 "expected_version": activity2["version"],
                 "expected_approved_revision_id": activity2["approved_revision_id"],
             },
@@ -1069,7 +1057,7 @@ def test_start_and_amendment_race_serializes_without_lost_state(planning):
 
 @pytest.mark.parametrize("kind", ["withdrawals", "transfers"])
 @pytest.mark.parametrize("first", ["execution", "lifecycle"])
-def test_start_and_lifecycle_request_serialize(planning, kind, first):
+def test_first_submission_and_lifecycle_request_serialize(planning, kind, first):
     activity = approved_execution_activity(planning)
     operation = activity["operations"][0]
 
@@ -1078,7 +1066,10 @@ def test_start_and_lifecycle_request_serialize(planning, kind, first):
             planning["agent"],
             execution_path(activity, operation),
             {
-                "action": "start",
+                "action": "record",
+                "actual_spent": None,
+                "execution_completed": False,
+                "execution_observation": "Progression initiale enregistrée.",
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
             },
@@ -1129,7 +1120,10 @@ def test_concurrent_execution_edits_reject_stale_second_write(planning):
         planning["agent"],
         execution_path(activity, operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
@@ -1146,6 +1140,7 @@ def test_concurrent_execution_edits_reject_stale_second_write(planning):
                 "actual_spent": amount,
                 "execution_completed": True,
                 "execution_observation": "Résultat concurrent justifié.",
+                "correction_reason": "Résultat final saisi après la progression.",
             },
         )
 
@@ -1366,7 +1361,10 @@ def test_execution_evidence_refuses_destructive_downgrade(planning, auth_env):
         planning["agent"],
         execution_path(activity, operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
@@ -1456,7 +1454,10 @@ def test_database_rejects_reset_removal_and_deletion_of_started_operation(planni
         planning["agent"],
         execution_path(activity, operation),
         {
-            "action": "start",
+            "action": "record",
+            "actual_spent": None,
+            "execution_completed": False,
+            "execution_observation": "Progression initiale enregistrée.",
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
@@ -1493,7 +1494,10 @@ def test_execution_and_actor_deactivation_serialize(planning, first):
             planning["agent2"],
             execution_path(activity, operation),
             {
-                "action": "start",
+                "action": "record",
+                "actual_spent": None,
+                "execution_completed": False,
+                "execution_observation": "Progression initiale enregistrée.",
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
             },
@@ -1542,21 +1546,12 @@ def test_execution_filter_ignores_new_unapproved_operations(planning):
     activity = approved_execution_activity(planning, allocations=[100000])
     operation = activity["operations"][0]
     agent = planning["agent"]
-    started = patch(
-        agent,
-        execution_path(activity, operation),
-        {
-            "action": "start",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-        },
-    ).json()
     recorded = patch(
         agent,
         execution_path(activity, operation),
         {
             "action": "record",
-            "expected_version": started["version"],
+            "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
             "actual_spent": "100000",
             "execution_completed": True,

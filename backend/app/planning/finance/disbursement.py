@@ -364,7 +364,13 @@ def verified_financial_basis(
                     raise AuthError(409, "execution_history_unverified")
                 started_ids.add(operation_id)
             elif operation_id not in started_ids:
-                raise AuthError(409, "execution_history_unverified")
+                if (
+                    event.action != "operation.execution_recorded"
+                    or before != empty_facts
+                    or not isinstance(after.get("execution_started_at"), str)
+                ):
+                    raise AuthError(409, "execution_history_unverified")
+                started_ids.add(operation_id)
             carried[operation_id] = cast(dict[str, object], after)
             authors.add(event.actor)
         else:

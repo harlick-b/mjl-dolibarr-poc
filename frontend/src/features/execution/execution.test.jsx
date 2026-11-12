@@ -268,10 +268,11 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     { name: 'Former les équipes' },
     { timeout: 5000 },
   )
-  expect(screen.getByRole('link', { name: 'Réalisation' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  )
+  expect(
+    within(
+      screen.getByRole('navigation', { name: 'Espace de travail' }),
+    ).getByRole('link', { name: 'Réalisation' }),
+  ).toHaveAttribute('aria-current', 'page')
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
   expect(
     screen.queryByRole('button', { name: 'Demander une modification' }),
@@ -315,14 +316,44 @@ test('activity tabs keep one header and preserve the execution sidebar context',
   expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
     header,
   )
-  expect(screen.getByRole('link', { name: 'Réalisation' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  )
+  expect(
+    within(
+      screen.getByRole('navigation', { name: 'Espace de travail' }),
+    ).getByRole('link', { name: 'Réalisation' }),
+  ).toHaveAttribute('aria-current', 'page')
   expect(screen.queryByText('Budget autorisé actuel')).not.toBeInTheDocument()
   expect(
-    screen.getByRole('button', { name: 'Demander une modification' }),
-  ).toBeVisible()
+    screen.queryByRole('button', { name: 'Demander une modification' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Retirer l’activité' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Transférer vers un autre PTA' }),
+  ).not.toBeInTheDocument()
+
+  for (const tab of ['Historique', 'Pièces justificatives', 'Programmation']) {
+    await user.click(screen.getByRole('link', { name: tab }))
+    expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
+      header,
+    )
+    const breadcrumb = screen.getByRole('navigation', {
+      name: 'Fil d’Ariane de l’activité',
+    })
+    expect(
+      within(breadcrumb).getByRole('link', { name: 'Réalisation' }),
+    ).toHaveAttribute('href', '/execution')
+    expect(
+      within(breadcrumb).queryByText('Prévisions (PTA)'),
+    ).not.toBeInTheDocument()
+    for (const name of [
+      'Demander une modification',
+      'Retirer l’activité',
+      'Transférer vers un autre PTA',
+    ]) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    }
+  }
 
   await user.click(screen.getByRole('link', { name: 'Réalisation & finances' }))
   expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
@@ -375,9 +406,18 @@ test('agent records operations before the collapsed financial workflow', async (
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
   expect(screen.getByText('Montant dépensé · partiel')).toBeVisible()
   expect(screen.getByText('Montant à reverser')).toBeVisible()
-  expect(screen.getAllByText('Non renseigné')).toHaveLength(3)
-  expect(screen.getByText('Réalisation', { selector: 'dt' })).not.toBeVisible()
-  expect(screen.getByText('Solde non dépensé')).not.toBeVisible()
+  expect(screen.queryAllByText('Non renseigné')).toHaveLength(0)
+  expect(
+    within(
+      screen.getByText('Montant dépensé · partiel').parentElement,
+    ).getByText('—'),
+  ).toBeVisible()
+  expect(
+    within(screen.getByText('Montant à reverser').parentElement).getByText('—'),
+  ).toBeVisible()
+  expect(
+    screen.queryByText('Autorisations et montants confirmés'),
+  ).not.toBeInTheDocument()
   expect(screen.getByText('0 / 1 dépense renseignée')).toBeVisible()
   expect(
     screen.getByRole('button', { name: 'Renseigner Préparer la session' }),
@@ -706,9 +746,6 @@ test('an observation draft keeps its version across refresh and can be explicitl
   render(<App router={router} />)
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
   expect(screen.getByText('Montant dépensé · final')).toBeVisible()
-  await user.click(screen.getByText('Autorisations et montants confirmés'))
-  expect(screen.getByText('Terminée, en attente de validation')).toBeVisible()
-  expect(screen.getByText('Solde non dépensé')).toBeVisible()
   expect(screen.getByText('Montant à reverser')).toBeVisible()
   const administration = within(
     screen.getByRole('region', { name: 'Suivi administratif' }),
@@ -1136,8 +1173,6 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   ).toBeVisible()
   expect(screen.queryByText('Autorisation de décaissement')).toBeNull()
   expect(screen.queryByText('Autorisation de virement')).toBeNull()
-  await user.click(screen.getByText('Autorisations et montants confirmés'))
-  expect(screen.getByText('Solde non dépensé')).toBeVisible()
   expect(screen.getByText('Montant à reverser')).toBeVisible()
   expect(
     within(screen.getByText('Montant à reverser').parentElement).getByText(

@@ -82,7 +82,10 @@ def test_reassignment_blocks_execution_finance_and_documents(planning):
     document = upload(agent, activity["id"])
     assert document.status_code == 201, document.text
     start = {
-        "action": "start",
+        "action": "record",
+        "actual_spent": None,
+        "execution_completed": False,
+        "execution_observation": "Progression initiale enregistrée.",
         "expected_version": activity["version"],
         "expected_approved_revision_id": activity["approved_revision_id"],
     }

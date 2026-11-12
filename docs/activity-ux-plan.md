@@ -844,3 +844,57 @@ ESLint passed with the existing session-cleanup warning, the production PWA
 build passed with the existing large-chunk warning, and `git diff --check`
 passed. Independent specification and standards re-review cleared the final
 candidate. Human visual acceptance remains outstanding.
+
+## Automatic Operation start — progress, 2026-11-12
+
+The separate **Démarrer** action has been removed. An eligible Agent opens the
+Operation form directly, and the first accepted submission records the immutable
+start time together with the submitted amount, completion state, or observation.
+An empty submission cannot start an Operation. Existing Activities whose history
+contains the former separate start event remain verifiable by the financial
+workflow.
+
+Focused PostgreSQL verification completed 22 affected execution cases and eight
+adjacent finance, access, and report cases. The focused frontend interaction
+passed. Ruff, strict mypy, ESLint, Prettier, and `git diff --check` passed.
+
+Pre-commit review removed an unapproved global 10px DatePicker override and
+updated the reviewer-created Activity test to submit Operation completion once.
+Its invisible-draft expectation and disposable downgrade setup now match the
+current privacy and notification rules. Independent specification and standards
+reviewers cleared these corrections.
+
+Final candidate verification used disposable PostgreSQL with `pytest -q
+tests/planning/test_activity_briefs.py::test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator
+tests/execution/test_execution.py -k 'not clean_predecessor and not evidence_refuses
+and not mutation_rejects_parent' --tb=short`: **30 passed, 3 deselected**.
+The three exclusions are the previously identified PTA-creation fixture and
+older downgrade expectations; this is not a full execution-suite pass.
+A separate selected run of disbursement submission, legacy-history compatibility,
+funding-approval races, reassignment access and both changed Fiche journeys passed
+all **8 cases**. The focused frontend one-submission test passed (35 unselected).
+Ruff check/format, strict mypy for both changed source modules, documentation
+Prettier and `git diff --check` passed. Existing Starlette deprecation remains.
+
+## Execution-context header correction — 2026-11-12
+
+The execution entry context now controls the shared Activity breadcrumb and
+planning-action visibility across Programming, finance, History and documents.
+The execution header keeps the fiche action and omits the planning next-step
+prompt. Planning entry retains its authorized planning actions. The finance
+summary disclosure **Autorisations et montants confirmés** is removed at the
+user's request. Missing amounts use the shared dash presentation; explicit zero
+continues to display `0 F CFA`. Regression coverage follows the same header
+through all tabs and checks the execution breadcrumb and action visibility.
+
+History now loads inside its existing tab placeholder rather than replacing the
+Activity page, preserving the header during its first visit.
+Final combined Planning and Execution verification completed **82 passed**
+(`npm run test:unit -- --run src/features/execution/execution.test.jsx
+src/features/planning/pages/planning.test.jsx --maxWorkers=1`). ESLint, Prettier,
+production build and `git diff --check` passed, retaining the existing hook and
+bundle-size warnings. Independent specification and standards re-review cleared
+the candidate. An earlier combined run caught the History remount (81 passed,
+1 failed); the final run includes that correction. An independent concurrent
+focused run timed out, then passed both selected tests with a 15-second timeout.
+Human visual acceptance remains outstanding.

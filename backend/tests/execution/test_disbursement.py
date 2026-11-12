@@ -40,17 +40,6 @@ def finish_activity(
         clients["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
     for operation, amount in zip(detail["operations"], amounts, strict=True):
-        started = patch(
-            clients[actor],
-            execution_path(detail, operation),
-            {
-                "action": "start",
-                "expected_version": detail["version"],
-                "expected_approved_revision_id": detail["approved_revision_id"],
-            },
-        )
-        assert started.status_code == 200, started.text
-        detail = started.json()
         recorded = patch(
             clients[actor],
             execution_path(detail, operation),
@@ -742,6 +731,71 @@ def test_missing_execution_audits_fail_closed(planning):
     )
     assert rejected.status_code == 409
     assert rejected.json()["code"] == "execution_history_unverified"
+
+
+def test_legacy_separate_start_and_record_history_remains_verifiable(planning):
+    activity = approved_execution_activity(planning, allocations=[100_000])
+    operation = activity["operations"][0]
+    actor_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    with Session(planning["auth"].engine) as db, db.begin():
+        item = db.get(Activity, activity["id"], with_for_update=True)
+        row = db.get(Operation, operation["id"], with_for_update=True)
+        assert item is not None and row is not None
+        started_at = planning["auth"].now(db)
+        empty = {
+            "execution_started_at": None,
+            "execution_completed": False,
+            "actual_spent": None,
+            "execution_observation": "",
+        }
+        started = {**empty, "execution_started_at": started_at.isoformat()}
+        completed = {
+            **started,
+            "execution_completed": True,
+            "actual_spent": "100000",
+            "execution_observation": "Opération terminée.",
+        }
+        audit_basis = {
+            "context_id": "MJL",
+            "activity_id": item.id,
+            "operation_id": row.id,
+            "approved_revision_id": item.approved_revision_id,
+            "approved_allocation": "100000",
+            "correction_reason": None,
+        }
+        planning["auth"].business_audit(
+            db,
+            "operation.execution_started",
+            actor_id,
+            row.id,
+            {**audit_basis, "before": empty, "after": started},
+        )
+        planning["auth"].business_audit(
+            db,
+            "operation.execution_recorded",
+            actor_id,
+            row.id,
+            {**audit_basis, "before": started, "after": completed},
+        )
+        row.execution_started_at = started_at
+        row.execution_completed = True
+        row.actual_spent = 100_000
+        row.execution_observation = "Opération terminée."
+        item.version += 2
+        item.updated_at = started_at
+
+    current = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
+    )
+    submitted = post(
+        planning["agent"],
+        collection(current),
+        {
+            "expected_version": current["version"],
+            "expected_approved_revision_id": current["approved_revision_id"],
+        },
+    )
+    assert submitted.status_code == 201, submitted.text
 
 
 def test_replaced_audit_immutability_function_fails_schema_guard(planning):

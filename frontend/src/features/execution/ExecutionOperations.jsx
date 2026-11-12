@@ -4,10 +4,7 @@ import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { formatDateTime, formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ExecutionView'
-import {
-  countRecordedOperations,
-  formatFinanceAmount,
-} from './executionPresentation'
+import { countRecordedOperations } from './executionPresentation'
 
 function canRecordOperation(operation) {
   return operation.allowed_actions.includes('record')
@@ -87,7 +84,7 @@ export function ExecutionOperations({ detail, onSelect }) {
                   {formatXof(operation.approved_allocation)}
                 </td>
                 <td className="p-3 text-right">
-                  {formatFinanceAmount(operation.actual_spent)}
+                  {formatXof(operation.actual_spent)}
                 </td>
                 <td className="p-3">
                   {operation.execution_completed

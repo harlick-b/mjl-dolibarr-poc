@@ -156,9 +156,11 @@ applies when approving an older pending transfer with a missing destination.
 
 Prévisions d'activités owns planning; Réalisation d'activités executes approved,
 scheduled Activities. Operations cannot start before the approved planned start
-date. Agent explicitly starts Operations, records physical
-completion and final actual spending. Start facts are immutable; spending
-corrections require a reason and preserve history. Explicit zero is valid;
+date. The Agent opens an Operation and submits its progress directly; the first
+successful submission records its start automatically. There is no separate
+start action. The form is never gated behind a start button. Start facts are
+immutable; the Agent records physical completion and final actual spending.
+Spending corrections require a reason and preserve history. Explicit zero is valid;
 unknown spending is not completion. Verify exact approved Operation membership
 and ordered execution/approval audit evidence before financial submission.
 

@@ -49,6 +49,7 @@ import {
 } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
+import { strings as executionStrings } from '@/locales/fr/ExecutionView'
 import { ExecutionView } from '@/features/execution/ExecutionView'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
@@ -415,8 +416,7 @@ function Workspace({ screen, session, onDenied }) {
     (screen === 'activityNew' &&
       (context.isPending ||
         (!authorization(session).can('ptaManagement') && types.isPending))) ||
-    (screen === 'activity' &&
-      (activity.isPending || (historyActive && revisions.isPending)))
+    (screen === 'activity' && activity.isPending)
   const submitSimple = async (event, path, field) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -2497,28 +2497,40 @@ function ActivityDetail({
       !item.planned_end ||
       item.allocation === null ||
       !item.operations.length)
-  const nextStep = activityNextStep(item)
+  const executionContext = search.origin === 'execution'
+  const nextStep = executionContext ? '' : activityNextStep(item)
   return (
     <Panel as="div" className="gap-5 border-0 bg-transparent p-0">
       <nav
         aria-label={strings.breadcrumb}
         className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
       >
-        <Link to={Urls.planning} className="text-primary">
-          {strings.planningIndex}
-        </Link>
-        <span aria-hidden="true">/</span>
-        <Link
-          to={Urls.pta}
-          params={{
-            projectId: item.project_id,
-            year: String(item.placement_year),
-          }}
-          className="text-primary"
-        >
-          {item.pta_name}
-        </Link>
-        <span aria-hidden="true">/</span>
+        {executionContext ? (
+          <>
+            <Link to={Urls.execution} className="text-primary">
+              {executionStrings.listTitle}
+            </Link>
+            <span aria-hidden="true">/</span>
+          </>
+        ) : (
+          <>
+            <Link to={Urls.planning} className="text-primary">
+              {strings.planningIndex}
+            </Link>
+            <span aria-hidden="true">/</span>
+            <Link
+              to={Urls.pta}
+              params={{
+                projectId: item.project_id,
+                year: String(item.placement_year),
+              }}
+              className="text-primary"
+            >
+              {item.pta_name}
+            </Link>
+            <span aria-hidden="true">/</span>
+          </>
+        )}
         <span>{item.reference}</span>
       </nav>
       <div className="flex flex-wrap items-start justify-between gap-6 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
@@ -2591,7 +2603,7 @@ function ActivityDetail({
               {strings.downloadActivityFiche}
             </ProtectedDownload>
           )}
-          {search.tab !== 'finance' && (
+          {!executionContext && search.tab !== 'finance' && (
             <>
               {item.allowed_actions.includes('edit') && (
                 <Button
