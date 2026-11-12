@@ -26,9 +26,14 @@ const icons = {
   exports: Download,
 }
 export function ApplicationSidebar({ user }) {
-  const path = useLocation({ select: (location) => location.pathname })
+  const location = useLocation()
+  const path = location.pathname
   const policy = authorization(user ? { state: 'verified', user } : null)
-  const active = pageForPath(path)?.id
+  const active =
+    /^\/activities\/[\w-]+$/.test(path) &&
+    location.search?.origin === 'execution'
+      ? 'execution'
+      : pageForPath(path)?.id
   return (
     <aside
       data-ui="access-sidebar"

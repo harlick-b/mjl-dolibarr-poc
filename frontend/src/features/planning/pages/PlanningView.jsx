@@ -49,7 +49,7 @@ import {
 } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
-import { ProtectedPdfPreview } from '@/shared/ui/ProtectedPdfPreview'
+import { ExecutionView } from '@/features/execution/ExecutionView'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { useProtectedCleanup } from '@/features/auth/session/access-verification'
@@ -2582,15 +2582,14 @@ function ActivityDetail({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {item.approved_revision_id && (
-            <ProtectedPdfPreview
+            <ProtectedDownload
               path={`/api/v1/activities/${item.id}/fiche.pdf`}
-              title={strings.downloadActivityFiche}
               size="sm"
               onDenied={onDenied}
             >
               <Download aria-hidden="true" />
               {strings.downloadActivityFiche}
-            </ProtectedPdfPreview>
+            </ProtectedDownload>
           )}
           {item.allowed_actions.includes('edit') && (
             <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>
@@ -2768,9 +2767,15 @@ function ActivityDetail({
         ))}
         {item.approved_revision_id && (
           <Link
-            className="border-b-2 border-transparent px-1 py-2.5 text-muted-foreground"
-            to={Urls.executionActivity}
+            className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === 'finance' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+            to={Urls.activity}
             params={{ activityId: item.id }}
+            search={(current) => ({
+              ...current,
+              tab: 'finance',
+              revision: undefined,
+              amendment: undefined,
+            })}
           >
             {strings.financeTab}
           </Link>
@@ -2942,6 +2947,7 @@ function ActivityDetail({
           </aside>
         </div>
       </div>
+      {search.tab === 'finance' && <ExecutionView screen="detail" embedded />}
       {search.tab === 'files' && (
         <div>
           <ActivityDocuments

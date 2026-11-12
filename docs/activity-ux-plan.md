@@ -784,3 +784,30 @@ passed their focused rerun. Earlier overlapping jobs produced additional timeout
 and an initial backend attempt had no running database. These are focused final
 reruns, not a claim that the earlier combined runs passed. Ruff, formatting,
 strict mypy, ESLint, build and diff checks passed; existing warnings remain.
+
+## Activity detail shell correction — progress, 2026-11-12
+
+The Activity identity header now belongs to the canonical Activity page and stays
+mounted while Programming, Realization and finance, History, and Supporting
+documents change independently below it. Entry from Planning or Execution is
+carried as route context, so the sidebar keeps the section from which the person
+opened the Activity. Execution lists, dashboard attention items, financial
+notifications, and legacy Execution detail URLs now lead into that canonical
+page.
+
+The finance tab no longer renders a second Activity header or the page-top refresh
+spinner. Open administrative steps use the parent section surface without a nested
+bordered card. The Operation dialog retains the required financial fields and
+variance observation, uses the centered shared dialog, and omits the supporting-
+document block. Internal **Fiche récapitulative** actions download the protected
+PDF directly; the Partner portal keeps its separately approved preview flow.
+
+Focused coverage verifies that one header DOM node survives Programming/finance
+switches, Execution remains selected in the sidebar, and the fiche download does
+not open a preview dialog. `npm run test:unit -- --run
+src/features/execution/execution.test.jsx
+src/features/dashboard/dashboard.test.jsx
+src/features/notifications/notification.test.jsx` completed **39 passed**. ESLint,
+Prettier, the production PWA build and `git diff --check` passed; Vite retained its
+existing large-chunk warning. Human visual comparison at normal, narrow, and
+zoomed widths remains the outstanding acceptance step.

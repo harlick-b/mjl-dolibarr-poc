@@ -80,7 +80,8 @@ function notificationPresentation(item) {
             : strings.financialReviewValidator,
           { request },
         ),
-        target: Urls.executionActivity,
+        target: Urls.activity,
+        search: { tab: 'finance', origin: 'execution' },
       }
     if (item.kind === 'financial_correction')
       return {
@@ -89,12 +90,14 @@ function notificationPresentation(item) {
           request,
           reason: item.reason,
         }),
-        target: Urls.executionActivity,
+        target: Urls.activity,
+        search: { tab: 'finance', origin: 'execution' },
       }
     return {
       title: strings.financialApprovedTitle,
       description: strings.formatString(strings.financialApproved, { request }),
-      target: Urls.executionActivity,
+      target: Urls.activity,
+      search: { tab: 'finance', origin: 'execution' },
     }
   }
   return {
@@ -263,6 +266,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                       className="inline-flex items-center gap-2 font-medium text-primary"
                       to={presentation.target}
                       params={{ activityId: item.activity_id }}
+                      search={presentation.search}
                       aria-disabled={read.isPending}
                       onClick={async (event) => {
                         if (item.read_at) {
@@ -281,6 +285,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                           await navigate({
                             to: presentation.target,
                             params: { activityId: item.activity_id },
+                            search: presentation.search,
                           })
                           onSelect?.()
                         } catch (error) {
@@ -292,6 +297,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                             await navigate({
                               to: presentation.target,
                               params: { activityId: item.activity_id },
+                              search: presentation.search,
                             })
                             onSelect?.()
                           }

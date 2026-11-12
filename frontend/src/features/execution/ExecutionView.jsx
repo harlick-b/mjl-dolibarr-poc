@@ -13,7 +13,6 @@ import {
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
-import { ProtectedPdfPreview } from '@/shared/ui/ProtectedPdfPreview'
 import { ExecutionOperations, OperationEditor } from './ExecutionOperations'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
@@ -24,7 +23,6 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleDollarSign,
-  FileDown,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
@@ -134,7 +132,7 @@ function AdministrativeStep({
           aria-hidden="true"
         />
       </summary>
-      <div className="border-t border-border bg-background/40 p-4 [&>[data-ui='planning-card']]:rounded-md [&>[data-ui='planning-card']]:border [&>[data-ui='planning-card']]:bg-white [&>[data-ui='planning-card']]:shadow-none">
+      <div className="border-t border-border bg-white px-5 pb-5 pt-1 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:pt-4 [&>[data-ui='planning-card']]:shadow-none">
         {children}
       </div>
     </details>
@@ -158,7 +156,7 @@ function executionQuery(api, userId, key, path, onDenied) {
   }
 }
 
-export function ExecutionView({ screen }) {
+export function ExecutionView({ screen, embedded = false }) {
   const session = useSessionQuery()
   const params = useParams({ strict: false })
   if (session.isPending) return <ExecutionLoading screen={screen} />
@@ -168,13 +166,14 @@ export function ExecutionView({ screen }) {
     <ExecutionWorkspace
       key={`${session.data.user.id}:${screen}:${params.activityId || params.ptaId || ''}`}
       screen={screen}
+      embedded={embedded}
       session={session.data}
       onDenied={() => {}}
     />
   )
 }
 
-function ExecutionWorkspace({ screen, session, onDenied }) {
+function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const params = useParams({ strict: false })
@@ -536,9 +535,18 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         {strings.unavailableExecution}
       </RetryableError>
     )
-  if (primary.isPending) return <ExecutionLoading screen={screen} />
+  if (primary.isPending)
+    return embedded ? (
+      <LoadingPlaceholder label={strings.executionDataLoading} />
+    ) : (
+      <ExecutionLoading screen={screen} />
+    )
   if (relevant.some((query) => query.isPending && query.fetchStatus !== 'idle'))
-    return <ExecutionLoading screen={screen} />
+    return embedded ? (
+      <LoadingPlaceholder label={strings.executionDataLoading} />
+    ) : (
+      <ExecutionLoading screen={screen} />
+    )
   const readError = failedQueries.length > 0 && (
     <RetryableError onRetry={retryFailed}>
       {strings.unavailableExecution}
@@ -577,11 +585,9 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     )
   return (
     <>
-      <RefreshIndicator active={relevant.some((query) => query.isFetching)} />
       {readError}
       <ExecutionDetail
         detail={detail.data}
-        onDenied={onDenied}
         sectionFallbacks={{
           funding: missingRead(funding),
           finance: missingRead(finance),
@@ -872,8 +878,9 @@ export function ExecutionList({
                   <td className="min-w-0 px-3 py-3">
                     <Link
                       className="block break-words font-medium text-primary"
-                      to={Urls.executionActivity}
+                      to={Urls.activity}
                       params={{ activityId: row.id }}
+                      search={{ tab: 'finance', origin: 'execution' }}
                       title={row.name}
                     >
                       {row.name}
@@ -937,8 +944,9 @@ export function ExecutionList({
                       className="min-w-24 whitespace-nowrap"
                     >
                       <Link
-                        to={Urls.executionActivity}
+                        to={Urls.activity}
                         params={{ activityId: row.id }}
+                        search={{ tab: 'finance', origin: 'execution' }}
                       >
                         {strings.followUp}
                       </Link>
@@ -993,7 +1001,6 @@ export function ExecutionList({
 function ExecutionDetail({
   sectionFallbacks,
   detail,
-  onDenied,
   finance,
   funding,
   onFundingPage,
@@ -1046,120 +1053,6 @@ function ExecutionDetail({
   }
   return (
     <section className="grid gap-6">
-      <Helmet>
-        <title>{`${detail.name} - Réalisation MJL`}</title>
-      </Helmet>
-      <nav
-        className="flex flex-wrap gap-2 text-[0.8125rem] text-primary"
-        aria-label="Fil d’Ariane"
-      >
-        <Link to={Urls.executionPta} params={{ ptaId: detail.pta_id }}>
-          {strings.listTitle}
-        </Link>
-        <span aria-hidden="true">/</span>
-        <span>{detail.reference}</span>
-      </nav>
-      <header className="grid gap-4" data-ui="planning-heading">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div className="grid min-w-0 gap-2">
-            <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-              {detail.reference}
-            </p>
-            <h1 className="max-w-5xl break-words text-2xl font-semibold leading-8 text-navy">
-              {detail.name}
-            </h1>
-            <p className="break-words text-[0.8125rem] text-muted-foreground">
-              {detail.project_name} · {detail.partner_name} · {detail.pta_name}
-            </p>
-            {detail.description?.trim() && (
-              <div className="max-w-4xl text-[0.8125rem] leading-5">
-                <p className="text-xs text-muted-foreground">
-                  {strings.activityPurpose}
-                </p>
-                <p className="mt-1 line-clamp-2 break-words">
-                  {detail.description}
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <ProtectedPdfPreview
-              path={`/api/v1/activities/${detail.id}/fiche.pdf`}
-              title={strings.activitySheet}
-              size="sm"
-              onDenied={onDenied}
-            >
-              <FileDown size={16} aria-hidden="true" /> {strings.activitySheet}
-            </ProtectedPdfPreview>
-            {detail.operations.some((operation) =>
-              operation.allowed_actions.some((action) =>
-                ['start', 'record'].includes(action),
-              ),
-            ) && (
-              <Button
-                size="sm"
-                onClick={(event) => {
-                  operationOpener.current = event.currentTarget
-                  setSelectedOperationId(
-                    detail.operations.find((operation) =>
-                      operation.allowed_actions.some((action) =>
-                        ['start', 'record'].includes(action),
-                      ),
-                    )?.id,
-                  )
-                }}
-              >
-                {strings.recordExecution}
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem]">
-          <span className="w-fit rounded-card bg-success-badge px-2 py-1 text-xs text-success">
-            {detail.closure ? strings.closedLabel : strings.approvedLabel}
-          </span>
-          <span className="text-muted-foreground">
-            {strings.physicalProgress} :{' '}
-            <strong className="font-medium text-foreground lowercase">
-              {detail.works_completed
-                ? strings.completedLabel
-                : strings.ongoingLabel}
-            </strong>
-          </span>
-          <span className="text-muted-foreground">
-            {strings.administration} :{' '}
-            <strong className="font-medium text-foreground">
-              {executionStage(detail)}
-            </strong>
-          </span>
-        </div>
-        <dl className="flex flex-wrap gap-x-8 gap-y-3 text-[0.8125rem]">
-          <div className="min-w-48">
-            <dt className="text-xs text-muted-foreground">
-              {strings.currentOwners}
-            </dt>
-            <dd className="mt-1 break-words font-medium">
-              {detail.agents?.join(', ') || '—'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              {strings.plannedStart}
-            </dt>
-            <dd className="mt-1 font-medium">
-              {formatDate(detail.planned_start)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              {strings.plannedEnd}
-            </dt>
-            <dd className="mt-1 font-medium">
-              {formatDate(detail.planned_end)}
-            </dd>
-          </div>
-        </dl>
-      </header>
       {error && (
         <p role="alert" className="border-l-4 border-l-danger p-3 bg-white">
           {error}
@@ -1189,42 +1082,6 @@ function ExecutionDetail({
             .
           </p>
         )}
-      <nav
-        aria-label={strings.activitySections}
-        className="flex flex-wrap gap-5 border-b border-border text-sm"
-      >
-        <Link
-          className="border-b-2 border-transparent px-1 py-2.5 text-muted-foreground"
-          to={Urls.activity}
-          params={{ activityId: detail.id }}
-        >
-          {strings.programmingTab}
-        </Link>
-        <Link
-          aria-current="page"
-          className="border-b-2 border-primary px-1 py-2.5 text-primary"
-          to={Urls.executionActivity}
-          params={{ activityId: detail.id }}
-        >
-          {strings.financeTab}
-        </Link>
-        <Link
-          className="border-b-2 border-transparent px-1 py-2.5 text-muted-foreground"
-          to={Urls.activity}
-          params={{ activityId: detail.id }}
-          search={{ tab: 'history' }}
-        >
-          {strings.historyTab}
-        </Link>
-        <Link
-          className="border-b-2 border-transparent px-1 py-2.5 text-muted-foreground"
-          to={Urls.activity}
-          params={{ activityId: detail.id }}
-          search={{ tab: 'files' }}
-        >
-          {strings.filesTab}
-        </Link>
-      </nav>
       <Panel
         as="dl"
         className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-xl [&_dd]:font-semibold [&_dd]:text-navy"

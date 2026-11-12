@@ -83,9 +83,12 @@ test('dashboard attention titles and actions link to their activity workflow', a
   )
   for (const [name, href] of [
     ['Activité à préparer', '/activities/planning-id'],
-    ['Activité à réaliser', '/execution/activities/execution-id'],
+    [
+      'Activité à réaliser',
+      '/activities/execution-id?tab=finance&origin=execution',
+    ],
   ]) {
-    const title = await screen.findByRole('link', { name })
+    const title = await screen.findByRole('link', { name }, { timeout: 5000 })
     const links = within(title.closest('li')).getAllByRole('link')
     expect(links).toHaveLength(2)
     for (const link of links) expect(link).toHaveAttribute('href', href)

@@ -4,6 +4,13 @@ import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App, makeRouter } from '@/app/router.jsx'
 import { cursorFrom } from '@/shared/lib/pagination'
+import { ExecutionView } from './ExecutionView'
+
+function makeExecutionRouter(history) {
+  return makeRouter(history, {
+    execution: (screen) => <ExecutionView screen={screen} />,
+  })
+}
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -80,6 +87,230 @@ function detail({ started = false, completed = false } = {}) {
   }
 }
 
+test('legacy execution detail URLs enter the canonical activity shell', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      if (String(url).includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      return new Response(JSON.stringify({}))
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: [
+        '/execution/activities/activity-1?financeRequest=request-1&financeCursor=older',
+      ],
+    }),
+    { planning: () => <p>Canonical activity shell</p> },
+  )
+  render(<App router={router} />)
+
+  expect(await screen.findByText('Canonical activity shell')).toBeVisible()
+  expect(router.state.location.pathname).toBe('/activities/activity-1')
+  expect(router.state.location.search).toMatchObject({
+    tab: 'finance',
+    origin: 'execution',
+    financeRequest: 'request-1',
+    financeCursor: 'older',
+  })
+})
+
+test('activity tabs keep one header and preserve the execution sidebar context', async () => {
+  const user = userEvent.setup()
+  const createObjectURL = vi.fn(() => 'blob:activity-fiche')
+  const revokeObjectURL = vi.fn()
+  const anchorClick = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  const NativeURL = URL
+  class DownloadURL extends NativeURL {}
+  DownloadURL.createObjectURL = createObjectURL
+  DownloadURL.revokeObjectURL = revokeObjectURL
+  vi.stubGlobal('URL', DownloadURL)
+  const execution = detail({ started: true, completed: true })
+  const activity = {
+    ...execution,
+    allocation: '100000',
+    placement_year: 2026,
+    agents: [
+      {
+        id: 'agent',
+        email: 'agent@example.test',
+        full_name: 'Agent de test',
+      },
+    ],
+    agent_ids: ['agent'],
+    operations: execution.operations.map((operation) => ({
+      ...operation,
+      allocation: operation.approved_allocation,
+    })),
+    approved: {
+      name: execution.name,
+      description: execution.description,
+      planned_start: execution.planned_start,
+      planned_end: execution.planned_end,
+      allocation: execution.approved_allocation,
+      operations: execution.operations,
+    },
+    candidate: null,
+    amendment: null,
+    withdrawal: null,
+    transfer: null,
+    correction: null,
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+    activity_version: execution.version,
+    approved_revision_id: execution.approved_revision_id,
+  }
+  const historicalRequest = {
+    id: 'finance-returned',
+    amount: '100000',
+    state: 'returned',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read'],
+    activity_version: execution.version,
+  }
+  const requests = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      requests.push(path)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/fiche.pdf'))
+        return new Response('pdf', {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'attachment; filename="ACT-000001.pdf"',
+          },
+        })
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(execution))
+      if (path.endsWith('/activities/activity-1'))
+        return new Response(JSON.stringify(activity))
+      if (path.endsWith('/disbursement-requests/finance-returned'))
+        return new Response(JSON.stringify(historicalRequest))
+      if (path.includes('/disbursement-requests?cursor=older'))
+        return new Response(
+          JSON.stringify({
+            ...empty,
+            count: 1,
+            data: [historicalRequest],
+            previous: '/api/v1/activities/activity-1/disbursement-requests',
+          }),
+        )
+      if (path.endsWith('/disbursement-requests'))
+        return new Response(
+          JSON.stringify({
+            ...empty,
+            count: 1,
+            data: [historicalRequest],
+            next: '/api/v1/activities/activity-1/disbursement-requests?cursor=older',
+          }),
+        )
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/activities/activity-1?tab=finance&origin=execution',
+          ],
+        }),
+      )}
+    />,
+  )
+
+  const header = await screen.findByRole(
+    'heading',
+    { name: 'Former les équipes' },
+    { timeout: 5000 },
+  )
+  expect(screen.getByRole('link', { name: 'Réalisation' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Fiche récapitulative' }))
+  await waitFor(() => expect(anchorClick).toHaveBeenCalledOnce())
+  expect(
+    screen.queryByRole('dialog', { name: 'Fiche récapitulative' }),
+  ).not.toBeInTheDocument()
+  expect(createObjectURL).toHaveBeenCalledOnce()
+  await waitFor(() =>
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:activity-fiche'),
+  )
+  await user.click(screen.getByText('Historique des demandes (1)'))
+  await user.click(
+    screen.getByRole('button', { name: /Retournée pour correction/ }),
+  )
+  await waitFor(() =>
+    expect(
+      requests.some((path) =>
+        path.endsWith('/disbursement-requests/finance-returned'),
+      ),
+    ).toBe(true),
+  )
+  await user.click(screen.getByRole('button', { name: 'Suivant', exact: true }))
+  await waitFor(() =>
+    expect(
+      requests.some((path) =>
+        path.includes('/disbursement-requests?cursor=older'),
+      ),
+    ).toBe(true),
+  )
+
+  await user.click(screen.getByRole('link', { name: 'Programmation' }))
+  expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
+    header,
+  )
+  expect(screen.getByRole('link', { name: 'Réalisation' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(screen.queryByText('Budget autorisé actuel')).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('link', { name: 'Réalisation & finances' }))
+  expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
+    header,
+  )
+  expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
+})
+
 test('execution detail stays in page loading until all first-view reads are ready', async () => {
   let resolveFinance
   const empty = {
@@ -119,7 +350,7 @@ test('execution detail stays in page loading until all first-view reads are read
   )
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -133,14 +364,10 @@ test('execution detail stays in page loading until all first-view reads are read
       name: 'Chargement : Détail de la réalisation',
     }),
   ).toBeVisible()
-  expect(
-    screen.queryByRole('heading', { name: 'Former les équipes' }),
-  ).toBeNull()
+  expect(screen.queryByText('Budget autorisé actuel')).toBeNull()
 
   resolveFinance(new Response(JSON.stringify(empty)))
-  expect(
-    await screen.findByRole('heading', { name: 'Former les équipes' }),
-  ).toBeVisible()
+  expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
 })
 
 test('execution explorer searches assigned Agents and shows readable active filters', async () => {
@@ -189,7 +416,7 @@ test('execution explorer searches assigned Agents and shows readable active filt
       return new Response(JSON.stringify(body))
     }),
   )
-  const router = makeRouter(
+  const router = makeExecutionRouter(
     createMemoryHistory({ initialEntries: ['/execution/pta-1'] }),
   )
   render(<App router={router} />)
@@ -261,7 +488,7 @@ test('execution explorer keeps the selected activity period in its API request',
       return new Response(JSON.stringify(body))
     }),
   )
-  const router = makeRouter(
+  const router = makeExecutionRouter(
     createMemoryHistory({
       initialEntries: ['/execution/pta-1?from=2026-07-01&to=2026-09-30'],
     }),
@@ -290,27 +517,12 @@ test('execution explorer keeps the selected activity period in its API request',
 
 test('an observation draft keeps its version across refresh and can be explicitly reset', async () => {
   const user = userEvent.setup()
-  const createObjectURL = vi.fn(() => 'blob:activity-fiche')
-  const revokeObjectURL = vi.fn()
-  const anchorClick = vi
-    .spyOn(HTMLAnchorElement.prototype, 'click')
-    .mockImplementation(() => {})
-  const NativeURL = URL
-  class PreviewURL extends NativeURL {}
-  PreviewURL.createObjectURL = createObjectURL
-  PreviewURL.revokeObjectURL = revokeObjectURL
-  vi.stubGlobal('URL', PreviewURL)
   let current = detail({ started: true, completed: true })
-  let resolveFiche
   const writes = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, options = {}) => {
       const path = String(url)
-      if (path.endsWith('/activities/activity-1/fiche.pdf'))
-        return new Promise((resolve) => {
-          resolveFiche = resolve
-        })
       if (path.includes('/funding-requests'))
         return new Response(
           JSON.stringify({
@@ -369,59 +581,13 @@ test('an observation draft keeps its version across refresh and can be explicitl
       return new Response(JSON.stringify(body))
     }),
   )
-  const router = makeRouter(
+  const router = makeExecutionRouter(
     createMemoryHistory({
       initialEntries: ['/execution/activities/activity-1'],
     }),
   )
   render(<App router={router} />)
-  expect(
-    await screen.findByRole('heading', { name: 'Former les équipes' }),
-  ).toBeVisible()
-  expect(
-    screen.getByText('Justice des mineurs · UNICEF · PTA 2026'),
-  ).toBeVisible()
-  expect(screen.getByText('Objet de l’activité')).toBeVisible()
-  expect(
-    screen.getByText('Renforcer les pratiques des équipes de terrain.'),
-  ).toBeVisible()
-  expect(screen.getByText('Réalisation physique :')).toHaveTextContent(
-    'Réalisation physique : Terminée',
-  )
-  expect(screen.getByText('Administration :')).toHaveTextContent(
-    'Administration : Traitement financier requis',
-  )
-  expect(screen.getByText('Agent de test')).toBeVisible()
-  expect(screen.queryByText('Révision')).not.toBeInTheDocument()
-  expect(
-    screen.getByRole('link', { name: 'Réalisation & finances' }),
-  ).toHaveAttribute('aria-current', 'page')
-  await user.click(screen.getByRole('button', { name: 'Fiche récapitulative' }))
-  const fiche = await screen.findByRole('dialog', {
-    name: 'Fiche récapitulative',
-  })
-  expect(
-    within(fiche).getByRole('status', {
-      name: 'Chargement de l’aperçu',
-    }),
-  ).toBeVisible()
-  resolveFiche(
-    new Response('pdf', {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="ACT-000001.pdf"',
-      },
-    }),
-  )
-  expect(
-    await within(fiche).findByTitle('Fiche récapitulative — Aperçu'),
-  ).toHaveAttribute('src', 'blob:activity-fiche')
-  expect(anchorClick).not.toHaveBeenCalled()
-  await user.click(within(fiche).getByRole('button', { name: 'Télécharger' }))
-  expect(anchorClick).toHaveBeenCalledOnce()
-  await user.click(within(fiche).getAllByRole('button', { name: 'Fermer' })[0])
-  expect(revokeObjectURL).toHaveBeenCalledWith('blob:activity-fiche')
-  expect(screen.getByText('Budget autorisé actuel')).toBeVisible()
+  expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
   expect(screen.getByText('Montant dépensé · final')).toBeVisible()
   expect(screen.getByText('Terminée, en attente de validation')).toBeVisible()
   expect(screen.getByText('Solde non dépensé')).toBeVisible()
@@ -603,7 +769,7 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -717,7 +883,7 @@ test.each([
     )
     render(
       <App
-        router={makeRouter(
+        router={makeExecutionRouter(
           createMemoryHistory({
             initialEntries: ['/execution/activities/activity-1'],
           }),
@@ -838,7 +1004,7 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -1014,7 +1180,7 @@ test.each([
     vi.stubGlobal('fetch', fetch)
     render(
       <App
-        router={makeRouter(
+        router={makeExecutionRouter(
           createMemoryHistory({
             initialEntries: ['/execution/activities/activity-1'],
           }),
@@ -1155,7 +1321,7 @@ test('historical zero-spending page points to the active declaration', async () 
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: [
             '/execution/activities/activity-1?zeroSpendingCursor=older',
@@ -1257,7 +1423,7 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
     vi.stubGlobal('fetch', fetch)
     render(
       <App
-        router={makeRouter(
+        router={makeExecutionRouter(
           createMemoryHistory({
             initialEntries: ['/execution/activities/activity-1'],
           }),
@@ -1361,16 +1527,14 @@ test('Agent starts and records an Operation without offline replay', async () =>
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
       )}
     />,
   )
-  expect(
-    await screen.findByRole('heading', { name: 'Former les équipes' }),
-  ).toBeVisible()
+  expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
   await user.click(
     screen.getByRole('button', { name: 'Consulter Préparer la session' }),
   )
@@ -1528,7 +1692,7 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
     const search = kind === 'virement' ? 'virementRequest' : 'financeRequest'
     render(
       <App
-        router={makeRouter(
+        router={makeExecutionRouter(
           createMemoryHistory({
             initialEntries: [
               `/execution/activities/activity-1?${search}=returned-1`,
@@ -1684,7 +1848,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -1845,7 +2009,7 @@ test.each([
       return Promise.resolve(new Response('{}', { status: 404 }))
     })
     vi.stubGlobal('fetch', fetch)
-    const router = makeRouter(
+    const router = makeExecutionRouter(
       createMemoryHistory({
         initialEntries: ['/execution/activities/activity-1'],
       }),
@@ -1980,7 +2144,7 @@ test('Agent submits the locked disbursement amount for virement authorization', 
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -2154,7 +2318,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -2464,7 +2628,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -2700,7 +2864,7 @@ test('zero reversement displays settlement without a declaration form', async ()
   })
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -2794,7 +2958,7 @@ test('an uncertain virement submission stays blocked until reconciliation succee
   vi.stubGlobal('fetch', fetch)
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -2939,7 +3103,7 @@ test.each([
     )
     render(
       <App
-        router={makeRouter(
+        router={makeExecutionRouter(
           createMemoryHistory({
             initialEntries: ['/execution/activities/activity-1'],
           }),
@@ -3041,7 +3205,7 @@ test('a reasoned execution correction refreshes the funding version without rele
   )
   render(
     <App
-      router={makeRouter(
+      router={makeExecutionRouter(
         createMemoryHistory({
           initialEntries: ['/execution/activities/activity-1'],
         }),
@@ -3141,7 +3305,7 @@ test.each([503, 403, 404])(
         )
       }),
     )
-    const router = makeRouter(
+    const router = makeExecutionRouter(
       createMemoryHistory({
         initialEntries: ['/execution/activities/activity-1'],
       }),

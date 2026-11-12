@@ -189,7 +189,10 @@ test('a Supervisor sees a review notification in the shared inbox', async () => 
   expect(screen.getAllByText('Formation')).toHaveLength(2)
   expect(
     screen.getAllByRole('link', { name: /Ouvrir l’activité/ })[1],
-  ).toHaveAttribute('href', '/execution/activities/activity-1')
+  ).toHaveAttribute(
+    'href',
+    '/activities/activity-1?tab=finance&origin=execution',
+  )
   expect(screen.getByLabelText('2 non lues')).toBeVisible()
 })
 

@@ -99,7 +99,7 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
     operation.execution_observation ||
     operation.execution_completed
   return (
-    <div className="grid gap-5 p-6">
+    <div className="grid gap-6 p-6">
       <div className="grid gap-2">
         <p className="text-sm text-muted-foreground">
           {activity.reference} · {activity.name}
@@ -110,7 +110,7 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
           })}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-4 border-b border-border py-4 text-sm">
+      <div className="flex items-center justify-between gap-4 border-b border-border py-3 text-sm">
         <span>{strings.authorizedAmountLabel}</span>
         <strong className="font-semibold text-navy">
           {formatXof(operation.approved_allocation)}

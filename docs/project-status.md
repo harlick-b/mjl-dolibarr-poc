@@ -1516,6 +1516,22 @@ full passes. Ruff, formatting, strict mypy, ESLint, build and diff checks passed
 with the existing hook and bundle-size warnings. Exact selections are recorded in
 the Activity plan.
 
+## Activity detail navigation and finance presentation, 2026-11-12
+
+Activity detail now has one stable identity header across Programming, Realization
+and finance, History, and Supporting documents. The tab content changes below the
+header without remounting it. The Activity remembers whether it was opened from
+Planning or Execution and keeps that sidebar item selected while tabs change.
+Normal Execution, dashboard, notification, and legacy detail links enter the same
+canonical Activity page.
+
+The finance tab removes its duplicate header and page-top refresh spinner. Open
+administrative steps no longer add a bordered card inside the parent card. The
+Operation entry dialog remains centered, follows the supplied field hierarchy,
+and contains no supporting-document block. Internal Activity fiche actions now
+start the protected PDF download directly without a preview step; the Partner
+preview contract is unchanged.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

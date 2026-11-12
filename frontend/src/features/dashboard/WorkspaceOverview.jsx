@@ -415,11 +415,12 @@ function AttentionSummary({ attention }) {
         <ul className="px-5">
           {attention.items.map((item) => {
             const destination = {
-              to:
-                item.destination === 'planning'
-                  ? Urls.activity
-                  : Urls.executionActivity,
+              to: Urls.activity,
               params: { activityId: item.activity_id },
+              search:
+                item.destination === 'planning'
+                  ? undefined
+                  : { tab: 'finance', origin: 'execution' },
             }
             return (
               <li

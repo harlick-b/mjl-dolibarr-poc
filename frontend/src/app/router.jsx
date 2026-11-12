@@ -42,7 +42,12 @@ import {
   useAccess,
 } from '@/features/auth/session/access-verification'
 import { useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearch,
+} from '@tanstack/react-router'
 import { redirect } from '@tanstack/react-router'
 import { HealthView } from '@/features/health/HealthView'
 import {
@@ -105,6 +110,19 @@ function WorkspaceShell() {
         </WorkspaceMain>
       </div>
     </WorkspaceFrame>
+  )
+}
+
+function LegacyExecutionActivityRedirect() {
+  const params = useParams({ strict: false })
+  const search = useSearch({ strict: false })
+  return (
+    <Navigate
+      to={Urls.activity}
+      params={{ activityId: params.activityId }}
+      search={{ ...search, tab: 'finance', origin: 'execution' }}
+      replace
+    />
   )
 }
 
@@ -312,6 +330,19 @@ function NotFound() {
       <p>{strings.notFoundMessage}</p>
     </FallbackState>
   )
+}
+
+function validatedFinanceSearch(search) {
+  return {
+    financeCursor: String(search.financeCursor || '').slice(0, 512),
+    fundingCursor: String(search.fundingCursor || '').slice(0, 512),
+    zeroSpendingCursor: String(search.zeroSpendingCursor || '').slice(0, 512),
+    financeRequest: String(search.financeRequest || '').slice(0, 36),
+    virementCursor: String(search.virementCursor || '').slice(0, 512),
+    virementRequest: String(search.virementRequest || '').slice(0, 36),
+    confirmationCursor: String(search.confirmationCursor || '').slice(0, 512),
+    reversementCursor: String(search.reversementCursor || '').slice(0, 512),
+  }
 }
 
 export function makeRouter(history, componentOverrides = {}) {
@@ -563,15 +594,17 @@ export function makeRouter(history, componentOverrides = {}) {
           Number(search.month) <= 12
             ? Number(search.month)
             : undefined,
-        tab: ['history', 'files'].includes(search.tab)
+        tab: ['finance', 'history', 'files'].includes(search.tab)
           ? search.tab
           : 'programming',
+        origin: search.origin === 'execution' ? 'execution' : 'planning',
         activityCursor: String(search.activityCursor || '').slice(0, 512),
         agentCursor: String(search.agentCursor || '').slice(0, 512),
         revisionCursor: String(search.revisionCursor || '').slice(0, 512),
         documentCursor: String(search.documentCursor || '').slice(0, 512),
         revision: String(search.revision || '').slice(0, 36),
         amendment: String(search.amendment || '').slice(0, 36),
+        ...validatedFinanceSearch(search),
       }),
     }),
   )
@@ -582,7 +615,11 @@ export function makeRouter(history, componentOverrides = {}) {
     createRoute({
       getParentRoute: () => root,
       path,
-      component: () => <ExecutionView screen={screen} />,
+      component: componentOverrides.execution
+        ? () => componentOverrides.execution(screen)
+        : screen === 'detail'
+          ? LegacyExecutionActivityRedirect
+          : () => <ExecutionView screen={screen} />,
       errorComponent: RouteFailure,
       pendingComponent: () => <ExecutionLoading screen={screen} />,
       pendingMs: 0,
@@ -599,15 +636,7 @@ export function makeRouter(history, componentOverrides = {}) {
           : {}),
         cursor: String(search.cursor || '').slice(0, 512),
         historyCursor: String(search.historyCursor || '').slice(0, 512),
-        financeCursor: String(search.financeCursor || '').slice(0, 512),
-        fundingCursor: String(search.fundingCursor || '').slice(0, 512),
-        zeroSpendingCursor: String(search.zeroSpendingCursor || '').slice(
-          0,
-          512,
-        ),
-        financeRequest: String(search.financeRequest || '').slice(0, 36),
-        virementCursor: String(search.virementCursor || '').slice(0, 512),
-        virementRequest: String(search.virementRequest || '').slice(0, 36),
+        ...validatedFinanceSearch(search),
       }),
     }),
   )
