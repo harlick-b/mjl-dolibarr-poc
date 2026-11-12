@@ -107,20 +107,34 @@ def record_agent_notifications(
     *,
     kind: str,
     reason: str | None = None,
+    recipient_ids: list[str] | None = None,
 ) -> list[str]:
-    recipient_ids = list(
-        db.scalars(
-            select(ActivityAssignment.agent_id)
-            .join(User, User.id == ActivityAssignment.agent_id)
-            .where(
-                ActivityAssignment.activity_id == activity.id,
-                ActivityAssignment.ended_at.is_(None),
-                User.role == "AGENT_SAISIE",
-                User.state == "active",
+    if recipient_ids is None:
+        recipient_ids = list(
+            db.scalars(
+                select(ActivityAssignment.agent_id)
+                .join(User, User.id == ActivityAssignment.agent_id)
+                .where(
+                    ActivityAssignment.activity_id == activity.id,
+                    ActivityAssignment.ended_at.is_(None),
+                    User.role == "AGENT_SAISIE",
+                    User.state == "active",
+                )
+                .order_by(ActivityAssignment.agent_id)
             )
-            .order_by(ActivityAssignment.agent_id)
         )
-    )
+    else:
+        recipient_ids = list(
+            db.scalars(
+                select(User.id)
+                .where(
+                    User.id.in_(recipient_ids),
+                    User.role == "AGENT_SAISIE",
+                    User.state == "active",
+                )
+                .order_by(User.id)
+            )
+        )
     return _record(
         db,
         auth,

@@ -92,6 +92,12 @@ implementation boundaries; [README](../README.md) owns setup.
 
 ## Authentication, queries and protected data
 
+- Recipient ownership of a notification does not authorize current fields from
+  its linked resource. Reapply the resource's current visibility when projecting
+  live notification content, or store an immutable notification-time snapshot when
+  history must remain continuously visible after access changes. Apply the same
+  boundary to direct read actions and delayed delivery.
+
 - Query cache removal does not guarantee that mounted observers stop displaying
   old data. Mask protected content through the existing access coordinator.
   Keep the session observer attached and clear its value; deleting that observed

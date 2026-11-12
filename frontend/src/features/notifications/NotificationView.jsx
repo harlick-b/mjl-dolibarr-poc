@@ -266,6 +266,9 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                       aria-disabled={read.isPending}
                       onClick={async (event) => {
                         if (item.read_at) {
+                          void client.invalidateQueries({
+                            queryKey: [...notificationRoot, session.user.id],
+                          })
                           onSelect?.()
                           return
                         }

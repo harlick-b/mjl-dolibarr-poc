@@ -103,6 +103,7 @@ test('an assignment notification is readable and uses the standard read flow', a
   await waitFor(() =>
     expect(screen.queryByText(/ACT-001/)).not.toBeInTheDocument(),
   )
+  expect(screen.queryByLabelText('1 non lues')).not.toBeInTheDocument()
   expect(fetch).toHaveBeenCalledWith(
     '/api/v1/notifications/notice-1',
     expect.objectContaining({ method: 'PATCH' }),
@@ -190,4 +191,86 @@ test('a Supervisor sees a review notification in the shared inbox', async () => 
     screen.getAllByRole('link', { name: /Ouvrir l’activité/ })[1],
   ).toHaveAttribute('href', '/execution/activities/activity-1')
   expect(screen.getByLabelText('2 non lues')).toBeVisible()
+})
+
+test('selecting an already-read notification refreshes a stale sidebar count', async () => {
+  let unreadRequests = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: {
+                id: 'agent',
+                email: 'user@example.test',
+                role: 'AGENT_SAISIE',
+              },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      if (path.includes('/notifications?state=unread')) {
+        unreadRequests += 1
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: unreadRequests === 1 ? 1 : 0,
+              data: [],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      }
+      if (path.endsWith('/notifications'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 1,
+              data: [
+                {
+                  kind: 'assignment',
+                  id: 'notice-read',
+                  activity_id: 'activity-1',
+                  activity_reference: 'ACT-001',
+                  activity_name: 'Formation',
+                  pta_year: 2028,
+                  pta_name: 'PTA Protection',
+                  project_name: 'Protection de l’enfant',
+                  assigned_by: 'Yoann Validateur',
+                  created_at: '2028-02-08T08:00:00Z',
+                  read_at: '2028-02-08T09:00:00Z',
+                  email_status: 'delivered',
+                  version: 2,
+                },
+              ],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      return Promise.resolve(new Response(JSON.stringify({})))
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/notifications'] }),
+      )}
+    />,
+  )
+
+  expect(await screen.findByLabelText('1 non lues')).toBeVisible()
+  await userEvent.click(screen.getByRole('link', { name: /Ouvrir l’activité/ }))
+  await waitFor(() =>
+    expect(screen.queryByLabelText('1 non lues')).not.toBeInTheDocument(),
+  )
+  expect(unreadRequests).toBe(2)
 })

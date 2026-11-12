@@ -1415,6 +1415,25 @@ container that was removed after the run. Two unrelated
 **Relances** E2E cases still use the previous sidebar label after the product had
 already renamed that entry **Notifications**.
 
+## Notification access and read-state corrections, 2026-11-12
+
+Notification projections now reapply current Activity visibility before returning
+linked live fields. A removed Agent therefore cannot use an old assignment notice,
+its read endpoint or a delayed email attempt to learn changes to a private draft.
+The durable notice remains stored and becomes visible again if ordinary internal
+Activity visibility later applies. Withdrawal approval captures the active assigned
+Agents before ending their assignments, so each receives the required in-app final
+approval notice without email. Selecting an already-read inbox item also refreshes
+the recipient's shared notification cache, clearing a stale sidebar unread count.
+
+Focused verification passed three frontend notification tests and two disposable-
+PostgreSQL regressions. The combined affected backend run completed **31 passed,
+3 failed**: all failures are older Activity-brief assertions expecting `403` or
+assignment management where the current private-draft contract correctly conceals
+the Activity with `404`; this run is not reported as a broad pass. Ruff, strict
+mypy, ESLint, Prettier and independent review passed for the notification candidate.
+The disposable PostgreSQL container was removed after verification.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

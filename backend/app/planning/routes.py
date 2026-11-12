@@ -3122,6 +3122,7 @@ def decide_activity(
         now = auth.now(db)
         prevalidation_id = None
         ended_assignment_ids: list[str] | None = None
+        withdrawal_recipient_ids: list[str] | None = None
         if actor.role == "AGENT_VERIFICATEUR":
             if item.state != "submitted" or body.decision not in {
                 "prevalidate",
@@ -3173,6 +3174,7 @@ def decide_activity(
                 if withdrawal_request:
                     item.state = "withdrawn"
                     ended_assignment_ids = []
+                    withdrawal_recipient_ids = []
                     now_for_assignments = now
                     assignments = list(
                         db.scalars(
@@ -3186,6 +3188,7 @@ def decide_activity(
                         )
                     )
                     for assignment in assignments:
+                        withdrawal_recipient_ids.append(assignment.agent_id)
                         assignment.ended_at = now_for_assignments
                         assignment.ended_by_id = actor.id
                         ended_assignment_ids.append(assignment.id)
@@ -3280,6 +3283,7 @@ def decide_activity(
                 item,
                 revision,
                 kind="activity_approved",
+                recipient_ids=withdrawal_recipient_ids,
             )
         item.version += 1
         item.updated_at = now

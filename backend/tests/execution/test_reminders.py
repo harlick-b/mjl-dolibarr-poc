@@ -320,6 +320,15 @@ def test_withdrawn_activity_stops_reminders(planning):
         {"expected_version": prevalidated["activity_version"], "decision": "approve"},
     )
     assert approved.status_code == 201
+    for actor in ("agent", "agent2"):
+        notices = planning[actor].get("/api/v1/notifications").json()["data"]
+        approval = next(
+            row
+            for row in notices
+            if row["kind"] == "activity_approved"
+            and row["activity_id"] == activity["id"]
+        )
+        assert approval["email_status"] == "skipped"
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 8)) == 0
 
 

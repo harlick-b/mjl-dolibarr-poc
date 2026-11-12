@@ -3,6 +3,10 @@ from uuid import uuid4
 
 import pytest
 
+import app.planning.routes as planning_routes
+from app.planning.notifications.assignment_notifications import (
+    deliver_assignment_notification,
+)
 from tests.planning.test_planning import admin as admin
 from tests.planning.test_planning import patch, plan, post, put, references
 from tests.planning.test_planning import planning as planning
@@ -138,6 +142,59 @@ def test_initial_drafts_are_visible_only_to_creator_and_assigned_agents(planning
     assert planning["validator"].get(reviewer_path).status_code == 404
     assert planning["supervisor"].get(context_path).json()["summary"]["draft"] == 1
     assert planning["validator"].get(context_path).json()["summary"]["draft"] == 0
+
+
+def test_removed_agent_notification_does_not_reveal_current_private_draft(
+    planning, monkeypatch
+):
+    monkeypatch.setattr(
+        planning_routes, "deliver_assignment_notification", lambda *_args: None
+    )
+    _, _category, project = references(planning)
+    agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    agent2_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
+    created = post(
+        planning["supervisor"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            "request_key": str(uuid4()),
+            "name": "Brief confidentiel initial",
+            "agent_ids": [agent_id],
+        },
+    ).json()
+    notice = next(
+        row
+        for row in planning["agent"].get("/api/v1/notifications").json()["data"]
+        if row["activity_id"] == created["id"]
+    )
+
+    reassigned = put(
+        planning["supervisor"],
+        f"/api/v1/activities/{created['id']}/assignments",
+        {"expected_version": created["version"], "agent_ids": [agent2_id]},
+    ).json()
+    changed = patch(
+        planning["agent2"],
+        f"/api/v1/activities/{created['id']}",
+        {
+            "name": "Titre privé modifié",
+            "expected_version": reassigned["version"],
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    hidden_activity = planning["agent"].get(f"/api/v1/activities/{created['id']}")
+    assert hidden_activity.status_code == 404
+
+    inbox = planning["agent"].get("/api/v1/notifications")
+    assert inbox.status_code == 200, inbox.text
+    assert created["id"] not in {row["activity_id"] for row in inbox.json()["data"]}
+    hidden_read = patch(
+        planning["agent"],
+        f"/api/v1/notifications/{notice['id']}",
+        {"expected_version": notice["version"]},
+    )
+    assert hidden_read.status_code == 404
+    assert deliver_assignment_notification(planning["auth"], notice["id"]) == "skipped"
 
 
 @pytest.mark.parametrize("creator", ["supervisor", "validator"])

@@ -32,7 +32,14 @@ from app.planning.core.models import (
     FinancialWorkflowNotification,
     Project,
 )
-from app.planning.core.service import CONTEXT, Cursor, locked_mutation, principal
+from app.planning.core.service import (
+    CONTEXT,
+    Cursor,
+    locked_mutation,
+    principal,
+    require_activity_visible,
+    visible_activity_condition,
+)
 from app.planning.notifications.financial_notifications import REQUEST_MODELS
 from app.planning.notifications.notification_delivery import attempt_notification_email
 
@@ -536,7 +543,15 @@ def listing(
                 FinancialWorkflowNotification.recipient_id,
             ),
         ):
-            base_conditions = [recipient_column == actor.id]
+            visible_source = (
+                select(Activity.id)
+                .where(
+                    Activity.id == model.activity_id,
+                    visible_activity_condition(actor.id),
+                )
+                .exists()
+            )
+            base_conditions = [recipient_column == actor.id, visible_source]
             if state == "unread":
                 base_conditions.append(model.read_at.is_(None))
             conditions = list(base_conditions)
@@ -660,6 +675,10 @@ def mark_read(
         )
         if not item or recipient_id != actor.id:
             raise AuthError(404, "notification_not_found")
+        activity = db.get(Activity, item.activity_id)
+        if activity is None:
+            raise AuthError(409, "notification_source_invalid")
+        require_activity_visible(db, activity, actor)
         if item.read_at is not None:
             return (
                 _financial_outputs(db, [item])[item.id]

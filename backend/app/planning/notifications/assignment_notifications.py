@@ -79,6 +79,7 @@ def deliver_assignment_notification(auth: AuthService, identifier: str) -> str |
             and assigner
             and activity
             and assignment
+            and assignment.ended_at is None
             and context
         ):
             delivery = (
