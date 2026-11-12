@@ -1532,6 +1532,25 @@ and contains no supporting-document block. Internal Activity fiche actions now
 start the protected PDF download directly without a preview step; the Partner
 preview contract is unchanged.
 
+The Agent finance entry state now follows the supplied Activity references.
+Planning workflow buttons are hidden on the finance tab, editable Operations use
+**Renseigner** inside the physical-realization accordion, and completing the last
+Operation collapses that accordion. The amount summary uses the approved three
+primary facts with confirmed details behind its disclosure row. Administrative
+steps stay at **À venir** until physical realization is complete; opening a
+blocked step shows the prerequisite message without a nested card or an active
+financial CTA. The initial sequence includes the separate external-virement row
+and keeps closure disabled inside its accordion. Approved authorization,
+external-virement confirmation, reversement and closure remain sibling steps,
+with each CTA inside its own accordion. Unknown finance values display **Non
+renseigné**, and an unfinished all-zero entry cannot prematurely switch to the
+zero-spending workflow.
+
+The combined Planning and Execution run completed **82 passed** on the final
+source. ESLint and the production PWA build passed; the existing session-cleanup
+and large-chunk warnings remain. Independent specification and standards
+re-review cleared the candidate. Human visual acceptance remains outstanding.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |

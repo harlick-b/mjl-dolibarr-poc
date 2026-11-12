@@ -14,6 +14,10 @@ import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { ExecutionOperations, OperationEditor } from './ExecutionOperations'
+import {
+  countRecordedOperations,
+  formatFinanceAmount,
+} from './executionPresentation'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -76,15 +80,14 @@ function administrativeStepCompleted(result) {
   return currentAdministrativeRow(result)?.state === 'approved'
 }
 
-function hasVirementFollowUp(result, selected) {
-  const rows = [selected, ...(result?.data || [])].filter(Boolean)
-  return rows.some(
-    (row) =>
-      (row.state === 'approved' && !row.current_confirmation) ||
-      row.reversement?.allowed_actions?.some((action) =>
-        ['declare', 'correct'].includes(action),
-      ),
-  )
+function resolveCurrentVirement(detail, result, selected, historicalPage) {
+  if (selected) return selected
+  const firstRequest = result?.data?.[0]
+  return !historicalPage &&
+    !detail.virement_context.current_request_id &&
+    firstRequest?.state === 'returned'
+    ? firstRequest
+    : null
 }
 
 function AdministrativeStep({
@@ -1036,6 +1039,12 @@ function ExecutionDetail({
   const selectedOperation = detail.operations.find(
     (operation) => operation.id === selectedOperationId,
   )
+  const currentVirement = resolveCurrentVirement(
+    detail,
+    virements,
+    selectedVirement,
+    virementHistoryPage,
+  )
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
@@ -1083,40 +1092,57 @@ function ExecutionDetail({
           </p>
         )}
       <Panel
-        as="dl"
-        className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-xl [&_dd]:font-semibold [&_dd]:text-navy"
+        as="section"
+        className="overflow-hidden p-0 gap-0 [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-xl [&_dd]:font-semibold [&_dd]:text-navy"
       >
-        <div>
-          <dt>{strings.currentBudget}</dt>
-          <dd>{formatXof(detail.approved_allocation)}</dd>
-        </div>
-        <div>
-          <dt>{strings.realization}</dt>
-          <dd>{strings.realizationStates[detail.realization_status] || '—'}</dd>
-        </div>
-        <div>
-          <dt>
-            {strings.spentAmount} ·{' '}
-            {detail.works_completed
-              ? strings.finalAmount
-              : strings.partialAmount}
-          </dt>
-          <dd>{formatXof(detail.spending_total)}</dd>
-          <small className="text-muted-foreground">
-            {detail.completed_operations} / {detail.operation_count}{' '}
-            {strings.operationsCount}
-          </small>
-        </div>
-        <div>
-          <dt>{strings.unusedBalance}</dt>
-          <dd>{formatXof(detail.balance)}</dd>
-        </div>
-        <div>
-          <dt>{strings.requiredReversement}</dt>
-          <dd>{formatXof(detail.required_reversement)}</dd>
-        </div>
+        <dl className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-8 px-6 py-7 max-[760px]:grid-cols-1">
+          <div>
+            <dt>{strings.currentBudget}</dt>
+            <dd>{formatXof(detail.approved_allocation)}</dd>
+          </div>
+          <div>
+            <dt>
+              {strings.spentAmount} ·{' '}
+              {detail.works_completed
+                ? strings.finalAmount
+                : strings.partialAmount}
+            </dt>
+            <dd>{formatFinanceAmount(detail.spending_total)}</dd>
+            <small className="text-muted-foreground">
+              {countRecordedOperations(detail.operations)} /{' '}
+              {detail.operation_count} {strings.operationsCount}
+            </small>
+          </div>
+          <div>
+            <dt>{strings.amountToReturn}</dt>
+            <dd>{formatFinanceAmount(detail.required_reversement)}</dd>
+          </div>
+        </dl>
+        <details className="group border-t border-border">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-6 py-3 text-sm text-primary [&::-webkit-details-marker]:hidden">
+            <span>{strings.confirmedAuthorizations}</span>
+            <ChevronDown
+              className="transition-transform group-open:rotate-180"
+              size={18}
+              aria-hidden="true"
+            />
+          </summary>
+          <dl className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-8 border-t border-border px-6 py-5 max-[760px]:grid-cols-1">
+            <div>
+              <dt>{strings.realization}</dt>
+              <dd>
+                {strings.realizationStates[detail.realization_status] || '—'}
+              </dd>
+            </div>
+            <div>
+              <dt>{strings.unusedBalance}</dt>
+              <dd>{formatXof(detail.balance)}</dd>
+            </div>
+          </dl>
+        </details>
       </Panel>
       <ExecutionOperations
+        key={detail.works_completed ? 'completed' : 'in-progress'}
         detail={detail}
         onSelect={(operationId, opener) => {
           operationOpener.current = opener
@@ -1143,13 +1169,13 @@ function ExecutionDetail({
         aria-labelledby="administrative-title"
         className="overflow-hidden rounded-panel border border-border bg-white"
       >
-        <header className="px-6 py-5">
+        <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
           <h2 id="administrative-title" className="font-semibold text-navy">
             {strings.administrativeFollowUp}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <span className="rounded-card bg-selected px-2.5 py-1 text-xs font-medium text-primary">
             {executionStage(detail)}
-          </p>
+          </span>
         </header>
         <div>
           {detail.works_completed && detail.spending_total === '0' && (
@@ -1176,17 +1202,28 @@ function ExecutionDetail({
               />
             </AdministrativeStep>
           )}
-          {(detail.spending_total !== '0' || finance?.count > 0) && (
+          {(!detail.works_completed ||
+            detail.spending_total !== '0' ||
+            finance?.count > 0) && (
             <>
               <AdministrativeStep
                 key={`disbursement:${administrativeStatus(finance, 'À demander')}`}
                 title="Autorisation de décaissement"
-                description="Faire approuver le montant final à décaisser."
-                status={administrativeStatus(finance, 'À demander')}
+                description={
+                  finance?.count
+                    ? 'Faire approuver le montant final à décaisser.'
+                    : strings.noRequest
+                }
+                status={administrativeStatus(
+                  finance,
+                  detail.works_completed ? 'À demander' : 'À venir',
+                )}
                 completed={administrativeStepCompleted(finance)}
                 defaultOpen={
-                  hasAdministrativeAction(finance) ||
-                  hasUnresolvedAdministrativeStep(finance) ||
+                  (detail.works_completed &&
+                    hasAdministrativeAction(finance)) ||
+                  (detail.works_completed &&
+                    hasUnresolvedAdministrativeStep(finance)) ||
                   (role === 'AGENT_SAISIE' &&
                     detail.works_completed &&
                     Number(detail.spending_total) > 0 &&
@@ -1195,57 +1232,97 @@ function ExecutionDetail({
                     ))
                 }
               >
-                <DisbursementSection
-                  fallback={sectionFallbacks.finance}
-                  detail={detail}
-                  result={finance}
-                  selected={selectedFinance}
-                  role={role}
-                  historicalPage={financeHistoryPage}
-                  pending={pending}
-                  mutate={mutateFinance}
-                  onPage={onFinancePage}
-                  onSelect={onFinanceSelect}
-                />
-              </AdministrativeStep>
-              {detail.spending_total !== '0' && (
-                <AdministrativeStep
-                  key={`virement:${administrativeStatus(virements, 'À venir')}:${Boolean(detail.virement_context?.can_submit)}:${selectedVirement?.id || ''}:${Boolean(selectedVirement?.current_confirmation)}:${selectedVirement?.reversement?.allowed_actions?.join(',') || ''}`}
-                  title="Autorisation de virement"
-                  description="Faire autoriser le virement du montant approuvé."
-                  status={administrativeStatus(virements, 'À venir')}
-                  completed={administrativeStepCompleted(virements)}
-                  defaultOpen={
-                    hasAdministrativeAction(virements) ||
-                    hasUnresolvedAdministrativeStep(virements) ||
-                    hasVirementFollowUp(virements, selectedVirement) ||
-                    (role === 'AGENT_SAISIE' &&
-                      detail.virement_context?.can_submit)
-                  }
-                >
-                  <VirementSection
-                    fallback={sectionFallbacks.virements}
+                {detail.works_completed ? (
+                  <DisbursementSection
+                    fallback={sectionFallbacks.finance}
                     detail={detail}
-                    result={virements}
-                    selected={selectedVirement}
-                    confirmationHistory={confirmationHistory}
-                    reversementHistory={reversementHistory}
-                    selectedBySearch={virementSelectedBySearch}
+                    result={finance}
+                    selected={selectedFinance}
                     role={role}
-                    historicalPage={virementHistoryPage}
+                    historicalPage={financeHistoryPage}
                     pending={pending}
                     mutate={mutateFinance}
-                    uploadReversementEvidence={uploadReversementEvidence}
-                    reversementFile={reversementFile}
-                    setReversementFile={setReversementFile}
-                    reversementUploadError={reversementUploadError}
-                    setReversementUploadError={setReversementUploadError}
-                    onPage={onVirementPage}
-                    onSelect={onVirementSelect}
-                    onConfirmationPage={onConfirmationPage}
-                    onReversementPage={onReversementPage}
+                    onPage={onFinancePage}
+                    onSelect={onFinanceSelect}
                   />
-                </AdministrativeStep>
+                ) : (
+                  <p>{strings.previousStepsIncomplete}</p>
+                )}
+              </AdministrativeStep>
+              {(!detail.works_completed || detail.spending_total !== '0') && (
+                <>
+                  <AdministrativeStep
+                    key={`virement:${administrativeStatus(virements, 'À venir')}:${Boolean(detail.virement_context?.can_submit)}:${selectedVirement?.id || ''}`}
+                    title="Autorisation de virement"
+                    description={
+                      virements?.count
+                        ? 'Faire autoriser le virement du montant approuvé.'
+                        : strings.noRequest
+                    }
+                    status={administrativeStatus(virements, 'À venir')}
+                    completed={administrativeStepCompleted(virements)}
+                    defaultOpen={
+                      (detail.works_completed &&
+                        hasAdministrativeAction(virements)) ||
+                      (detail.works_completed &&
+                        hasUnresolvedAdministrativeStep(virements)) ||
+                      (role === 'AGENT_SAISIE' &&
+                        detail.virement_context?.can_submit)
+                    }
+                  >
+                    {detail.works_completed ? (
+                      <VirementSection
+                        fallback={sectionFallbacks.virements}
+                        detail={detail}
+                        result={virements}
+                        current={currentVirement}
+                        selectedBySearch={virementSelectedBySearch}
+                        role={role}
+                        historicalPage={virementHistoryPage}
+                        pending={pending}
+                        mutate={mutateFinance}
+                        onPage={onVirementPage}
+                        onSelect={onVirementSelect}
+                      />
+                    ) : (
+                      <p>{strings.previousStepsIncomplete}</p>
+                    )}
+                  </AdministrativeStep>
+                  {currentVirement?.state === 'approved' ? (
+                    <>
+                      <ExternalTransferStep
+                        current={currentVirement}
+                        history={confirmationHistory}
+                        pending={pending}
+                        mutate={mutateFinance}
+                        onPage={onConfirmationPage}
+                      />
+                      {currentVirement.reversement && (
+                        <ReversementStep
+                          detail={detail}
+                          current={currentVirement}
+                          history={reversementHistory}
+                          pending={pending}
+                          mutate={mutateFinance}
+                          uploadEvidence={uploadReversementEvidence}
+                          file={reversementFile}
+                          setFile={setReversementFile}
+                          uploadError={reversementUploadError}
+                          setUploadError={setReversementUploadError}
+                          onPage={onReversementPage}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <AdministrativeStep
+                      title={strings.externalTransfer}
+                      description={strings.notConfirmed}
+                      status="À venir"
+                    >
+                      <p>{strings.previousStepsIncomplete}</p>
+                    </AdministrativeStep>
+                  )}
+                </>
               )}
             </>
           )}
@@ -1277,16 +1354,26 @@ function ExecutionDetail({
           <AdministrativeStep
             key={`closure:${Boolean(detail.closure)}:${detail.allowed_actions?.includes('close')}`}
             title="Clôture de l’activité"
-            description="Confirmer que l’activité et son règlement sont terminés."
+            description={
+              detail.works_completed
+                ? 'Confirmer que l’activité et son règlement sont terminés.'
+                : strings.finishRealization
+            }
             status={detail.closure ? 'Terminée' : 'À venir'}
             completed={Boolean(detail.closure)}
             defaultOpen={detail.allowed_actions?.includes('close')}
           >
-            <ClosureSection
-              detail={detail}
-              pending={pending}
-              mutate={mutateFinance}
-            />
+            {detail.works_completed ? (
+              <ClosureSection
+                detail={detail}
+                pending={pending}
+                mutate={mutateFinance}
+              />
+            ) : (
+              <Button type="button" disabled>
+                {strings.closeActivity}
+              </Button>
+            )}
           </AdministrativeStep>
         </div>
       </section>
@@ -1789,62 +1876,208 @@ function DisbursementSection({
   )
 }
 
-function VirementSection({
-  fallback,
-  detail,
-  result,
-  selected,
-  selectedBySearch,
-  confirmationHistory,
-  reversementHistory,
-  role,
-  historicalPage,
+function ExternalTransferStep({
+  current,
+  history: confirmationHistory,
   pending,
   mutate,
-  uploadReversementEvidence,
-  reversementFile,
-  setReversementFile,
-  reversementUploadError,
-  setReversementUploadError,
-  onPage,
-  onSelect,
-  onConfirmationPage,
-  onReversementPage,
+  onPage: onConfirmationPage,
+}) {
+  const version = current.activity_version
+  return (
+    <AdministrativeStep
+      key={`confirmation:${Boolean(current.current_confirmation)}`}
+      title={strings.externalTransfer}
+      description="Enregistrer la date et la référence du virement effectué."
+      status={current.current_confirmation ? 'Confirmé' : 'À confirmer'}
+      completed={Boolean(current.current_confirmation)}
+      defaultOpen={
+        !current.current_confirmation ||
+        current.allowed_actions.some((action) =>
+          ['declare_confirmation', 'correct_confirmation'].includes(action),
+        ) ||
+        current.reversement?.allowed_actions?.some((action) =>
+          ['declare', 'correct'].includes(action),
+        )
+      }
+    >
+      <h3>Virement externe déclaré</h3>
+      <p>
+        MJL enregistre la déclaration de l’Agent sans vérifier le mouvement
+        bancaire. Le montant doit correspondre exactement à{' '}
+        <strong>{formatXof(current.amount)}</strong>.
+      </p>
+      {current.current_confirmation && (
+        <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
+          <div>
+            <dt>Date effective</dt>
+            <dd>{formatDate(current.current_confirmation.transfer_date)}</dd>
+          </div>
+          <div>
+            <dt>Référence ou commentaire</dt>
+            <dd>{current.current_confirmation.note || '—'}</dd>
+          </div>
+          <div>
+            <dt>Enregistré le</dt>
+            <dd>
+              <time dateTime={current.current_confirmation.recorded_at}>
+                {formatDateTime(current.current_confirmation.recorded_at)}
+              </time>
+            </dd>
+          </div>
+        </dl>
+      )}
+      {(current.allowed_actions.includes('declare_confirmation') ||
+        current.allowed_actions.includes('correct_confirmation')) && (
+        <BusinessForm
+          key={current.current_confirmation?.revision || 'initial'}
+          className="[&_>_label]:w-full"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            const correcting = Boolean(current.current_confirmation)
+            return mutate(
+              `/virement-requests/${current.id}/confirmation${
+                correcting ? '/corrections' : ''
+              }`,
+              {
+                expected_version: version,
+                transfer_date: String(data.get('transfer_date') || ''),
+                note: String(data.get('note') || ''),
+                ...(correcting
+                  ? { reason: String(data.get('reason') || '') }
+                  : {}),
+              },
+            )
+          }}
+        >
+          <label>
+            Date effective du virement *
+            <input
+              type="date"
+              name="transfer_date"
+              required
+              defaultValue={current.current_confirmation?.transfer_date}
+            />
+          </label>
+          <label>
+            Référence ou commentaire
+            <textarea
+              name="note"
+              maxLength="4000"
+              defaultValue={current.current_confirmation?.note || ''}
+            />
+          </label>
+          {current.current_confirmation && (
+            <label>
+              Motif de la correction *
+              <textarea name="reason" required maxLength="4000" />
+            </label>
+          )}
+          <label>
+            <input type="checkbox" required /> Je confirme que ce montant a été
+            viré. *
+          </label>
+          <Button type="submit" disabled={pending || !navigator.onLine}>
+            {current.current_confirmation
+              ? 'Corriger la déclaration'
+              : 'Enregistrer la déclaration'}
+          </Button>
+        </BusinessForm>
+      )}
+      {confirmationHistory?.data?.length > 0 && (
+        <details>
+          <summary>
+            Historique des déclarations ({confirmationHistory.count})
+          </summary>
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
+            {confirmationHistory.data.map((entry) => (
+              <li key={entry.id}>
+                <strong>
+                  {entry.correction_reason
+                    ? 'Déclaration corrigée'
+                    : 'Déclaration initiale'}
+                </strong>
+                <p>
+                  {formatXof(entry.amount)} · Date effective :{' '}
+                  {formatDate(entry.transfer_date)}
+                </p>
+                {entry.note && <p>{entry.note}</p>}
+                <p>Déclarée par {entry.actor_name}</p>
+                <p>
+                  <time dateTime={entry.recorded_at}>
+                    Enregistrée le {formatDateTime(entry.recorded_at)}
+                  </time>
+                </p>
+                {entry.correction_reason && (
+                  <p>Motif : {entry.correction_reason}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+          {(confirmationHistory.previous || confirmationHistory.next) && (
+            <nav
+              className="flex gap-2 items-end flex-wrap"
+              aria-label="Pagination des déclarations de virement"
+            >
+              <Button
+                variant="outline"
+                disabled={!confirmationHistory.previous}
+                onClick={() => onConfirmationPage(confirmationHistory.previous)}
+              >
+                Précédent
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!confirmationHistory.next}
+                onClick={() => onConfirmationPage(confirmationHistory.next)}
+              >
+                Suivant
+              </Button>
+            </nav>
+          )}
+        </details>
+      )}
+    </AdministrativeStep>
+  )
+}
+
+function ReversementStep({
+  detail,
+  current,
+  history: reversementHistory,
+  pending,
+  mutate,
+  uploadEvidence: uploadReversementEvidence,
+  file: reversementFile,
+  setFile: setReversementFile,
+  uploadError: reversementUploadError,
+  setUploadError: setReversementUploadError,
+  onPage: onReversementPage,
 }) {
   const [reversementOpen, setReversementOpen] = useState(false)
   const [reversementDate, setReversementDate] = useState('')
   const reversementOpener = useRef(null)
-  if (!result) return fallback
-  const requests = result.data
-  const current =
-    selected ||
-    (!historicalPage &&
-    !detail.virement_context.current_request_id &&
-    requests[0]?.state === 'returned'
-      ? requests[0]
-      : null)
-  const context = detail.virement_context
-  const stateLabels = {
-    submitted: 'Soumise au Superviseur',
-    prevalidated: 'Prévalidée, en attente du Validateur',
-    returned: 'Retournée pour correction',
-    approved: 'Autorisée',
-    cancelled: 'Annulée',
-  }
-  const version = current?.activity_version || detail.version
+  const version = current.activity_version
   return (
-    <Panel aria-labelledby="virement-title">
-      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div>
-          <h2 id="virement-title">Autorisation de virement</h2>
-        </div>
-        {current && <strong>{stateLabels[current.state]}</strong>}
-      </div>
-      <p>
-        Cette autorisation porte sur le montant de décaissement déjà approuvé.
-        Elle ne confirme pas qu’un virement externe a été effectué.
-      </p>
-      {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
+    <AdministrativeStep
+      title={strings.unusedFundsReturn}
+      description={`${formatXof(current.reversement.required_amount)} · ${current.reversement.status === 'not_required' ? strings.noReturnRequired : strings.returnRequired}`}
+      status={
+        current.reversement.current_declaration ||
+        current.reversement.status === 'not_required'
+          ? strings.completedMasculine
+          : 'À confirmer'
+      }
+      completed={
+        Boolean(current.reversement.current_declaration) ||
+        current.reversement.status === 'not_required'
+      }
+      defaultOpen={current.reversement.allowed_actions.some((action) =>
+        ['declare', 'correct'].includes(action),
+      )}
+    >
+      <h3 id="reversement-title">Reversement au Partenaire</h3>
       {reversementUploadError && reversementFile && (
         <div role="alert" className="grid gap-3 border-l-4 border-l-danger p-3">
           <p>
@@ -1883,6 +2116,301 @@ function VirementSection({
           )}
         </div>
       )}
+      <p>
+        Montant autorisé :{' '}
+        <strong>{formatXof(detail.approved_allocation)}</strong> · montant
+        dépensé : <strong>{formatXof(current.amount)}</strong>.
+      </p>
+      <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
+        <div>
+          <dt>Montant à reverser</dt>
+          <dd>{formatXof(current.reversement.required_amount)}</dd>
+        </div>
+        <div>
+          <dt>Montant déclaré reversé</dt>
+          <dd>{formatXof(current.reversement.declared_amount)}</dd>
+        </div>
+      </dl>
+      {current.reversement.status === 'not_required' && (
+        <p className="border-l-4 border-l-primary bg-background py-3 px-4">
+          <CheckCircle2 size={16} aria-hidden="true" /> Aucun reversement
+          requis.
+        </p>
+      )}
+      {current.reversement.current_declaration && (
+        <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
+          <div>
+            <dt>Date effective du reversement</dt>
+            <dd>
+              {formatDate(current.reversement.current_declaration.return_date)}
+            </dd>
+          </div>
+          <div>
+            <dt>Référence ou commentaire</dt>
+            <dd>{current.reversement.current_declaration.note || '—'}</dd>
+          </div>
+          <div>
+            <dt>Enregistré le</dt>
+            <dd>
+              <time
+                dateTime={current.reversement.current_declaration.recorded_at}
+              >
+                {formatDateTime(
+                  current.reversement.current_declaration.recorded_at,
+                )}
+              </time>
+            </dd>
+          </div>
+        </dl>
+      )}
+      {(current.reversement.allowed_actions.includes('declare') ||
+        current.reversement.allowed_actions.includes('correct')) && (
+        <>
+          <Button
+            ref={reversementOpener}
+            type="button"
+            onClick={() => {
+              setReversementDate(
+                current.reversement.current_declaration?.return_date || '',
+              )
+              setReversementOpen(true)
+            }}
+          >
+            {current.reversement.current_declaration
+              ? 'Corriger le reversement'
+              : strings.recordReversement}
+          </Button>
+          <Modal
+            open={reversementOpen}
+            onClose={() => setReversementOpen(false)}
+            label={
+              current.reversement.current_declaration
+                ? 'Corriger le reversement'
+                : 'Enregistrer le reversement'
+            }
+            opener={reversementOpener}
+          >
+            <BusinessForm
+              key={
+                current.reversement.current_declaration?.revision || 'initial'
+              }
+              className="[&_>_label]:w-full"
+              onSubmit={async (event) => {
+                event.preventDefault()
+                const data = new FormData(event.currentTarget)
+                const correcting = Boolean(
+                  current.reversement.current_declaration,
+                )
+                setReversementOpen(false)
+                const saved = await mutate(
+                  `/virement-requests/${current.id}/reversement${
+                    correcting ? '/corrections' : ''
+                  }`,
+                  {
+                    expected_version: version,
+                    return_date: String(data.get('return_date') || ''),
+                    note: String(data.get('reversement_note') || ''),
+                    ...(correcting
+                      ? {
+                          reason: String(data.get('reversement_reason') || ''),
+                        }
+                      : {}),
+                  },
+                )
+                if (!saved) {
+                  setReversementOpen(true)
+                  return
+                }
+                if (reversementFile) {
+                  try {
+                    await uploadReversementEvidence(reversementFile)
+                    toast.success(
+                      'Reversement et pièce justificative enregistrés.',
+                    )
+                    setReversementFile(null)
+                  } catch (error) {
+                    if (error.name === 'AbortError') return
+                    setReversementUploadError(
+                      error.kind === 'uncertain_upload'
+                        ? 'uncertain'
+                        : [403, 409].includes(error.status)
+                          ? 'forbidden'
+                          : 'retry',
+                    )
+                    return
+                  }
+                }
+              }}
+            >
+              <p className="border-l-4 border-l-primary bg-background py-3 px-4">
+                {strings.exactReversement} :{' '}
+                <strong>
+                  {formatXof(current.reversement.required_amount)}
+                </strong>
+              </p>
+              <div className="grid gap-[6px] text-[0.8125rem] font-medium">
+                <span>Date effective du reversement *</span>
+                <DatePicker
+                  label="Date effective du reversement"
+                  value={reversementDate}
+                  onChange={setReversementDate}
+                />
+                <input
+                  type="hidden"
+                  name="return_date"
+                  value={reversementDate}
+                />
+              </div>
+              <label>
+                Référence ou commentaire du reversement
+                <textarea
+                  name="reversement_note"
+                  maxLength="4000"
+                  defaultValue={
+                    current.reversement.current_declaration?.note || ''
+                  }
+                />
+              </label>
+              {current.reversement.current_declaration && (
+                <label>
+                  Motif de la correction du reversement *
+                  <textarea
+                    name="reversement_reason"
+                    required
+                    maxLength="4000"
+                  />
+                </label>
+              )}
+              <label>
+                Pièce justificative du reversement (facultative)
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  onChange={(event) => {
+                    setReversementFile(event.target.files?.[0] || null)
+                    setReversementUploadError(null)
+                  }}
+                />
+              </label>
+              <label>
+                <input type="checkbox" required /> Je confirme que ce montant
+                exact a été reversé au Partenaire. *
+              </label>
+              <div data-ui="modal-actions">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setReversementOpen(false)}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!reversementDate || pending || !navigator.onLine}
+                >
+                  {current.reversement.current_declaration
+                    ? 'Corriger le reversement'
+                    : 'Enregistrer le reversement'}
+                </Button>
+              </div>
+            </BusinessForm>
+          </Modal>
+        </>
+      )}
+      {reversementHistory?.data?.length > 0 && (
+        <details>
+          <summary>
+            Historique des reversements ({reversementHistory.count})
+          </summary>
+          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
+            {reversementHistory.data.map((entry) => (
+              <li key={entry.id}>
+                <strong>
+                  {entry.correction_reason
+                    ? 'Reversement corrigé'
+                    : 'Reversement initial'}
+                </strong>
+                <p>
+                  {formatXof(entry.returned_amount)} · Date effective :{' '}
+                  {formatDate(entry.return_date)}
+                </p>
+                {entry.note && <p>{entry.note}</p>}
+                <p>Déclaré par {entry.actor_name}</p>
+                <p>
+                  <time dateTime={entry.recorded_at}>
+                    Enregistré le {formatDateTime(entry.recorded_at)}
+                  </time>
+                </p>
+                {entry.correction_reason && (
+                  <p>Motif : {entry.correction_reason}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+          {(reversementHistory.previous || reversementHistory.next) && (
+            <nav
+              className="flex gap-2 items-end flex-wrap"
+              aria-label="Pagination des déclarations de reversement"
+            >
+              <Button
+                variant="outline"
+                disabled={!reversementHistory.previous}
+                onClick={() => onReversementPage(reversementHistory.previous)}
+              >
+                Précédent
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!reversementHistory.next}
+                onClick={() => onReversementPage(reversementHistory.next)}
+              >
+                Suivant
+              </Button>
+            </nav>
+          )}
+        </details>
+      )}
+    </AdministrativeStep>
+  )
+}
+
+function VirementSection({
+  fallback,
+  detail,
+  result,
+  current,
+  selectedBySearch,
+  role,
+  historicalPage,
+  pending,
+  mutate,
+  onPage,
+  onSelect,
+}) {
+  if (!result) return fallback
+  const requests = result.data
+  const context = detail.virement_context
+  const stateLabels = {
+    submitted: 'Soumise au Superviseur',
+    prevalidated: 'Prévalidée, en attente du Validateur',
+    returned: 'Retournée pour correction',
+    approved: 'Autorisée',
+    cancelled: 'Annulée',
+  }
+  const version = current?.activity_version || detail.version
+  return (
+    <Panel aria-labelledby="virement-title">
+      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
+        <div>
+          <h2 id="virement-title">Autorisation de virement</h2>
+        </div>
+        {current && <strong>{stateLabels[current.state]}</strong>}
+      </div>
+      <p>
+        Cette autorisation porte sur le montant de décaissement déjà approuvé.
+        Elle ne confirme pas qu’un virement externe a été effectué.
+      </p>
+      {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
       {current ? (
         <>
           <p className="border-l-4 border-l-primary bg-background py-3 px-4">
@@ -1940,462 +2468,6 @@ function VirementSection({
               </Button>
             )}
           </div>
-          {current.state === 'approved' && (
-            <AdministrativeStep
-              key={`confirmation:${Boolean(current.current_confirmation)}`}
-              title="Confirmation du virement externe"
-              description="Enregistrer la date et la référence du virement effectué."
-              status={current.current_confirmation ? 'Confirmé' : 'À confirmer'}
-              completed={Boolean(current.current_confirmation)}
-              defaultOpen={
-                !current.current_confirmation ||
-                current.allowed_actions.some((action) =>
-                  ['declare_confirmation', 'correct_confirmation'].includes(
-                    action,
-                  ),
-                ) ||
-                current.reversement?.allowed_actions?.some((action) =>
-                  ['declare', 'correct'].includes(action),
-                )
-              }
-            >
-              <h3>Virement externe déclaré</h3>
-              <p>
-                MJL enregistre la déclaration de l’Agent sans vérifier le
-                mouvement bancaire. Le montant doit correspondre exactement à{' '}
-                <strong>{formatXof(current.amount)}</strong>.
-              </p>
-              {current.current_confirmation && (
-                <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
-                  <div>
-                    <dt>Date effective</dt>
-                    <dd>
-                      {formatDate(current.current_confirmation.transfer_date)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Référence ou commentaire</dt>
-                    <dd>{current.current_confirmation.note || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Enregistré le</dt>
-                    <dd>
-                      <time dateTime={current.current_confirmation.recorded_at}>
-                        {formatDateTime(
-                          current.current_confirmation.recorded_at,
-                        )}
-                      </time>
-                    </dd>
-                  </div>
-                </dl>
-              )}
-              {(current.allowed_actions.includes('declare_confirmation') ||
-                current.allowed_actions.includes('correct_confirmation')) && (
-                <BusinessForm
-                  key={current.current_confirmation?.revision || 'initial'}
-                  className="[&_>_label]:w-full"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const data = new FormData(event.currentTarget)
-                    const correcting = Boolean(current.current_confirmation)
-                    return mutate(
-                      `/virement-requests/${current.id}/confirmation${
-                        correcting ? '/corrections' : ''
-                      }`,
-                      {
-                        expected_version: version,
-                        transfer_date: String(data.get('transfer_date') || ''),
-                        note: String(data.get('note') || ''),
-                        ...(correcting
-                          ? { reason: String(data.get('reason') || '') }
-                          : {}),
-                      },
-                    )
-                  }}
-                >
-                  <label>
-                    Date effective du virement *
-                    <input
-                      type="date"
-                      name="transfer_date"
-                      required
-                      defaultValue={current.current_confirmation?.transfer_date}
-                    />
-                  </label>
-                  <label>
-                    Référence ou commentaire
-                    <textarea
-                      name="note"
-                      maxLength="4000"
-                      defaultValue={current.current_confirmation?.note || ''}
-                    />
-                  </label>
-                  {current.current_confirmation && (
-                    <label>
-                      Motif de la correction *
-                      <textarea name="reason" required maxLength="4000" />
-                    </label>
-                  )}
-                  <label>
-                    <input type="checkbox" required /> Je confirme que ce
-                    montant a été viré. *
-                  </label>
-                  <Button type="submit" disabled={pending || !navigator.onLine}>
-                    {current.current_confirmation
-                      ? 'Corriger la déclaration'
-                      : 'Enregistrer la déclaration'}
-                  </Button>
-                </BusinessForm>
-              )}
-              {confirmationHistory?.data?.length > 0 && (
-                <details>
-                  <summary>
-                    Historique des déclarations ({confirmationHistory.count})
-                  </summary>
-                  <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-                    {confirmationHistory.data.map((entry) => (
-                      <li key={entry.id}>
-                        <strong>
-                          {entry.correction_reason
-                            ? 'Déclaration corrigée'
-                            : 'Déclaration initiale'}
-                        </strong>
-                        <p>
-                          {formatXof(entry.amount)} · Date effective :{' '}
-                          {formatDate(entry.transfer_date)}
-                        </p>
-                        {entry.note && <p>{entry.note}</p>}
-                        <p>Déclarée par {entry.actor_name}</p>
-                        <p>
-                          <time dateTime={entry.recorded_at}>
-                            Enregistrée le {formatDateTime(entry.recorded_at)}
-                          </time>
-                        </p>
-                        {entry.correction_reason && (
-                          <p>Motif : {entry.correction_reason}</p>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                  {(confirmationHistory.previous ||
-                    confirmationHistory.next) && (
-                    <nav
-                      className="flex gap-2 items-end flex-wrap"
-                      aria-label="Pagination des déclarations de virement"
-                    >
-                      <Button
-                        variant="outline"
-                        disabled={!confirmationHistory.previous}
-                        onClick={() =>
-                          onConfirmationPage(confirmationHistory.previous)
-                        }
-                      >
-                        Précédent
-                      </Button>
-                      <Button
-                        variant="outline"
-                        disabled={!confirmationHistory.next}
-                        onClick={() =>
-                          onConfirmationPage(confirmationHistory.next)
-                        }
-                      >
-                        Suivant
-                      </Button>
-                    </nav>
-                  )}
-                </details>
-              )}
-              {current.reversement && (
-                <Panel aria-labelledby="reversement-title">
-                  <h3 id="reversement-title">Reversement au Partenaire</h3>
-                  <p>
-                    Montant autorisé :{' '}
-                    <strong>{formatXof(detail.approved_allocation)}</strong> ·
-                    montant dépensé :{' '}
-                    <strong>{formatXof(current.amount)}</strong>.
-                  </p>
-                  <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
-                    <div>
-                      <dt>Montant à reverser</dt>
-                      <dd>{formatXof(current.reversement.required_amount)}</dd>
-                    </div>
-                    <div>
-                      <dt>Montant déclaré reversé</dt>
-                      <dd>{formatXof(current.reversement.declared_amount)}</dd>
-                    </div>
-                  </dl>
-                  {current.reversement.status === 'not_required' && (
-                    <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-                      <CheckCircle2 size={16} aria-hidden="true" /> Aucun
-                      reversement requis.
-                    </p>
-                  )}
-                  {current.reversement.current_declaration && (
-                    <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
-                      <div>
-                        <dt>Date effective du reversement</dt>
-                        <dd>
-                          {formatDate(
-                            current.reversement.current_declaration.return_date,
-                          )}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Référence ou commentaire</dt>
-                        <dd>
-                          {current.reversement.current_declaration.note || '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Enregistré le</dt>
-                        <dd>
-                          <time
-                            dateTime={
-                              current.reversement.current_declaration
-                                .recorded_at
-                            }
-                          >
-                            {formatDateTime(
-                              current.reversement.current_declaration
-                                .recorded_at,
-                            )}
-                          </time>
-                        </dd>
-                      </div>
-                    </dl>
-                  )}
-                  {(current.reversement.allowed_actions.includes('declare') ||
-                    current.reversement.allowed_actions.includes(
-                      'correct',
-                    )) && (
-                    <>
-                      <Button
-                        ref={reversementOpener}
-                        type="button"
-                        onClick={() => {
-                          setReversementDate(
-                            current.reversement.current_declaration
-                              ?.return_date || '',
-                          )
-                          setReversementOpen(true)
-                        }}
-                      >
-                        {current.reversement.current_declaration
-                          ? 'Corriger le reversement'
-                          : strings.recordReversement}
-                      </Button>
-                      <Modal
-                        open={reversementOpen}
-                        onClose={() => setReversementOpen(false)}
-                        label={
-                          current.reversement.current_declaration
-                            ? 'Corriger le reversement'
-                            : 'Enregistrer le reversement'
-                        }
-                        opener={reversementOpener}
-                      >
-                        <BusinessForm
-                          key={
-                            current.reversement.current_declaration?.revision ||
-                            'initial'
-                          }
-                          className="[&_>_label]:w-full"
-                          onSubmit={async (event) => {
-                            event.preventDefault()
-                            const data = new FormData(event.currentTarget)
-                            const correcting = Boolean(
-                              current.reversement.current_declaration,
-                            )
-                            setReversementOpen(false)
-                            const saved = await mutate(
-                              `/virement-requests/${current.id}/reversement${
-                                correcting ? '/corrections' : ''
-                              }`,
-                              {
-                                expected_version: version,
-                                return_date: String(
-                                  data.get('return_date') || '',
-                                ),
-                                note: String(
-                                  data.get('reversement_note') || '',
-                                ),
-                                ...(correcting
-                                  ? {
-                                      reason: String(
-                                        data.get('reversement_reason') || '',
-                                      ),
-                                    }
-                                  : {}),
-                              },
-                            )
-                            if (!saved) {
-                              setReversementOpen(true)
-                              return
-                            }
-                            if (reversementFile) {
-                              try {
-                                await uploadReversementEvidence(reversementFile)
-                                toast.success(
-                                  'Reversement et pièce justificative enregistrés.',
-                                )
-                                setReversementFile(null)
-                              } catch (error) {
-                                if (error.name === 'AbortError') return
-                                setReversementUploadError(
-                                  error.kind === 'uncertain_upload'
-                                    ? 'uncertain'
-                                    : [403, 409].includes(error.status)
-                                      ? 'forbidden'
-                                      : 'retry',
-                                )
-                                return
-                              }
-                            }
-                          }}
-                        >
-                          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-                            {strings.exactReversement} :{' '}
-                            <strong>
-                              {formatXof(current.reversement.required_amount)}
-                            </strong>
-                          </p>
-                          <div className="grid gap-[6px] text-[0.8125rem] font-medium">
-                            <span>Date effective du reversement *</span>
-                            <DatePicker
-                              label="Date effective du reversement"
-                              value={reversementDate}
-                              onChange={setReversementDate}
-                            />
-                            <input
-                              type="hidden"
-                              name="return_date"
-                              value={reversementDate}
-                            />
-                          </div>
-                          <label>
-                            Référence ou commentaire du reversement
-                            <textarea
-                              name="reversement_note"
-                              maxLength="4000"
-                              defaultValue={
-                                current.reversement.current_declaration?.note ||
-                                ''
-                              }
-                            />
-                          </label>
-                          {current.reversement.current_declaration && (
-                            <label>
-                              Motif de la correction du reversement *
-                              <textarea
-                                name="reversement_reason"
-                                required
-                                maxLength="4000"
-                              />
-                            </label>
-                          )}
-                          <label>
-                            Pièce justificative du reversement (facultative)
-                            <input
-                              type="file"
-                              accept="application/pdf,image/jpeg,image/png"
-                              onChange={(event) => {
-                                setReversementFile(
-                                  event.target.files?.[0] || null,
-                                )
-                                setReversementUploadError(null)
-                              }}
-                            />
-                          </label>
-                          <label>
-                            <input type="checkbox" required /> Je confirme que
-                            ce montant exact a été reversé au Partenaire. *
-                          </label>
-                          <div data-ui="modal-actions">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setReversementOpen(false)}
-                            >
-                              Annuler
-                            </Button>
-                            <Button
-                              type="submit"
-                              disabled={
-                                !reversementDate || pending || !navigator.onLine
-                              }
-                            >
-                              {current.reversement.current_declaration
-                                ? 'Corriger le reversement'
-                                : 'Enregistrer le reversement'}
-                            </Button>
-                          </div>
-                        </BusinessForm>
-                      </Modal>
-                    </>
-                  )}
-                  {reversementHistory?.data?.length > 0 && (
-                    <details>
-                      <summary>
-                        Historique des reversements ({reversementHistory.count})
-                      </summary>
-                      <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-                        {reversementHistory.data.map((entry) => (
-                          <li key={entry.id}>
-                            <strong>
-                              {entry.correction_reason
-                                ? 'Reversement corrigé'
-                                : 'Reversement initial'}
-                            </strong>
-                            <p>
-                              {formatXof(entry.returned_amount)} · Date
-                              effective : {formatDate(entry.return_date)}
-                            </p>
-                            {entry.note && <p>{entry.note}</p>}
-                            <p>Déclaré par {entry.actor_name}</p>
-                            <p>
-                              <time dateTime={entry.recorded_at}>
-                                Enregistré le{' '}
-                                {formatDateTime(entry.recorded_at)}
-                              </time>
-                            </p>
-                            {entry.correction_reason && (
-                              <p>Motif : {entry.correction_reason}</p>
-                            )}
-                          </li>
-                        ))}
-                      </ol>
-                      {(reversementHistory.previous ||
-                        reversementHistory.next) && (
-                        <nav
-                          className="flex gap-2 items-end flex-wrap"
-                          aria-label="Pagination des déclarations de reversement"
-                        >
-                          <Button
-                            variant="outline"
-                            disabled={!reversementHistory.previous}
-                            onClick={() =>
-                              onReversementPage(reversementHistory.previous)
-                            }
-                          >
-                            Précédent
-                          </Button>
-                          <Button
-                            variant="outline"
-                            disabled={!reversementHistory.next}
-                            onClick={() =>
-                              onReversementPage(reversementHistory.next)
-                            }
-                          >
-                            Suivant
-                          </Button>
-                        </nav>
-                      )}
-                    </details>
-                  )}
-                </Panel>
-              )}
-            </AdministrativeStep>
-          )}
           {(current.allowed_actions.includes('return') ||
             current.allowed_actions.includes('cancel')) && (
             <BusinessForm

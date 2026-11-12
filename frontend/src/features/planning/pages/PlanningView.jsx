@@ -2591,109 +2591,116 @@ function ActivityDetail({
               {strings.downloadActivityFiche}
             </ProtectedDownload>
           )}
-          {item.allowed_actions.includes('edit') && (
-            <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>
-              {!item.planned_end || item.allocation === null
-                ? strings.completeProgramming
-                : strings.modify}
-            </Button>
-          )}
-          {item.allowed_actions.includes('open_amendment') && (
-            <Button
-              disabled={mutationBlocked}
-              onClick={(event) => {
-                workflowOpener.current = event.currentTarget
-                setWorkflowAction('open_amendment')
-              }}
-            >
-              {strings.openAmendment}
-            </Button>
-          )}
-          {item.allowed_actions.includes('cancel_amendment') && (
-            <Button
-              disabled={mutationBlocked}
-              variant="outline"
-              onClick={(event) => {
-                workflowOpener.current = event.currentTarget
-                setWorkflowAction('cancel_amendment')
-              }}
-            >
-              {strings.cancelAmendment}
-            </Button>
-          )}
-          {item.allowed_actions.includes('request_withdrawal') && (
-            <Button
-              disabled={mutationBlocked}
-              variant="outline"
-              onClick={(event) => {
-                workflowOpener.current = event.currentTarget
-                setWorkflowAction('request_withdrawal')
-              }}
-            >
-              {item.withdrawal
-                ? strings.correctWithdrawal
-                : strings.requestWithdrawal}
-            </Button>
-          )}
-          {item.allowed_actions.includes('cancel_withdrawal') && (
-            <Button
-              disabled={mutationBlocked}
-              variant="outline"
-              onClick={(event) => {
-                workflowOpener.current = event.currentTarget
-                setWorkflowAction('cancel_withdrawal')
-              }}
-            >
-              {strings.cancelWithdrawal}
-            </Button>
-          )}
-          {item.allowed_actions.includes('request_transfer') && (
-            <Button
-              disabled={mutationBlocked}
-              variant="outline"
-              onClick={(event) => {
-                workflowOpener.current = event.currentTarget
-                setWorkflowAction('request_transfer')
-              }}
-            >
-              {item.transfer
-                ? strings.correctTransfer
-                : strings.requestTransfer}
-            </Button>
-          )}
-          {item.allowed_actions.includes('cancel_transfer') && (
-            <Button
-              disabled={mutationBlocked}
-              variant="outline"
-              onClick={(event) => {
-                workflowOpener.current = event.currentTarget
-                setWorkflowAction('cancel_transfer')
-              }}
-            >
-              {strings.cancelTransfer}
-            </Button>
-          )}
-          {[
-            ['submit', strings.submitReview],
-            ['prevalidate', strings.prevalidate],
-            ['approve', strings.approve],
-            ['return', strings.returnCorrection],
-          ].map(
-            ([action, label]) =>
-              item.allowed_actions.includes(action) &&
-              !(action === 'submit' && programmingIncomplete) && (
+          {search.tab !== 'finance' && (
+            <>
+              {item.allowed_actions.includes('edit') && (
                 <Button
-                  key={action}
                   disabled={mutationBlocked}
-                  variant={action === 'return' ? 'outline' : 'default'}
+                  onClick={() => setEditing(true)}
+                >
+                  {!item.planned_end || item.allocation === null
+                    ? strings.completeProgramming
+                    : strings.modify}
+                </Button>
+              )}
+              {item.allowed_actions.includes('open_amendment') && (
+                <Button
+                  disabled={mutationBlocked}
                   onClick={(event) => {
                     workflowOpener.current = event.currentTarget
-                    setWorkflowAction(action)
+                    setWorkflowAction('open_amendment')
                   }}
                 >
-                  {label}
+                  {strings.openAmendment}
                 </Button>
-              ),
+              )}
+              {item.allowed_actions.includes('cancel_amendment') && (
+                <Button
+                  disabled={mutationBlocked}
+                  variant="outline"
+                  onClick={(event) => {
+                    workflowOpener.current = event.currentTarget
+                    setWorkflowAction('cancel_amendment')
+                  }}
+                >
+                  {strings.cancelAmendment}
+                </Button>
+              )}
+              {item.allowed_actions.includes('request_withdrawal') && (
+                <Button
+                  disabled={mutationBlocked}
+                  variant="outline"
+                  onClick={(event) => {
+                    workflowOpener.current = event.currentTarget
+                    setWorkflowAction('request_withdrawal')
+                  }}
+                >
+                  {item.withdrawal
+                    ? strings.correctWithdrawal
+                    : strings.requestWithdrawal}
+                </Button>
+              )}
+              {item.allowed_actions.includes('cancel_withdrawal') && (
+                <Button
+                  disabled={mutationBlocked}
+                  variant="outline"
+                  onClick={(event) => {
+                    workflowOpener.current = event.currentTarget
+                    setWorkflowAction('cancel_withdrawal')
+                  }}
+                >
+                  {strings.cancelWithdrawal}
+                </Button>
+              )}
+              {item.allowed_actions.includes('request_transfer') && (
+                <Button
+                  disabled={mutationBlocked}
+                  variant="outline"
+                  onClick={(event) => {
+                    workflowOpener.current = event.currentTarget
+                    setWorkflowAction('request_transfer')
+                  }}
+                >
+                  {item.transfer
+                    ? strings.correctTransfer
+                    : strings.requestTransfer}
+                </Button>
+              )}
+              {item.allowed_actions.includes('cancel_transfer') && (
+                <Button
+                  disabled={mutationBlocked}
+                  variant="outline"
+                  onClick={(event) => {
+                    workflowOpener.current = event.currentTarget
+                    setWorkflowAction('cancel_transfer')
+                  }}
+                >
+                  {strings.cancelTransfer}
+                </Button>
+              )}
+              {[
+                ['submit', strings.submitReview],
+                ['prevalidate', strings.prevalidate],
+                ['approve', strings.approve],
+                ['return', strings.returnCorrection],
+              ].map(
+                ([action, label]) =>
+                  item.allowed_actions.includes(action) &&
+                  !(action === 'submit' && programmingIncomplete) && (
+                    <Button
+                      key={action}
+                      disabled={mutationBlocked}
+                      variant={action === 'return' ? 'outline' : 'default'}
+                      onClick={(event) => {
+                        workflowOpener.current = event.currentTarget
+                        setWorkflowAction(action)
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ),
+              )}
+            </>
           )}
         </div>
       </div>

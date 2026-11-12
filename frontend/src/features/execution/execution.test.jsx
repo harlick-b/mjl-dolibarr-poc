@@ -58,7 +58,9 @@ function detail({ started = false, completed = false } = {}) {
     required_reversement: null,
     realization_status: completed
       ? 'completed_pending_validation'
-      : 'in_progress',
+      : started
+        ? 'in_progress'
+        : 'not_started',
     virement_context: {
       disbursement_request_id: null,
       amount: null,
@@ -81,7 +83,7 @@ function detail({ started = false, completed = false } = {}) {
         actual_spent: completed ? '100000' : null,
         execution_observation: completed ? 'Session terminée.' : '',
         variance: completed ? '0' : null,
-        allowed_actions: started ? ['record'] : ['start'],
+        allowed_actions: ['record'],
       },
     ],
   }
@@ -169,6 +171,12 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     withdrawal: null,
     transfer: null,
     correction: null,
+    allowed_actions: [
+      'read',
+      'open_amendment',
+      'request_withdrawal',
+      'request_transfer',
+    ],
   }
   const empty = {
     object: 'list',
@@ -265,6 +273,15 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     'page',
   )
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Demander une modification' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Retirer l’activité' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Transférer vers un autre PTA' }),
+  ).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Fiche récapitulative' }))
   await waitFor(() => expect(anchorClick).toHaveBeenCalledOnce())
   expect(
@@ -303,12 +320,112 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     'page',
   )
   expect(screen.queryByText('Budget autorisé actuel')).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Demander une modification' }),
+  ).toBeVisible()
 
   await user.click(screen.getByRole('link', { name: 'Réalisation & finances' }))
   expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
     header,
   )
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
+})
+
+test('agent records operations before the collapsed financial workflow', async () => {
+  const user = userEvent.setup()
+  let current = detail()
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(current))
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+  const router = makeExecutionRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    }),
+  )
+  render(<App router={router} />)
+
+  expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
+  expect(screen.getByText('Montant dépensé · partiel')).toBeVisible()
+  expect(screen.getByText('Montant à reverser')).toBeVisible()
+  expect(screen.getAllByText('Non renseigné')).toHaveLength(3)
+  expect(screen.getByText('Réalisation', { selector: 'dt' })).not.toBeVisible()
+  expect(screen.getByText('Solde non dépensé')).not.toBeVisible()
+  expect(screen.getByText('0 / 1 dépense renseignée')).toBeVisible()
+  expect(
+    screen.getByRole('button', { name: 'Renseigner Préparer la session' }),
+  ).toBeVisible()
+
+  const administration = within(
+    screen.getByRole('region', { name: 'Suivi administratif' }),
+  )
+  expect(
+    administration.getByText('Réalisation en cours', { exact: true }),
+  ).toBeVisible()
+  expect(
+    administration.getAllByText('Autorisation de décaissement', {
+      exact: true,
+    })[0],
+  ).toBeVisible()
+  const disbursementTitle = administration.getAllByText(
+    'Autorisation de décaissement',
+    { exact: true },
+  )[0]
+  await user.click(disbursementTitle.closest('summary'))
+  expect(
+    administration.getAllByText('Étapes précédentes non terminées.')[0],
+  ).toBeVisible()
+  expect(
+    administration.queryByRole('button', { name: /Soumettre/ }),
+  ).not.toBeInTheDocument()
+
+  current = {
+    ...current,
+    spending_total: '0',
+    operations: current.operations.map((operation) => ({
+      ...operation,
+      actual_spent: '0',
+    })),
+  }
+  await act(async () =>
+    router.options.context.queryClient.setQueryData(
+      ['execution', 'agent', 'activity', 'activity-1'],
+      current,
+    ),
+  )
+  expect(
+    administration.getAllByText('Autorisation de décaissement', {
+      exact: true,
+    })[0],
+  ).toBeVisible()
+  expect(administration.queryByText('Déclaration sans dépense')).toBeNull()
 })
 
 test('execution detail stays in page loading until all first-view reads are ready', async () => {
@@ -589,9 +706,10 @@ test('an observation draft keeps its version across refresh and can be explicitl
   render(<App router={router} />)
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
   expect(screen.getByText('Montant dépensé · final')).toBeVisible()
+  await user.click(screen.getByText('Autorisations et montants confirmés'))
   expect(screen.getByText('Terminée, en attente de validation')).toBeVisible()
   expect(screen.getByText('Solde non dépensé')).toBeVisible()
-  expect(screen.getByText('Reversement requis')).toBeVisible()
+  expect(screen.getByText('Montant à reverser')).toBeVisible()
   const administration = within(
     screen.getByRole('region', { name: 'Suivi administratif' }),
   )
@@ -609,7 +727,7 @@ test('an observation draft keeps its version across refresh and can be explicitl
     }),
   ).not.toBeInTheDocument()
   await user.click(
-    screen.getByRole('button', { name: 'Consulter Préparer la session' }),
+    screen.getByRole('button', { name: 'Renseigner Préparer la session' }),
   )
   expect(
     screen.getByRole('dialog', { name: 'Préparer la session' }),
@@ -1018,10 +1136,11 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   ).toBeVisible()
   expect(screen.queryByText('Autorisation de décaissement')).toBeNull()
   expect(screen.queryByText('Autorisation de virement')).toBeNull()
+  await user.click(screen.getByText('Autorisations et montants confirmés'))
   expect(screen.getByText('Solde non dépensé')).toBeVisible()
-  expect(screen.getByText('Reversement requis')).toBeVisible()
+  expect(screen.getByText('Montant à reverser')).toBeVisible()
   expect(
-    within(screen.getByText('Reversement requis').parentElement).getByText(
+    within(screen.getByText('Montant à reverser').parentElement).getByText(
       '0 F CFA',
     ),
   ).toBeVisible()
@@ -1442,7 +1561,7 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
   },
 )
 
-test('Agent starts and records an Operation without offline replay', async () => {
+test('Agent records an Operation and its start in one submission', async () => {
   const user = userEvent.setup()
   let current = detail()
   const fetch = vi.fn((url, options = {}) => {
@@ -1513,11 +1632,7 @@ test('Agent starts and records an Operation without offline replay', async () =>
         ),
       )
     if (path.includes('/operations/') && options.method === 'PATCH') {
-      const body = JSON.parse(options.body)
-      current =
-        body.action === 'start'
-          ? detail({ started: true })
-          : detail({ started: true, completed: true })
+      current = detail({ started: true, completed: true })
       return Promise.resolve(new Response(JSON.stringify(current)))
     }
     if (path.endsWith('/activities/activity-1/execution'))
@@ -1535,10 +1650,17 @@ test('Agent starts and records an Operation without offline replay', async () =>
     />,
   )
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
+  expect(screen.getByText('Non commencée')).toBeVisible()
   await user.click(
-    screen.getByRole('button', { name: 'Consulter Préparer la session' }),
+    screen.getByRole('button', { name: 'Renseigner Préparer la session' }),
   )
-  await user.click(screen.getByRole('button', { name: 'Démarrer' }))
+  expect(screen.queryByRole('button', { name: 'Démarrer' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  expect(
+    screen.getByText(
+      'Renseignez un montant ou une observation avant d’enregistrer.',
+    ),
+  ).toBeVisible()
   expect(
     await screen.findByLabelText('Montant dépensé final (F CFA)'),
   ).toBeVisible()
@@ -1549,15 +1671,6 @@ test('Agent starts and records an Operation without offline replay', async () =>
   await user.type(screen.getByLabelText('Observation'), 'Session terminée.')
   await user.click(screen.getByLabelText('Opération physiquement terminée'))
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-  expect(
-    within(
-      (
-        await screen.findByRole('button', {
-          name: 'Consulter Préparer la session',
-        })
-      ).closest('tr'),
-    ).getByText('Terminée'),
-  ).toBeVisible()
   await waitFor(() =>
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/activities/activity-1/operations/22222222-2222-4222-8222-222222222222/execution',
@@ -1565,7 +1678,7 @@ test('Agent starts and records an Operation without offline replay', async () =>
         method: 'PATCH',
         body: JSON.stringify({
           action: 'record',
-          expected_version: 6,
+          expected_version: 5,
           expected_approved_revision_id: '11111111-1111-4111-8111-111111111111',
           actual_spent: '100000',
           execution_completed: true,
@@ -2349,10 +2462,9 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     }),
   )
   await screen.findByRole('button', { name: 'Corriger la déclaration' })
-  const virementSection = screen
-    .getByRole('heading', { name: 'Autorisation de virement' })
-    .closest('section')
-  const virementPanel = within(virementSection)
+  const virementPanel = within(
+    screen.getByText('Virement externe', { exact: true }).closest('details'),
+  )
   await user.clear(virementPanel.getByLabelText('Date effective du virement *'))
   await user.type(
     virementPanel.getByLabelText('Date effective du virement *'),
@@ -2397,17 +2509,14 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       virementPanel.getByLabelText(/Référence ou commentaire/),
     ).toHaveValue('TEST-003'),
   )
-  await user.click(
-    screen.getByText('Autorisation de virement', { selector: 'strong' }),
-  )
   await waitFor(() =>
-    expect(screen.getByText('Confirmation du virement externe')).toBeVisible(),
+    expect(screen.getByText('Virement externe', { exact: true })).toBeVisible(),
   )
   const confirmationDetails = screen
-    .getByText('Confirmation du virement externe')
+    .getByText('Virement externe', { exact: true })
     .closest('details')
   if (!confirmationDetails.open)
-    await user.click(screen.getByText('Confirmation du virement externe'))
+    await user.click(screen.getByText('Virement externe', { exact: true }))
   await waitFor(() =>
     expect(
       virementPanel.getByText('Historique des déclarations (3)'),
@@ -2872,7 +2981,7 @@ test('zero reversement displays settlement without a declaration form', async ()
     />,
   )
   const confirmationStep = (
-    await screen.findByText('Confirmation du virement externe')
+    await screen.findByText('Virement externe', { exact: true })
   ).closest('details')
   expect(
     confirmationStep.querySelector('[data-administrative-state="complete"]'),
@@ -3214,7 +3323,7 @@ test('a reasoned execution correction refreshes the funding version without rele
   )
   await user.click(
     await screen.findByRole('button', {
-      name: 'Consulter Préparer la session',
+      name: 'Renseigner Préparer la session',
     }),
   )
   const amount = await screen.findByLabelText('Montant dépensé final (F CFA)')
@@ -3314,7 +3423,7 @@ test.each([503, 403, 404])(
     await user.click(
       await screen.findByRole(
         'button',
-        { name: 'Consulter Préparer la session' },
+        { name: 'Renseigner Préparer la session' },
         { timeout: 3000 },
       ),
     )

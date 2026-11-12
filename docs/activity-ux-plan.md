@@ -811,3 +811,36 @@ src/features/notifications/notification.test.jsx` completed **39 passed**. ESLin
 Prettier, the production PWA build and `git diff --check` passed; Vite retained its
 existing large-chunk warning. Human visual comparison at normal, narrow, and
 zoomed widths remains the outstanding acceptance step.
+
+## Agent finance action correction — progress, 2026-11-12
+
+The finance tab now keeps planning mutations out of the Activity header while
+retaining the direct fiche download. An assigned Agent enters each Operation
+through **Renseigner** inside the expanded physical-realization accordion. That
+accordion reports expenses entered rather than claiming unfinished Operations
+are complete, and it collapses after the final Operation is completed.
+
+The finance summary follows the supplied three-column composition: current
+authorized budget, partial/final spending with Operation count, and amount to
+return. Realization status and unused balance remain available under
+**Autorisations et montants confirmés**; unknown financial values use the
+reference copy **Non renseigné** while exact zero remains `0 F CFA`. Before
+physical realization is complete,
+the administrative rows remain collapsed and marked **À venir**; opening one
+shows only the unmet-prerequisite message, without a nested card or premature
+financial CTA. The external-virement row and disabled closure action remain
+visible in their respective accordion blocks, matching the initial reference
+state.
+
+After approval, authorization, external-virement confirmation, reversement and
+closure remain sibling accordion steps. Each declaration or correction CTA is
+shown inside the step it changes; completing one step does not hide the completed
+chronology required to understand the next one. An unfinished Activity whose
+entered amounts currently total zero still shows the future finance sequence;
+the zero-spending branch appears only after every Operation is complete.
+
+The combined Planning and Execution run completed 82 tests on the final source.
+ESLint passed with the existing session-cleanup warning, the production PWA
+build passed with the existing large-chunk warning, and `git diff --check`
+passed. Independent specification and standards re-review cleared the final
+candidate. Human visual acceptance remains outstanding.

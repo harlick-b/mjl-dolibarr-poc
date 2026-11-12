@@ -1,27 +1,59 @@
-import { useEffect, useRef } from 'react'
-import { CheckCircle2, CircleDollarSign, Play } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { CheckCircle2, ChevronDown, CircleDollarSign, Play } from 'lucide-react'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { formatDateTime, formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ExecutionView'
+import {
+  countRecordedOperations,
+  formatFinanceAmount,
+} from './executionPresentation'
+
+function canRecordOperation(operation) {
+  return operation.allowed_actions.includes('record')
+}
 
 export function ExecutionOperations({ detail, onSelect }) {
+  const [isOpen, setIsOpen] = useState(!detail.works_completed)
+  const recordedOperations = countRecordedOperations(detail.operations)
   return (
-    <section className="overflow-hidden rounded-panel border border-border bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-selected px-5 py-4">
-        <div>
-          <h2 className="font-semibold text-navy">
+    <details
+      className="group overflow-hidden rounded-panel border border-border bg-white"
+      open={isOpen}
+    >
+      <summary
+        className={`flex min-h-20 cursor-pointer list-none items-center gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden ${detail.works_completed ? 'bg-white' : 'bg-selected'}`}
+        onClick={(event) => {
+          event.preventDefault()
+          setIsOpen((current) => !current)
+        }}
+      >
+        <span
+          className={`grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold ${detail.works_completed ? 'border-success text-success' : 'border-primary text-primary'}`}
+          aria-hidden="true"
+        >
+          {detail.works_completed ? '✓' : '•'}
+        </span>
+        <span className="min-w-0 flex-1">
+          <strong className="block font-semibold text-navy">
             {strings.physicalProgress}
-          </h2>
+          </strong>
           <p className="text-sm text-muted-foreground">
-            {detail.completed_operations} / {detail.operation_count}{' '}
-            {strings.operationsCompleted}
+            {recordedOperations} / {detail.operation_count}{' '}
+            {detail.operation_count === 1
+              ? strings.expenseRecorded
+              : strings.expensesRecorded}
           </p>
-        </div>
+        </span>
         <span className="rounded-card bg-white px-2 py-1 text-xs text-primary">
           {detail.works_completed ? strings.completedLabel : strings.toProcess}
         </span>
-      </div>
+        <ChevronDown
+          className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+          size={18}
+          aria-hidden="true"
+        />
+      </summary>
       <div className="overflow-x-auto p-5">
         <table className="w-full text-sm">
           <thead className="border-b border-border bg-background">
@@ -55,24 +87,28 @@ export function ExecutionOperations({ detail, onSelect }) {
                   {formatXof(operation.approved_allocation)}
                 </td>
                 <td className="p-3 text-right">
-                  {formatXof(operation.actual_spent)}
+                  {formatFinanceAmount(operation.actual_spent)}
                 </td>
                 <td className="p-3">
                   {operation.execution_completed
                     ? strings.completedLabel
-                    : strings.ongoingLabel}
+                    : operation.execution_started_at
+                      ? strings.ongoingLabel
+                      : strings.notStartedLabel}
                 </td>
                 <td className="p-3 text-right">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    aria-label={`${strings.consult} ${operation.name}`}
+                    aria-label={`${canRecordOperation(operation) ? strings.record : strings.consult} ${operation.name}`}
                     onClick={(event) =>
                       onSelect(operation.id, event.currentTarget)
                     }
                   >
-                    {strings.consult}
+                    {canRecordOperation(operation)
+                      ? strings.record
+                      : strings.consult}
                   </Button>
                 </td>
               </tr>
@@ -80,13 +116,14 @@ export function ExecutionOperations({ detail, onSelect }) {
           </tbody>
         </table>
       </div>
-    </section>
+    </details>
   )
 }
 
 export function OperationEditor({ activity, operation, pending, mutate }) {
   const draftBasis = useRef(null)
   const formRef = useRef(null)
+  const [submissionError, setSubmissionError] = useState('')
   useEffect(() => {
     if (!draftBasis.current) formRef.current?.reset()
   }, [
@@ -116,26 +153,11 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
           {formatXof(operation.approved_allocation)}
         </strong>
       </div>
-      {operation.execution_started_at ? (
+      {operation.execution_started_at && (
         <p>
           <Play size={16} aria-hidden="true" /> Démarrée le{' '}
           {formatDateTime(operation.execution_started_at)}
         </p>
-      ) : (
-        operation.allowed_actions.includes('start') && (
-          <Button
-            disabled={pending || !navigator.onLine}
-            onClick={() =>
-              mutate(operation.id, {
-                action: 'start',
-                expected_version: activity.version,
-                expected_approved_revision_id: activity.approved_revision_id,
-              })
-            }
-          >
-            <Play size={16} /> Démarrer
-          </Button>
-        )
       )}
       {operation.variance !== null && (
         <p>Écart avec le montant autorisé : {formatXof(operation.variance)}</p>
@@ -145,6 +167,7 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
           formRef={formRef}
           className="grid gap-5 [&_>_label]:w-full"
           onChangeCapture={() => {
+            setSubmissionError('')
             draftBasis.current ??= {
               version: activity.version,
               revision: activity.approved_revision_id,
@@ -158,16 +181,25 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
             const form = event.currentTarget
             const data = new FormData(form)
             const amount = String(data.get('actual_spent') || '')
+            const completed = data.get('execution_completed') === 'on'
+            const observation = String(data.get('execution_observation') || '')
+            if (
+              !operation.execution_started_at &&
+              !amount &&
+              !completed &&
+              !observation.trim()
+            ) {
+              setSubmissionError(strings.progressRequired)
+              return false
+            }
             const body = {
               action: 'record',
               expected_version: draftBasis.current?.version ?? activity.version,
               expected_approved_revision_id:
                 draftBasis.current?.revision ?? activity.approved_revision_id,
               actual_spent: amount || null,
-              execution_completed: data.get('execution_completed') === 'on',
-              execution_observation: String(
-                data.get('execution_observation') || '',
-              ),
+              execution_completed: completed,
+              execution_observation: observation,
             }
             const reason = String(data.get('correction_reason') || '')
             if (reason) body.correction_reason = reason
@@ -212,6 +244,11 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
               Motif de la correction *
               <textarea name="correction_reason" required maxLength="4000" />
             </label>
+          )}
+          {submissionError && (
+            <p role="alert" className="text-sm text-destructive">
+              {submissionError}
+            </p>
           )}
           <div data-ui="modal-actions">
             <Button type="reset" variant="outline" disabled={pending}>
