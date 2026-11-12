@@ -91,6 +91,21 @@ export function ActivityExplorerFilters({
           disabled={disabled}
           onChange={(q) => onChange({ q })}
         />
+        {agentPath && !ownActivities && (
+          <QueryFilterSelect
+            kind="agent"
+            path={agentPath}
+            value={value.agent || ''}
+            valueLabel={agentLabel}
+            onResolvedLabel={setAgentLabel}
+            onChange={(agent, label = '') => {
+              setAgentLabel(label)
+              onChange({ agent })
+            }}
+            searchable
+            compact
+          />
+        )}
         <Popover.Root open={filterOpen} onOpenChange={setFilterOpen}>
           <Popover.Trigger asChild>
             <Button type="button" variant="outline" disabled={disabled}>
@@ -147,21 +162,6 @@ export function ActivityExplorerFilters({
                   ))}
                 </div>
               </fieldset>
-              {agentPath && !ownActivities && (
-                <QueryFilterSelect
-                  kind="agent"
-                  path={agentPath}
-                  value={value.agent || ''}
-                  valueLabel={agentLabel}
-                  onResolvedLabel={setAgentLabel}
-                  onChange={(agent, label = '') => {
-                    setAgentLabel(label)
-                    onChange({ agent })
-                  }}
-                  searchable
-                  compact
-                />
-              )}
               {dates && (
                 <fieldset className="grid gap-3">
                   <legend className="mb-1 text-xs text-muted-foreground">
@@ -192,11 +192,6 @@ export function ActivityExplorerFilters({
                   </p>
                 </fieldset>
               )}
-              <Popover.Close asChild>
-                <Button type="button" variant="outline" className="w-fit">
-                  {strings.showResults}
-                </Button>
-              </Popover.Close>
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>

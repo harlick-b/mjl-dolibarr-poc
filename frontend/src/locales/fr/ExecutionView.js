@@ -4,7 +4,12 @@ export const strings = new LocalizedStrings({
   fr: {
     assignmentRequired:
       'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
-    actualSpent: 'Montant dépensé (F CFA)',
+    actualSpent: 'Montant dépensé final (F CFA)',
+    operationTypeLabel: 'Type : {type}',
+    authorizedAmountLabel: 'Montant autorisé',
+    physicallyCompleted: 'Opération physiquement terminée',
+    zeroSpendingHelp:
+      'Saisissez 0 uniquement si aucune dépense n’a été engagée.',
     listTitle: 'Réalisation',
     listColumns: [
       'Activité / Référence',
@@ -60,11 +65,6 @@ export const strings = new LocalizedStrings({
     activitySheet: 'Fiche récapitulative',
     recordExecution: 'Renseigner la réalisation',
     administrativeFollowUp: 'Suivi administratif',
-    evidenceTitle: 'Pièces justificatives',
-    evidenceLink: 'Consulter les pièces justificatives',
-    operationEvidenceExplanation:
-      'Les pièces restent liées à l’Activité, pas à cette Opération.',
-    operationEvidenceLink: 'Consulter les pièces de l’Activité',
     operationType: 'Opération / Type',
     authorized: 'Autorisé',
     spent: 'Dépensé',

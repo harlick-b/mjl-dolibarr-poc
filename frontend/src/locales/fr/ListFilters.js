@@ -30,7 +30,6 @@ export const strings = new LocalizedStrings({
     refineResults: 'Affiner les résultats',
     activityPeriod: 'Période de l’activité',
     overlappingDates: 'Activités dont les dates croisent cette période.',
-    showResults: 'Voir les résultats',
   },
 })
 strings.setLanguage('fr')

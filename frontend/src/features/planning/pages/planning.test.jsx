@@ -149,6 +149,41 @@ function renderAnnualPage(path = '/projects/project-1/ptas/2027') {
   )
 }
 
+test('the annual plan stays in page loading until its Activity list is ready', async () => {
+  let resolveActivities
+  const baseFetch = annualPageFetch(vi.fn())
+  const fetch = vi.fn((url, options) => {
+    if (String(url).includes('/ptas/pta-1/activities'))
+      return new Promise((resolve) => {
+        resolveActivities = resolve
+      })
+    return baseFetch(url, options)
+  })
+  vi.stubGlobal('fetch', fetch)
+  renderAnnualPage()
+
+  await waitFor(() => expect(resolveActivities).toBeTypeOf('function'))
+  expect(
+    screen.getByRole('status', {
+      name: 'Chargement : Planification des activités sur l’année',
+    }),
+  ).toBeVisible()
+  expect(screen.queryByRole('heading', { name: 'PTA 2027' })).toBeNull()
+
+  resolveActivities(
+    new Response(
+      JSON.stringify({
+        object: 'list',
+        count: 0,
+        data: [],
+        next: null,
+        previous: null,
+      }),
+    ),
+  )
+  expect(await screen.findByRole('heading', { name: 'PTA 2027' })).toBeVisible()
+})
+
 test('the annual plan shows whole-PTA planning counts and approved budget', async () => {
   const user = userEvent.setup()
   const createObjectURL = vi.fn(() => 'blob:pta-export')
@@ -202,45 +237,24 @@ test('the annual plan shows whole-PTA planning counts and approved budget', asyn
   )
 })
 
-test('a Supervisor starts with Activities they can examine and can remove that filter', async () => {
-  const user = userEvent.setup()
+test('a Supervisor starts with the full Activity list and two review shortcuts', async () => {
   const fetch = annualPageFetch(vi.fn(), 'AGENT_VERIFICATEUR')
   vi.stubGlobal('fetch', fetch)
   renderAnnualPage()
 
   await screen.findByRole('region', { name: 'Synthèse du PTA' })
   expect(
-    screen.queryByRole('button', { name: 'À examiner' }),
-  ).not.toBeInTheDocument()
-  expect(
-    await screen.findByRole('button', {
-      name: 'Retirer le filtre Soumise pour prévalidation',
-    }),
+    screen.getByRole('button', { name: /Agent affecté · 0/ }),
   ).toBeVisible()
   expect(
-    screen.queryByRole('button', { name: /Agent affecté/ }),
+    screen.getByRole('button', { name: 'Soumise pour prévalidation' }),
+  ).toHaveAttribute('aria-pressed', 'false')
+  expect(
+    screen.getByRole('button', { name: 'Validation définitive attendue' }),
+  ).toHaveAttribute('aria-pressed', 'false')
+  expect(
+    screen.queryByRole('button', { name: 'En correction' }),
   ).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Filtres' }))
-  const agentFilter = await screen.findByText('Agent affecté')
-  expect(within(agentFilter.closest('label')).getByRole('button')).toBeVisible()
-  await waitFor(() =>
-    expect(
-      fetch.mock.calls.some(([url]) => {
-        const request = new URL(String(url), 'http://localhost')
-        return (
-          request.pathname.endsWith('/ptas/pta-1/activities') &&
-          request.searchParams.get('state') === 'submitted' &&
-          request.searchParams.get('review') === 'mine'
-        )
-      }),
-    ).toBe(true),
-  )
-
-  await user.click(
-    screen.getByRole('button', {
-      name: 'Retirer le filtre Soumise pour prévalidation',
-    }),
-  )
   await waitFor(() =>
     expect(
       fetch.mock.calls.some(([url]) => {
@@ -255,7 +269,7 @@ test('a Supervisor starts with Activities they can examine and can remove that f
   )
 })
 
-test('an Agent filter from the URL resolves its label while remaining behind Filters', async () => {
+test('an Agent filter from the URL resolves its label beside Filters', async () => {
   const fetch = annualPageFetch(vi.fn(), 'AGENT_VERIFICATEUR')
   vi.stubGlobal('fetch', fetch)
   renderAnnualPage(
@@ -276,8 +290,8 @@ test('an Agent filter from the URL resolves its label while remaining behind Fil
   })
   expect(chip).toHaveTextContent('Aïcha Agent ×')
   expect(
-    screen.queryByRole('button', { name: /Agent affecté ·/ }),
-  ).not.toBeInTheDocument()
+    screen.getByRole('button', { name: 'Agent affecté · 1' }),
+  ).toBeVisible()
 })
 
 test.each([

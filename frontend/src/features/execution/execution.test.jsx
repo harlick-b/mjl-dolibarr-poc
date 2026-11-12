@@ -75,6 +75,69 @@ function detail({ started = false, completed = false } = {}) {
   }
 }
 
+test('execution detail stays in page loading until all first-view reads are ready', async () => {
+  let resolveFinance
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(detail({ started: true })))
+      if (path.includes('/disbursement-requests'))
+        return new Promise((resolve) => {
+          resolveFinance = resolve
+        })
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  await waitFor(() => expect(resolveFinance).toBeTypeOf('function'))
+  expect(
+    screen.getByRole('status', {
+      name: 'Chargement : Détail de la réalisation',
+    }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('heading', { name: 'Former les équipes' }),
+  ).toBeNull()
+
+  resolveFinance(new Response(JSON.stringify(empty)))
+  expect(
+    await screen.findByRole('heading', { name: 'Former les équipes' }),
+  ).toBeVisible()
+})
+
 test('execution explorer searches assigned Agents and shows readable active filters', async () => {
   const user = userEvent.setup()
   vi.stubGlobal(
@@ -144,12 +207,16 @@ test('execution explorer searches assigned Agents and shows readable active filt
     }),
   ).toBeVisible()
 
+  const agent = await screen.findByLabelText('Agent affecté · 0')
   await user.click(screen.getByRole('button', { name: 'Filtres' }))
   expect(screen.getByText('Période de l’activité')).toBeVisible()
   expect(
     screen.getByText('Activités dont les dates croisent cette période.'),
   ).toBeVisible()
-  const agent = await screen.findByLabelText('Agent affecté')
+  expect(
+    screen.queryByRole('button', { name: 'Voir les résultats' }),
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Fermer' }))
   await user.click(agent)
   await user.click(screen.getByRole('option', { name: 'Agent de test' }))
   expect(
@@ -215,12 +282,27 @@ test('execution explorer keeps the selected activity period in its API request',
 
 test('an observation draft keeps its version across refresh and can be explicitly reset', async () => {
   const user = userEvent.setup()
+  const createObjectURL = vi.fn(() => 'blob:activity-fiche')
+  const revokeObjectURL = vi.fn()
+  const anchorClick = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  const NativeURL = URL
+  class PreviewURL extends NativeURL {}
+  PreviewURL.createObjectURL = createObjectURL
+  PreviewURL.revokeObjectURL = revokeObjectURL
+  vi.stubGlobal('URL', PreviewURL)
   let current = detail({ started: true, completed: true })
+  let resolveFiche
   const writes = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, options = {}) => {
       const path = String(url)
+      if (path.endsWith('/activities/activity-1/fiche.pdf'))
+        return new Promise((resolve) => {
+          resolveFiche = resolve
+        })
       if (path.includes('/funding-requests'))
         return new Response(
           JSON.stringify({
@@ -306,9 +388,31 @@ test('an observation draft keeps its version across refresh and can be explicitl
   expect(
     screen.getByRole('link', { name: 'Réalisation & finances' }),
   ).toHaveAttribute('aria-current', 'page')
+  await user.click(screen.getByRole('button', { name: 'Fiche récapitulative' }))
+  const fiche = await screen.findByRole('dialog', {
+    name: 'Fiche récapitulative',
+  })
   expect(
-    screen.getByRole('button', { name: 'Fiche récapitulative' }),
+    within(fiche).getByRole('status', {
+      name: 'Chargement de l’aperçu',
+    }),
   ).toBeVisible()
+  resolveFiche(
+    new Response('pdf', {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'attachment; filename="ACT-000001.pdf"',
+      },
+    }),
+  )
+  expect(
+    await within(fiche).findByTitle('Fiche récapitulative — Aperçu'),
+  ).toHaveAttribute('src', 'blob:activity-fiche')
+  expect(anchorClick).not.toHaveBeenCalled()
+  await user.click(within(fiche).getByRole('button', { name: 'Télécharger' }))
+  expect(anchorClick).toHaveBeenCalledOnce()
+  await user.click(within(fiche).getAllByRole('button', { name: 'Fermer' })[0])
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:activity-fiche')
   expect(screen.getByText('Budget autorisé actuel')).toBeVisible()
   expect(screen.getByText('Montant dépensé · final')).toBeVisible()
   expect(screen.getByText('Montant à reverser')).toBeVisible()
@@ -324,16 +428,34 @@ test('an observation draft keeps its version across refresh and can be explicitl
     administration.getAllByText('Clôture de l’activité', { exact: true })[0],
   ).toBeVisible()
   expect(
-    administration.getByRole('link', {
+    administration.queryByRole('link', {
       name: 'Consulter les pièces justificatives',
     }),
-  ).toHaveAttribute('href', '/activities/activity-1?tab=files')
+  ).not.toBeInTheDocument()
   await user.click(
     screen.getByRole('button', { name: 'Consulter Préparer la session' }),
   )
   expect(
     screen.getByRole('dialog', { name: 'Préparer la session' }),
-  ).toHaveTextContent('Formation')
+  ).toHaveTextContent('ACT-000001 · Former les équipes')
+  expect(
+    screen.getByRole('dialog', { name: 'Préparer la session' }),
+  ).toHaveTextContent('Type : Formation')
+  expect(
+    screen.getByRole('dialog', { name: 'Préparer la session' }),
+  ).toHaveTextContent('Montant autorisé')
+  expect(screen.getByLabelText('Montant dépensé final (F CFA)')).toBeVisible()
+  expect(screen.getByLabelText('Opération physiquement terminée')).toBeVisible()
+  expect(
+    screen.getByText(
+      'Saisissez 0 uniquement si aucune dépense n’a été engagée.',
+    ),
+  ).toBeVisible()
+  expect(
+    within(
+      screen.getByRole('dialog', { name: 'Préparer la session' }),
+    ).queryByText('Pièces justificatives'),
+  ).not.toBeInTheDocument()
   await user.type(
     await screen.findByLabelText('Observation'),
     ' Précision locale.',
@@ -380,8 +502,12 @@ test('an observation draft keeps its version across refresh and can be explicitl
   expect(screen.getByLabelText('Observation')).toHaveValue(
     'Correction distante.',
   )
-  expect(screen.getByLabelText('Montant dépensé (F CFA)')).toHaveValue('110000')
-  expect(screen.getByLabelText('Opération terminée')).not.toBeChecked()
+  expect(screen.getByLabelText('Montant dépensé final (F CFA)')).toHaveValue(
+    '110000',
+  )
+  expect(
+    screen.getByLabelText('Opération physiquement terminée'),
+  ).not.toBeChecked()
   await user.type(screen.getByLabelText('Observation'), ' Complément.')
   await user.type(
     screen.getByLabelText('Motif de la correction *'),
@@ -1229,10 +1355,15 @@ test('Agent starts and records an Operation without offline replay', async () =>
     screen.getByRole('button', { name: 'Consulter Préparer la session' }),
   )
   await user.click(screen.getByRole('button', { name: 'Démarrer' }))
-  expect(await screen.findByLabelText('Montant dépensé (F CFA)')).toBeVisible()
-  await user.type(screen.getByLabelText('Montant dépensé (F CFA)'), '100000')
+  expect(
+    await screen.findByLabelText('Montant dépensé final (F CFA)'),
+  ).toBeVisible()
+  await user.type(
+    screen.getByLabelText('Montant dépensé final (F CFA)'),
+    '100000',
+  )
   await user.type(screen.getByLabelText('Observation'), 'Session terminée.')
-  await user.click(screen.getByLabelText('Opération terminée'))
+  await user.click(screen.getByLabelText('Opération physiquement terminée'))
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
   expect(
     within(
@@ -2822,7 +2953,7 @@ test('a reasoned execution correction refreshes the funding version without rele
       name: 'Consulter Préparer la session',
     }),
   )
-  const amount = await screen.findByLabelText('Montant dépensé (F CFA)')
+  const amount = await screen.findByLabelText('Montant dépensé final (F CFA)')
   await user.clear(amount)
   await user.type(amount, '90000')
   await user.type(

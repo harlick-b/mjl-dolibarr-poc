@@ -49,6 +49,7 @@ import {
 } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
+import { ProtectedPdfPreview } from '@/shared/ui/ProtectedPdfPreview'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { useProtectedCleanup } from '@/features/auth/session/access-verification'
@@ -332,7 +333,7 @@ function Workspace({ screen, session, onDenied }) {
         ? 'prevalidated'
         : ''
   const reviewMine = Boolean(
-    reviewerState && search.review !== 'all' && !search.state,
+    reviewerState && search.review === 'mine' && !search.state,
   )
   const effectiveState = reviewMine ? reviewerState : search.state
   const effectiveAgent = search.agent
@@ -397,7 +398,7 @@ function Workspace({ screen, session, onDenied }) {
       : screen === 'projects'
         ? [projects]
         : screen === 'pta'
-          ? [context, ...(context.data?.pta?.id ? [list] : [])]
+          ? [projects, context, ...(context.data?.pta?.id ? [list] : [])]
           : screen === 'activityNew'
             ? [types, context]
             : [activity, ...(historyActive ? [revisions] : [])]
@@ -407,11 +408,15 @@ function Workspace({ screen, session, onDenied }) {
   const primaryPending =
     (screen === 'partners' && partners.isPending) ||
     (screen === 'projects' && projects.isPending) ||
-    (screen === 'pta' && context.isPending) ||
+    (screen === 'pta' &&
+      (projects.isPending ||
+        context.isPending ||
+        (Boolean(context.data?.pta?.id) && list.isPending))) ||
     (screen === 'activityNew' &&
       (context.isPending ||
         (!authorization(session).can('ptaManagement') && types.isPending))) ||
-    (screen === 'activity' && activity.isPending)
+    (screen === 'activity' &&
+      (activity.isPending || (historyActive && revisions.isPending)))
   const submitSimple = async (event, path, field) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -444,10 +449,10 @@ function Workspace({ screen, session, onDenied }) {
       : screen === 'projects'
         ? [projects]
         : screen === 'pta'
-          ? [context]
+          ? [projects, context, ...(context.data?.pta?.id ? [list] : [])]
           : screen === 'activityNew'
             ? [types, context]
-            : [activity]
+            : [activity, ...(historyActive ? [revisions] : [])]
   if (
     primaryQueries.some(
       (query) =>
@@ -475,12 +480,12 @@ function Workspace({ screen, session, onDenied }) {
     !context.data?.allowed_actions.includes('create_activity')
   )
     return (
-      <Panel>
-        <p>{ptaStrings.required}</p>
-        <Link to={Urls.planning} className="text-primary">
-          {ptaStrings.breadcrumb}
-        </Link>
-      </Panel>
+      <p
+        role="status"
+        className="w-fit max-w-3xl border-l-4 border-l-primary bg-white px-4 py-3 text-sm"
+      >
+        {ptaStrings.required}
+      </p>
     )
   return (
     <section
@@ -1251,12 +1256,12 @@ function PTA({
         )}
       </Panel>
       {!context.pta && (
-        <Panel>
-          <p>{ptaStrings.required}</p>
-          <Link to={Urls.planning} className="text-primary">
-            {ptaStrings.breadcrumb}
-          </Link>
-        </Panel>
+        <p
+          role="status"
+          className="w-fit max-w-3xl border-l-4 border-l-primary bg-white px-4 py-3 text-sm"
+        >
+          {ptaStrings.required}
+        </p>
       )}
       <PlanningSummary summary={context.summary} />
       {context.pta && !result ? (
@@ -2577,13 +2582,15 @@ function ActivityDetail({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {item.approved_revision_id && (
-            <ProtectedDownload
+            <ProtectedPdfPreview
               path={`/api/v1/activities/${item.id}/fiche.pdf`}
+              title={strings.downloadActivityFiche}
               size="sm"
+              onDenied={onDenied}
             >
               <Download aria-hidden="true" />
               {strings.downloadActivityFiche}
-            </ProtectedDownload>
+            </ProtectedPdfPreview>
           )}
           {item.allowed_actions.includes('edit') && (
             <Button disabled={mutationBlocked} onClick={() => setEditing(true)}>

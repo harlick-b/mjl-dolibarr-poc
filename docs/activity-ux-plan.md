@@ -635,3 +635,75 @@ which was removed after the run. A broader auth E2E file ran four tests successf
 including the changed recovery journey, then exposed two pre-existing stale
 **Relances** selectors after that sidebar item had already become
 **Notifications**; the focused changed journey was rerun cleanly.
+
+## Follow-up — focused Activity reading and entry, 2026-11-12
+
+Authorized 2026-11-12. This slice removes information that distracts from the
+person's next decision and completes the interaction patterns already approved in
+`docs/inspiration/activities/`, `docs/inspiration/pta/` and
+`docs/inspiration/realisations/`. Existing workflow permissions, exact XOF values,
+draft visibility and immutable audit records remain unchanged.
+
+### Outcome and boundaries
+
+- The Activity timeline omits the routine draft-to-submission event and does not
+  present a creation snapshot as a long list of artificial before/after changes.
+  The underlying audit records remain available to the authorized global audit.
+- Planning and Execution hold their page loading state until all data needed for
+  the first complete view is ready. A missing annual PTA is explained with a
+  compact status alert.
+- Activity lists start without an active filter for every role. Planning exposes
+  only **Soumise pour prévalidation** and **Validation définitive attendue** as
+  quick choices. Agent search sits beside the Filters control; the filter panel
+  contains workflow state and overlapping dates and applies choices immediately.
+- The Execution row action follows the approved compact outlined button. Finance
+  does not repeat a supporting-documents panel. Operation entry opens in a
+  centered, content-sized modal with the approved fields and hierarchy, without a
+  document block.
+- **Fiche récapitulative** fetches the protected PDF into a preview dialog first;
+  download remains an explicit action from that preview. Authorization and
+  document-delivery errors keep their current handling.
+
+### Implementation seams and focused checks
+
+| Slice                    | Existing seams                                                                      | Focused evidence                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Human Activity history   | Activity-specific audit query and projection, Activity timeline                     | Submission is absent before pagination; creation has no invented changes; meaningful decisions and reasons remain       |
+| Complete initial loading | Planning and Execution query readiness                                              | A resolved primary read cannot reveal a partial page while required reads remain pending                                |
+| Activity list controls   | Shared Activity explorer filters, Planning quick states and reviewer query defaults | No initial state/review parameter; two Planning quick choices; Agent search outside the filter panel; no results button |
+| Finance entry            | Execution detail, operation modal and administrative panels                         | Centered operation form retains valid fields; no supporting-documents block; compact row action remains usable          |
+| Fiche preview            | Shared protected PDF preview used by Planning and Execution                         | CTA opens the fetched PDF preview without an automatic download; explicit download reuses the protected artifact        |
+
+Implement each behavioral seam with a focused failing check first. Then run the
+affected frontend and backend suites, lint/format/build checks justified by shared
+changes, update project status and send the complete diff and evidence to an
+independent review-only agent.
+
+### Progress — focused Activity reading and entry, 2026-11-12
+
+The Activity timeline now removes routine submission before pagination and keeps
+creation as a valid dated event without rendering its stored snapshot as invented
+before/after changes. The authorized global audit still retains both the complete
+creation detail and submission event.
+
+Planning and Execution now wait for every enabled first-view read before revealing
+their page. Planning opens with the complete authorized Activity list for every
+role, presents only the two review-stage shortcuts, and places searchable Agent
+selection beside the compact state/date filter panel. Missing PTA guidance is a
+small status alert. Execution uses the compact row action, no longer repeats
+supporting-document panels in finance or Operation entry, and opens Operation
+entry in a centered content-sized modal.
+
+The shared protected Fiche control now opens the fetched PDF in a large centered
+preview and downloads that same artifact only after an explicit action. Planning
+and Execution both use this control.
+
+Final frontend evidence passed 79 Planning and Execution tests. The corrected
+Operation modal then passed the complete 33-test Execution file. ESLint, full
+Prettier, the production PWA build and `git diff --check` passed; Vite retained its
+existing large-bundle warning. The complete disposable-PostgreSQL audit-history
+file passed 14 tests, including global-audit preservation, Activity pagination,
+draft visibility and the concise timeline. Focused Ruff, backend formatting and
+strict mypy passed. The disposable database container was removed. Independent
+review cleared the corrected candidate with no blocking findings. Human visual
+comparison at normal and zoomed sizes remains the acceptance boundary.

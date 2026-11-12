@@ -377,14 +377,14 @@ def test_activity_business_history_uses_global_events_and_resource_guards(planni
     assert history.json()["count"] == 1
     actor = history.json()["data"][0]["actor"]
     assert actor == {
-        "full_name": planning["agent"].get("/api/v1/auth/session").json()["user"][
-            "full_name"
-        ],
-        "role": "Agent de saisie",
+        "full_name": planning["agent"]
+        .get("/api/v1/auth/session")
+        .json()["user"]["full_name"],
+        "role": None,
     }
     assert "email" not in str(history.json()["data"])
     for role in ("agent2", "supervisor", "validator"):
-        assert planning[role].get(path).status_code == 200
+        assert planning[role].get(path).status_code == 404
     assert planning["admin"].get(path).status_code == 403
     assert (
         planning["agent"].get(f"/api/v1/activities/{uuid4()}/history").status_code
@@ -398,7 +398,7 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
 ):
     from uuid import uuid4
 
-    from tests.planning.test_planning import patch, plan, put
+    from tests.planning.test_planning import patch, plan
 
     _, category, project = references(planning)
     agent = planning["agent"]
@@ -424,22 +424,7 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     initial_history = agent.get(path + "/history").json()
     assert initial_history["count"] == 1
     agent_user = agent.get("/api/v1/auth/session").json()["user"]
-    assigned_change = next(
-        change
-        for change in initial_history["data"][0]["changes"]
-        if change["field"] == "Agents affectés"
-    )
-    assert assigned_change["after"] == agent_user["full_name"]
-    assert agent_user["id"] not in str(initial_history["data"][0]["changes"])
-    assigned = put(
-        planning["supervisor"],
-        path + "/assignments",
-        {
-            "expected_version": created["version"],
-            "agent_ids": created["agent_ids"],
-        },
-    )
-    assert assigned.status_code == 200
+    assert initial_history["data"][0]["changes"] == []
     assert agent.get(path + "/history").json()["count"] == 1
     replacement_category = post(
         agent,
@@ -469,9 +454,9 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     with Session(planning["auth"].engine) as db, db.begin():
         user = db.get(User, agent_user["id"], with_for_update=True)
         user.full_name = None
-    sanitized = planning["agent2"].get(path + "/history").json()
+    sanitized = agent.get(path + "/history").json()
     assert "agent@example.test" not in str(sanitized["data"])
-    assert "Identité indisponible" in str(sanitized["data"])
+    assert "Utilisateur indisponible" in str(sanitized["data"])
     original = planning["auth"].business_audit
 
     def reject_after_audit(*args, **kwargs):
@@ -491,10 +476,10 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     assert agent.get(path).json()["name"] == created["name"]
 
 
-def test_activity_history_keeps_the_role_recorded_when_the_event_happened(planning):
+def test_activity_history_omits_submission_and_creation_snapshot_noise(planning):
     from uuid import uuid4
 
-    from tests.planning.test_planning import plan
+    from tests.planning.test_planning import patch, plan, replace_body
 
     _partner, category, project = references(planning)
     created = post(
@@ -508,18 +493,62 @@ def test_activity_history_keeps_the_role_recorded_when_the_event_happened(planni
         {"expected_version": created["version"]},
     )
     assert submitted.status_code == 201, submitted.text
-    agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
-    with Session(planning["auth"].engine) as db, db.begin():
-        user = db.get(User, agent_id, with_for_update=True)
-        user.role = "AGENT_VERIFICATEUR"
-    history = planning["agent2"].get(
-        f"/api/v1/activities/{created['id']}/history"
+    prevalidated = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{created['id']}/revisions/{submitted.json()['id']}/decisions",
+        {
+            "expected_version": submitted.json()["activity_version"],
+            "decision": "prevalidate",
+            "reason": "Informations vérifiées.",
+        },
     )
+    assert prevalidated.status_code == 201, prevalidated.text
+    returned = post(
+        planning["validator"],
+        f"/api/v1/activities/{created['id']}/revisions/{submitted.json()['id']}/decisions",
+        {
+            "expected_version": prevalidated.json()["activity_version"],
+            "decision": "return",
+            "reason": "Préciser la description.",
+        },
+    )
+    assert returned.status_code == 201, returned.text
+    current = planning["agent"].get(f"/api/v1/activities/{created['id']}").json()
+    corrected = patch(
+        planning["agent"],
+        f"/api/v1/activities/{created['id']}",
+        replace_body(
+            current,
+            description="Description corrigée.",
+            expected_version=returned.json()["activity_version"],
+        ),
+    )
+    assert corrected.status_code == 200, corrected.text
+    resubmitted = post(
+        planning["agent"],
+        f"/api/v1/activities/{created['id']}/submissions",
+        {"expected_version": corrected.json()["version"]},
+    )
+    assert resubmitted.status_code == 201, resubmitted.text
+    history = planning["agent"].get(f"/api/v1/activities/{created['id']}/history")
     assert history.status_code == 200, history.text
-    submitted_event = next(
-        row for row in history.json()["data"] if row["action"] == "activity.submit"
-    )
-    assert submitted_event["actor"]["role"] == "Agent de saisie"
+    data = history.json()["data"]
+    submission_events = [row for row in data if row["action"] == "activity.submit"]
+    assert len(submission_events) == 1
+    assert next(
+        change
+        for change in submission_events[0]["changes"]
+        if change["field"] == "État"
+    ) == {
+        "field": "État",
+        "before": "Retourné par le validateur",
+        "after": "Soumis",
+    }
+    created_event = next(row for row in data if row["action"] == "activity.create")
+    assert created_event["changes"] == []
+    decision = next(row for row in data if row["action"] == "activity.prevalidate")
+    assert decision["actor"]["role"] == "Superviseur"
+    assert decision["reason"] == "Informations vérifiées."
 
 
 def test_representative_history_journey_finance_reasons_exports_and_partner_denial(
@@ -550,7 +579,6 @@ def test_representative_history_journey_finance_reasons_exports_and_partner_deni
     actions = [row["action"] for row in history["data"]]
     for action in (
         "activity.create",
-        "activity.submit",
         "activity.prevalidate",
         "activity.approve",
         "disbursement.submit",
@@ -571,9 +599,10 @@ def test_representative_history_journey_finance_reasons_exports_and_partner_deni
         rows = client.get(
             "/api/v1/audit-events", params={"activity": activity["id"]}
         ).json()["data"]
-        assert [row["id"] for row in rows] == [
+        assert [row["id"] for row in rows if row["action"] != "activity.submit"] == [
             row["id"] for row in history["data"]
         ]
+        assert sum(row["action"] == "activity.submit" for row in rows) == 1
         assert all("email" not in (row["actor"] or {}) for row in history["data"])
         assert all("id" not in (row["actor"] or {}) for row in history["data"])
         exported = client.post(

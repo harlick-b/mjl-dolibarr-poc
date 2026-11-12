@@ -1,9 +1,6 @@
-import { Urls } from '@/app/urls'
 import { useEffect, useRef } from 'react'
-import { Link } from '@tanstack/react-router'
 import { CheckCircle2, CircleDollarSign, Play } from 'lucide-react'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
-import { Panel } from '@/shared/ui/layout'
 import { Button } from '@/shared/ui/button'
 import { formatDateTime, formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ExecutionView'
@@ -102,15 +99,22 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
     operation.execution_observation ||
     operation.execution_completed
   return (
-    <Panel as="div" className="rounded-none border-0 p-6 shadow-none">
-      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div>
-          <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            {operation.type_label}
-          </p>
-          <h2>{operation.name}</h2>
-        </div>
-        <span>{formatXof(operation.approved_allocation)} autorisés</span>
+    <div className="grid gap-5 p-6">
+      <div className="grid gap-2">
+        <p className="text-sm text-muted-foreground">
+          {activity.reference} · {activity.name}
+        </p>
+        <p className="text-sm text-foreground">
+          {strings.formatString(strings.operationTypeLabel, {
+            type: operation.type_label,
+          })}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-4 border-b border-border py-4 text-sm">
+        <span>{strings.authorizedAmountLabel}</span>
+        <strong className="font-semibold text-navy">
+          {formatXof(operation.approved_allocation)}
+        </strong>
       </div>
       {operation.execution_started_at ? (
         <p>
@@ -139,7 +143,7 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
       {operation.allowed_actions.includes('record') && (
         <BusinessForm
           formRef={formRef}
-          className="[&_>_label]:w-full"
+          className="grid gap-5 [&_>_label]:w-full"
           onChangeCapture={() => {
             draftBasis.current ??= {
               version: activity.version,
@@ -175,25 +179,26 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
             return result
           }}
         >
-          <div className="flex gap-3 items-end flex-wrap">
-            <label>
-              {strings.actualSpent}
-              <input
-                name="actual_spent"
-                inputMode="numeric"
-                pattern="(0|[1-9][0-9]*)"
-                defaultValue={operation.actual_spent ?? ''}
-              />
-            </label>
-            <label className="grid-cols-[auto_1fr] items-center min-h-11 [&_input]:min-h-auto [&_input]:w-5 [&_input]:h-5">
-              <input
-                name="execution_completed"
-                type="checkbox"
-                defaultChecked={operation.execution_completed}
-              />
-              Opération terminée
-            </label>
-          </div>
+          <label>
+            {strings.actualSpent}
+            <input
+              name="actual_spent"
+              inputMode="numeric"
+              pattern="(0|[1-9][0-9]*)"
+              defaultValue={operation.actual_spent ?? ''}
+            />
+          </label>
+          <label className="grid-cols-[auto_1fr] items-center min-h-11 [&_input]:min-h-auto [&_input]:w-5 [&_input]:h-5">
+            <input
+              name="execution_completed"
+              type="checkbox"
+              defaultChecked={operation.execution_completed}
+            />
+            {strings.physicallyCompleted}
+          </label>
+          <p className="text-sm text-muted-foreground">
+            {strings.zeroSpendingHelp}
+          </p>
           <label>
             Observation
             <textarea
@@ -208,34 +213,21 @@ export function OperationEditor({ activity, operation, pending, mutate }) {
               <textarea name="correction_reason" required maxLength="4000" />
             </label>
           )}
-          <Button type="submit" disabled={pending || !navigator.onLine}>
-            {operation.execution_completed ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <CircleDollarSign size={16} />
-            )}
-            Enregistrer
-          </Button>
-          <Button type="reset" variant="outline" disabled={pending}>
-            {strings.cancelEntry}
-          </Button>
+          <div data-ui="modal-actions">
+            <Button type="reset" variant="outline" disabled={pending}>
+              {strings.cancelEntry}
+            </Button>
+            <Button type="submit" disabled={pending || !navigator.onLine}>
+              {operation.execution_completed ? (
+                <CheckCircle2 size={16} />
+              ) : (
+                <CircleDollarSign size={16} />
+              )}
+              Enregistrer
+            </Button>
+          </div>
         </BusinessForm>
       )}
-      <section className="border-t border-border pt-5">
-        <h3 className="font-semibold text-navy">{strings.evidenceTitle}</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {strings.operationEvidenceExplanation}
-        </p>
-        <Button asChild variant="outline" className="mt-3">
-          <Link
-            to={Urls.activity}
-            params={{ activityId: activity.id }}
-            search={{ tab: 'files' }}
-          >
-            {strings.operationEvidenceLink}
-          </Link>
-        </Button>
-      </section>
-    </Panel>
+    </div>
   )
 }

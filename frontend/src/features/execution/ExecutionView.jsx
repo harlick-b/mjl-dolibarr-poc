@@ -13,7 +13,7 @@ import {
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
-import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
+import { ProtectedPdfPreview } from '@/shared/ui/ProtectedPdfPreview'
 import { ExecutionOperations, OperationEditor } from './ExecutionOperations'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
@@ -25,7 +25,6 @@ import {
   ChevronDown,
   CircleDollarSign,
   FileDown,
-  Folder,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
@@ -538,6 +537,8 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       </RetryableError>
     )
   if (primary.isPending) return <ExecutionLoading screen={screen} />
+  if (relevant.some((query) => query.isPending && query.fetchStatus !== 'idle'))
+    return <ExecutionLoading screen={screen} />
   const readError = failedQueries.length > 0 && (
     <RetryableError onRetry={retryFailed}>
       {strings.unavailableExecution}
@@ -580,6 +581,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
       {readError}
       <ExecutionDetail
         detail={detail.data}
+        onDenied={onDenied}
         sectionFallbacks={{
           funding: missingRead(funding),
           finance: missingRead(finance),
@@ -766,7 +768,7 @@ export function ExecutionList({
             <col className="w-[16%]" />
             <col className="w-[13%]" />
             <col className="w-[14%]" />
-            <col className="w-[7%]" />
+            <col className="w-[9%]" />
           </colgroup>
           {rows.length > 0 && (
             <thead className="bg-background border-b border-border">
@@ -847,7 +849,12 @@ export function ExecutionList({
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Button asChild variant="outline" size="sm">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="min-w-24 whitespace-nowrap"
+                    >
                       <Link
                         to={Urls.executionActivity}
                         params={{ activityId: row.id }}
@@ -905,6 +912,7 @@ export function ExecutionList({
 function ExecutionDetail({
   sectionFallbacks,
   detail,
+  onDenied,
   finance,
   funding,
   onFundingPage,
@@ -989,12 +997,14 @@ function ExecutionDetail({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <ProtectedDownload
+            <ProtectedPdfPreview
               path={`/api/v1/activities/${detail.id}/fiche.pdf`}
+              title={strings.activitySheet}
               size="sm"
+              onDenied={onDenied}
             >
               <FileDown size={16} aria-hidden="true" /> {strings.activitySheet}
-            </ProtectedDownload>
+            </ProtectedPdfPreview>
             {detail.operations.some((operation) =>
               operation.allowed_actions.some((action) =>
                 ['start', 'record'].includes(action),
@@ -1167,7 +1177,7 @@ function ExecutionDetail({
         onClose={() => setSelectedOperationId(null)}
         label={selectedOperation?.name || 'Opération'}
         opener={operationOpener}
-        className="m-0 ml-auto h-dvh max-h-dvh w-[min(640px,100%)] rounded-none"
+        className="w-[min(640px,calc(100%-32px))]"
       >
         {selectedOperation && (
           <OperationEditor
@@ -1322,26 +1332,6 @@ function ExecutionDetail({
               mutate={mutateFinance}
             />
           </AdministrativeStep>
-          <Panel
-            aria-labelledby="execution-evidence-title"
-            className="flex-row flex-wrap items-center justify-between gap-4 px-5 py-4"
-          >
-            <h2
-              id="execution-evidence-title"
-              className="flex items-center gap-2 text-sm"
-            >
-              <Folder size={16} aria-hidden="true" /> {strings.evidenceTitle}
-            </h2>
-            <Button asChild variant="outline" size="sm">
-              <Link
-                to={Urls.activity}
-                params={{ activityId: detail.id }}
-                search={{ tab: 'files' }}
-              >
-                {strings.evidenceLink}
-              </Link>
-            </Button>
-          </Panel>
         </div>
       </section>
     </section>

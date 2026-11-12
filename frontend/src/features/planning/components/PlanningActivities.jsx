@@ -24,7 +24,6 @@ const stateOptions = [
 const quickStates = [
   ['submitted', strings.awaitingPrevalidation],
   ['prevalidated', strings.awaitingFinalValidation],
-  ['returned', strings.correctionCount],
 ].map(([value, label]) => ({ value, label }))
 
 const filterStates = [

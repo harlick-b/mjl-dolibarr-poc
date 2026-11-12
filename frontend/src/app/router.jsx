@@ -551,7 +551,7 @@ export function makeRouter(history, componentOverrides = {}) {
         projectCursor: String(search.projectCursor || '').slice(0, 512),
         q: String(search.q || '').slice(0, 200),
         state: String(search.state || '').slice(0, 32),
-        review: search.review === 'all' ? 'all' : 'mine',
+        review: search.review === 'mine' ? 'mine' : 'all',
         agent: String(search.agent || '').slice(0, 36),
         mine: search.mine === 'all' ? 'all' : 'own',
         from: String(search.from || '').slice(0, 10),

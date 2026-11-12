@@ -26,13 +26,13 @@ edit these two fields. Project and year remain fixed. New forms default the year
 to the current year and use the shared shadcn-based year/date controls.
 Activity creation always belongs to a PTA matching its planned start year.
 
-| Role                               | Allowed work                                                                                                                                                                                                   |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role                               | Allowed work                                                                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Agent de saisie                    | Plan, correct, submit and execute Activities; initiate financial requests, declare external settlement and close eligible Activities. Only assigned Agents may edit, submit or execute an Activity; other Agents retain read access. |
-| Agent superviseur et prévalidateur | Create PTAs and Activity briefs; prevalidate or return eligible requests; manage Agent assignments.                                                                                                                                             |
-| Validateur définitif               | Create PTAs and Activity briefs; final approval/return, Project lifecycle, Agent assignments and authorized evidence administration.                                                                                                            |
-| Admin                              | Invite/manage accounts and consult/export global audit. No business mutation.                                                                                                                                  |
-| Partner user                       | Read-only portal permanently bound to exactly one Partner. No internal role or scope switching.                                                                                                                |
+| Agent superviseur et prévalidateur | Create PTAs and Activity briefs; prevalidate or return eligible requests; manage Agent assignments.                                                                                                                                  |
+| Validateur définitif               | Create PTAs and Activity briefs; final approval/return, Project lifecycle, Agent assignments and authorized evidence administration.                                                                                                 |
+| Admin                              | Invite/manage accounts and consult/export global audit. No business mutation.                                                                                                                                                        |
+| Partner user                       | Read-only portal permanently bound to exactly one Partner. No internal role or scope switching.                                                                                                                                      |
 
 Internal identities have one exclusive role. Assignments identify responsibility and control Agent editing, submission and
 execution. An Agent creator is automatically assigned. Supervisor/Validator
@@ -216,8 +216,9 @@ Activities. Every unfinished Activity blocks closure. Closed Projects do not reo
 
 ## Evidence and Partner access
 
-Evidence is optional and Activity-scoped, including documents displayed in an
-Operation drawer; missing files never block submission or closure.
+Evidence is optional and Activity-scoped. Documents are shown in the Activity's
+supporting-documents section, not in the Operation entry modal; missing files
+never block submission or closure.
 Agents/Supervisors/Validators upload PDF/JPEG/PNG up to 20 MiB, validating display
 name, extension, declared media type, signature and parsed structure. Original
 bytes/metadata are immutable. Internal business roles list/download through fresh

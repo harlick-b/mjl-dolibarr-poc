@@ -1434,13 +1434,36 @@ the Activity with `404`; this run is not reported as a broad pass. Ruff, strict
 mypy, ESLint, Prettier and independent review passed for the notification candidate.
 The disposable PostgreSQL container was removed after verification.
 
+## Focused Activity reading and entry, 2026-11-12
+
+Activity history now omits the routine draft-to-submission event and presents
+creation without artificial before/after details. Immutable records and the
+authorized global audit remain complete. Planning and Execution retain a single
+page-loading state until all enabled first-view reads finish. Planning starts from
+the complete authorized list, offers two review-stage shortcuts and exposes Agent
+search beside a compact state/date filter panel.
+
+Missing PTA guidance is compact. Execution uses the approved compact follow-up
+action, removes repeated supporting-document panels from finance and Operation
+entry, and centers the content-sized Operation modal. **Fiche récapitulative** now
+opens a protected PDF preview before offering an explicit download in both
+Planning and Execution.
+
+Final focused verification passed 79 frontend Planning/Execution tests, including
+the complete 33-test Execution file after the Operation-modal correction, and the
+complete 14-test audit-history backend file against disposable PostgreSQL. ESLint,
+Prettier, the production PWA build, focused Ruff, backend formatting, strict mypy
+and `git diff --check` passed. Vite retained its existing large-bundle warning.
+Independent review cleared the corrected candidate with no blocking findings;
+human visual comparison remains outstanding.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Production           | Deployment/accounts, provider/region, legal/RSSI acceptance and operations evidence remain unapproved; see security requirements.                                                                            |
 | Mail                 | Live Gmail/Outlook/inbox evidence remains owner-directed after private configuration. Production scheduling, retry, queues, webhooks and browser push are outside scope.                                     |
-| Documents            | Production storage/scanning/retention/key custody require data-owner/RSSI input. PDF preview, restoration, general versioning and other attachment contexts are not enabled.                                 |
+| Documents            | Production storage/scanning/retention/key custody require data-owner/RSSI input. Supporting-document PDF preview, restoration, general versioning and other attachment contexts are not enabled.             |
 | Lifecycle            | Technical Admin recovery/reinvitation, reverse transfer and general reopening/restoration remain excluded. Future Partner deactivation requires no active Project or unfinished Activity.                    |
 | Reporting/accounting | Official templates, accounting rules/examples, SPD meaning and delivery acceptance need client input. Past-date reconstruction and global audit PDF/XLSX remain deferred. Partner annual export is CSV-only. |
 | Financial exceptions | No banking execution, partial reversement or reallocation. A real late settlement exception needs user clarification; do not invent one.                                                                     |

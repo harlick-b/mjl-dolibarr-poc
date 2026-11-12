@@ -249,8 +249,9 @@ tabs always place **Réalisation & finances** second when available; Programming
 does not repeat the dates already shown above. Activity detail prioritizes context, responsibility, validation and one
 authorized next action. Table/calendar share search and filters, removable chips
 and reset. The filter trigger opens the supplied floating panel with canonical
-state chips and an overlapping date range. The Agent selector stays inside that
-panel and all searchable Agent lists reuse the supplied titled search composition.
+state chips and an overlapping date range. The Agent selector sits beside the
+filter trigger and all searchable Agent lists reuse the supplied titled search
+composition.
 Canonical state wording prevents duplicate review chips. Activity History uses the
 supplied compact vertical timeline with event, date, actor and reason; it shows
 before/after values only for facts that changed and omits raw snapshots and metadata.

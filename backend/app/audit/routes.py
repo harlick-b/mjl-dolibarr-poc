@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select, text, tuple_
+from sqlalchemy import func, or_, select, text, tuple_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -667,7 +667,9 @@ def projected_rows(
                     identity_labels,
                     operation_type_labels,
                     human_activity=include_actor_role,
-                ),
+                )
+                if not (include_actor_role and row.action == "activity.create")
+                else [],
                 "amendment_id": amendment.get("id"),
                 "reason": event_reason(row)
                 or withdrawal_reasons.get(str(revision.get("id", ""))),
@@ -783,11 +785,15 @@ def audit_events(
 
 def visible_audit_condition(actor: User) -> ColumnElement[bool]:
     """Exclude events linked to an Activity draft hidden from this actor."""
-    return ~select(Activity.id).where(
-        Activity.context_id == CONTEXT,
-        activity_match(),
-        ~visible_activity_condition(actor.id),
-    ).exists()
+    return (
+        ~select(Activity.id)
+        .where(
+            Activity.context_id == CONTEXT,
+            activity_match(),
+            ~visible_activity_condition(actor.id),
+        )
+        .exists()
+    )
 
 
 @router.get("/activities/{identifier}/history", response_model=ActivityAuditList)
@@ -837,6 +843,13 @@ def history_page(
         )
         marker, direction = cursor.decode(token)
         base_conditions = history_conditions(filters, ACTION_LABELS, actions)
+        if activity_id:
+            base_conditions.append(
+                or_(
+                    Audit.action != "activity.submit",
+                    Audit.business["before"]["state"].astext != "draft",
+                )
+            )
         if not activity_id and actor.role == "VALIDATEUR_DEFINITIF":
             base_conditions.append(visible_audit_condition(actor))
         conditions: list[Any] = list(base_conditions)
@@ -887,11 +900,7 @@ def history_page(
         data = projected_rows(db, rows, include_actor_role=bool(activity_id))
         if activity_id:
             data = [
-                {
-                    key: value
-                    for key, value in row.items()
-                    if key != "activity"
-                }
+                {key: value for key, value in row.items() if key != "activity"}
                 | {
                     "actor": (
                         {
