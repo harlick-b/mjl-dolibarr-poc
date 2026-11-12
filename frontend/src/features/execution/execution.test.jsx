@@ -47,6 +47,11 @@ function detail({ started = false, completed = false } = {}) {
     operation_count: 1,
     works_completed: completed,
     spending_total: completed ? '100000' : null,
+    balance: completed ? '0' : null,
+    required_reversement: null,
+    realization_status: completed
+      ? 'completed_pending_validation'
+      : 'in_progress',
     virement_context: {
       disbursement_request_id: null,
       amount: null,
@@ -213,6 +218,9 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(
     screen.getByText('Activités dont les dates croisent cette période.'),
   ).toBeVisible()
+  expect(
+    screen.getByRole('button', { name: 'Du : Choisir une date' }),
+  ).toHaveClass('min-h-9')
   expect(
     screen.queryByRole('button', { name: 'Voir les résultats' }),
   ).not.toBeInTheDocument()
@@ -415,7 +423,9 @@ test('an observation draft keeps its version across refresh and can be explicitl
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:activity-fiche')
   expect(screen.getByText('Budget autorisé actuel')).toBeVisible()
   expect(screen.getByText('Montant dépensé · final')).toBeVisible()
-  expect(screen.getByText('Montant à reverser')).toBeVisible()
+  expect(screen.getByText('Terminée, en attente de validation')).toBeVisible()
+  expect(screen.getByText('Solde non dépensé')).toBeVisible()
+  expect(screen.getByText('Reversement requis')).toBeVisible()
   const administration = within(
     screen.getByRole('region', { name: 'Suivi administratif' }),
   )
@@ -733,6 +743,9 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   const current = {
     ...detail({ started: true, completed: true }),
     spending_total: '0',
+    balance: '100000',
+    required_reversement: '0',
+    realization_status: 'completed_pending_validation',
     closure_blockers: ['zero_spending_not_approved'],
     operations: [
       {
@@ -839,6 +852,13 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   ).toBeVisible()
   expect(screen.queryByText('Autorisation de décaissement')).toBeNull()
   expect(screen.queryByText('Autorisation de virement')).toBeNull()
+  expect(screen.getByText('Solde non dépensé')).toBeVisible()
+  expect(screen.getByText('Reversement requis')).toBeVisible()
+  expect(
+    within(screen.getByText('Reversement requis').parentElement).getByText(
+      '0 F CFA',
+    ),
+  ).toBeVisible()
   await user.type(
     screen.getByLabelText('Motif de l’absence de dépense *'),
     'Les moyens propres ont suffi.',
@@ -2262,6 +2282,9 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     correction_reason: null,
   }
   let declarations = []
+  let reversementEvidence = []
+  let reversementUploadAttempts = 0
+  let resolveEvidenceUpload
   let virement = {
     id: requestId,
     activity_id: 'activity-1',
@@ -2289,6 +2312,40 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   }
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
+    if (path.endsWith('/activities/activity-1/documents?limit=100'))
+      return Promise.resolve(
+        new Response(JSON.stringify({ ...empty, data: reversementEvidence })),
+      )
+    if (
+      path.endsWith('/activities/activity-1/documents') &&
+      options.method === 'POST'
+    ) {
+      reversementUploadAttempts += 1
+      if (reversementUploadAttempts === 1)
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'temporary_failure' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      reversementEvidence = [
+        {
+          id: 'reversement-proof-1',
+          name: 'preuve-reversement.pdf',
+          size: options.body.size,
+          uploaded_by_id: 'agent',
+        },
+      ]
+      return new Promise((resolve) => {
+        resolveEvidenceUpload = () =>
+          resolve(
+            new Response(JSON.stringify(reversementEvidence[0]), {
+              status: 201,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          )
+      })
+    }
     if (path.includes('/funding-requests'))
       return new Response(
         JSON.stringify({
@@ -2447,6 +2504,13 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     dialog.getByLabelText(/Référence ou commentaire du reversement/),
     'REVERSEMENT-001',
   )
+  const evidence = new File(['preuve'], 'preuve-reversement.pdf', {
+    type: 'application/pdf',
+  })
+  await user.upload(
+    dialog.getByLabelText(/Pièce justificative du reversement/),
+    evidence,
+  )
   await user.click(dialog.getByLabelText(/montant exact a été reversé/))
   await user.click(
     dialog.getByRole('button', { name: 'Enregistrer le reversement' }),
@@ -2462,6 +2526,40 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       }),
     }),
   )
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/documents',
+    expect.objectContaining({ method: 'POST', body: evidence }),
+  )
+  expect(
+    await screen.findByText(
+      'Le reversement est enregistré, mais la pièce n’a pas pu être ajoutée.',
+    ),
+  ).toBeVisible()
+  expect(
+    fetch.mock.calls.filter(
+      ([path, options]) =>
+        String(path).endsWith(`/virement-requests/${requestId}/reversement`) &&
+        options.method === 'POST',
+    ),
+  ).toHaveLength(1)
+  await user.click(
+    screen.getByRole('button', { name: 'Réessayer l’ajout de la pièce' }),
+  )
+  await waitFor(() => expect(resolveEvidenceUpload).toBeTypeOf('function'))
+  const retryEvidence = screen.getByRole('button', {
+    name: 'Réessayer l’ajout de la pièce',
+  })
+  expect(retryEvidence).toBeDisabled()
+  await user.click(retryEvidence)
+  expect(reversementUploadAttempts).toBe(2)
+  await act(async () => resolveEvidenceUpload())
+  await screen.findByText('Pièce justificative ajoutée.')
+  expect(
+    screen.queryByText(
+      'Le reversement est enregistré, mais la pièce n’a pas pu être ajoutée.',
+    ),
+  ).not.toBeInTheDocument()
+  expect(reversementEvidence).toHaveLength(1)
   await waitFor(() =>
     expect(
       screen.queryByRole('dialog', { name: 'Enregistrer le reversement' }),
@@ -2490,9 +2588,11 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   await user.click(
     correctionDialog.getByLabelText(/montant exact a été reversé/),
   )
-  await user.click(
-    correctionDialog.getByRole('button', { name: 'Corriger le reversement' }),
-  )
+  const correctButton = correctionDialog.getByRole('button', {
+    name: 'Corriger le reversement',
+  })
+  await waitFor(() => expect(correctButton).toBeEnabled())
+  await user.click(correctButton)
   await waitFor(() =>
     expect(
       screen.queryByRole('dialog', { name: 'Corriger le reversement' }),
@@ -2515,7 +2615,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   expect(screen.getByText('Reversement initial')).toBeVisible()
   expect(screen.getAllByText(/Yoann Agent/)).toHaveLength(2)
   expect(screen.queryByText(/^Version /)).not.toBeInTheDocument()
-})
+}, 15000)
 
 test('zero reversement displays settlement without a declaration form', async () => {
   const requestId = '44444444-4444-4444-8444-444444444444'

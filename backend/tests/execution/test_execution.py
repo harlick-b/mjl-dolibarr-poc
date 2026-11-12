@@ -130,6 +130,9 @@ def test_agent_starts_records_and_corrects_operation_with_history(planning):
     assert started_detail["operations"][0]["execution_started_at"] is not None
     assert started_detail["operations"][0]["actual_spent"] is None
     assert started_detail["spending_total"] is None
+    assert started_detail["balance"] is None
+    assert started_detail["required_reversement"] is None
+    assert started_detail["realization_status"] == "in_progress"
     assert started_detail["completed_operations"] == 0
 
     recorded = patch(
@@ -646,6 +649,20 @@ def test_zero_overspend_and_variance_observation_rules(planning):
         },
     )
     assert overflow.status_code == 422
+    overspent = patch(
+        planning["agent"],
+        execution_path(activity, activity["operations"][1]),
+        {
+            "action": "record",
+            "expected_version": second_started["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": "350000",
+            "execution_completed": True,
+            "execution_observation": "Dépassement justifié.",
+        },
+    )
+    assert overspent.status_code == 200, overspent.text
+    assert overspent.json()["balance"] == "-50000"
 
 
 def test_blank_initial_reason_and_bounded_unicode_observation_are_accepted(planning):

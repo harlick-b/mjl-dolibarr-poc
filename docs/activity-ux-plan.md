@@ -707,3 +707,80 @@ draft visibility and the concise timeline. Focused Ruff, backend formatting and
 strict mypy passed. The disposable database container was removed. Independent
 review cleared the corrected candidate with no blocking findings. Human visual
 comparison at normal and zoomed sizes remains the acceptance boundary.
+
+## Follow-up — Activity explorer control fidelity, 2026-11-12
+
+Authorized 2026-11-12. Planning and Execution continue to share one Activity
+explorer. Its search, Agent and Filters controls now follow the supplied PTA and
+Réalisation references as one compact row with 8 px gaps. The Agent and filter
+panels use the reference width, right-edge anchoring, typography and internal
+spacing; the Agent trigger uses the supplied icon and short visible label. This
+presentation change does not alter filter values, server queries, role visibility
+or the previously approved immediate filter application.
+
+### Progress — Activity explorer control fidelity, 2026-11-12
+
+The shared explorer now uses the supplied icons, short trigger labels, 8 px row
+gap, 13 px control copy, 300 px right-aligned panels and 36 px date triggers.
+Agent search retains the reference title, focused search field and compact result
+list. Final serial verification passed all 46 Planning tests and all 33 Execution
+tests, plus ESLint, Prettier and the production PWA build. Independent review
+cleared the corrected candidate. Human comparison at normal and 200% zoom and at
+narrow widths remains the visual acceptance boundary.
+
+## Activity finance and fiche alignment — progress, 2026-11-12
+
+The execution detail contract now supplies realization status, signed unused
+balance and settlement-based required reversement as server facts. The screen no
+longer recomputes reversement in the browser. Approved zero spending reports a
+zero required reversement while retaining the allocation as unused balance.
+
+Internal and Partner fiches now share an A4 ReportLab layout derived from the two
+supplied references, with packaged DejaVu fonts, six template sections, a separate
+chronology page, continuation pages and page N/total. Their projections remain
+separate: the internal chronology includes the first submission, while Partner
+financial facts appear after closure and Partner documents remain explicitly
+shared and current. Partner fiche delivery uses the protected preview.
+
+Reversement entry accepts an optional Activity document. Declaration and upload
+are separate outcomes; confirmed declaration success is retained, and an upload
+can be retried without resubmitting the reversement. Uncertain upload responses are
+reconciled against a pre-upload document baseline before any retry.
+
+The corrected candidate also preserves returned and resubmitted initial
+programming as one initial approval cycle, records decision roles and reasons in
+the internal chronology, distinguishes the four realization states and lets long
+valid history continue across pages. The operation-table headings, values, total
+and following section were also measured against the supplied PDF; their anchors
+match within 0.06 points and monetary values remain on one line. A clean final
+selected backend run passed 25 finance, fiche, Partner and closure tests against
+disposable PostgreSQL. The 41
+affected frontend tests, Ruff, backend formatting, strict mypy, ESLint, Prettier,
+the production PWA build and `git diff --check` passed. ESLint retained one
+existing session-cleanup warning and Vite retained its existing large-chunk
+warning. A broader diagnostic execution run completed 79 passes and nine
+failures; seven failures are stale migration-head or downgrade-message assertions,
+and the two report failures found there were corrected and included in the clean
+final selected run. The same independent reviewer rechecked the corrected renderer,
+dynamic operation rows, decision history and evidence and cleared the final
+candidate with no blocking finding. Human visual acceptance remains separate.
+
+Pre-commit review corrected French month names for server datetime values and
+removed current-role inference from historical audit milestones. The Execution
+summary now displays the server's realization status. Optional evidence upload
+has an in-flight guard and Activity-scoped cancellation; its recovery test asserts
+actual upload success without repeating the reversement. Partner fiche denial
+clears the Activity detail and document cache, and scope revocation clears loaded
+PDF previews. The obsolete internal and Partner renderers were removed. Separate
+specification and standards reviewers cleared these corrections.
+
+Pre-commit evidence: `pytest tests/reports/test_fiche.py
+tests/reports/test_activity_fiche_pdf.py tests/partner_portal/test_partner_fiche.py
+-q` completed 18 passes and one stale current-role assertion failure; the corrected
+`test_closed_activity_fiche_contains_authoritative_history_and_is_audited` then
+passed alone. The three-file frontend run (Execution, Partner portal and Planning,
+`--maxWorkers=1`) completed 85 passes and two Planning timeouts; both timeout cases
+passed their focused rerun. Earlier overlapping jobs produced additional timeouts,
+and an initial backend attempt had no running database. These are focused final
+reruns, not a claim that the earlier combined runs passed. Ruff, formatting,
+strict mypy, ESLint, build and diff checks passed; existing warnings remain.

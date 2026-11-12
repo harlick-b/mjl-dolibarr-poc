@@ -23,6 +23,17 @@ export function ProtectedPdfPreview({
   const [preview, setPreview] = useState(null)
 
   useEffect(() => () => controller.current?.abort(), [])
+  const scopeSignal = scope?.signal || scope?.current?.signal
+  useEffect(() => {
+    const abort = () => {
+      controller.current?.abort()
+      setPreview(null)
+      setOpen(false)
+    }
+    if (scopeSignal?.aborted) abort()
+    scopeSignal?.addEventListener('abort', abort)
+    return () => scopeSignal?.removeEventListener('abort', abort)
+  }, [scopeSignal])
   useEffect(() => {
     const href = preview?.href
     return () => {
@@ -34,7 +45,7 @@ export function ProtectedPdfPreview({
     retry: false,
     networkMode: 'always',
     mutationFn: async () => {
-      const scopeSignal = scope?.current.signal
+      const scopeSignal = scope?.signal || scope?.current?.signal
       controller.current = new AbortController()
       const current = controller.current
       const abort = () => current.abort()
@@ -50,7 +61,7 @@ export function ProtectedPdfPreview({
       }
     },
     onError: (error) => {
-      if ([403, 404].includes(error.status)) onDenied?.()
+      if ([403, 404].includes(error.status)) onDenied?.(error.status)
     },
     onSuccess: ({ blob, filename, scopeSignal }) => {
       if (controller.current?.signal.aborted || scopeSignal?.aborted) return

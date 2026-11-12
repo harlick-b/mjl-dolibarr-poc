@@ -193,6 +193,8 @@ For positive final spending, after every approved Operation is physically comple
 4. Required reversement is max(0, approved allocation − final spending). If positive,
    Agent records the exact full external return once, with date and optional note.
    No split, alternative amount or reallocation to another Activity is supported.
+   An Activity supporting document may be added during this step. It remains
+   optional and never becomes a closure condition.
 5. Agent directly closes after all work and required settlement checks pass.
    No additional closure approval, manual closure date or reopening is enabled.
 
@@ -210,6 +212,12 @@ approves. Submitted/prevalidated/approved declarations freeze planning/execution
 Return is terminal and releases correction for a fresh declaration; there is no
 cancellation action. Closure rechecks the exact approved revision and zero basis.
 No artificial décaissement, virement or reversement is created.
+
+The execution projection distinguishes the signed unused balance from required
+reversement and recorded reversement. Final décaissement approval or approved zero
+spending establishes validated realization; physical completion alone remains
+awaiting validation. Partners receive the expanded financial chronology only after
+Activity closure.
 
 Validator may close an empty Project or one containing only closed/withdrawn
 Activities. Every unfinished Activity blocks closure. Closed Projects do not reopen.

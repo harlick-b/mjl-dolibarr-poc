@@ -137,9 +137,7 @@ def test_ready_filter_reuses_verified_closure_basis(planning):
         )
         db.add(Operation(**values))
 
-    detail = planning["validator"].get(
-        f"/api/v1/activities/{activity['id']}/execution"
-    )
+    detail = planning["validator"].get(f"/api/v1/activities/{activity['id']}/execution")
     assert detail.status_code == 200, detail.text
     assert detail.json()["closure_blockers"] == ["execution_ineligible"]
 
@@ -234,6 +232,12 @@ def test_terminal_activity_does_not_hide_unfinished_sibling(planning):
 
 def test_closure_accepts_zero_reversement_without_declaration(planning):
     activity, _request, version = settled_activity(planning, reversement=False)
+    projection = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
+    )
+    assert projection["balance"] == "0"
+    assert projection["required_reversement"] == "0"
+    assert projection["realization_status"] == "validated"
     response = post(
         planning["agent"], close_path(activity), {"expected_version": version}
     )
@@ -354,6 +358,9 @@ def test_closure_fails_closed_without_required_reversement(planning):
     projection = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
+    assert projection["balance"] == "100000"
+    assert projection["required_reversement"] == "100000"
+    assert projection["realization_status"] == "validated"
     assert projection["closure_blockers"] == ["reversement_not_settled"]
     reversal = planning["validator"].get(
         f"/api/v1/ptas/{activity['pta_id']}/execution",

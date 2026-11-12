@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { ListFilter, Search, X } from 'lucide-react'
 import * as Popover from '@radix-ui/react-popover'
 import { formatDate } from '@/shared/lib/format'
 import { Button } from './button'
@@ -83,7 +83,7 @@ export function ActivityExplorerFilters({
 
   return (
     <div className="border-b border-border bg-background/40">
-      <div className="flex flex-wrap items-center gap-3 p-4">
+      <div className="flex flex-wrap items-center gap-2 p-4">
         <DebouncedActivitySearch
           key={value.q || ''}
           value={value.q || ''}
@@ -108,8 +108,13 @@ export function ActivityExplorerFilters({
         )}
         <Popover.Root open={filterOpen} onOpenChange={setFilterOpen}>
           <Popover.Trigger asChild>
-            <Button type="button" variant="outline" disabled={disabled}>
-              <SlidersHorizontal size={16} aria-hidden="true" />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              className="px-3 text-[0.8125rem] font-normal data-[state=open]:border-primary data-[state=open]:bg-selected"
+            >
+              <ListFilter size={16} aria-hidden="true" />
               {strings.filters}
             </Button>
           </Popover.Trigger>
@@ -122,7 +127,7 @@ export function ActivityExplorerFilters({
               className={`${filterOpen ? 'grid' : 'hidden'} z-50 w-[min(300px,calc(100vw-24px))] gap-5 rounded-panel border border-border bg-white p-4 shadow-lg`}
             >
               <div className="flex items-center justify-between gap-3">
-                <strong className="text-sm font-semibold">
+                <strong className="text-[0.8125rem] font-semibold">
                   {strings.refineResults}
                 </strong>
                 <Popover.Close asChild>
@@ -175,6 +180,8 @@ export function ActivityExplorerFilters({
                         value={value.from || ''}
                         onChange={(from) => onChange({ from })}
                         optional
+                        size="sm"
+                        className="min-h-9 rounded-control"
                       />
                     </div>
                     <div className="grid gap-2">
@@ -184,6 +191,8 @@ export function ActivityExplorerFilters({
                         value={value.to || ''}
                         onChange={(to) => onChange({ to })}
                         optional
+                        size="sm"
+                        className="min-h-9 rounded-control"
                       />
                     </div>
                   </div>

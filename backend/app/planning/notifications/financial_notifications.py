@@ -214,10 +214,15 @@ def _actor_id(
     if decision_model is None:
         return None
     outcome = "prevalidated" if item.stage == "validator" else "returned"
+    request_column = (
+        decision_model.declaration_id
+        if item.request_kind == "zero_spending"
+        else decision_model.request_id
+    )
     return db.scalar(
         select(decision_model.actor_id)
         .where(
-            decision_model.request_id == source.id,
+            request_column == source.id,
             decision_model.outcome == outcome,
         )
         .order_by(decision_model.decided_at.desc())

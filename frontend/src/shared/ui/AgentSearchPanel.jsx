@@ -44,7 +44,7 @@ export function AgentSearchPanel({
     >
       {title && (
         <div className="flex min-h-8 items-center justify-between gap-3 px-1">
-          <strong className="text-sm font-semibold">{title}</strong>
+          <strong className="text-[0.8125rem] font-semibold">{title}</strong>
           {onClose && (
             <Button
               type="button"
@@ -66,10 +66,10 @@ export function AgentSearchPanel({
         aria-label={searchLabel}
         maxLength={200}
         autoFocus
-        className="h-10 w-full rounded-control border border-primary bg-white px-3 text-sm outline outline-2 outline-offset-2 outline-primary"
+        className="h-10 w-full rounded-control border border-primary bg-white px-3 text-[0.8125rem] outline outline-2 outline-offset-2 outline-primary"
       />
       <div
-        className="grid max-h-52 gap-1 overflow-y-auto"
+        className="grid max-h-52 gap-1 overflow-y-auto text-[0.8125rem] leading-5"
         role="listbox"
         onKeyDown={moveOptionFocus}
         {...resolvedListProps}

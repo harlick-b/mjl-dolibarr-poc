@@ -184,6 +184,11 @@ class ExecutionDetailOutput(Input):
     operation_count: int
     works_completed: bool
     spending_total: str | None
+    balance: str | None
+    required_reversement: str | None
+    realization_status: Literal[
+        "not_started", "in_progress", "completed_pending_validation", "validated"
+    ]
     operations: list[ExecutionOperationOutput]
     virement_context: VirementContextOutput
     allowed_actions: list[str]
@@ -532,6 +537,41 @@ def execution_detail(
             }
         )
     blockers = closure_blockers(db, item)
+    approved_zero = (
+        zero_declaration is not None and zero_declaration.state == "approved"
+    )
+    realization_validated = approved_disbursement is not None or approved_zero
+    has_started = any(
+        operation.execution_started_at is not None
+        or operation.actual_spent is not None
+        or operation.execution_completed
+        for operation, _fact in operations
+    )
+    realization_status = (
+        "validated"
+        if realization_validated
+        else "completed_pending_validation"
+        if complete == len(projected) and all_known
+        else "in_progress"
+        if has_started
+        else "not_started"
+    )
+    allocation_total = int(cast(str, revision.snapshot["allocation"]))
+    balance = allocation_total - known_total if all_known else None
+    required_reversement: int | None = None
+    if approved_zero:
+        required_reversement = 0
+    elif current_confirmation is not None and approved_disbursement is not None:
+        frozen_allocation = approved_disbursement.snapshot.get("allocation")
+        if (
+            not isinstance(frozen_allocation, str)
+            or not frozen_allocation.isascii()
+            or not frozen_allocation.isdecimal()
+        ):
+            raise AuthError(409, "financial_basis_stale")
+        required_reversement = int(frozen_allocation) - approved_disbursement.amount
+        if required_reversement < 0:
+            raise AuthError(409, "financial_insufficiency_unresolved")
     closure = (
         {
             "closed_by_id": item.closed_by_id,
@@ -596,6 +636,11 @@ def execution_detail(
         "operation_count": len(projected),
         "works_completed": complete == len(projected),
         "spending_total": str(known_total) if all_known else None,
+        "balance": str(balance) if balance is not None else None,
+        "required_reversement": (
+            str(required_reversement) if required_reversement is not None else None
+        ),
+        "realization_status": realization_status,
         "operations": projected,
         "virement_context": {
             "disbursement_request_id": approved_disbursement.id

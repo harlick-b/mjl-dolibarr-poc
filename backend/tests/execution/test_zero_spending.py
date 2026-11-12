@@ -87,6 +87,9 @@ def test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes(plannin
     detail = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
+    assert detail["balance"] == detail["approved_allocation"]
+    assert detail["required_reversement"] == "0"
+    assert detail["realization_status"] == "validated"
     assert detail["closure_blockers"] == []
     assert "close" in detail["allowed_actions"]
     closed = post(
@@ -100,8 +103,10 @@ def test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes(plannin
     fiche = planning["agent"].get(fiche_path(activity))
     assert fiche.status_code == 200, fiche.text
     content = pdf_text(fiche)
-    assert "Déclaration sans dépense" in content
-    assert "Dépense nulle validée" in content
+    assert "Réalisation validée" in content
+    assert "Solde non dépensé\n" in content
+    assert "Montant reversé (enregistré)" in content
+    assert "Reversement enregistré" not in content
     history = planning["validator"].get("/api/v1/audit-events?limit=100").json()
     projected = {row["action"]: row["label"] for row in history["data"]}
     assert projected["zero_spending.submit"] == "Déclaration sans dépense soumise"

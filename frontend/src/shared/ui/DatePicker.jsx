@@ -4,6 +4,7 @@ import { CalendarDays } from 'lucide-react'
 import { Calendar } from './calendar'
 import { Button } from './button'
 import { formatDate } from '@/shared/lib/format'
+import { cn } from '@/shared/lib/utils'
 import { strings } from '@/locales/fr/DatePicker'
 
 function localDate(value) {
@@ -18,6 +19,7 @@ export function DatePicker({
   min,
   max,
   optional = false,
+  className,
   ...triggerProps
 }) {
   const [open, setOpen] = useState(false)
@@ -35,7 +37,10 @@ export function DatePicker({
           type="button"
           variant="outline"
           aria-label={`${label} : ${value ? formatDate(value) : strings.choose}`}
-          className="w-full justify-between text-left font-normal"
+          className={cn(
+            'w-full justify-between text-left font-normal',
+            className,
+          )}
         >
           <span>{value ? formatDate(value) : strings.choose}</span>
           <CalendarDays size={15} className="text-muted-foreground" />

@@ -55,46 +55,38 @@ def test_closed_activity_fiche_contains_authoritative_history_and_is_audited(pla
     assert response.content.startswith(b"%PDF")
     content = pdf_text(response)
     for expected in (
-        "Fiche récapitulative d’activité",
+        "FICHE DE SUIVI ADMINISTRATIF",
+        "ET FINANCIER DE L’ACTIVITÉ",
         activity["reference"],
         "Programmation",
         "Partenaire test",
         "Projet test",
-        "générée le",
-        "Montant prévu initial",
-        "Montant autorisé actuel",
-        "Dépenses renseignées",
-        "Opération / Type",
-        "Dépense finale",
+        "Budget prévisionnel",
+        "Montant autorisé",
+        "Montant dépensé",
+        "Opérations et dépenses",
         "300 000 F CFA",
         "80 000 F CFA",
         "120 000 F CFA",
         "200 000 F CFA",
         "100 000 F CFA",
-        "Virement confirmé",
+        "Virement externe confirmé",
         "Reversement déclaré",
-        "Clôturée",
+        "Activité clôturée",
         "Pièces justificatives",
         "Aucune pièce enregistrée",
     ):
         assert expected in content
-    assert re.search(r"Montant à reverser\s+100 000 F CFA", content)
-    assert re.search(r"Montant reversé\s+100 000 F CFA", content)
-    assert re.search(r"Agents affectés :\s+Test User", content)
+    assert re.search(r"Solde non dépensé\s+100 000 F CFA", content)
+    assert re.search(r"Montant reversé \(enregistré\)\s+100 000 F CFA", content)
     normalized = re.sub(r"\s+", " ", content)
     assert "activity." not in normalized
     assert "Identité de l’activité" not in normalized
     assert "Personne non disponible" not in normalized
-    assert normalized.count("Activité soumise pour examen") == 1
-    assert "Révision" not in normalized
-    assert re.search(
-        r"Virement externe confirmé .*? Test User · Agent de saisie",
-        normalized,
-    )
-    assert re.search(
-        r"Reversement déclaré .*? Test User · Agent de saisie",
-        normalized,
-    )
+    assert normalized.count("Programmation soumise") == 1
+    assert "Révision approuvée" not in normalized
+    # Audit milestones have no frozen role; current account roles are not history.
+    assert "Agent de saisie" not in normalized
 
     with Session(planning["auth"].engine) as db:
         audit = db.scalar(
@@ -132,6 +124,127 @@ def test_fiche_access_requires_an_approved_activity_and_business_role(planning):
     assert unavailable.json()["code"] == "fiche_unavailable"
 
 
+def test_fiche_keeps_returned_resubmission_in_initial_programming_cycle(planning):
+    _partner, operation_type, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {**plan(operation_type), "request_key": str(uuid4())},
+    ).json()
+    first = post(
+        planning["agent"],
+        f"/api/v1/activities/{created['id']}/submissions",
+        {"expected_version": created["version"]},
+    ).json()
+    returned = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{created['id']}/revisions/{first['id']}/decisions",
+        {
+            "expected_version": first["activity_version"],
+            "decision": "return",
+            "reason": "Préciser le résultat attendu.",
+        },
+    ).json()
+    detail = planning["agent"].get(f"/api/v1/activities/{created['id']}").json()
+    corrected = patch(
+        planning["agent"],
+        f"/api/v1/activities/{created['id']}",
+        plan(
+            operation_type,
+            description="Planification initiale corrigée",
+            expected_version=returned["activity_version"],
+            operations=[
+                {key: value for key, value in row.items() if key != "position"}
+                for row in detail["operations"]
+            ],
+        ),
+    ).json()
+    second = post(
+        planning["agent"],
+        f"/api/v1/activities/{created['id']}/submissions",
+        {"expected_version": corrected["version"]},
+    ).json()
+    prevalidated = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{created['id']}/revisions/{second['id']}/decisions",
+        {
+            "expected_version": second["activity_version"],
+            "decision": "prevalidate",
+        },
+    ).json()
+    approved = post(
+        planning["validator"],
+        f"/api/v1/activities/{created['id']}/revisions/{second['id']}/decisions",
+        {
+            "expected_version": prevalidated["activity_version"],
+            "decision": "approve",
+        },
+    )
+    assert approved.status_code == 201, approved.text
+
+    content = re.sub(
+        r"\s+", " ", pdf_text(planning["validator"].get(fiche_path(created)))
+    )
+    assert "Programmation corrigée et soumise" in content
+    assert "Programmation approuvée" in content
+    assert "Révision approuvée" not in content
+    assert "Agent superviseur et prévalidateur" in content
+    assert "Validateur définitif" in content
+
+
+def test_fiche_keeps_historical_amounts_for_successive_amendments(planning):
+    activity, operation_type = approved_activity(planning)
+
+    for allocation in (350_000, 400_000):
+        opened = open_amendment(planning, activity, f"Porter le budget à {allocation}.")
+        operations = [
+            {
+                **{key: value for key, value in row.items() if key != "position"},
+                "allocation": str(allocation - 200_000 if index == 0 else 200_000),
+            }
+            for index, row in enumerate(opened["operations"])
+        ]
+        changed = patch(
+            planning["agent"],
+            f"/api/v1/activities/{activity['id']}",
+            plan(
+                operation_type,
+                allocation=str(allocation),
+                operations=operations,
+                expected_version=opened["version"],
+            ),
+        ).json()
+        revision = post(
+            planning["agent"],
+            f"/api/v1/activities/{activity['id']}/submissions",
+            {"expected_version": changed["version"]},
+        ).json()
+        prevalidated = post(
+            planning["supervisor"],
+            f"/api/v1/activities/{activity['id']}/revisions/{revision['id']}/decisions",
+            {
+                "expected_version": revision["activity_version"],
+                "decision": "prevalidate",
+            },
+        ).json()
+        approved = post(
+            planning["validator"],
+            f"/api/v1/activities/{activity['id']}/revisions/{revision['id']}/decisions",
+            {
+                "expected_version": prevalidated["activity_version"],
+                "decision": "approve",
+            },
+        )
+        assert approved.status_code == 201, approved.text
+        activity = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+
+    content = re.sub(
+        r"\s+", " ", pdf_text(planning["validator"].get(fiche_path(activity)))
+    )
+    assert "Révision 2 · Montant autorisé : 350 000 F CFA" in content
+    assert "Révision 3 · Montant autorisé : 400 000 F CFA" in content
+
+
 def test_fiche_preserves_approved_baseline_and_unknown_spending(planning):
     approved, operation_type = approved_activity(planning)
     opened = open_amendment(planning, approved, "Adapter le contenu.")
@@ -145,10 +258,14 @@ def test_fiche_preserves_approved_baseline_and_unknown_spending(planning):
     response = planning["supervisor"].get(fiche_path(candidate))
     assert response.status_code == 200, response.text
     content = pdf_text(response)
-    assert "Planification complète de test" in content
+    assert "Situation de l’activité" in content
+    assert "Synthèse financière" in content
+    assert "Opérations et dépenses" in content
     assert "CONTENU CANDIDAT NON APPROUVÉ" not in content
-    assert re.search(r"Montant à reverser\s+—", content)
-    assert re.search(r"Montant reversé\s+—", content)
+    assert "Montant dépensé" in content
+    assert "Solde non dépensé" in content
+    assert "Montant reversé (enregistré)" in content
+    assert content.count("—") >= 3
 
 
 def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
@@ -179,7 +296,8 @@ def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
     assert changed.status_code == 200, changed.text
 
     content = pdf_text(planning["supervisor"].get(fiche_path(approved)))
-    assert "Formation" in content
+    for operation in approved["operations"]:
+        assert operation["name"] in content
     assert "Type candidat non approuvé" not in content
 
 
@@ -249,12 +367,11 @@ def test_fiche_renders_complementary_funding_decisions(planning):
     assert prevalidated.status_code == 201, prevalidated.text
 
     content = re.sub(r"\s+", " ", pdf_text(planning["agent"].get(fiche_path(activity))))
-    assert "Financement complémentaire · demande 1" in content
+    assert "Financement complémentaire de 20 000 F CFA" in content
     assert "20 000 F CFA" in content
-    assert re.search(
-        r"Prévalidation\s+Test User\s+Agent superviseur et prévalidateur",
-        content,
-    )
+    assert "Financement complémentaire Prévalidé" in content
+    assert "Agent superviseur et prévalidateur" in content
+    assert "Montant : 20 000 F CFA" in content
 
 
 def test_fiche_renders_withdrawal_submission_reason(planning):

@@ -255,18 +255,23 @@ tabs always place **Réalisation & finances** second when available; Programming
 does not repeat the dates already shown above. Activity detail prioritizes context, responsibility, validation and one
 authorized next action. Table/calendar share search and filters, removable chips
 and reset. The filter trigger opens the supplied floating panel with canonical
-state chips and an overlapping date range. The Agent selector sits beside the
-filter trigger and all searchable Agent lists reuse the supplied titled search
-composition.
+state chips and an overlapping date range. Search, Agent and Filters share one
+compact row with 8 px gaps. The Agent selector sits beside the filter trigger;
+both floating panels are 300 px wide, align their right edge with their trigger
+and use the supplied 13 px labels, 12–16 px spacing and titled search composition.
+All searchable Agent lists reuse that composition.
 Canonical state wording prevents duplicate review chips. Activity History uses the
 supplied compact vertical timeline with event, date, actor and reason; it shows
 before/after values only for facts that changed and omits raw snapshots and metadata.
 Calendars use horizontal spans and a distinct start-only marker.
 
-The Activity fiche follows the supplied administrative report composition: MJL
-identity and Activity reference in the page header, a clear Activity title,
-institutional navy section hierarchy, Planification, budget/Operations,
-authorizations, external declarations, evidence and administrative chronology.
+The Activity fiche reproduces the internal and Partner references in
+`docs/inspiration/fiche de suivi`: A4, 48-point side margins, 65-point navy header,
+embedded DejaVu Sans, measured type and rules, and a chronology beginning on a new
+page. Its six sections are Situation, Synthèse financière, Opérations et dépenses,
+Demandes de financement, Événements significatifs and Pièces justificatives.
+Continuation pages repeat the header/footer and use page N/total without shrinking
+or truncating facts.
 It retains authoritative approved values and unknown values without inventing data.
 The Réalisation Activity explorer reuses the same floating filter, overlapping
 period controls, Agent search and compact Activity identity hierarchy as

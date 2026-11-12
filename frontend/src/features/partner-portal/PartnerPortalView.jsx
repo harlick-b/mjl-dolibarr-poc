@@ -18,6 +18,7 @@ import { PartnerDocuments } from './PartnerDocuments'
 import { useProtectedCleanup } from '@/features/auth/session/access-verification'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
+import { ProtectedPdfPreview } from '@/shared/ui/ProtectedPdfPreview'
 
 const emptyList = { data: [] }
 
@@ -99,16 +100,32 @@ export function PartnerPortalView({ screen = 'projects' }) {
   const user = session.data?.user
   const permitted = authorization(session.data).can('partner')
   const [downloadGuard] = useState(() => new DownloadGuard())
+  const [ficheScope, setFicheScope] = useState(() => new AbortController())
   useProtectedCleanup(() => downloadGuard.revoke())
+  useProtectedCleanup(() => ficheScope.abort())
   const deny = useCallback(
     (status, queryKey) => {
       downloadGuard.revoke()
+      ficheScope.abort()
+      setFicheScope(new AbortController())
       if (![403, 404].includes(status) || !queryKey) return
       if (queryKey[2] === 'profile')
         client.setQueriesData({ queryKey: ['partner-portal', user?.id] }, null)
-      else client.setQueryData(queryKey, null)
+      else {
+        client.setQueryData(queryKey, null)
+        if (queryKey[2] === 'detail') {
+          const documentsKey = [
+            'partner-portal',
+            user?.id,
+            'documents',
+            queryKey[3],
+          ]
+          void client.cancelQueries({ queryKey: documentsKey })
+          client.removeQueries({ queryKey: documentsKey })
+        }
+      }
     },
-    [client, downloadGuard, user?.id],
+    [client, downloadGuard, ficheScope, user?.id],
   )
   const profile = useQuery(
     portalQuery(api, [user?.id, 'profile'], 'profile', deny, permitted),
@@ -170,33 +187,6 @@ export function PartnerPortalView({ screen = 'projects' }) {
       permitted && Boolean(selectedActivityId) && screen !== 'exports',
     ),
   )
-  const fiche = useMutation({
-    retry: false,
-    networkMode: 'always',
-    mutationFn: async (activityId) => {
-      if (!navigator.onLine) throw new TypeError('Offline')
-      const request = downloadGuard.begin()
-      const { blob, filename } = await api.download(
-        `/api/v1/partner-portal/activities/${activityId}/fiche.pdf`,
-        { signal: request.signal },
-      )
-      if (!downloadGuard.current(request.generation))
-        throw new DOMException('Stale authorization', 'AbortError')
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = filename
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 0)
-      return null
-    },
-    onError: (error) => {
-      if (error?.status === 401) deny(error.status)
-    },
-  })
-
   const csvExport = useMutation({
     retry: false,
     networkMode: 'always',
@@ -670,24 +660,23 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   <h2 id="partner-detail">{detail.data.name}</h2>
                   <p>{detail.data.description}</p>
                 </div>
-                <button
-                  type="button"
-                  disabled={fiche.isPending}
-                  onClick={() => fiche.mutate(detail.data.id)}
+                <ProtectedPdfPreview
+                  key={detail.data.id}
+                  path={`/api/v1/partner-portal/activities/${detail.data.id}/fiche.pdf`}
+                  title="Fiche de suivi de l’activité"
+                  onDenied={(status) =>
+                    deny(status, [
+                      'partner-portal',
+                      user.id,
+                      'detail',
+                      detail.data.id,
+                    ])
+                  }
+                  scope={ficheScope}
                 >
-                  {fiche.isPending
-                    ? 'Préparation…'
-                    : 'Télécharger la fiche PDF'}
-                </button>
+                  Consulter la fiche PDF
+                </ProtectedPdfPreview>
               </div>
-              {fiche.isError && (
-                <p
-                  className="border-l-4 border-l-danger p-3 bg-white"
-                  role="alert"
-                >
-                  La fiche est momentanément indisponible.
-                </p>
-              )}
               <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                 <div>
                   <dt>Référence</dt>

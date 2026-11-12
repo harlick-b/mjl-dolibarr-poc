@@ -41,13 +41,6 @@ function cursorPath(path, cursor) {
   return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path
 }
 
-function reversementAmount(detail) {
-  if (detail.spending_total === null) return null
-  const amount =
-    BigInt(detail.approved_allocation) - BigInt(detail.spending_total)
-  return amount > 0n ? amount : 0n
-}
-
 const administrativeStates = {
   submitted: 'À examiner',
   prevalidated: 'Décision attendue',
@@ -167,11 +160,13 @@ function executionQuery(api, userId, key, path, onDenied) {
 
 export function ExecutionView({ screen }) {
   const session = useSessionQuery()
+  const params = useParams({ strict: false })
   if (session.isPending) return <ExecutionLoading screen={screen} />
   if (!authorization(session.data).can('business'))
     return <AccessDeniedState role={session.data?.user?.role} />
   return (
     <ExecutionWorkspace
+      key={`${session.data.user.id}:${screen}:${params.activityId || params.ptaId || ''}`}
       screen={screen}
       session={session.data}
       onDenied={() => {}}
@@ -186,6 +181,10 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
   const search = useSearch({ strict: false })
   const navigate = useNavigate()
   const [error, setError] = useState('')
+  const [reversementFile, setReversementFile] = useState(null)
+  const [reversementUploadError, setReversementUploadError] = useState(null)
+  const [uploadPending, setUploadPending] = useState(false)
+  const uploadController = useRef(null)
   const generation = useRef(0)
   const controller = useRef(null)
   const detail = useQuery({
@@ -349,6 +348,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
     () => () => {
       generation.current += 1
       controller.current?.abort()
+      uploadController.current?.abort()
     },
     [],
   )
@@ -616,6 +616,7 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
           relevant.some((query) => query.isError || query.isPending) ||
           mutation.isPending ||
           financeMutation.isPending ||
+          uploadPending ||
           detail.isFetching ||
           finance.isFetching ||
           zeroSpending.isFetching ||
@@ -628,9 +629,89 @@ function ExecutionWorkspace({ screen, session, onDenied }) {
         mutate={(operationId, body) =>
           mutation.mutateAsync({ operationId, body }).catch(() => false)
         }
-        mutateFinance={(path, body) =>
-          financeMutation.mutateAsync({ path, body }).catch(() => false)
-        }
+        mutateFinance={async (path, body) => {
+          const activeGeneration = generation.current
+          const result = await financeMutation
+            .mutateAsync({ path, body })
+            .catch(() => false)
+          return activeGeneration === generation.current ? result : false
+        }}
+        uploadReversementEvidence={async (file) => {
+          if (uploadController.current)
+            throw new DOMException('Upload pending', 'AbortError')
+          const requestController = new AbortController()
+          const activeGeneration = generation.current
+          uploadController.current = requestController
+          setUploadPending(true)
+          const ensureCurrent = () => {
+            if (
+              requestController.signal.aborted ||
+              activeGeneration !== generation.current
+            )
+              throw new DOMException('Cancelled upload', 'AbortError')
+          }
+          try {
+            const path = `/api/v1/activities/${params.activityId}/documents`
+            const before = await api.request(`${path}?limit=100`, {
+              signal: requestController.signal,
+            })
+            const baseline = new Set(
+              (before.data || []).map((document) => document.id),
+            )
+            ensureCurrent()
+            try {
+              await api.request(path, {
+                method: 'POST',
+                signal: requestController.signal,
+                csrf: session.csrf,
+                rawBody: file,
+                headers: {
+                  'Content-Type': file.type,
+                  'X-File-Name': file.name,
+                },
+              })
+            } catch (error) {
+              ensureCurrent()
+              if (
+                !['network', 'malformed'].includes(error.kind) &&
+                !(error.status >= 500)
+              )
+                throw error
+              let after
+              try {
+                after = await api.request(`${path}?limit=100`, {
+                  signal: requestController.signal,
+                })
+              } catch {
+                ensureCurrent()
+                const uncertain = new Error('reversement_upload_uncertain')
+                uncertain.kind = 'uncertain_upload'
+                throw uncertain
+              }
+              ensureCurrent()
+              const recorded = (after.data || []).some(
+                (document) =>
+                  !baseline.has(document.id) &&
+                  document.name === file.name &&
+                  document.size === file.size &&
+                  document.uploaded_by_id === session.user.id,
+              )
+              if (!recorded) throw error
+            }
+            ensureCurrent()
+            await client.invalidateQueries({
+              queryKey: ['planning', session.user.id, 'activity'],
+            })
+            ensureCurrent()
+          } finally {
+            uploadController.current = null
+            if (activeGeneration === generation.current) setUploadPending(false)
+          }
+        }}
+        reversementFile={reversementFile}
+        setReversementFile={setReversementFile}
+        reversementUploadError={reversementUploadError}
+        setReversementUploadError={setReversementUploadError}
         onFinancePage={(link) =>
           navigate({
             search: (current) => ({
@@ -930,6 +1011,11 @@ function ExecutionDetail({
   pending,
   mutate,
   mutateFinance,
+  uploadReversementEvidence,
+  reversementFile,
+  setReversementFile,
+  reversementUploadError,
+  setReversementUploadError,
   onFinancePage,
   onFinanceSelect,
   onZeroSpendingPage,
@@ -1148,6 +1234,10 @@ function ExecutionDetail({
           <dd>{formatXof(detail.approved_allocation)}</dd>
         </div>
         <div>
+          <dt>{strings.realization}</dt>
+          <dd>{strings.realizationStates[detail.realization_status] || '—'}</dd>
+        </div>
+        <div>
           <dt>
             {strings.spentAmount} ·{' '}
             {detail.works_completed
@@ -1161,8 +1251,12 @@ function ExecutionDetail({
           </small>
         </div>
         <div>
-          <dt>{strings.returnAmount}</dt>
-          <dd>{formatXof(reversementAmount(detail))}</dd>
+          <dt>{strings.unusedBalance}</dt>
+          <dd>{formatXof(detail.balance)}</dd>
+        </div>
+        <div>
+          <dt>{strings.requiredReversement}</dt>
+          <dd>{formatXof(detail.required_reversement)}</dd>
         </div>
       </Panel>
       <ExecutionOperations
@@ -1284,6 +1378,11 @@ function ExecutionDetail({
                     historicalPage={virementHistoryPage}
                     pending={pending}
                     mutate={mutateFinance}
+                    uploadReversementEvidence={uploadReversementEvidence}
+                    reversementFile={reversementFile}
+                    setReversementFile={setReversementFile}
+                    reversementUploadError={reversementUploadError}
+                    setReversementUploadError={setReversementUploadError}
                     onPage={onVirementPage}
                     onSelect={onVirementSelect}
                     onConfirmationPage={onConfirmationPage}
@@ -1845,6 +1944,11 @@ function VirementSection({
   historicalPage,
   pending,
   mutate,
+  uploadReversementEvidence,
+  reversementFile,
+  setReversementFile,
+  reversementUploadError,
+  setReversementUploadError,
   onPage,
   onSelect,
   onConfirmationPage,
@@ -1884,6 +1988,44 @@ function VirementSection({
         Elle ne confirme pas qu’un virement externe a été effectué.
       </p>
       {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
+      {reversementUploadError && reversementFile && (
+        <div role="alert" className="grid gap-3 border-l-4 border-l-danger p-3">
+          <p>
+            {reversementUploadError === 'uncertain'
+              ? 'Le reversement est enregistré. La réponse de l’ajout est incertaine : vérifiez les pièces justificatives avant tout nouvel essai.'
+              : reversementUploadError === 'forbidden'
+                ? 'Le reversement est enregistré, mais votre affectation ou la clôture ne permet plus d’ajouter cette pièce.'
+                : 'Le reversement est enregistré, mais la pièce n’a pas pu être ajoutée.'}
+          </p>
+          {reversementUploadError === 'retry' && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || !navigator.onLine}
+              onClick={async () => {
+                try {
+                  await uploadReversementEvidence(reversementFile)
+                  setReversementUploadError(null)
+                  setReversementFile(null)
+                  setReversementOpen(false)
+                  toast.success('Pièce justificative ajoutée.')
+                } catch (error) {
+                  if (error.name === 'AbortError') return
+                  setReversementUploadError(
+                    error.kind === 'uncertain_upload'
+                      ? 'uncertain'
+                      : [403, 409].includes(error.status)
+                        ? 'forbidden'
+                        : 'retry',
+                  )
+                }
+              }}
+            >
+              Réessayer l’ajout de la pièce
+            </Button>
+          )}
+        </div>
+      )}
       {current ? (
         <>
           <p className="border-l-4 border-l-primary bg-background py-3 px-4">
@@ -2207,7 +2349,8 @@ function VirementSection({
                             const correcting = Boolean(
                               current.reversement.current_declaration,
                             )
-                            await mutate(
+                            setReversementOpen(false)
+                            const saved = await mutate(
                               `/virement-requests/${current.id}/reversement${
                                 correcting ? '/corrections' : ''
                               }`,
@@ -2228,7 +2371,29 @@ function VirementSection({
                                   : {}),
                               },
                             )
-                            setReversementOpen(false)
+                            if (!saved) {
+                              setReversementOpen(true)
+                              return
+                            }
+                            if (reversementFile) {
+                              try {
+                                await uploadReversementEvidence(reversementFile)
+                                toast.success(
+                                  'Reversement et pièce justificative enregistrés.',
+                                )
+                                setReversementFile(null)
+                              } catch (error) {
+                                if (error.name === 'AbortError') return
+                                setReversementUploadError(
+                                  error.kind === 'uncertain_upload'
+                                    ? 'uncertain'
+                                    : [403, 409].includes(error.status)
+                                      ? 'forbidden'
+                                      : 'retry',
+                                )
+                                return
+                              }
+                            }
                           }}
                         >
                           <p className="border-l-4 border-l-primary bg-background py-3 px-4">
@@ -2271,6 +2436,19 @@ function VirementSection({
                               />
                             </label>
                           )}
+                          <label>
+                            Pièce justificative du reversement (facultative)
+                            <input
+                              type="file"
+                              accept="application/pdf,image/jpeg,image/png"
+                              onChange={(event) => {
+                                setReversementFile(
+                                  event.target.files?.[0] || null,
+                                )
+                                setReversementUploadError(null)
+                              }}
+                            />
+                          </label>
                           <label>
                             <input type="checkbox" required /> Je confirme que
                             ce montant exact a été reversé au Partenaire. *

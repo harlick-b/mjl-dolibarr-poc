@@ -7,10 +7,21 @@ import {
   within,
 } from '@testing-library/react'
 import { createMemoryHistory } from '@tanstack/react-router'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App, makeRouter } from '@/app/router'
 
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+})
+
 afterEach(() => {
+  delete HTMLDialogElement.prototype.showModal
+  delete HTMLDialogElement.prototype.close
   window.dispatchEvent(new Event('online'))
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -158,7 +169,7 @@ test('a Partner sees only the read-only portfolio projection', async () => {
           },
         }
       else if (path.endsWith('/activities/activity-1/fiche.pdf'))
-        if (++ficheDownloads === 2)
+        if (++ficheDownloads === 3)
           return new Promise((resolve) => {
             resolveLateDownload = () =>
               resolve(
@@ -171,6 +182,8 @@ test('a Partner sees only the read-only portfolio projection', async () => {
                 }),
               )
           })
+        else if (ficheDownloads === 2)
+          return Promise.resolve(new Response('{}', { status: 403 }))
         else
           return Promise.resolve(
             new Response('partner pdf', {
@@ -226,13 +239,45 @@ test('a Partner sees only the read-only portfolio projection', async () => {
   expect(screen.queryByText(/commentaire interne/i)).not.toBeInTheDocument()
   expect(screen.queryByText(/pièce jointe/i)).not.toBeInTheDocument()
   fireEvent.click(
-    screen.getByRole('button', { name: 'Télécharger la fiche PDF' }),
+    screen.getByRole('button', { name: 'Consulter la fiche PDF' }),
   )
   await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce())
+  expect(
+    await screen.findByTitle('Fiche de suivi de l’activité — Aperçu'),
+  ).toHaveAttribute('src', 'blob:partner-fiche')
+  expect(downloadClick).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Télécharger' }))
   expect(downloadClick).toHaveBeenCalledOnce()
+  fireEvent.click(screen.getAllByRole('button', { name: 'Fermer' })[0])
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:partner-fiche')
   fireEvent.click(
-    screen.getByRole('button', { name: 'Télécharger la fiche PDF' }),
+    screen.getByRole('button', { name: 'Consulter la fiche PDF' }),
+  )
+  await waitFor(() =>
+    expect(
+      router.options.context.queryClient.getQueryData([
+        'partner-portal',
+        'partner-user',
+        'detail',
+        'activity-1',
+      ]),
+    ).toBeNull(),
+  )
+  expect(
+    router.options.context.queryClient.getQueriesData({
+      queryKey: ['partner-portal', 'partner-user', 'documents', 'activity-1'],
+    }),
+  ).toEqual([])
+  expect(
+    screen.queryByRole('button', { name: 'Consulter la fiche PDF' }),
+  ).not.toBeInTheDocument()
+  await act(() =>
+    router.options.context.queryClient.refetchQueries({
+      queryKey: ['partner-portal', 'partner-user', 'detail', 'activity-1'],
+    }),
+  )
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Consulter la fiche PDF' }),
   )
   await waitFor(() => expect(resolveLateDownload).toBeTypeOf('function'))
   denyProjects = true

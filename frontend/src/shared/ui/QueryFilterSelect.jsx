@@ -9,6 +9,7 @@ import { strings } from '@/locales/fr/ListFilters'
 import { strings as common } from '@/locales/fr/common'
 import { AgentSearchPanel } from './AgentSearchPanel'
 import * as Popover from '@radix-ui/react-popover'
+import { UsersRound } from 'lucide-react'
 
 export function QueryFilterSelect({
   kind,
@@ -101,26 +102,41 @@ export function QueryFilterSelect({
                 type="button"
                 variant="outline"
                 disabled={query.isPending || query.isError}
-                className="w-full justify-between font-normal"
+                className={
+                  compact
+                    ? 'w-auto justify-center px-3 text-[0.8125rem] font-normal data-[state=open]:border-primary data-[state=open]:bg-selected'
+                    : 'w-full justify-between font-normal'
+                }
                 aria-label={
                   compact ? `${strings[kind]} · ${value ? 1 : 0}` : undefined
                 }
               >
-                {compact
-                  ? `${strings[kind]} · ${value ? 1 : 0}`
-                  : selected?.label ||
-                    valueLabel ||
-                    (value ? strings[kind] : strings.all)}
+                {compact ? (
+                  <>
+                    <UsersRound size={16} aria-hidden="true" />
+                    {strings.agentTrigger}
+                    {value ? ' · 1' : ''}
+                  </>
+                ) : (
+                  selected?.label ||
+                  valueLabel ||
+                  (value ? strings[kind] : strings.all)
+                )}
               </Button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content align="start" sideOffset={6} className="z-50">
+              <Popover.Content
+                align={compact ? 'end' : 'start'}
+                sideOffset={6}
+                className="z-50"
+              >
                 <AgentSearchPanel
                   title={strings.agent}
                   searchLabel={`Rechercher un ${strings[kind]}…`}
                   value={draft}
                   onChange={setDraft}
                   onClose={() => setOpen(false)}
+                  className="w-[min(300px,calc(100vw-24px))]"
                   footer={
                     !query.isPending && !query.data?.data.length ? (
                       <p className="px-3 py-2 text-sm text-muted-foreground">

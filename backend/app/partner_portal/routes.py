@@ -25,11 +25,16 @@ from app.planning.core.models import (
     ActivityRevision,
     ActivityRevisionDecision,
     AnnualPTA,
+    DisbursementDecision,
+    DisbursementRequest,
+    FundingRequest,
     Operation,
     Partner,
     Project,
     ReversementDeclaration,
     VirementConfirmation,
+    VirementRequest,
+    ZeroSpendingDecision,
     ZeroSpendingDeclaration,
 )
 from app.planning.core.service import CONTEXT, Cursor, page_rows
@@ -221,12 +226,6 @@ def visible_activity(
     return activity, pta, project
 
 
-def decision_kind(revision: ActivityRevision) -> str:
-    if isinstance(revision.snapshot.get("transfer"), dict):
-        return "transfer"
-    return "initial" if revision.revision_number == 1 else "amendment"
-
-
 def activity_detail_data(
     db: Session,
     partner: Partner,
@@ -290,11 +289,17 @@ def activity_detail_data(
     )
     decisions = [
         {
-            "kind": decision_kind(item_revision),
+            "kind": (
+                "transfer"
+                if isinstance(item_revision.snapshot.get("transfer"), dict)
+                else "initial"
+                if index == 0
+                else "amendment"
+            ),
             "revision": item_revision.revision_number,
             "decided_at": decision.decided_at.isoformat(),
         }
-        for decision, item_revision in decision_rows
+        for index, (decision, item_revision) in enumerate(decision_rows)
     ]
     finance = None
     if activity.state == "closed":
@@ -602,6 +607,164 @@ def activity_fiche(activity_id: str, request: Request, auth: Auth) -> Response:
         activity, pta, project = visible_activity(db, partner, activity_id)
         generated_at = auth.now(db)
         detail = activity_detail_data(db, partner, activity, pta, project)
+        first_approved = db.scalar(
+            select(ActivityRevision)
+            .join(
+                ActivityRevisionDecision,
+                ActivityRevisionDecision.revision_id == ActivityRevision.id,
+            )
+            .where(
+                ActivityRevision.activity_id == activity.id,
+                ActivityRevisionDecision.stage == "validator",
+                ActivityRevisionDecision.outcome == "approved",
+            )
+            .order_by(ActivityRevisionDecision.decided_at)
+            .limit(1)
+        )
+        if first_approved:
+            detail["initial_allocation"] = str(
+                first_approved.snapshot.get("allocation") or detail["allocation"]
+            )
+        realization_date = db.scalar(
+            select(DisbursementDecision.decided_at)
+            .where(
+                DisbursementDecision.activity_id == activity.id,
+                DisbursementDecision.stage == "validator",
+                DisbursementDecision.outcome == "approved",
+            )
+            .order_by(DisbursementDecision.decided_at.desc())
+            .limit(1)
+        )
+        if realization_date is None:
+            realization_date = db.scalar(
+                select(ZeroSpendingDecision.decided_at)
+                .where(
+                    ZeroSpendingDecision.activity_id == activity.id,
+                    ZeroSpendingDecision.stage == "validator",
+                    ZeroSpendingDecision.outcome == "approved",
+                )
+                .order_by(ZeroSpendingDecision.decided_at.desc())
+                .limit(1)
+            )
+        detail["fiche_realization_date"] = (
+            realization_date.isoformat() if realization_date else None
+        )
+        detail["fiche_documents"] = [
+            {
+                "name": row.display_name,
+                "detail": (
+                    f"{row.media_type} · {row.uploaded_at.strftime('%d/%m/%Y')}"
+                ),
+            }
+            for row in db.scalars(
+                select(ActivityDocument)
+                .where(*shared_document_conditions(activity.id))
+                .order_by(ActivityDocument.uploaded_at)
+            )
+        ]
+        approved_revision = db.get(ActivityRevision, activity.approved_revision_id)
+        raw_approved_operations = (
+            approved_revision.snapshot.get("operations") if approved_revision else None
+        )
+        approved_operation_rows = (
+            raw_approved_operations if isinstance(raw_approved_operations, list) else []
+        )
+        approved_operation_ids = {
+            str(row.get("id"))
+            for row in approved_operation_rows
+            if isinstance(row, dict) and row.get("id")
+        }
+        realization_rows = list(
+            db.scalars(
+                select(Operation).where(
+                    Operation.activity_id == activity.id,
+                    Operation.id.in_(approved_operation_ids),
+                )
+            )
+        )
+        detail["fiche_realization"] = (
+            "Validée"
+            if detail["finance"] is not None
+            else "Terminée — validation attendue"
+            if realization_rows
+            and all(row.execution_completed for row in realization_rows)
+            else "En cours"
+            if any(row.execution_started_at for row in realization_rows)
+            else "Non commencée"
+        )
+        detail["fiche_requests"] = []
+        if activity.state == "closed":
+            states = {
+                "approved": "Autorisée",
+                "submitted": "À examiner",
+                "prevalidated": "Décision attendue",
+                "returned": "À corriger",
+                "cancelled": "Annulée",
+            }
+            requests: list[dict[str, Any]] = []
+            disbursements = list(
+                db.scalars(
+                    select(DisbursementRequest)
+                    .where(DisbursementRequest.activity_id == activity.id)
+                    .order_by(DisbursementRequest.submitted_at)
+                )
+            )
+            for funding_row in db.scalars(
+                select(FundingRequest)
+                .where(
+                    FundingRequest.activity_id == activity.id,
+                    FundingRequest.state == "approved",
+                )
+                .order_by(FundingRequest.submitted_at)
+            ):
+                requests.append(
+                    {
+                        "date": funding_row.submitted_at,
+                        "label": (
+                            "Financement complémentaire de "
+                            f"{funding_row.amount:,} F CFA"
+                        ).replace(",", " "),
+                        "state": states.get(funding_row.state, funding_row.state),
+                    }
+                )
+            for disbursement_row in disbursements:
+                if disbursement_row.state != "approved":
+                    continue
+                requests.append(
+                    {
+                        "date": disbursement_row.submitted_at,
+                        "label": (
+                            f"Décaissement de {disbursement_row.amount:,} F CFA"
+                        ).replace(",", " "),
+                        "state": states.get(
+                            disbursement_row.state, disbursement_row.state
+                        ),
+                    }
+                )
+            amounts = {row.id: row.amount for row in disbursements}
+            for virement_row in db.scalars(
+                select(VirementRequest)
+                .where(
+                    VirementRequest.activity_id == activity.id,
+                    VirementRequest.state == "approved",
+                )
+                .order_by(VirementRequest.submitted_at)
+            ):
+                amount = amounts.get(virement_row.disbursement_request_id)
+                label = (
+                    "Virement"
+                    if amount is None
+                    else f"Virement de {amount:,} F CFA".replace(",", " ")
+                )
+                requests.append(
+                    {
+                        "date": virement_row.submitted_at,
+                        "label": label,
+                        "state": states.get(virement_row.state, virement_row.state),
+                    }
+                )
+            requests.sort(key=lambda row: row["date"])
+            detail["fiche_requests"] = requests
         document = render_partner_fiche(detail, generated_at.isoformat())
         auth.audit(
             db,

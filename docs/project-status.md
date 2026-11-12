@@ -1465,6 +1465,57 @@ and `git diff --check` passed. Vite retained its existing large-bundle warning.
 Independent review cleared the corrected candidate with no blocking findings;
 human visual comparison remains outstanding.
 
+Planning and Execution now share the reference Activity explorer composition:
+search, Agent and Filters align in one compact row, while both 300 px floating
+panels follow the supplied right-edge anchoring, 13 px labels and reference
+spacing. Filter behavior and Activity visibility are unchanged.
+Serial verification passed 46 Planning tests and 33 Execution tests; ESLint,
+Prettier, the production PWA build and independent review passed. Human browser
+comparison at normal and 200% zoom and narrow widths remains outstanding.
+
+## Activity finance alignment and reference fiches, 2026-11-12
+
+Execution now exposes server-owned realization, balance and required-reversement
+facts. Internal and Partner Activity fiches use the supplied six-section A4
+composition with embedded DejaVu fonts, dynamic continuation pages and separate
+audience projections. The Partner UI previews its protected fiche before download.
+Reversement entry can add optional Activity evidence without changing closure
+rules; partial upload failure retains the declaration and supports upload-only
+recovery.
+
+Focused PDF unit checks and the execution UI contract passed during implementation.
+Measured operation-table anchors match the supplied internal PDF within 0.06
+points, including the headings, two representative rows, total and following
+section; monetary values remain on one line. A clean final selected backend run
+passed 25 finance, fiche, Partner and closure tests against disposable PostgreSQL,
+including returned initial programming, successive amendments, negative balance,
+maximum XOF values, long multipage history and both reversement branches. The 41
+affected frontend tests passed. Ruff, backend formatting, strict mypy, ESLint,
+Prettier, the production PWA build and `git diff --check` passed; ESLint retained
+one existing session-cleanup warning and Vite retained its existing large-chunk
+warning. A broader diagnostic execution run completed 79 passes and nine
+failures: seven are stale migration-head or downgrade-message assertions, while
+the two report failures discovered by that run were corrected and covered by the
+clean selected run. The same independent reviewer rechecked the final renderer,
+dynamic operation rows, decision history and evidence and reported no blocking
+finding. Human visual acceptance remains outstanding.
+
+Pre-commit review corrected French datetime formatting, historical role display,
+the realization summary, evidence retry concurrency/cancellation and Partner PDF
+denial cleanup. Legacy renderers were removed. Both independent review axes
+cleared the corrected source; the standards reviewer also independently passed
+the two changed frontend regressions and four renderer tests.
+
+Final pre-commit verification: the report/Partner backend selection completed
+18 passes and one stale current-role assertion failure; the corrected assertion
+passed its focused PostgreSQL rerun. The frontend selection completed 85 passes
+and two Planning timeouts with one worker; both timeout cases then passed alone.
+Earlier overlapping frontend jobs timed out and an initial backend attempt lacked
+a running database. The focused reruns do not turn those combined attempts into
+full passes. Ruff, formatting, strict mypy, ESLint, build and diff checks passed,
+with the existing hook and bundle-size warnings. Exact selections are recorded in
+the Activity plan.
+
 ## Remaining inputs and excluded work
 
 | Subject              | Boundary / owner                                                                                                                                                                                             |
