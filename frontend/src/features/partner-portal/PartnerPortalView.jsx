@@ -693,22 +693,42 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   <dt>Budget approuvé</dt>
                   <dd>{formatXof(detail.data.allocation)}</dd>
                 </div>
+                <div>
+                  <dt>Avancement</dt>
+                  <dd>
+                    {detail.data.progress == null
+                      ? 'Non disponible'
+                      : `${detail.data.progress} %`}
+                  </dd>
+                </div>
               </dl>
-              <h3>Opérations approuvées</h3>
+              <h3>Tâches approuvées</h3>
               <ul
                 className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
                 data-ui="planning-list"
               >
-                {detail.data.operations.map((operation, index) => (
-                  <li key={`${operation.name}-${index}`}>
+                {detail.data.tasks.map((task, index) => (
+                  <li key={`${task.name}-${index}`}>
                     <div>
-                      <strong>{operation.name}</strong>
-                      <small>{operation.description}</small>
+                      <strong>{task.name}</strong>
+                      <small>{task.description}</small>
+                      {task.subtasks?.length ? (
+                        <small>
+                          {task.subtasks
+                            .map((subtask) =>
+                              subtask.progress == null
+                                ? subtask.name
+                                : `${subtask.name} (${subtask.progress} %)`,
+                            )
+                            .join(' · ')}
+                        </small>
+                      ) : null}
                     </div>
                     <span>
-                      {operation.final_spending == null
-                        ? formatXof(operation.allocation)
-                        : `${formatXof(operation.final_spending)} dépensés`}
+                      {task.final_spending == null
+                        ? formatXof(task.allocation)
+                        : `${formatXof(task.final_spending)} dépensés`}
+                      {task.progress != null && ` · ${task.progress} %`}
                     </span>
                   </li>
                 ))}

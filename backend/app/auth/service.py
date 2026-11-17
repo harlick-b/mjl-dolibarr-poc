@@ -128,6 +128,7 @@ class AuthService:
                 "pta_annual",
                 "pta_activity",
                 "pta_operation",
+                "pta_subtask",
                 "pta_activity_agent_assignment",
                 "pta_activity_contributor",
                 "pta_activity_revision",
@@ -156,7 +157,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0035_uncertain_notification_mail"]:
+        if revisions != ["0037_transfer_task_dates"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -178,7 +179,15 @@ class AuthService:
             "decision_stage_role_outcome",
             "operation_actual_spent_nonnegative",
             "operation_execution_started_before_facts",
-            "operation_completion_has_amount",
+            "operation_weight_allowed",
+            "operation_progress_allowed",
+            "operation_dates_ordered",
+            "operation_activity_identity",
+            "subtask_allocation_positive",
+            "subtask_weight_allowed",
+            "subtask_dates_ordered",
+            "subtask_actual_spent_nonnegative",
+            "subtask_execution_started_before_facts",
             "disbursement_request_state_allowed",
             "disbursement_amount_positive",
             "disbursement_snapshot_bounded",
@@ -285,6 +294,7 @@ class AuthService:
                     ('pta_reject_immutable','pta_validate_final_decision',
                      'pta_validate_activity_review_state',
                      'pta_validate_activity_transfer_state',
+                     'pta_transfer_operations_without_dates',
                      'pta_preserve_activity_request',
                      'pta_preserve_operation_execution',
                      'auth_audit_immutable',
@@ -311,7 +321,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "496fa090592c88c6992d205d64382765dc07cbbc1951be7a9970beab328b0efc"
+            "f3518afb7d6a77ced2289f122524c5ac4098d7d7f3251435b5edbb02877f504f"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -779,17 +789,22 @@ class AuthService:
             "operation.execution_started",
             "operation.execution_recorded",
             "operation.execution_corrected",
+            "subtask.execution_recorded",
+            "subtask.execution_corrected",
         }:
+            subtask_execution = action.startswith("subtask.")
             execution_required = {
                 "context_id",
                 "activity_id",
-                "operation_id",
                 "approved_revision_id",
                 "approved_allocation",
                 "before",
                 "after",
                 "correction_reason",
             }
+            execution_required |= (
+                {"task_id", "subtask_id"} if subtask_execution else {"operation_id"}
+            )
 
             def valid_execution_facts(value: object) -> bool:
                 fields = {
@@ -800,7 +815,8 @@ class AuthService:
                 }
                 return (
                     isinstance(value, dict)
-                    and set(value) == fields
+                    and frozenset(value)
+                    in {frozenset(fields), frozenset(fields | {"progress"})}
                     and (
                         value["execution_started_at"] is None
                         or isinstance(value["execution_started_at"], str)
@@ -816,20 +832,26 @@ class AuthService:
                     )
                     and isinstance(value["execution_observation"], str)
                     and len(value["execution_observation"]) <= 4000
+                    and (
+                        "progress" not in value
+                        or value["progress"] is None
+                        or isinstance(value["progress"], str)
+                    )
                 )
 
             if (
                 set(business) != execution_required
                 or business.get("context_id") != "MJL"
-                or business.get("operation_id") != target
+                or business.get("subtask_id" if subtask_execution else "operation_id")
+                != target
                 or not all(
                     isinstance(business.get(key), str)
                     for key in (
-                        "activity_id",
-                        "operation_id",
-                        "approved_revision_id",
-                        "approved_allocation",
+                        ["activity_id", "task_id", "subtask_id"]
+                        if subtask_execution
+                        else ["activity_id", "operation_id"]
                     )
+                    + ["approved_revision_id", "approved_allocation"]
                 )
                 or not valid_execution_facts(business.get("before"))
                 or not valid_execution_facts(business.get("after"))
@@ -931,7 +953,7 @@ class AuthService:
                                 "planned_start",
                                 "planned_end",
                                 "allocation",
-                                "operations",
+                                "tasks",
                             )
                         }
                         if amendment_replace
@@ -1151,7 +1173,7 @@ class AuthService:
                     "placement_year",
                     "execution_paused",
                     "correction",
-                    "operations",
+                    "tasks",
                     "agent_ids",
                     "allowed_actions",
                     "closure",
@@ -1205,8 +1227,76 @@ class AuthService:
                     and isinstance(value.get("version"), int)
                     and value["version"] > 0
                 )
-            operations = value.get("operations")
-            operation_fields = {"id", "type_id", "name", "allocation", "position"}
+            tasks = value.get("tasks")
+            task_fields = {
+                "id",
+                "type_id",
+                "name",
+                "description",
+                "allocation",
+                "weight",
+                "planned_start",
+                "planned_end",
+                "position",
+                "subtasks",
+            }
+            subtask_fields = {
+                "id",
+                "name",
+                "description",
+                "allocation",
+                "weight",
+                "planned_start",
+                "planned_end",
+                "position",
+            }
+
+            def valid_planning_date(row: dict[str, object], key: str) -> bool:
+                return row.get(key) is None or isinstance(row.get(key), str)
+
+            def valid_subtask(row: object) -> bool:
+                return (
+                    isinstance(row, dict)
+                    and set(row) == subtask_fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in ("id", "name", "description", "allocation")
+                    )
+                    and (
+                        row.get("weight") is None or isinstance(row.get("weight"), str)
+                    )
+                    and valid_planning_date(row, "planned_start")
+                    and valid_planning_date(row, "planned_end")
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                )
+
+            def valid_task(row: object) -> bool:
+                return (
+                    isinstance(row, dict)
+                    and set(row) == task_fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in (
+                            "id",
+                            "type_id",
+                            "name",
+                            "description",
+                            "allocation",
+                        )
+                    )
+                    and (
+                        row.get("weight") is None or isinstance(row.get("weight"), str)
+                    )
+                    and valid_planning_date(row, "planned_start")
+                    and valid_planning_date(row, "planned_end")
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                    and isinstance(row.get("subtasks"), list)
+                    and len(row["subtasks"]) <= 100
+                    and all(valid_subtask(child) for child in row["subtasks"])
+                )
+
             return (
                 all(
                     isinstance(value.get(key), str)
@@ -1233,26 +1323,14 @@ class AuthService:
                 }
                 and isinstance(value.get("version"), int)
                 and value["version"] > 0
-                and isinstance(operations, list)
-                and (0 if value.get("state") == "draft" else 1)
-                <= len(operations)
-                <= 100
+                and isinstance(tasks, list)
+                and (0 if value.get("state") == "draft" else 1) <= len(tasks) <= 100
                 and all(
                     isinstance(value.get(field), str)
                     or (value.get("state") == "draft" and value.get(field) is None)
                     for field in ("planned_start", "planned_end", "allocation")
                 )
-                and all(
-                    isinstance(row, dict)
-                    and set(row) == operation_fields
-                    and all(
-                        isinstance(row.get(key), str)
-                        for key in ("id", "type_id", "name", "allocation")
-                    )
-                    and isinstance(row.get("position"), int)
-                    and row["position"] > 0
-                    for row in operations
-                )
+                and all(valid_task(row) for row in tasks)
                 and isinstance(value.get("agent_ids"), list)
                 and all(
                     isinstance(identifier, str) for identifier in value["agent_ids"]
@@ -1284,50 +1362,24 @@ class AuthService:
             )
 
         def valid_candidate(value: object) -> bool:
-            if not isinstance(value, dict):
+            if not isinstance(value, dict) or not isinstance(value.get("tasks"), list):
                 return False
-            fields = {
-                "name",
-                "description",
-                "planned_start",
-                "planned_end",
-                "allocation",
-                "operations",
+            tasks = value["tasks"]
+            if not all(
+                isinstance(row, dict)
+                and set(row) >= {"type_label"}
+                and isinstance(row.get("type_label"), str)
+                for row in tasks
+            ):
+                return False
+            normalized = {
+                **value,
+                "tasks": [
+                    {key: item for key, item in row.items() if key != "type_label"}
+                    for row in tasks
+                ],
             }
-            operations = value.get("operations")
-            operation_fields = {
-                "id",
-                "type_id",
-                "type_label",
-                "name",
-                "allocation",
-                "position",
-            }
-            return (
-                set(value) == fields
-                and all(
-                    isinstance(value.get(key), str) for key in fields - {"operations"}
-                )
-                and isinstance(operations, list)
-                and 1 <= len(operations) <= 100
-                and all(
-                    isinstance(row, dict)
-                    and set(row) == operation_fields
-                    and all(
-                        isinstance(row.get(key), str)
-                        for key in (
-                            "id",
-                            "type_id",
-                            "type_label",
-                            "name",
-                            "allocation",
-                        )
-                    )
-                    and isinstance(row.get("position"), int)
-                    and row["position"] > 0
-                    for row in operations
-                )
-            )
+            return valid_structural_content(normalized)
 
         def valid_structural_content(value: object) -> bool:
             fields = {
@@ -1336,28 +1388,76 @@ class AuthService:
                 "planned_start",
                 "planned_end",
                 "allocation",
-                "operations",
+                "tasks",
             }
-            operation_fields = {"id", "type_id", "name", "allocation", "position"}
-            return (
-                isinstance(value, dict)
-                and set(value) == fields
-                and all(
-                    isinstance(value.get(key), str) for key in fields - {"operations"}
-                )
-                and isinstance(value.get("operations"), list)
-                and 1 <= len(value["operations"]) <= 100
-                and all(
+            task_fields = {
+                "id",
+                "type_id",
+                "name",
+                "description",
+                "allocation",
+                "weight",
+                "planned_start",
+                "planned_end",
+                "position",
+                "subtasks",
+            }
+            subtask_fields = task_fields - {"type_id", "subtasks"}
+
+            def valid_child(row: object) -> bool:
+                return (
                     isinstance(row, dict)
-                    and set(row) == operation_fields
+                    and set(row) == subtask_fields
                     and all(
                         isinstance(row.get(key), str)
-                        for key in ("id", "type_id", "name", "allocation")
+                        for key in ("id", "name", "description", "allocation")
+                    )
+                    and (
+                        row.get("weight") is None or isinstance(row.get("weight"), str)
+                    )
+                    and all(
+                        row.get(key) is None or isinstance(row.get(key), str)
+                        for key in ("planned_start", "planned_end")
                     )
                     and isinstance(row.get("position"), int)
                     and row["position"] > 0
-                    for row in value["operations"]
                 )
+
+            def valid_task(row: object) -> bool:
+                return (
+                    isinstance(row, dict)
+                    and set(row) == task_fields
+                    and all(
+                        isinstance(row.get(key), str)
+                        for key in (
+                            "id",
+                            "type_id",
+                            "name",
+                            "description",
+                            "allocation",
+                        )
+                    )
+                    and (
+                        row.get("weight") is None or isinstance(row.get("weight"), str)
+                    )
+                    and all(
+                        row.get(key) is None or isinstance(row.get(key), str)
+                        for key in ("planned_start", "planned_end")
+                    )
+                    and isinstance(row.get("position"), int)
+                    and row["position"] > 0
+                    and isinstance(row.get("subtasks"), list)
+                    and len(row["subtasks"]) <= 100
+                    and all(valid_child(child) for child in row["subtasks"])
+                )
+
+            return (
+                isinstance(value, dict)
+                and set(value) == fields
+                and all(isinstance(value.get(key), str) for key in fields - {"tasks"})
+                and isinstance(value.get("tasks"), list)
+                and 1 <= len(value["tasks"]) <= 100
+                and all(valid_task(row) for row in value["tasks"])
             )
 
         def valid_transition(value: object, *, with_content: bool = False) -> bool:

@@ -3,12 +3,13 @@ from urllib.parse import parse_qs, urlsplit
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit.facts import compact_planning_facts
 from app.audit.routes import public_changes
 from app.auth.models import Audit, User
 from tests.auth.test_access import admin as admin_fixture
 from tests.auth.test_access import headers
+from tests.planning.test_planning import plan, post, references, replace_body
 from tests.planning.test_planning import planning as planning_fixture
-from tests.planning.test_planning import post, references
 
 planning = planning_fixture
 admin = admin_fixture
@@ -62,24 +63,101 @@ def test_changes_project_existing_safe_shapes_and_never_raw_secrets():
     ]
 
 
+def test_task_hierarchy_changes_keep_safe_audit_evidence():
+    before_task = {
+        "id": "task-1",
+        "type_id": "category-1",
+        "name": "Préparation",
+        "description": "Préparer la salle",
+        "allocation": "100",
+        "weight": "100.00",
+        "planned_start": "2028-02-28",
+        "planned_end": "2028-03-02",
+        "position": 0,
+        "subtasks": [
+            {
+                "id": "subtask-removed",
+                "name": "Réserver",
+                "description": "Ancienne réservation",
+                "allocation": "100",
+                "weight": "100.00",
+                "planned_start": "2028-02-28",
+                "planned_end": "2028-02-29",
+                "position": 0,
+                "secret": "never retain",
+            },
+            {
+                "id": "subtask-unchanged",
+                "name": "Installer",
+                "description": "Une description inchangée ne doit pas être dupliquée",
+                "allocation": "1",
+                "weight": "1.00",
+                "planned_start": "2028-03-01",
+                "planned_end": "2028-03-01",
+                "position": 1,
+            },
+        ],
+        "capabilities": ["never retain"],
+    }
+    after_task = {
+        **before_task,
+        "description": "Préparer la salle et le matériel",
+        "weight": "80.00",
+        "planned_end": "2028-03-03",
+        "subtasks": [before_task["subtasks"][1]],
+    }
+    compacted = compact_planning_facts(
+        {
+            "before": {"id": "activity-1", "tasks": [before_task]},
+            "after": {"id": "activity-1", "tasks": [after_task]},
+        }
+    )
+    assert "capabilities" not in str(compacted)
+    assert "secret" not in str(compacted)
+    assert "Une description inchangée" not in str(compacted)
+    assert compacted["before"]["operations"][0]["subtasks"][0]["id"] == (
+        "subtask-removed"
+    )
+    changes = public_changes(
+        Audit(action="activity.replace", business=compacted), human_activity=True
+    )
+    assert {
+        "field": "Tâche Préparation · Description",
+        "before": "Préparer la salle",
+        "after": "Préparer la salle et le matériel",
+    } in changes
+    assert {
+        "field": "Tâche Préparation · Poids (%)",
+        "before": "100.00",
+        "after": "80.00",
+    } in changes
+    assert any(
+        row["field"] == "Sous-tâche Réserver · Nom" and row["after"] is None
+        for row in changes
+    )
+
+
 def test_global_history_is_bounded_newest_first_and_activity_aware(planning):
     _partner, operation_type, project = references(planning)
     created = post(
         planning["agent"],
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         {
-            "name": "Historique synthétique",
-            "description": "Vérifier la projection globale.",
-            "planned_start": "2027-01-10",
-            "planned_end": "2027-02-10",
-            "allocation": "1000",
-            "operations": [
-                {
-                    "type_id": operation_type["id"],
-                    "name": "Action",
-                    "allocation": "1000",
-                }
-            ],
+            **plan(
+                operation_type,
+                name="Historique synthétique",
+                description="Vérifier la projection globale.",
+                planned_start="2027-01-10",
+                planned_end="2027-02-10",
+                allocation="1000",
+                tasks=[
+                    {
+                        "type_id": operation_type["id"],
+                        "name": "Action",
+                        "allocation": "1000",
+                    }
+                ],
+            ),
             "request_key": "97107dc0-11af-4c09-b09f-c9203ee90729",
         },
     )
@@ -398,7 +476,7 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
 ):
     from uuid import uuid4
 
-    from tests.planning.test_planning import patch, plan
+    from tests.planning.test_planning import patch
 
     _, category, project = references(planning)
     agent = planning["agent"]
@@ -409,15 +487,7 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     ).json()
     identifier = created["id"]
     path = f"/api/v1/activities/{identifier}"
-    body = {
-        key: created[key]
-        for key in ("name", "description", "allocation", "planned_start", "planned_end")
-    }
-    body["operations"] = [
-        {key: row[key] for key in ("id", "type_id", "name", "allocation")}
-        for row in created["operations"]
-    ]
-    body["expected_version"] = created["version"]
+    body = replace_body(created)
     same = patch(agent, path, body)
     assert same.status_code == 200, same.text
     assert same.json()["version"] == created["version"]
@@ -428,12 +498,12 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     assert agent.get(path + "/history").json()["count"] == 1
     replacement_category = post(
         agent,
-        "/api/v1/operation-types",
+        "/api/v1/task-categories",
         {"label": "Catégorie de remplacement"},
     ).json()
     body["description"] = "Description corrigée"
-    body["operations"][0]["name"] = "Opération corrigée"
-    body["operations"][0]["type_id"] = replacement_category["id"]
+    body["tasks"][0]["name"] = "Opération corrigée"
+    body["tasks"][0]["type_id"] = replacement_category["id"]
     saved = patch(agent, path, body)
     assert saved.status_code == 200, saved.text
     event = agent.get(path + "/history").json()["data"][0]
@@ -449,8 +519,8 @@ def test_saved_changes_noops_and_rollback_preserve_business_evidence(
     )
     assert category_change["before"] == category["label"]
     assert category_change["after"] == replacement_category["label"]
-    assert created["operations"][0]["id"] not in str(event["changes"])
-    assert created["operations"][0]["type_id"] not in str(event["changes"])
+    assert created["tasks"][0]["id"] not in str(event["changes"])
+    assert created["tasks"][0]["type_id"] not in str(event["changes"])
     with Session(planning["auth"].engine) as db, db.begin():
         user = db.get(User, agent_user["id"], with_for_update=True)
         user.full_name = None

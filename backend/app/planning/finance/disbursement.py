@@ -22,6 +22,7 @@ from app.planning.core.models import (
     DisbursementRequest,
     Operation,
     Project,
+    Subtask,
 )
 from app.planning.core.service import (
     CONTEXT,
@@ -197,6 +198,8 @@ def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[st
                         "operation.execution_started",
                         "operation.execution_recorded",
                         "operation.execution_corrected",
+                        "subtask.execution_recorded",
+                        "subtask.execution_corrected",
                     }
                 ),
                 Audit.business["activity_id"].as_string() == item.id,
@@ -226,16 +229,38 @@ def verified_financial_basis(
     all_rows = list(db.scalars(operation_statement))
     active_ids = {row.id for row in all_rows if row.removed_at is None}
     approved_ids = {row.id for row, _ in approved}
+    approved_child_ids = {
+        str(child["id"])
+        for _row, fact in approved
+        for child in fact.get("subtasks", [])
+        if isinstance(child, dict) and isinstance(child.get("id"), str)
+    }
+    subtask_statement = (
+        select(Subtask).where(Subtask.activity_id == item.id).order_by(Subtask.id)
+    )
+    if lock:
+        subtask_statement = subtask_statement.with_for_update()
+    all_children = list(db.scalars(subtask_statement))
+    active_child_ids = {child.id for child in all_children if child.removed_at is None}
+    removed_children = [child for child in all_children if child.removed_at is not None]
     removed = [row for row in all_rows if row.removed_at is not None]
     if (
         not all_rows
         or active_ids != approved_ids
+        or active_child_ids != approved_child_ids
         or any(
             row.execution_started_at is not None
             or row.execution_completed
             or row.actual_spent is not None
             or bool(row.execution_observation)
             for row in removed
+        )
+        or any(
+            child.execution_started_at is not None
+            or child.execution_completed
+            or child.actual_spent is not None
+            or bool(child.execution_observation)
+            for child in removed_children
         )
     ):
         raise AuthError(409, "execution_ineligible")
@@ -278,6 +303,8 @@ def verified_financial_basis(
                                 "operation.execution_started",
                                 "operation.execution_recorded",
                                 "operation.execution_corrected",
+                                "subtask.execution_recorded",
+                                "subtask.execution_corrected",
                             }
                         ),
                     ),
@@ -313,12 +340,58 @@ def verified_financial_basis(
         "actual_spent": None,
         "execution_observation": "",
     }
+    empty_task_facts = {**empty_facts, "progress": None}
     carried: dict[str, dict[str, object]] = {}
+    child_carried: dict[str, dict[str, object]] = {}
     historical_allocation: int | None = None
     historical_revision_id: str | None = None
     revision_operation_allocations: dict[str, int] = {}
+    revision_child_allocations: dict[str, int] = {}
+    revision_task_children: dict[str, list[str]] = {}
+    revision_child_tasks: dict[str, str] = {}
     authors: set[str] = set()
     started_ids: set[str] = set()
+    child_started_ids: set[str] = set()
+
+    def normalized_task_facts(value: object) -> dict[str, object] | None:
+        if not isinstance(value, dict):
+            return None
+        if set(value) == set(empty_facts):
+            return {**value, "progress": None}
+        if set(value) == set(empty_task_facts):
+            return cast(dict[str, object], value)
+        return None
+
+    def aggregate_task(task_id: str) -> None:
+        child_ids = revision_task_children.get(task_id, [])
+        if not child_ids:
+            return
+        states = [child_carried.get(child_id, empty_facts) for child_id in child_ids]
+        starts = [
+            cast(str, state["execution_started_at"])
+            for state in states
+            if isinstance(state.get("execution_started_at"), str)
+        ]
+        raw_amounts = [state.get("actual_spent") for state in states]
+        amount = (
+            str(sum(int(cast(str, value)) for value in raw_amounts))
+            if all(isinstance(value, str) for value in raw_amounts)
+            else None
+        )
+        carried[task_id] = {
+            "execution_started_at": min(starts) if starts else None,
+            "execution_completed": all(
+                state.get("execution_completed") is True for state in states
+            ),
+            "actual_spent": amount,
+            "execution_observation": "",
+            "progress": None,
+        }
+        if starts:
+            started_ids.add(task_id)
+        else:
+            started_ids.discard(task_id)
+
     for event in events:
         facts = event.business
         if not isinstance(facts, dict):
@@ -329,17 +402,17 @@ def verified_financial_basis(
             after = facts.get("after")
             revision_id = facts.get("approved_revision_id")
             recorded_allocation = facts.get("approved_allocation")
-            expected_before = carried.get(cast(str, operation_id), empty_facts)
-            execution_fields = set(empty_facts)
+            expected_before = carried.get(cast(str, operation_id), empty_task_facts)
+            normalized_before = normalized_task_facts(before)
+            normalized_after = normalized_task_facts(after)
             if (
                 not isinstance(operation_id, str)
                 or operation_id not in active_ids
-                or not isinstance(before, dict)
-                or not isinstance(after, dict)
-                or set(before) != execution_fields
-                or set(after) != execution_fields
-                or before != expected_before
-                or before == after
+                or revision_task_children.get(operation_id)
+                or normalized_before is None
+                or normalized_after is None
+                or normalized_before != expected_before
+                or normalized_before == normalized_after
                 or revision_id != historical_revision_id
                 or not isinstance(recorded_allocation, str)
                 or not recorded_allocation.isascii()
@@ -348,7 +421,7 @@ def verified_financial_basis(
                 != revision_operation_allocations.get(operation_id)
             ):
                 raise AuthError(409, "execution_history_unverified")
-            raw_amount = after.get("actual_spent")
+            raw_amount = normalized_after.get("actual_spent")
             if raw_amount is not None and (
                 not isinstance(raw_amount, str)
                 or not raw_amount.isascii()
@@ -358,20 +431,63 @@ def verified_financial_basis(
             if event.action == "operation.execution_started":
                 if (
                     operation_id in started_ids
-                    or before != empty_facts
-                    or not isinstance(after.get("execution_started_at"), str)
+                    or normalized_before != empty_task_facts
+                    or not isinstance(normalized_after.get("execution_started_at"), str)
                 ):
                     raise AuthError(409, "execution_history_unverified")
                 started_ids.add(operation_id)
             elif operation_id not in started_ids:
                 if (
                     event.action != "operation.execution_recorded"
+                    or normalized_before != empty_task_facts
+                    or not isinstance(normalized_after.get("execution_started_at"), str)
+                ):
+                    raise AuthError(409, "execution_history_unverified")
+                started_ids.add(operation_id)
+            carried[operation_id] = normalized_after
+            authors.add(event.actor)
+        elif event.action.startswith("subtask.execution_"):
+            task_id = facts.get("task_id")
+            child_id = facts.get("subtask_id")
+            before = facts.get("before")
+            after = facts.get("after")
+            revision_id = facts.get("approved_revision_id")
+            recorded_allocation = facts.get("approved_allocation")
+            expected_before = child_carried.get(cast(str, child_id), empty_facts)
+            if (
+                not isinstance(task_id, str)
+                or not isinstance(child_id, str)
+                or revision_child_tasks.get(child_id) != task_id
+                or not isinstance(before, dict)
+                or not isinstance(after, dict)
+                or set(before) != set(empty_facts)
+                or set(after) != set(empty_facts)
+                or before != expected_before
+                or before == after
+                or revision_id != historical_revision_id
+                or not isinstance(recorded_allocation, str)
+                or not recorded_allocation.isascii()
+                or not recorded_allocation.isdecimal()
+                or int(recorded_allocation) != revision_child_allocations.get(child_id)
+            ):
+                raise AuthError(409, "execution_history_unverified")
+            raw_amount = after.get("actual_spent")
+            if raw_amount is not None and (
+                not isinstance(raw_amount, str)
+                or not raw_amount.isascii()
+                or not raw_amount.isdecimal()
+            ):
+                raise AuthError(409, "execution_history_unverified")
+            if child_id not in child_started_ids:
+                if (
+                    event.action != "subtask.execution_recorded"
                     or before != empty_facts
                     or not isinstance(after.get("execution_started_at"), str)
                 ):
                     raise AuthError(409, "execution_history_unverified")
-                started_ids.add(operation_id)
-            carried[operation_id] = cast(dict[str, object], after)
+                child_started_ids.add(child_id)
+            child_carried[child_id] = cast(dict[str, object], after)
+            aggregate_task(task_id)
             authors.add(event.actor)
         else:
             revision_facts = facts.get("revision")
@@ -393,6 +509,9 @@ def verified_financial_basis(
             ):
                 raise AuthError(409, "execution_history_unverified")
             allocation_map: dict[str, int] = {}
+            child_allocation_map: dict[str, int] = {}
+            task_children: dict[str, list[str]] = {}
+            child_tasks: dict[str, str] = {}
             for operation in raw_operations:
                 if not isinstance(operation, dict):
                     raise AuthError(409, "execution_history_unverified")
@@ -407,10 +526,47 @@ def verified_financial_basis(
                 ):
                     raise AuthError(409, "execution_history_unverified")
                 allocation_map[operation_id] = int(operation_allocation)
+                raw_children = operation.get("subtasks", [])
+                if not isinstance(raw_children, list):
+                    raise AuthError(409, "execution_history_unverified")
+                child_ids: list[str] = []
+                for child in raw_children:
+                    if not isinstance(child, dict):
+                        raise AuthError(409, "execution_history_unverified")
+                    child_id = child.get("id")
+                    child_allocation = child.get("allocation")
+                    if (
+                        not isinstance(child_id, str)
+                        or not isinstance(child_allocation, str)
+                        or not child_allocation.isascii()
+                        or not child_allocation.isdecimal()
+                        or child_id in child_allocation_map
+                    ):
+                        raise AuthError(409, "execution_history_unverified")
+                    child_ids.append(child_id)
+                    child_allocation_map[child_id] = int(child_allocation)
+                    child_tasks[child_id] = operation_id
+                task_children[operation_id] = child_ids
             historical_allocation = int(raw_allocation)
             historical_revision_id = approved_revision.id
             revision_operation_allocations = allocation_map
+            revision_child_allocations = child_allocation_map
+            revision_task_children = task_children
+            revision_child_tasks = child_tasks
+            child_carried = {
+                child_id: state
+                for child_id, state in child_carried.items()
+                if child_id in child_allocation_map
+            }
+            child_started_ids.intersection_update(child_allocation_map)
+            for task_id in task_children:
+                aggregate_task(task_id)
     persisted = {row.id: execution_facts(row) for row, _ in approved}
+    persisted_children = {
+        child.id: execution_facts(child)
+        for child in all_children
+        if child.removed_at is None
+    }
     if (
         audited_revision_ids != approved_revision_ids
         or not approved_revision_ids
@@ -418,11 +574,25 @@ def verified_financial_basis(
         or historical_allocation != allocation
         or started_ids != active_ids
         or carried != persisted
+        or child_carried != persisted_children
     ):
         raise AuthError(409, "execution_history_unverified")
     for row, fact in approved:
         approved_amount = int(cast(str, fact["allocation"]))
-        if row.actual_spent != approved_amount and not row.execution_observation:
+        child_facts = [
+            cast(dict[str, Any], child)
+            for child in fact.get("subtasks", [])
+            if isinstance(child, dict)
+        ]
+        if child_facts:
+            for child_fact in child_facts:
+                child_state = child_carried[str(child_fact["id"])]
+                if (
+                    child_state["actual_spent"] != child_fact["allocation"]
+                    and not child_state["execution_observation"]
+                ):
+                    raise AuthError(409, "variance_observation_required")
+        elif row.actual_spent != approved_amount and not row.execution_observation:
             raise AuthError(409, "variance_observation_required")
     return total, operations, authors
 

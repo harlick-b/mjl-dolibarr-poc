@@ -13,8 +13,8 @@ import {
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
-import { ExecutionOperations, OperationEditor } from './ExecutionOperations'
-import { countRecordedOperations } from './executionPresentation'
+import { StatusBadge } from '@/shared/ui/StatusBadge'
+import { ExecutionTasks, TaskEditor } from './ExecutionOperations'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -355,12 +355,12 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
     retry: false,
     networkMode: 'always',
     meta: { localError: true },
-    mutationFn: async ({ operationId, body }) => {
+    mutationFn: async ({ taskId, subtaskId, body }) => {
       const activeGeneration = generation.current
       const requestController = new AbortController()
       controller.current = requestController
       const result = await api.request(
-        `/api/v1/activities/${params.activityId}/operations/${operationId}/execution`,
+        `/api/v1/activities/${params.activityId}/tasks/${taskId}${subtaskId ? `/subtasks/${subtaskId}` : ''}/execution`,
         {
           method: 'PATCH',
           body,
@@ -632,9 +632,12 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
           confirmationHistory.isFetching ||
           reversementHistory.isFetching
         }
-        mutate={(operationId, body) =>
-          mutation.mutateAsync({ operationId, body }).catch(() => false)
-        }
+        mutate={async (taskId, subtaskId, body) => {
+          const result = await mutation
+            .mutateAsync({ taskId, subtaskId, body })
+            .catch(() => false)
+          return result
+        }}
         mutateFinance={async (path, body) => {
           const activeGeneration = generation.current
           const result = await financeMutation
@@ -903,8 +906,9 @@ export function ExecutionList({
                         : strings.ongoingLabel}
                     </strong>
                     <small className="block mt-1 text-muted-foreground">
-                      {row.completed_operations} / {row.operation_count}{' '}
-                      {strings.operationsCompleted}
+                      {row.progress === null
+                        ? strings.progressUnavailable
+                        : `${row.progress ?? (row.works_completed ? '100.00' : '0.00')} %`}
                     </small>
                   </td>
                   <td className="px-3 py-3 text-right">
@@ -924,17 +928,17 @@ export function ExecutionList({
                     <AgentNames activityId={row.id} names={row.agents} />
                   </td>
                   <td className="px-3 py-3">
-                    <span
+                    <StatusBadge
                       className={
                         row.closure
-                          ? 'rounded-card bg-success-badge text-success px-2 py-1 text-xs'
+                          ? 'bg-success-badge text-success'
                           : row.works_completed || row.execution_paused
-                            ? 'rounded-card bg-warning-soft text-warning px-2 py-1 text-xs'
-                            : 'rounded-card bg-selected text-primary px-2 py-1 text-xs'
+                            ? 'bg-warning-soft text-warning'
+                            : 'bg-selected text-primary'
                       }
                     >
                       {executionStage(row)}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="px-3 py-3 text-right">
                     <Button
@@ -1031,11 +1035,21 @@ function ExecutionDetail({
   onConfirmationPage,
   onReversementPage,
 }) {
-  const [selectedOperationId, setSelectedOperationId] = useState(null)
-  const operationOpener = useRef(null)
-  const selectedOperation = detail.operations.find(
-    (operation) => operation.id === selectedOperationId,
-  )
+  const tasks = detail.tasks ?? []
+  const taskDetail = {
+    ...detail,
+    tasks,
+    task_count: detail.task_count ?? tasks.length,
+    completed_tasks: detail.completed_tasks ?? 0,
+    progress: detail.progress ?? null,
+  }
+  const [selectedTaskId, setSelectedTaskId] = useState(null)
+  const [selectedSubtaskId, setSelectedSubtaskId] = useState(null)
+  const taskOpener = useRef(null)
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId)
+  const selectedTarget = selectedSubtaskId
+    ? selectedTask?.subtasks.find((child) => child.id === selectedSubtaskId)
+    : selectedTask
   const currentVirement = resolveCurrentVirement(
     detail,
     virements,
@@ -1106,8 +1120,8 @@ function ExecutionDetail({
             </dt>
             <dd>{formatXof(detail.spending_total)}</dd>
             <small className="text-muted-foreground">
-              {countRecordedOperations(detail.operations)} /{' '}
-              {detail.operation_count} {strings.operationsCount}
+              {taskDetail.completed_tasks} / {taskDetail.task_count}{' '}
+              {strings.tasksCount} terminées
             </small>
           </div>
           <div>
@@ -1116,27 +1130,40 @@ function ExecutionDetail({
           </div>
         </dl>
       </Panel>
-      <ExecutionOperations
+      <ExecutionTasks
         key={detail.works_completed ? 'completed' : 'in-progress'}
-        detail={detail}
-        onSelect={(operationId, opener) => {
-          operationOpener.current = opener
-          setSelectedOperationId(operationId)
+        detail={taskDetail}
+        onSelect={(taskId, subtaskId, opener) => {
+          taskOpener.current = opener
+          setSelectedTaskId(taskId)
+          setSelectedSubtaskId(subtaskId)
         }}
       />
       <Modal
-        open={Boolean(selectedOperation)}
-        onClose={() => setSelectedOperationId(null)}
-        label={selectedOperation?.name || 'Opération'}
-        opener={operationOpener}
+        open={Boolean(selectedTarget)}
+        onClose={() => {
+          setSelectedTaskId(null)
+          setSelectedSubtaskId(null)
+        }}
+        label={selectedTarget?.name || 'Tâche'}
+        opener={taskOpener}
         className="w-[min(640px,calc(100%-32px))]"
       >
-        {selectedOperation && (
-          <OperationEditor
+        {selectedTask && selectedTarget && (
+          <TaskEditor
             activity={detail}
-            operation={selectedOperation}
+            task={selectedTask}
+            target={selectedTarget}
+            isSubtask={Boolean(selectedSubtaskId)}
             pending={pending}
-            mutate={mutate}
+            mutate={async (...args) => {
+              const result = await mutate(...args)
+              if (result !== false) {
+                setSelectedTaskId(null)
+                setSelectedSubtaskId(null)
+              }
+              return result
+            }}
           />
         )}
       </Modal>
@@ -1148,9 +1175,9 @@ function ExecutionDetail({
           <h2 id="administrative-title" className="font-semibold text-navy">
             {strings.administrativeFollowUp}
           </h2>
-          <span className="rounded-card bg-selected px-2.5 py-1 text-xs font-medium text-primary">
+          <StatusBadge className="bg-selected font-medium text-primary">
             {executionStage(detail)}
-          </span>
+          </StatusBadge>
         </header>
         <div>
           {detail.works_completed && detail.spending_total === '0' && (
@@ -1391,7 +1418,7 @@ function ZeroSpendingSection({
         {current && <strong>{stateLabels[current.state]}</strong>}
       </div>
       <p>
-        Confirmez pourquoi toutes les Opérations ont été réalisées sans dépense.
+        Confirmez pourquoi toutes les tâches ont été réalisées sans dépense.
         Cette déclaration remplace le parcours de décaissement uniquement après
         la validation du Superviseur et du Validateur.
       </p>
@@ -1548,9 +1575,9 @@ function ClosureSection({ detail, pending, mutate }) {
     planning_not_approved:
       'L’Activité doit être approuvée sans demande en cours.',
     execution_ineligible:
-      'Les Opérations approuvées ne peuvent pas être vérifiées.',
+      'Les tâches approuvées ne peuvent pas être vérifiées.',
     execution_incomplete:
-      'Toutes les Opérations doivent être terminées et chiffrées.',
+      'Toutes les tâches doivent être terminées et chiffrées.',
     execution_history_unverified: 'L’historique de réalisation est incomplet.',
     spending_ineligible: 'Le total final des dépenses ne peut pas être réglé.',
     disbursement_not_settled: 'Le décaissement exact doit être approuvé.',
@@ -1859,6 +1886,9 @@ function ExternalTransferStep({
   onPage: onConfirmationPage,
 }) {
   const version = current.activity_version
+  const [transferDate, setTransferDate] = useState(
+    current.current_confirmation?.transfer_date || '',
+  )
   return (
     <AdministrativeStep
       key={`confirmation:${Boolean(current.current_confirmation)}`}
@@ -1928,12 +1958,12 @@ function ExternalTransferStep({
         >
           <label>
             Date effective du virement *
-            <input
-              type="date"
-              name="transfer_date"
-              required
-              defaultValue={current.current_confirmation?.transfer_date}
+            <DatePicker
+              label="Date effective du virement"
+              value={transferDate}
+              onChange={setTransferDate}
             />
+            <input type="hidden" name="transfer_date" value={transferDate} />
           </label>
           <label>
             Référence ou commentaire

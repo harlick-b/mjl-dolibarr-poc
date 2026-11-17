@@ -165,7 +165,7 @@ function portalFixture(binary) {
         name: 'Activité',
         reference: 'ACT',
         allocation: '100',
-        operations: [],
+        tasks: [],
         decisions: [],
         finance: null,
       })

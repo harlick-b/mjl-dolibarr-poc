@@ -452,6 +452,9 @@ test('ordinary active rows expose lifecycle actions but Admin and inactive rows 
     await screen.findAllByRole('button', { name: 'Modifier le rôle' }),
   ).toHaveLength(1)
   expect(screen.getAllByRole('button', { name: 'Désactiver' })).toHaveLength(2)
+  for (const badge of screen.getAllByText('Actif')) {
+    expect(badge).toHaveClass('max-w-full', 'whitespace-normal', 'break-words')
+  }
   expect(
     screen.queryByRole('button', { name: /réactiver|réinviter/i }),
   ).not.toBeInTheDocument()

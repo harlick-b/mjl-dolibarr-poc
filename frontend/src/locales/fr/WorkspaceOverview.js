@@ -47,7 +47,7 @@ export const strings = new LocalizedStrings({
     approvedBudget: 'Budget approuvé du PTA',
     recordedSpending: 'Dépenses renseignées',
     partial: 'partielles',
-    operationCount: '{known} / {total} opérations',
+    operationCount: '{known} / {total} tâches',
     closedSpending: 'Dépenses des activités clôturées',
     returnDue: 'Restant à reverser',
     returnConfirmed: 'Reversement confirmé',

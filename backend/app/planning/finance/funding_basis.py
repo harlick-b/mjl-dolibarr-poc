@@ -92,6 +92,8 @@ def funding_basis(db: Session, item: Activity) -> tuple[list[dict[str, str]], bo
                         [
                             "operation.execution_recorded",
                             "operation.execution_corrected",
+                            "subtask.execution_recorded",
+                            "subtask.execution_corrected",
                         ]
                     ),
                 ),
@@ -100,6 +102,10 @@ def funding_basis(db: Session, item: Activity) -> tuple[list[dict[str, str]], bo
         .order_by(Audit.id)
     )
     amounts: dict[str, int] = {}
+    child_amounts: dict[str, int] = {}
+    task_children: dict[str, list[str]] = {}
+    child_tasks: dict[str, str] = {}
+    current_task_ids: set[str] = set()
     current: str | None = None
     audited = []
     unresolved = False
@@ -112,13 +118,72 @@ def funding_basis(db: Session, item: Activity) -> tuple[list[dict[str, str]], bo
             if not isinstance(revision, dict) or revision.get("id") not in positions:
                 raise AuthError(409, "execution_history_unverified")
             current = cast(str, revision["id"])
+            approved = revisions[positions[current]]
+            raw_tasks = approved.snapshot.get("operations")
+            if not isinstance(raw_tasks, list):
+                raise AuthError(409, "execution_history_unverified")
+            next_task_children: dict[str, list[str]] = {}
+            next_child_tasks: dict[str, str] = {}
+            for task in raw_tasks:
+                if not isinstance(task, dict) or not isinstance(task.get("id"), str):
+                    raise AuthError(409, "execution_history_unverified")
+                task_id = cast(str, task["id"])
+                raw_children = task.get("subtasks", [])
+                if not isinstance(raw_children, list):
+                    raise AuthError(409, "execution_history_unverified")
+                child_ids: list[str] = []
+                for child in raw_children:
+                    if not isinstance(child, dict) or not isinstance(
+                        child.get("id"), str
+                    ):
+                        raise AuthError(409, "execution_history_unverified")
+                    child_id = cast(str, child["id"])
+                    if child_id in next_child_tasks:
+                        raise AuthError(409, "execution_history_unverified")
+                    child_ids.append(child_id)
+                    next_child_tasks[child_id] = task_id
+                next_task_children[task_id] = child_ids
+            task_children = next_task_children
+            child_tasks = next_child_tasks
+            current_task_ids = set(task_children)
+            for task_id, child_ids in task_children.items():
+                if child_ids:
+                    amounts[task_id] = sum(
+                        child_amounts.get(child_id, 0) for child_id in child_ids
+                    )
+                else:
+                    amounts.setdefault(task_id, 0)
             audited.append(current)
+        elif event.action.startswith("subtask.execution_"):
+            after = facts.get("after")
+            raw_child_id = facts.get("subtask_id")
+            raw_task_id = facts.get("task_id")
+            if (
+                not isinstance(after, dict)
+                or not isinstance(raw_child_id, str)
+                or not isinstance(raw_task_id, str)
+                or child_tasks.get(raw_child_id) != raw_task_id
+                or current != facts.get("approved_revision_id")
+            ):
+                raise AuthError(409, "execution_history_unverified")
+            raw = after.get("actual_spent")
+            if raw is not None and (
+                not isinstance(raw, str) or not raw.isascii() or not raw.isdecimal()
+            ):
+                raise AuthError(409, "execution_history_unverified")
+            child_amounts[raw_child_id] = int(raw) if isinstance(raw, str) else 0
+            amounts[raw_task_id] = sum(
+                child_amounts.get(member_id, 0)
+                for member_id in task_children[raw_task_id]
+            )
         else:
             after = facts.get("after")
             operation = facts.get("operation_id")
             if (
                 not isinstance(after, dict)
                 or not isinstance(operation, str)
+                or operation not in current_task_ids
+                or task_children.get(operation)
                 or current != facts.get("approved_revision_id")
             ):
                 raise AuthError(409, "execution_history_unverified")
@@ -128,7 +193,7 @@ def funding_basis(db: Session, item: Activity) -> tuple[list[dict[str, str]], bo
             ):
                 raise AuthError(409, "execution_history_unverified")
             amounts[operation] = int(raw) if isinstance(raw, str) else 0
-        spent = sum(amounts.values())
+        spent = sum(amounts.get(task_id, 0) for task_id in current_task_ids)
         if (
             current is not None
             and spent > allocations[current]

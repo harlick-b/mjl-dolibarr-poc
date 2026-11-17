@@ -1,5 +1,7 @@
 # ruff: noqa: F401, F811
+import json
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from threading import Event, Lock
 from time import monotonic
 from uuid import uuid4
@@ -12,6 +14,8 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
+from app.planning.core.models import ActivityRevision
+from app.planning.core.service import fingerprint
 from tests.auth.test_access import headers
 from tests.auth.test_recovery import NEW_PASSWORD, recovery_proof
 from tests.auth.test_recovery import enable_recovery as enable_password_recovery
@@ -61,10 +65,37 @@ def request_transfer(clients, approved, *, start="2028-02-01", end="2028-08-31")
             "reason": "Reporter l’activité au prochain programme annuel.",
             "planned_start": start,
             "planned_end": end,
+            "tasks": shifted_transfer_tasks(approved, start),
         },
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def shifted_transfer_tasks(activity, new_start):
+    delta = date.fromisoformat(new_start) - date.fromisoformat(
+        activity["planned_start"]
+    )
+
+    def shifted(value):
+        return (date.fromisoformat(value) + delta).isoformat() if value else None
+
+    return [
+        {
+            "id": task["id"],
+            "planned_start": shifted(task["planned_start"]),
+            "planned_end": shifted(task["planned_end"]),
+            "subtasks": [
+                {
+                    "id": child["id"],
+                    "planned_start": shifted(child["planned_start"]),
+                    "planned_end": shifted(child["planned_end"]),
+                }
+                for child in task["subtasks"]
+            ],
+        }
+        for task in activity["tasks"]
+    ]
 
 
 def approve_transfer(clients, activity, revision):
@@ -104,7 +135,56 @@ def test_transfer_preserves_source_until_distinct_two_stage_approval(planning):
     assert moved["planned_start"] == "2028-02-01"
     assert moved["transfer"] is None
     assert moved["approved_revision_id"] == revision["id"]
-    assert moved["operations"] == approved["operations"]
+    assert revision["snapshot"]["tasks"][0]["planned_start"] == "2028-02-01"
+    assert moved["tasks"][0]["planned_start"] == "2028-02-01"
+    assert moved["tasks"][0]["planned_end"] == "2028-05-02"
+
+
+def test_pending_legacy_transfer_with_unshifted_task_dates_requires_resubmission(
+    planning,
+):
+    approved, _operation_type = approved_activity(planning)
+    revision = request_transfer(planning, approved)
+    with Session(planning["auth"].engine) as db:
+        stored_revision = db.get(ActivityRevision, revision["id"])
+        assert stored_revision
+        internal_snapshot = dict(stored_revision.snapshot)
+    for index, operation in enumerate(internal_snapshot["operations"]):
+        operation["planned_start"] = approved["tasks"][index]["planned_start"]
+        operation["planned_end"] = approved["tasks"][index]["planned_end"]
+    internal_snapshot.pop("content_fingerprint", None)
+    digest = fingerprint(internal_snapshot)
+    internal_snapshot["content_fingerprint"] = digest
+    with planning["auth"].engine.begin() as db:
+        db.execute(text("ALTER TABLE pta_activity_revision DISABLE TRIGGER USER"))
+        db.execute(
+            text(
+                "UPDATE pta_activity_revision SET snapshot=CAST(:snapshot AS jsonb), "
+                "fingerprint=:fingerprint WHERE id=:id"
+            ),
+            {
+                "snapshot": json.dumps(internal_snapshot),
+                "fingerprint": digest,
+                "id": revision["id"],
+            },
+        )
+        db.execute(text("ALTER TABLE pta_activity_revision ENABLE TRIGGER USER"))
+    prevalidated = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{approved['id']}/revisions/{revision['id']}/decisions",
+        {"expected_version": revision["activity_version"], "decision": "prevalidate"},
+    )
+    assert prevalidated.status_code == 201, prevalidated.text
+    rejected = post(
+        planning["validator"],
+        f"/api/v1/activities/{approved['id']}/revisions/{revision['id']}/decisions",
+        {
+            "expected_version": prevalidated.json()["activity_version"],
+            "decision": "approve",
+        },
+    )
+    assert rejected.status_code == 409, rejected.text
+    assert rejected.json()["code"] == "transfer_dates_invalid"
 
 
 def test_agent_cancels_pending_transfer_preserving_explicit_target_pta(planning):
@@ -144,6 +224,7 @@ def test_transfer_authorization_versions_and_dates_fail_closed(planning):
         "reason": "Contrôle de transfert.",
         "planned_start": "2028-01-01",
         "planned_end": "2028-02-01",
+        "tasks": shifted_transfer_tasks(approved, "2028-01-01"),
     }
     path = f"/api/v1/activities/{approved['id']}/transfers"
     assert post(planning["admin"], path, body).status_code == 403
@@ -199,6 +280,7 @@ def test_returned_transfer_requires_changed_correction_and_fresh_review(planning
             "reason": revision["snapshot"]["transfer"]["reason"],
             "planned_start": "2028-02-01",
             "planned_end": "2028-08-31",
+            "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
         },
     )
     assert unchanged.status_code == 409
@@ -213,6 +295,7 @@ def test_returned_transfer_requires_changed_correction_and_fresh_review(planning
             "reason": "Reporter avec une fin corrigée.",
             "planned_start": "2028-02-01",
             "planned_end": "2028-09-30",
+            "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
         },
     )
     assert corrected.status_code == 201, corrected.text
@@ -229,7 +312,7 @@ def test_t05_amend_transfer_amend_withdraw_preserves_annual_history(planning):
             **plan(
                 operation_type,
                 allocation="100",
-                operations=[
+                tasks=[
                     {
                         "type_id": operation_type["id"],
                         "name": "Préparation",
@@ -245,13 +328,13 @@ def test_t05_amend_transfer_amend_withdraw_preserves_annual_history(planning):
             "request_key": str(uuid4()),
         },
     ).json()
-    created = assign_agents(planning, created, planning["agent"], planning["agent2"])
     initial_revision = post(
         planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": created["version"]},
     ).json()
     approved = approve_transfer(planning, created, initial_revision)
+    approved = assign_agents(planning, approved, planning["agent"], planning["agent2"])
     with Session(planning["auth"].engine) as db:
         initial_effective_at = db.scalar(
             text(
@@ -276,12 +359,12 @@ def test_t05_amend_transfer_amend_withdraw_preserves_annual_history(planning):
         plan(
             operation_type,
             allocation="120",
-            operations=[
+            tasks=[
                 {
                     **{key: value for key, value in row.items() if key != "position"},
                     "allocation": amount,
                 }
-                for row, amount in zip(opened["operations"], ["50", "70"], strict=True)
+                for row, amount in zip(opened["tasks"], ["50", "70"], strict=True)
             ],
             expected_version=opened["version"],
         ),
@@ -377,14 +460,14 @@ def test_t05_amend_transfer_amend_withdraw_preserves_annual_history(planning):
             planned_start="2028-03-01",
             planned_end="2028-09-30",
             allocation="140",
-            operations=[
+            tasks=[
                 {
                     **{key: value for key, value in row.items() if key != "position"},
                     "allocation": amount,
+                    "planned_start": "2028-03-01",
+                    "planned_end": "2028-09-30",
                 }
-                for row, amount in zip(
-                    later_opened["operations"], ["60", "80"], strict=True
-                )
+                for row, amount in zip(later_opened["tasks"], ["60", "80"], strict=True)
             ],
             expected_version=later_opened["version"],
         ),
@@ -424,13 +507,13 @@ def test_original_create_replay_returns_same_activity_after_transfer(planning):
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         body,
     ).json()
-    created = assign_agents(planning, created, planning["agent"], planning["agent2"])
     submitted = post(
         planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": created["version"]},
     ).json()
     approved = approve_transfer(planning, created, submitted)
+    approved = assign_agents(planning, approved, planning["agent"], planning["agent2"])
     transfer = request_transfer(planning, approved)
     moved_once = approve_transfer(planning, approved, transfer)
     second_transfer = request_transfer(
@@ -593,6 +676,7 @@ def test_concurrent_transfer_requests_serialize_to_one_current_request(planning)
                 "reason": f"Transfert concurrent {year}.",
                 "planned_start": f"{year}-01-01",
                 "planned_end": f"{year}-06-30",
+                "tasks": shifted_transfer_tasks(approved, f"{year}-01-01"),
             },
         )
 
@@ -621,6 +705,7 @@ def test_transfer_request_and_assignment_change_serialize(planning, first):
                 "reason": "Transfert concurrent à une affectation.",
                 "planned_start": "2028-02-01",
                 "planned_end": "2028-08-31",
+                "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
             },
         )
 
@@ -654,6 +739,7 @@ def test_transfer_request_and_project_close_serialize(planning, first):
                 "reason": "Transfert concurrent à la clôture.",
                 "planned_start": "2028-02-01",
                 "planned_end": "2028-08-31",
+                "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
             },
         )
 
@@ -700,6 +786,7 @@ def test_transfer_request_preserves_assignment_lifecycle_guard(planning, first, 
                 "reason": "Transfert concurrent au cycle du compte.",
                 "planned_start": "2028-02-01",
                 "planned_end": "2028-08-31",
+                "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
             },
         )
 
@@ -742,6 +829,7 @@ def test_transfer_request_and_password_recovery_serialize(planning, auth_env, fi
                 "reason": "Transfert concurrent à la récupération.",
                 "planned_start": "2028-02-01",
                 "planned_end": "2028-08-31",
+                "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
             },
         )
 
@@ -1080,6 +1168,7 @@ def test_transfer_request_rolls_back_when_audit_fails(planning, monkeypatch):
             "reason": "Rollback synthétique.",
             "planned_start": "2028-01-01",
             "planned_end": "2028-06-30",
+            "tasks": shifted_transfer_tasks(approved, "2028-01-01"),
         },
     )
     assert response.status_code == 503
@@ -1169,6 +1258,7 @@ def test_every_transfer_responsibility_rolls_back(
                 "reason": "Échec synthétique.",
                 "planned_start": "2028-02-01",
                 "planned_end": "2028-08-31",
+                "tasks": shifted_transfer_tasks(approved, "2028-02-01"),
             },
         )
     elif responsibility == "correction":
@@ -1183,6 +1273,7 @@ def test_every_transfer_responsibility_rolls_back(
                 "reason": "Correction annulée par rollback.",
                 "planned_start": "2028-03-01",
                 "planned_end": "2028-09-30",
+                "tasks": shifted_transfer_tasks(approved, "2028-03-01"),
             },
         )
     elif responsibility == "cancel":
@@ -1308,14 +1399,16 @@ def test_used_transfer_database_refuses_destructive_downgrade(planning, auth_env
     request_transfer(planning, approved)
     planning["auth"].engine.dispose()
 
-    with pytest.raises(Exception, match="Refusing destructive PTA-2B.2B downgrade"):
+    with pytest.raises(
+        Exception, match="Refusing to discard reviewed transfer hierarchy dates"
+    ):
         command.downgrade(Config("alembic.ini"), "0008_pta2b2a")
 
     engine = create_engine(auth_env.url)
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0027_pta_metadata"
+                "0037_transfer_task_dates"
             )
             assert (
                 db.scalar(

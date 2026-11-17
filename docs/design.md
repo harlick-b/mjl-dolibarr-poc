@@ -233,7 +233,7 @@ all matching pages. Table pagination must not omit calendar entries. Failed or
 incomplete calendar reads remain errors, never a partial successful year.
 Only the active page's sidebar entry is highlighted, including nested PTA routes.
 
-Activity creation groups general information, dates and operations alongside the
+Activity creation groups general information, dates and Tasks alongside the
 budget breakdown. Details separate programming, History and documents; approved
 Activities link to their existing financial workspace. Saving, submission and
 file attachment retain their existing separate workflow steps. Prototype controls
@@ -268,7 +268,7 @@ Calendars use horizontal spans and a distinct start-only marker.
 The Activity fiche reproduces the internal and Partner references in
 `docs/inspiration/fiche de suivi`: A4, 48-point side margins, 65-point navy header,
 embedded DejaVu Sans, measured type and rules, and a chronology beginning on a new
-page. Its six sections are Situation, Synthèse financière, Opérations et dépenses,
+page. Its six sections are Situation, Synthèse financière, Tâches et dépenses,
 Demandes de financement, Événements significatifs and Pièces justificatives.
 Continuation pages repeat the header/footer and use page N/total without shrinking
 or truncating facts.

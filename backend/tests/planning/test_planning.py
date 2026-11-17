@@ -196,7 +196,7 @@ def references(planning):
     validator = planning["validator"]
     partner = post(validator, "/api/v1/partners", {"name": "Partenaire test"})
     assert partner.status_code == 201, partner.text
-    operation_type = post(validator, "/api/v1/operation-types", {"label": "Formation"})
+    operation_type = post(validator, "/api/v1/task-categories", {"label": "Formation"})
     assert operation_type.status_code == 201, operation_type.text
     project = post(
         validator,
@@ -214,26 +214,56 @@ def references(planning):
 
 
 def plan(operation_type, **changes):
+    supplied_tasks = changes.pop("tasks", None)
     body = {
         "name": "Activité synthétique",
         "description": "Planification complète de test",
         "planned_start": "2027-11-30",
         "planned_end": "2028-02-29",
         "allocation": "300000",
-        "operations": [
-            {
-                "type_id": operation_type["id"],
-                "name": "Préparation",
-                "allocation": "100000",
-            },
-            {
-                "type_id": operation_type["id"],
-                "name": "Exécution",
-                "allocation": "200000",
-            },
-        ],
     }
     body.update(changes)
+    rows = supplied_tasks or [
+        {
+            "type_id": operation_type["id"],
+            "name": "Préparation",
+            "allocation": "100000",
+        },
+        {
+            "type_id": operation_type["id"],
+            "name": "Exécution",
+            "allocation": "200000",
+        },
+    ]
+    count = len(rows)
+    normalized = []
+    allocated_weight = 0
+    for index, row in enumerate(rows):
+        weight = row.get("weight")
+        if weight is None:
+            basis_points = (
+                10000 - allocated_weight if index == count - 1 else 10000 // count
+            )
+            weight = f"{basis_points // 100}.{basis_points % 100:02d}"
+            allocated_weight += basis_points
+        normalized.append(
+            {
+                key: value
+                for key, value in {
+                    "id": row.get("id"),
+                    "type_id": row["type_id"],
+                    "name": row["name"],
+                    "description": row.get("description", ""),
+                    "allocation": row["allocation"],
+                    "weight": weight,
+                    "planned_start": row.get("planned_start", body["planned_start"]),
+                    "planned_end": row.get("planned_end", body["planned_end"]),
+                    "subtasks": row.get("subtasks", []),
+                }.items()
+                if value is not None
+            }
+        )
+    body["tasks"] = normalized
     return body
 
 
@@ -248,9 +278,8 @@ def test_v04_v05_assigned_submission_and_exact_revision_approval(planning, auth_
     assert created.status_code == 201, created.text
     activity = created.json()
 
-    activity = assign_agents(planning, activity, planning["agent"], planning["agent2"])
     submitted = post(
-        planning["agent2"],
+        planning["agent"],
         f"/api/v1/activities/{activity['id']}/submissions",
         {"expected_version": activity["version"]},
     )
@@ -261,20 +290,26 @@ def test_v04_v05_assigned_submission_and_exact_revision_approval(planning, auth_
     assert revision["fingerprint"] == revision["snapshot"]["content_fingerprint"]
     assert revision["snapshot"]["partner"]["name"] == "Partenaire test"
     assert revision["snapshot"]["project"]["name"] == "Projet test"
-    assert [row["type_label"] for row in revision["snapshot"]["operations"]] == [
+    assert [row["type_label"] for row in revision["snapshot"]["tasks"]] == [
         "Formation",
         "Formation",
     ]
-    assert revision["snapshot"]["submitter"]["email"] == "agent2@example.test"
+    assert revision["snapshot"]["submitter"]["email"] == "agent@example.test"
     assert {row["email"] for row in revision["snapshot"]["contributors"]} == {
         "agent@example.test",
-        "agent2@example.test",
     }
+
+    assigned = assign_agents(
+        planning,
+        {**activity, "version": revision["activity_version"]},
+        planning["agent"],
+        planning["agent2"],
+    )
 
     prevalidated = post(
         planning["supervisor"],
         f"/api/v1/activities/{activity['id']}/revisions/{revision['id']}/decisions",
-        {"expected_version": revision["activity_version"], "decision": "prevalidate"},
+        {"expected_version": assigned["version"], "decision": "prevalidate"},
     )
     assert prevalidated.status_code == 201, prevalidated.text
     users = planning["admin"].get("/api/v1/access/users").json()["items"]
@@ -391,11 +426,11 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
     corrected_body = plan(
         operation_type,
         description="Planification corrigée et complète",
-        operations=[
+        tasks=[
             {
                 key: value
                 for key, value in {
-                    **detail["operations"][0],
+                    **detail["tasks"][0],
                     "allocation": "120000",
                 }.items()
                 if key != "position"
@@ -403,7 +438,7 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
             {
                 key: value
                 for key, value in {
-                    **detail["operations"][1],
+                    **detail["tasks"][1],
                     "allocation": "180000",
                 }.items()
                 if key != "position"
@@ -451,11 +486,11 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
             operation_type,
             description="Nouvelle correction budgétaire",
             allocation="350000",
-            operations=[
+            tasks=[
                 {
                     key: value
                     for key, value in {
-                        **detail["operations"][0],
+                        **detail["tasks"][0],
                         "allocation": "150000",
                     }.items()
                     if key != "position"
@@ -463,7 +498,7 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
                 {
                     key: value
                     for key, value in {
-                        **detail["operations"][1],
+                        **detail["tasks"][1],
                         "allocation": "200000",
                     }.items()
                     if key != "position"
@@ -642,14 +677,14 @@ def test_v03_reverted_removed_and_noop_editors_drive_runtime_review_eligibility(
             replace_body(reverted),
         )
         assert noop.status_code == 200, noop.text
-        retained = noop.json()["operations"][0]
+        retained = noop.json()["tasks"][0]
         removed = patch(
             planning["agent2"],
             f"/api/v1/activities/{activity['id']}",
             replace_body(
                 noop.json(),
                 allocation=retained["allocation"],
-                operations=[
+                tasks=[
                     {
                         "id": retained["id"],
                         "type_id": retained["type_id"],
@@ -1614,7 +1649,7 @@ def test_v06_v07_late_revert_and_unadvised_total_corrections(planning):
         },
     ).json()
     detail = planning["agent"].get(f"/api/v1/activities/{late['id']}").json()
-    first, second_operation = detail["operations"]
+    first, second_operation = detail["tasks"]
     first_update = {
         key: value
         for key, value in {**first, "allocation": "150000"}.items()
@@ -1631,7 +1666,7 @@ def test_v06_v07_late_revert_and_unadvised_total_corrections(planning):
         replace_body(
             detail,
             allocation="350000",
-            operations=[first_update, second_update],
+            tasks=[first_update, second_update],
             expected_version=validator_return["activity_version"],
         ),
     )
@@ -1831,14 +1866,22 @@ def replace_body(activity, **changes):
         "planned_start": activity["planned_start"],
         "planned_end": activity["planned_end"],
         "allocation": activity["allocation"],
-        "operations": [
+        "tasks": [
             {
-                "id": operation["id"],
-                "type_id": operation["type_id"],
-                "name": operation["name"],
-                "allocation": operation["allocation"],
+                key: operation[key]
+                for key in (
+                    "id",
+                    "type_id",
+                    "name",
+                    "description",
+                    "allocation",
+                    "weight",
+                    "planned_start",
+                    "planned_end",
+                    "subtasks",
+                )
             }
-            for operation in activity["operations"]
+            for operation in activity["tasks"]
         ],
         "expected_version": activity["version"],
     }
@@ -1879,7 +1922,7 @@ def test_p01_provisioning_is_idempotent_audited_and_singleton(planning):
 def test_p01_p04_p06_complete_activity_replay_and_exact_attribution(planning):
     _, operation_type, project, activity, body = create_activity(planning)
     assert activity["allocation"] == "300000"
-    assert len(activity["operations"]) == 2
+    assert len(activity["tasks"]) == 2
     replay = post(
         planning["agent"],
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
@@ -1910,7 +1953,7 @@ def test_p01_p04_p06_complete_activity_replay_and_exact_attribution(planning):
         {"allocation": "0"},
         {"allocation": "1.5"},
         {"allocation": "9223372036854775808"},
-        {"operations": []},
+        {"tasks": []},
         {
             "allocation": "300001",
         },
@@ -2519,7 +2562,7 @@ def test_p16_business_audit_contains_complete_bounded_facts(planning):
         audit = db.query(Audit).filter(Audit.action == "activity.create").one()
         assert audit.business["context_id"] == "MJL"
         assert audit.business["after"]["id"] == activity["id"]
-        assert len(audit.business["after"]["operations"]) == 2
+        assert len(audit.business["after"]["tasks"]) == 2
         assert len(str(audit.business).encode()) < 1_048_576
         assert db.query(Operation).count() == 2
         assert db.query(User).filter(User.email.endswith("@example.test")).count() == 5
@@ -2786,14 +2829,14 @@ def test_v20_predecessor_upgrade_reconstructs_complete_contributors(
         )
         assert noop.status_code == 200, noop.text
         after_noop = noop.json()
-        kept = after_noop["operations"][0]
+        kept = after_noop["tasks"][0]
         removed = patch(
             planning["agent2"],
             f"/api/v1/activities/{activity['id']}",
             replace_body(
                 after_noop,
                 allocation=kept["allocation"],
-                operations=[
+                tasks=[
                     {
                         "id": kept["id"],
                         "type_id": kept["type_id"],
@@ -2944,14 +2987,14 @@ def test_v20_predecessor_upgrade_rejects_corrupted_operation_tombstone(
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         {**plan(operation_type), "request_key": str(uuid4())},
     ).json()
-    kept = activity["operations"][0]
+    kept = activity["tasks"][0]
     response = patch(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}",
         replace_body(
             activity,
             allocation=kept["allocation"],
-            operations=[
+            tasks=[
                 {
                     "id": kept["id"],
                     "type_id": kept["type_id"],
@@ -3027,20 +3070,18 @@ def test_p06_p09_duplicate_operation_ids_and_normalized_replay(planning):
             **body,
             "name": f"  {body['name']}  ",
             "description": f" {body['description']} ",
-            "operations": [
-                {**row, "name": f" {row['name']} "} for row in body["operations"]
-            ],
+            "tasks": [{**row, "name": f" {row['name']} "} for row in body["tasks"]],
         },
     )
     assert replay.status_code == 200
-    duplicate_id = activity["operations"][0]["id"]
+    duplicate_id = activity["tasks"][0]["id"]
     replaced = patch(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}",
         {
             **plan(
                 operation_type,
-                operations=[
+                tasks=[
                     {
                         "id": duplicate_id,
                         "type_id": operation_type["id"],
@@ -3261,7 +3302,7 @@ def test_p06_p10_direct_pta_duplicate_and_maximum_xof(planning):
             **plan(
                 operation_type,
                 allocation=maximum,
-                operations=[
+                tasks=[
                     {
                         "type_id": operation_type["id"],
                         "name": "Maximum",
@@ -3332,8 +3373,8 @@ def test_p13_assignment_rejects_duplicate_inactive_and_wrong_role(planning):
 def test_p15_p16_tombstones_contributors_and_exact_audit_shapes(planning):
     _, operation_type, _, activity, _ = create_activity(planning)
     activity = assign_agents(planning, activity, planning["agent2"])
-    removed = activity["operations"][1]
-    kept = activity["operations"][0]
+    removed = activity["tasks"][1]
+    kept = activity["tasks"][0]
     response = patch(
         planning["agent2"],
         f"/api/v1/activities/{activity['id']}",
@@ -3341,7 +3382,7 @@ def test_p15_p16_tombstones_contributors_and_exact_audit_shapes(planning):
             **plan(
                 operation_type,
                 allocation="100000",
-                operations=[
+                tasks=[
                     {
                         "id": kept["id"],
                         "type_id": kept["type_id"],

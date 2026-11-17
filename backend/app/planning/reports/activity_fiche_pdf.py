@@ -25,6 +25,36 @@ from reportlab.platypus import (  # type: ignore[import-untyped]
     TableStyle,
 )
 
+
+def task_fiche_label(task: dict[str, Any]) -> str:
+    label = str(task.get("name") or "")
+    if task.get("progress") is not None:
+        label += f" · Avancement : {task['progress']} %"
+    dates = [task.get("planned_start"), task.get("planned_end")]
+    if all(dates):
+        label += f" · {dates[0]} au {dates[1]}"
+    children = task.get("subtasks")
+    if not isinstance(children, list) or not children:
+        return label
+    child_labels = []
+    for child in children:
+        if not isinstance(child, dict):
+            continue
+        detail = f"{child.get('name') or ''} ({_xof(child.get('allocation'))}"
+        if child.get("weight") is not None:
+            detail += f", {child['weight']} %"
+        if child.get("progress") is not None:
+            detail += f", avancement {child['progress']} %"
+        if child.get("planned_start") and child.get("planned_end"):
+            detail += f", {child['planned_start']} au {child['planned_end']}"
+        if child.get("final_spending") is not None:
+            detail += f", dépensé {_xof(child['final_spending'])}"
+        child_labels.append(detail + ")")
+    return label + (
+        " · Sous-tâches : " + "; ".join(child_labels) if child_labels else ""
+    )
+
+
 NAVY = colors.HexColor("#16324F")
 BODY = colors.HexColor("#202529")
 MUTED = colors.HexColor("#5C6870")
@@ -411,10 +441,10 @@ def render_activity_fiche(fiche: dict[str, Any]) -> bytes:
     )
     story.append(Spacer(1, 12))
 
-    section("03", "Opérations et dépenses", 2.3)
+    section("03", "Tâches et dépenses", 2.3)
     operation_rows: list[list[Any]] = [
         [
-            Paragraph("OPÉRATION", label),
+            Paragraph("TÂCHE", label),
             Paragraph("AUTORISÉ", label_right),
             Paragraph("DÉPENSÉ", label_right),
         ]

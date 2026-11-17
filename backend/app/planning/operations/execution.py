@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import Date, func, or_, select, text
+from sqlalchemy import Date, func, or_, select, text, tuple_
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
@@ -27,6 +27,7 @@ from app.planning.core.models import (
     Partner,
     Project,
     ReversementDeclaration,
+    Subtask,
     VirementConfirmation,
     VirementRequest,
     ZeroSpendingDeclaration,
@@ -39,6 +40,12 @@ from app.planning.core.service import (
     locked_mutation,
     page_rows,
     principal,
+)
+from app.planning.core.task_hierarchy import (
+    activity_progress,
+    format_percentage,
+    manual_task_progress,
+    percentage,
 )
 from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
 
@@ -77,6 +84,7 @@ class ExecutionMutation(Input):
         default=None, max_length=19, pattern=r"^(0|[1-9][0-9]*)$"
     )
     execution_completed: bool | None = None
+    progress: str | None = Field(default=None, max_length=6)
     execution_observation: str | None = Field(default=None, max_length=4000)
     correction_reason: str | None = Field(default=None, max_length=4000)
 
@@ -99,8 +107,6 @@ class ExecutionMutation(Input):
     def action_shape(self) -> "ExecutionMutation":
         if self.execution_completed is None or self.execution_observation is None:
             raise ValueError("Record requires its complete shape")
-        if self.execution_completed and self.actual_spent is None:
-            raise ValueError("Completion requires spending")
         return self
 
 
@@ -113,12 +119,32 @@ class ClosureOutput(Input):
     closed_at: str
 
 
-class ExecutionOperationOutput(Input):
+class ExecutionSubtaskOutput(Input):
+    id: str
+    name: str
+    description: str
+    approved_allocation: str
+    weight: str
+    planned_start: str
+    planned_end: str
+    execution_started_at: str | None
+    execution_completed: bool
+    actual_spent: str | None
+    execution_observation: str
+    allowed_actions: list[str]
+
+
+class ExecutionTaskOutput(Input):
     id: str
     type_id: str
     type_label: str
     name: str
+    description: str
     approved_allocation: str
+    weight: str | None
+    planned_start: str | None
+    planned_end: str | None
+    progress: str | None
     position: int
     execution_started_at: str | None
     execution_completed: bool
@@ -126,6 +152,7 @@ class ExecutionOperationOutput(Input):
     execution_observation: str
     variance: str | None
     allowed_actions: list[str]
+    subtasks: list[ExecutionSubtaskOutput]
 
 
 class VirementContextOutput(Input):
@@ -161,8 +188,9 @@ class ExecutionDetailOutput(Input):
     execution_paused: bool
     pause_reason: str | None
     mutation_unavailable_reason: str | None
-    completed_operations: int
-    operation_count: int
+    completed_tasks: int
+    task_count: int
+    progress: str | None
     works_completed: bool
     spending_total: str | None
     balance: str | None
@@ -170,7 +198,7 @@ class ExecutionDetailOutput(Input):
     realization_status: Literal[
         "not_started", "in_progress", "completed_pending_validation", "validated"
     ]
-    operations: list[ExecutionOperationOutput]
+    tasks: list[ExecutionTaskOutput]
     virement_context: VirementContextOutput
     allowed_actions: list[str]
 
@@ -191,8 +219,9 @@ class ExecutionListItem(Input):
     closure_blockers: list[str]
     execution_paused: bool
     pause_reason: str | None
-    completed_operations: int
-    operation_count: int
+    completed_tasks: int
+    task_count: int
+    progress: str | None
     works_completed: bool
     spending_total: str | None
     agents: list[str]
@@ -203,7 +232,8 @@ class ExecutionHistoryItem(Input):
     action: str
     actor_id: str
     occurred_at: str
-    operation_id: str
+    task_id: str
+    subtask_id: str | None
     approved_revision_id: str
     approved_allocation: str
     before: dict[str, Any]
@@ -225,7 +255,7 @@ def list_args(
     return limit, cursor
 
 
-def execution_facts(operation: Operation) -> dict[str, object]:
+def execution_facts(operation: Operation | Subtask) -> dict[str, object]:
     return {
         "execution_started_at": (
             operation.execution_started_at.isoformat()
@@ -237,6 +267,11 @@ def execution_facts(operation: Operation) -> dict[str, object]:
             str(operation.actual_spent) if operation.actual_spent is not None else None
         ),
         "execution_observation": operation.execution_observation,
+        **(
+            {"progress": format_percentage(operation.manual_progress_basis_points)}
+            if isinstance(operation, Operation)
+            else {}
+        ),
     }
 
 
@@ -473,9 +508,25 @@ def execution_detail(
     ):
         unavailable_reason = "before_planned_start"
     projected: list[dict[str, Any]] = []
+    approved_subtask_facts = {
+        cast(str, child["id"]): child
+        for _task, fact in operations
+        for child in fact.get("subtasks", [])
+        if isinstance(child, dict) and isinstance(child.get("id"), str)
+    }
+    subtask_rows = {
+        row.id: row
+        for row in db.scalars(
+            select(Subtask).where(Subtask.id.in_(approved_subtask_facts))
+        )
+    }
+    if len(subtask_rows) != len(approved_subtask_facts):
+        raise AuthError(409, "execution_ineligible")
     complete = 0
     known_total = 0
     all_known = True
+    weighted_progress: list[tuple[int, int]] = []
+    progress_available = True
     for operation, fact in operations:
         if operation.execution_completed:
             complete += 1
@@ -484,8 +535,63 @@ def execution_detail(
         else:
             known_total += operation.actual_spent
         allocation = int(cast(str, fact["allocation"]))
+        child_facts = [
+            cast(dict[str, Any], value)
+            for value in fact.get("subtasks", [])
+            if isinstance(value, dict)
+        ]
+        children: list[dict[str, Any]] = []
+        task_progress = manual_task_progress(
+            operation.manual_progress_basis_points,
+            completed=operation.execution_completed,
+            weighted=fact.get("weight") is not None,
+        )
+        if child_facts:
+            child_weighted: list[tuple[int, int]] = []
+            for child_fact in child_facts:
+                child = subtask_rows[cast(str, child_fact["id"])]
+                child_weight = percentage(child_fact.get("weight"), required=True)
+                assert child_weight is not None
+                child_weighted.append(
+                    (child_weight, 10000 if child.execution_completed else 0)
+                )
+                child_actions: list[str] = []
+                if can_mutate and (child.execution_started_at is not None or can_start):
+                    child_actions.append("record")
+                if (
+                    can_work
+                    and reason == "funding_required"
+                    and financial is None
+                    and zero_declaration is None
+                    and child.execution_started_at is not None
+                    and child.actual_spent is not None
+                ):
+                    child_actions.append("record")
+                children.append(
+                    {
+                        "id": child.id,
+                        "name": cast(str, child_fact["name"]),
+                        "description": cast(str, child_fact.get("description", "")),
+                        "approved_allocation": cast(str, child_fact["allocation"]),
+                        "weight": cast(str, child_fact["weight"]),
+                        "planned_start": cast(str, child_fact["planned_start"]),
+                        "planned_end": cast(str, child_fact["planned_end"]),
+                        **execution_facts(child),
+                        "allowed_actions": child_actions,
+                    }
+                )
+            task_progress = activity_progress(child_weighted)
+        task_weight = percentage(fact.get("weight"), required=False)
+        if task_weight is None or task_progress is None:
+            progress_available = False
+        else:
+            weighted_progress.append((task_weight, task_progress))
         actions: list[str] = []
-        if can_mutate and (operation.execution_started_at is not None or can_start):
+        if (
+            not child_facts
+            and can_mutate
+            and (operation.execution_started_at is not None or can_start)
+        ):
             actions.append("record")
         if (
             can_work
@@ -502,15 +608,21 @@ def execution_detail(
                 "type_id": cast(str, fact["type_id"]),
                 "type_label": cast(str, fact.get("type_label", "")),
                 "name": cast(str, fact["name"]),
+                "description": cast(str, fact.get("description", "")),
                 "approved_allocation": str(allocation),
+                "weight": cast(str | None, fact.get("weight")),
+                "planned_start": cast(str | None, fact.get("planned_start")),
+                "planned_end": cast(str | None, fact.get("planned_end")),
                 "position": cast(int, fact["position"]),
                 **execution_facts(operation),
+                "progress": format_percentage(task_progress),
                 "variance": (
                     str(operation.actual_spent - allocation)
                     if operation.actual_spent is not None
                     else None
                 ),
                 "allowed_actions": actions,
+                "subtasks": children,
             }
         )
     blockers = closure_blockers(db, item)
@@ -609,8 +721,11 @@ def execution_detail(
         "execution_paused": reason is not None,
         "pause_reason": reason,
         "mutation_unavailable_reason": unavailable_reason,
-        "completed_operations": complete,
-        "operation_count": len(projected),
+        "completed_tasks": complete,
+        "task_count": len(projected),
+        "progress": format_percentage(activity_progress(weighted_progress))
+        if progress_available
+        else None,
         "works_completed": complete == len(projected),
         "spending_total": str(known_total) if all_known else None,
         "balance": str(balance) if balance is not None else None,
@@ -618,7 +733,7 @@ def execution_detail(
             str(required_reversement) if required_reversement is not None else None
         ),
         "realization_status": realization_status,
-        "operations": projected,
+        "tasks": projected,
         "virement_context": {
             "disbursement_request_id": approved_disbursement.id
             if approved_disbursement
@@ -898,19 +1013,29 @@ def execution_list(
         base_conditions = tuple(conditions)
         if marker:
             try:
-                marker = str(UUID(marker))
+                marker_created_raw, marker_id_raw = marker.split("|", 1)
+                marker_created = datetime.fromisoformat(marker_created_raw)
+                marker_id = str(UUID(marker_id_raw))
             except ValueError:
                 raise AuthError(422, "cursor_invalid") from None
             conditions.append(
-                Activity.id > marker if direction == "next" else Activity.id < marker
+                tuple_(Activity.created_at, Activity.id)
+                < tuple_(marker_created, marker_id)
+                if direction == "next"
+                else tuple_(Activity.created_at, Activity.id)
+                > tuple_(marker_created, marker_id)
             )
-        order = Activity.id.asc() if direction == "next" else Activity.id.desc()
+        order = (
+            (Activity.created_at.desc(), Activity.id.desc())
+            if direction == "next"
+            else (Activity.created_at.asc(), Activity.id.asc())
+        )
         rows, total = page_rows(
             db,
             Activity,
             base_conditions,
             tuple(conditions),
-            (order,),
+            order,
             limit,
         )
         more = len(rows) > limit
@@ -920,7 +1045,13 @@ def execution_list(
 
         def link(row: Activity, move: str) -> str:
             query = urlencode(
-                {**filters, "limit": limit, "cursor": cursor.encode(row.id, move)}
+                {
+                    **filters,
+                    "limit": limit,
+                    "cursor": cursor.encode(
+                        f"{row.created_at.isoformat()}|{row.id}", move
+                    ),
+                }
             )
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/execution?{query}"
 
@@ -996,21 +1127,21 @@ def execution_activity(identifier: str, request: Request, auth: Auth) -> dict[st
 
 
 @router.patch(
-    "/activities/{identifier}/operations/{operation_id}/execution",
+    "/activities/{identifier}/tasks/{task_id}/execution",
     response_model=ExecutionDetailOutput,
     openapi_extra=MUTATION_HEADERS,
 )
 def change_execution(
     identifier: str,
-    operation_id: str,
+    task_id: str,
     body: ExecutionMutation,
     request: Request,
     auth: Auth,
 ) -> dict[str, Any]:
     try:
-        operation_id = str(UUID(operation_id))
+        task_id = str(UUID(task_id))
     except ValueError:
-        raise AuthError(404, "operation_not_found") from None
+        raise AuthError(404, "task_not_found") from None
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
         actor = principal(
@@ -1044,28 +1175,49 @@ def change_execution(
         if active_ids != approved_ids:
             raise AuthError(409, "execution_ineligible")
         selected = next(
-            ((row, fact) for row, fact in operations if row.id == operation_id), None
+            ((row, fact) for row, fact in operations if row.id == task_id), None
         )
         if not selected:
-            raise AuthError(404, "operation_not_found")
+            raise AuthError(404, "task_not_found")
         operation, approved_fact = selected
+        if approved_fact.get("subtasks"):
+            raise AuthError(409, "task_progress_derived")
+        assert body.execution_completed is not None
+        assert body.execution_observation is not None
+        weighted_task = approved_fact.get("weight") is not None
+        manual_progress = percentage(
+            body.progress, required=weighted_task, allow_zero=True
+        )
+        completed = (
+            manual_progress == 10000 if weighted_task else body.execution_completed
+        )
+        current_progress = manual_task_progress(
+            operation.manual_progress_basis_points,
+            completed=operation.execution_completed,
+            weighted=weighted_task,
+        )
+        progress_not_advanced = (
+            manual_progress <= (current_progress or 0)
+            if weighted_task and manual_progress is not None
+            else not completed or operation.execution_completed
+        )
         if reason == "funding_required" and not (
             body.correction_reason
             and operation.actual_spent is not None
             and body.actual_spent is not None
             and int(body.actual_spent) <= operation.actual_spent
-            and (not body.execution_completed or operation.execution_completed)
+            and progress_not_advanced
         ):
             raise AuthError(409, reason)
         before = execution_facts(operation)
         now = auth.now(db)
         correction_reason = body.correction_reason
-        assert body.execution_completed is not None
-        assert body.execution_observation is not None
+        had_existing_execution = operation.execution_started_at is not None
         if operation.execution_started_at is None:
             if (
                 body.actual_spent is None
-                and not body.execution_completed
+                and not completed
+                and manual_progress in (None, 0)
                 and not body.execution_observation.strip()
             ):
                 raise AuthError(422, "execution_progress_required")
@@ -1079,25 +1231,25 @@ def change_execution(
             raise AuthError(422, "input_invalid")
         approved_allocation = int(cast(str, approved_fact["allocation"]))
         if (
-            body.execution_completed
+            completed
+            and actual is not None
             and actual != approved_allocation
             and not body.execution_observation
         ):
             raise AuthError(422, "variance_observation_required")
-        changed_existing = (
-            operation.actual_spent is not None
-            and actual != operation.actual_spent
-            or bool(operation.execution_observation)
-            and body.execution_observation != operation.execution_observation
-            or operation.execution_completed
-            and not body.execution_completed
+        changed_existing = had_existing_execution and (
+            actual != operation.actual_spent
+            or body.execution_observation != operation.execution_observation
+            or completed != operation.execution_completed
+            or manual_progress != operation.manual_progress_basis_points
         )
         if changed_existing and not correction_reason:
             raise AuthError(422, "correction_reason_required")
         if correction_reason and not changed_existing:
             raise AuthError(422, "correction_reason_unexpected")
         operation.actual_spent = actual
-        operation.execution_completed = body.execution_completed
+        operation.execution_completed = completed
+        operation.manual_progress_basis_points = manual_progress
         operation.execution_observation = body.execution_observation
         after_values = execution_facts(operation)
         if before == after_values:
@@ -1138,6 +1290,165 @@ def change_execution(
         return execution_detail(db, item, actor.role, actor.id)
 
 
+@router.patch(
+    "/activities/{identifier}/tasks/{task_id}/subtasks/{subtask_id}/execution",
+    response_model=ExecutionDetailOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def change_subtask_execution(
+    identifier: str,
+    task_id: str,
+    subtask_id: str,
+    body: ExecutionMutation,
+    request: Request,
+    auth: Auth,
+) -> dict[str, Any]:
+    try:
+        task_id = str(UUID(task_id))
+        subtask_id = str(UUID(subtask_id))
+    except ValueError:
+        raise AuthError(404, "subtask_not_found") from None
+    with Session(auth.engine) as db, db.begin():
+        locked_mutation(db)
+        actor = principal(
+            db, auth, *evidence(request, auth), roles={"AGENT_SAISIE"}, mutation=True
+        )
+        item = get_activity_for_command(db, identifier, actor)
+        if item.version != body.expected_version:
+            raise AuthError(409, "activity_stale")
+        if item.approved_revision_id != body.expected_approved_revision_id:
+            raise AuthError(409, "approved_revision_stale")
+        from app.planning.finance.disbursement import assert_disbursement_unfrozen
+
+        assert_disbursement_unfrozen(db, item.id)
+        project = db.get(Project, item.request_project_id, with_for_update=True)
+        reason = pause_reason(db, item, project)
+        if reason and reason != "funding_required":
+            raise AuthError(409, reason)
+        revision, tasks = approved_operations(db, item, lock=True)
+        selected = next(((row, fact) for row, fact in tasks if row.id == task_id), None)
+        if not selected:
+            raise AuthError(404, "task_not_found")
+        task, task_fact = selected
+        approved_children = {
+            cast(str, child["id"]): cast(dict[str, Any], child)
+            for child in task_fact.get("subtasks", [])
+            if isinstance(child, dict) and isinstance(child.get("id"), str)
+        }
+        child_fact = approved_children.get(subtask_id)
+        if child_fact is None:
+            raise AuthError(404, "subtask_not_found")
+        children = list(
+            db.scalars(
+                select(Subtask)
+                .where(
+                    Subtask.task_id == task.id,
+                    Subtask.removed_at.is_(None),
+                )
+                .order_by(Subtask.id)
+                .with_for_update()
+            )
+        )
+        if {row.id for row in children} != set(approved_children):
+            raise AuthError(409, "execution_ineligible")
+        child = next(row for row in children if row.id == subtask_id)
+        if reason == "funding_required" and not (
+            body.correction_reason
+            and child.actual_spent is not None
+            and body.actual_spent is not None
+            and int(body.actual_spent) <= child.actual_spent
+            and (not body.execution_completed or child.execution_completed)
+        ):
+            raise AuthError(409, reason)
+        assert body.execution_completed is not None
+        assert body.execution_observation is not None
+        before = execution_facts(child)
+        now = auth.now(db)
+        had_existing_execution = child.execution_started_at is not None
+        if child.execution_started_at is None:
+            if (
+                body.actual_spent is None
+                and not body.execution_completed
+                and not body.execution_observation.strip()
+            ):
+                raise AuthError(422, "execution_progress_required")
+            if item.planned_start is None:
+                raise AuthError(409, "activity_incomplete")
+            if now.astimezone(PORTO_NOVO).date() < item.planned_start:
+                raise AuthError(409, "execution_too_early")
+            child.execution_started_at = now
+        actual = int(body.actual_spent) if body.actual_spent is not None else None
+        if actual is not None and actual > MAX_XOF:
+            raise AuthError(422, "input_invalid")
+        allocation = int(cast(str, child_fact["allocation"]))
+        if (
+            body.execution_completed
+            and actual is not None
+            and actual != allocation
+            and not body.execution_observation
+        ):
+            raise AuthError(422, "variance_observation_required")
+        changed_existing = had_existing_execution and (
+            actual != child.actual_spent
+            or body.execution_observation != child.execution_observation
+            or body.execution_completed != child.execution_completed
+        )
+        if changed_existing and not body.correction_reason:
+            raise AuthError(422, "correction_reason_required")
+        if body.correction_reason and not changed_existing:
+            raise AuthError(422, "correction_reason_unexpected")
+        child.actual_spent = actual
+        child.execution_completed = body.execution_completed
+        child.execution_observation = body.execution_observation
+        if before == execution_facts(child):
+            raise AuthError(409, "execution_unchanged")
+        known = [row.actual_spent for row in children]
+        task_spending = (
+            sum(cast(int, value) for value in known)
+            if all(value is not None for value in known)
+            else None
+        )
+        if task_spending is not None and task_spending > MAX_XOF:
+            raise AuthError(422, "amount_overflow")
+        task.actual_spent = task_spending
+        task.execution_completed = all(row.execution_completed for row in children)
+        starts = [
+            row.execution_started_at for row in children if row.execution_started_at
+        ]
+        task.execution_started_at = min(starts) if starts else None
+        aggregate = sum(
+            row.actual_spent or 0
+            for row in db.scalars(
+                select(Operation).where(Operation.activity_id == item.id)
+            )
+        )
+        if aggregate > MAX_XOF:
+            raise AuthError(422, "amount_overflow")
+        item.version += 1
+        item.updated_at = now
+        db.flush()
+        auth.business_audit(
+            db,
+            "subtask.execution_corrected"
+            if changed_existing
+            else "subtask.execution_recorded",
+            actor.id,
+            child.id,
+            {
+                "context_id": CONTEXT,
+                "activity_id": item.id,
+                "task_id": task.id,
+                "subtask_id": child.id,
+                "approved_revision_id": revision.id,
+                "approved_allocation": cast(str, child_fact["allocation"]),
+                "before": before,
+                "after": execution_facts(child),
+                "correction_reason": body.correction_reason,
+            },
+        )
+        return execution_detail(db, item, actor.role, actor.id)
+
+
 @router.get(
     "/activities/{identifier}/execution/history",
     response_model=ListOutput[ExecutionHistoryItem],
@@ -1160,6 +1471,8 @@ def execution_history(
                     "operation.execution_started",
                     "operation.execution_recorded",
                     "operation.execution_corrected",
+                    "subtask.execution_recorded",
+                    "subtask.execution_corrected",
                 }
             ),
             Audit.business["activity_id"].as_string() == identifier,
@@ -1203,7 +1516,8 @@ def execution_history(
                     "action": row.action,
                     "actor_id": row.actor,
                     "occurred_at": row.occurred_at.isoformat(),
-                    "operation_id": facts["operation_id"],
+                    "task_id": facts.get("task_id", facts.get("operation_id")),
+                    "subtask_id": facts.get("subtask_id"),
                     "approved_revision_id": facts["approved_revision_id"],
                     "approved_allocation": facts["approved_allocation"],
                     "before": facts["before"],

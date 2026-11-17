@@ -143,7 +143,7 @@ def create_app(
                     "/api/v1/auth",
                     "/api/v1/access",
                     "/api/v1/partners",
-                    "/api/v1/operation-types",
+                    "/api/v1/task-categories",
                     "/api/v1/projects",
                     "/api/v1/ptas",
                     "/api/v1/activities",

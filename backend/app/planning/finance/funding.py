@@ -165,6 +165,8 @@ def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[st
                         "operation.execution_started",
                         "operation.execution_recorded",
                         "operation.execution_corrected",
+                        "subtask.execution_recorded",
+                        "subtask.execution_corrected",
                     }
                 ),
                 Audit.business["activity_id"].as_string() == item.id,

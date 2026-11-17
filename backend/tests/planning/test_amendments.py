@@ -80,9 +80,9 @@ def edit_amendment(clients, activity, operation_type, description):
             operation_type,
             description=description,
             allocation=activity["allocation"],
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in activity["operations"]
+                for row in activity["tasks"]
             ],
             expected_version=activity["version"],
         ),
@@ -214,11 +214,11 @@ def test_m03_m04_m05_amendment_edits_are_isolated_and_submit_frozen_base(plannin
             operation_type,
             description="Candidat modifié sans contaminer le socle approuvé",
             allocation="350000",
-            operations=[
+            tasks=[
                 {
                     key: value
                     for key, value in {
-                        **opened["operations"][0],
+                        **opened["tasks"][0],
                         "allocation": "150000",
                     }.items()
                     if key != "position"
@@ -226,7 +226,7 @@ def test_m03_m04_m05_amendment_edits_are_isolated_and_submit_frozen_base(plannin
                 {
                     key: value
                     for key, value in {
-                        **opened["operations"][1],
+                        **opened["tasks"][1],
                         "allocation": "200000",
                     }.items()
                     if key != "position"
@@ -271,10 +271,10 @@ def test_m13_cancellation_restores_approved_content_and_preserves_evidence(plann
         plan(
             operation_type,
             description="Brouillon annulé",
-            operations=[
+            tasks=[
                 *[
                     {key: value for key, value in row.items() if key != "position"}
-                    for row in opened["operations"]
+                    for row in opened["tasks"]
                 ],
                 {
                     "type_id": operation_type["id"],
@@ -318,7 +318,7 @@ def test_m13_cancellation_restores_approved_content_and_preserves_evidence(plann
     assert history.json()["cancellation"]["reason"] == "Retour au programme approuvé."
     assert history.json()["candidate"]["description"] == "Brouillon annulé"
     assert history.json()["status"] == "cancelled"
-    frozen_label = history.json()["candidate"]["operations"][0]["type_label"]
+    frozen_label = history.json()["candidate"]["tasks"][0]["type_label"]
     with Session(planning["auth"].engine) as db:
         assert db.scalar(
             select(ActivityContributor.id).where(
@@ -349,7 +349,7 @@ def test_m13_cancellation_restores_approved_content_and_preserves_evidence(plann
         f"/api/v1/activities/{approved['id']}/amendments/{opened['amendment']['id']}"
     )
     assert frozen.status_code == 200
-    assert frozen.json()["candidate"]["operations"][0]["type_label"] == frozen_label
+    assert frozen.json()["candidate"]["tasks"][0]["type_label"] == frozen_label
 
 
 def test_m06_m08_amendment_requires_fresh_chain_and_activates_atomically(planning):
@@ -369,9 +369,9 @@ def test_m06_m08_amendment_requires_fresh_chain_and_activates_atomically(plannin
         plan(
             operation_type,
             description="Nouvelle version approuvée",
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in opened["operations"]
+                for row in opened["tasks"]
             ],
             expected_version=opened["version"],
         ),
@@ -669,9 +669,9 @@ def test_m10_cancellation_serializes_against_every_candidate_mutation(
                 plan(
                     operation_type,
                     description="Modification concurrente",
-                    operations=[
+                    tasks=[
                         {key: value for key, value in row.items() if key != "position"}
-                        for row in current["operations"]
+                        for row in current["tasks"]
                     ],
                     expected_version=current["version"],
                 ),
@@ -737,11 +737,11 @@ def test_m04_amendment_edits_keep_bounded_structural_audit_history(planning):
                 operation_type,
                 description=description,
                 allocation=allocation,
-                operations=[
+                tasks=[
                     {
                         **{
                             key: value
-                            for key, value in current["operations"][0].items()
+                            for key, value in current["tasks"][0].items()
                             if key != "position"
                         },
                         "allocation": first,
@@ -749,7 +749,7 @@ def test_m04_amendment_edits_keep_bounded_structural_audit_history(planning):
                     {
                         **{
                             key: value
-                            for key, value in current["operations"][1].items()
+                            for key, value in current["tasks"][1].items()
                             if key != "position"
                         },
                         "allocation": "200000",
@@ -787,7 +787,7 @@ def test_m04_amendment_edits_keep_bounded_structural_audit_history(planning):
         "300000",
     ]
     assert all(
-        row.business["before"]["operations"] and row.business["after"]["operations"]
+        row.business["before"]["tasks"] and row.business["after"]["tasks"]
         for row in audits
     )
 
@@ -1025,9 +1025,9 @@ def test_m14_amendment_workflow_constraint_failures_roll_back(
             plan(
                 operation_type,
                 description="Modification à annuler",
-                operations=[
+                tasks=[
                     {key: value for key, value in row.items() if key != "position"}
-                    for row in reversed(current["operations"])
+                    for row in reversed(current["tasks"])
                 ]
                 + [
                     {
@@ -1119,9 +1119,9 @@ def test_m03_m05_late_dates_same_year_and_unchanged_submission(planning):
             operation_type,
             planned_start="2027-01-01",
             planned_end="2030-12-31",
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in opened["operations"]
+                for row in opened["tasks"]
             ],
             expected_version=opened["version"],
         ),
@@ -1134,9 +1134,9 @@ def test_m03_m05_late_dates_same_year_and_unchanged_submission(planning):
             operation_type,
             planned_start="2028-01-01",
             planned_end="2030-12-31",
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in changed.json()["operations"]
+                for row in changed.json()["tasks"]
             ],
             expected_version=changed.json()["version"],
         ),
@@ -1154,7 +1154,7 @@ def test_m15_m17_lineage_guard_and_maximum_candidate_remain_cancellable(planning
             "name": f"Opération {index:03d} " + "🧪" * 185,
             "allocation": "1",
         }
-        for index, row in enumerate(opened["operations"])
+        for index, row in enumerate(opened["tasks"])
     ] + [
         {
             "type_id": operation_type["id"],
@@ -1170,7 +1170,7 @@ def test_m15_m17_lineage_guard_and_maximum_candidate_remain_cancellable(planning
             operation_type,
             description="🧪" * 4000,
             allocation="100",
-            operations=operations,
+            tasks=operations,
             expected_version=opened["version"],
         ),
     )
@@ -1200,7 +1200,7 @@ def test_m15_m17_lineage_guard_and_maximum_candidate_remain_cancellable(planning
             "name": f"Remplacement {index:03d} " + "🧭" * 183,
             "allocation": "1",
         }
-        for index, row in enumerate(second["operations"])
+        for index, row in enumerate(second["tasks"])
     ]
     second_changed = patch(
         planning["agent2"],
@@ -1209,7 +1209,7 @@ def test_m15_m17_lineage_guard_and_maximum_candidate_remain_cancellable(planning
             operation_type,
             description="🧭" * 4000,
             allocation="100",
-            operations=second_operations,
+            tasks=second_operations,
             expected_version=second["version"],
         ),
     )
@@ -1327,9 +1327,9 @@ def test_m06_cancelled_candidate_contributor_cannot_later_review(planning, auth_
             plan(
                 operation_type,
                 description="Nouveau candidat indépendant",
-                operations=[
+                tasks=[
                     {key: value for key, value in row.items() if key != "position"}
-                    for row in reopened["operations"]
+                    for row in reopened["tasks"]
                 ],
                 expected_version=reopened["version"],
             ),
@@ -1452,7 +1452,7 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
         assert candidate["approved_revision_id"] == approved["approved_revision_id"]
         assert candidate["approved"] == approved["approved"]
         assert candidate["candidate"] == changed["candidate"]
-        assert candidate["operations"] == changed["operations"]
+        assert candidate["tasks"] == changed["tasks"]
         assert candidate["execution_paused"] is True
     elif resource == "list":
         candidate = next(
@@ -1461,7 +1461,7 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
         assert candidate["approved_revision_id"] == approved["approved_revision_id"]
         assert candidate["approved"] == approved["approved"]
         assert candidate["candidate"] == changed["candidate"]
-        assert candidate["operations"] == changed["operations"]
+        assert candidate["tasks"] == changed["tasks"]
         assert candidate["execution_paused"] is True
     elif resource == "history":
         kinds = [row["kind"] for row in before_payload["data"]]
@@ -1477,10 +1477,8 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
         assert before_payload["candidate"]["description"] == changed["description"]
         assert [
             (row["id"], row["name"], row["allocation"])
-            for row in before_payload["candidate"]["operations"]
-        ] == [
-            (row["id"], row["name"], row["allocation"]) for row in changed["operations"]
-        ]
+            for row in before_payload["candidate"]["tasks"]
+        ] == [(row["id"], row["name"], row["allocation"]) for row in changed["tasks"]]
 
     after = planning["agent"].get(f"/api/v1/activities/{approved['id']}")
     assert after.status_code == 200
@@ -1489,7 +1487,7 @@ def test_m12_http_reads_are_coherent_during_cancellation(planning, resource):
     assert restored["approved_revision_id"] == approved["approved_revision_id"]
     assert restored["approved"] == approved["approved"]
     assert restored["candidate"] is None
-    assert restored["operations"] == approved["operations"]
+    assert restored["tasks"] == approved["tasks"]
     history = (
         planning["agent"].get(f"/api/v1/activities/{approved['id']}/revisions").json()
     )

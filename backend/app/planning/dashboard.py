@@ -120,8 +120,8 @@ def dashboard_finance_data(
     return {
         "approved_allocation": metrics["financial"]["approved_allocation"],
         "recorded_spending": str(sum(known)) if known else None,
-        "recorded_operations": len(known),
-        "approved_operations": len(approved_operation_ids),
+        "recorded_tasks": len(known),
+        "approved_tasks": len(approved_operation_ids),
         "closed_spending": metrics["financial"]["closed_spending"],
         "reversement_due": (
             str(required_total - declared_total) if has_confirmed_basis else None

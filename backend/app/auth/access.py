@@ -300,8 +300,19 @@ def invitations(
         if filters.state:
             query = query.where(Invitation.state == filters.state)
         total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+        created_at = (
+            select(Audit.occurred_at)
+            .where(
+                Audit.action == "invitation_create",
+                Audit.target == User.id,
+            )
+            .order_by(Audit.occurred_at.asc(), Audit.id.asc())
+            .limit(1)
+            .correlate(User)
+            .scalar_subquery()
+        )
         rows = db.execute(
-            query.order_by(Invitation.id)
+            query.order_by(created_at.desc().nullslast(), Invitation.id.desc())
             .offset((filters.page - 1) * filters.size)
             .limit(filters.size)
         )

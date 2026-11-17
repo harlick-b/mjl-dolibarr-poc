@@ -201,7 +201,7 @@ def test_return_releases_correction_and_preserves_history(planning):
             "reason": "Aucune dépense.",
         },
     ).json()
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     frozen = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -283,7 +283,7 @@ def test_validator_return_commits_and_allows_fresh_declaration(planning):
     )
     assert returned.status_code == 201, returned.text
     assert returned.json()["state"] == "returned"
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     corrected = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -429,7 +429,7 @@ def test_zero_spending_migration_round_trip_when_empty(auth_env):
 
 def test_database_rejects_duplicated_operation_snapshot(planning):
     activity = finish_activity(planning, amounts=(0, 0))
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
     duplicate = {
         "id": operation["id"],
@@ -473,7 +473,7 @@ def test_database_rejects_missing_explicit_zero_facts(planning, field, mode):
             "actual_spent": "0",
             "execution_completed": True,
         }
-        for operation in activity["operations"]
+        for operation in activity["tasks"]
     ]
     if mode == "missing":
         facts[0].pop(field)
@@ -523,7 +523,7 @@ def test_used_zero_spending_migration_refuses_destructive_downgrade(planning, au
 @pytest.mark.parametrize("first", ["declaration", "correction"])
 def test_declaration_and_execution_correction_serialize(planning, first):
     activity = finish_activity(planning, amounts=(0, 0))
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
 
     def declare():
         return post(

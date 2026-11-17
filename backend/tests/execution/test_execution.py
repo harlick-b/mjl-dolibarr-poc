@@ -27,7 +27,7 @@ from tests.planning.test_planning import (  # noqa: F401
 
 
 def execution_path(activity, operation):
-    return f"/api/v1/activities/{activity['id']}/operations/{operation['id']}/execution"
+    return f"/api/v1/activities/{activity['id']}/tasks/{operation['id']}/execution"
 
 
 def approved_execution_activity(
@@ -55,7 +55,7 @@ def approved_execution_activity(
         plan_changes.update(
             {
                 "allocation": str(sum(allocations)),
-                "operations": [
+                "tasks": [
                     {
                         "type_id": operation_type["id"],
                         "name": f"Opération {position}",
@@ -113,7 +113,7 @@ def approved_execution_activity(
 
 def test_first_operation_submission_records_start_and_result_with_history(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
 
     recorded = patch(
         planning["agent"],
@@ -128,7 +128,7 @@ def test_first_operation_submission_records_start_and_result_with_history(planni
         },
     )
     assert recorded.status_code == 200, recorded.text
-    recorded_operation = recorded.json()["operations"][0]
+    recorded_operation = recorded.json()["tasks"][0]
     assert recorded_operation["execution_started_at"] is not None
     assert recorded_operation["actual_spent"] == "100000"
     assert recorded_operation["execution_completed"] is True
@@ -161,7 +161,7 @@ def test_first_operation_submission_records_start_and_result_with_history(planni
         },
     )
     assert corrected.status_code == 200, corrected.text
-    corrected_operation = corrected.json()["operations"][0]
+    corrected_operation = corrected.json()["tasks"][0]
     assert corrected_operation["actual_spent"] is None
     assert corrected_operation["execution_completed"] is False
     assert corrected_operation["execution_started_at"] is not None
@@ -203,7 +203,7 @@ def test_first_operation_submission_records_start_and_result_with_history(planni
 
 def test_explicit_start_action_is_not_available(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     response = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -218,7 +218,7 @@ def test_explicit_start_action_is_not_available(planning):
 
 def test_empty_first_operation_submission_does_not_record_a_start(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     response = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -236,12 +236,12 @@ def test_empty_first_operation_submission_does_not_record_a_start(planning):
 
     refreshed = planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution")
     assert refreshed.status_code == 200, refreshed.text
-    assert refreshed.json()["operations"][0]["execution_started_at"] is None
+    assert refreshed.json()["tasks"][0]["execution_started_at"] is None
 
 
 def test_execution_is_role_date_revision_and_workflow_guarded(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     body = {
         "action": "record",
         "actual_spent": None,
@@ -296,7 +296,7 @@ def test_execution_is_role_date_revision_and_workflow_guarded(planning):
         planned_start=(today - timedelta(days=2)).isoformat(),
         planned_end=(today - timedelta(days=1)).isoformat(),
     )
-    after_end_operation = after_end["operations"][0]
+    after_end_operation = after_end["tasks"][0]
     accepted = patch(
         planning["agent"],
         execution_path(after_end, after_end_operation),
@@ -319,7 +319,7 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
     )
     assert detail.status_code == 200, detail.text
     assert detail.json()["operation_count"] == 2
-    assert detail.json()["operations"][0]["allowed_actions"] == []
+    assert detail.json()["tasks"][0]["allowed_actions"] == []
     assert detail.json()["mutation_unavailable_reason"] == "reviewer_read_only"
     assert detail.json()["project_name"] == activity["project_name"]
     assert detail.json()["partner_name"] == activity["partner_name"]
@@ -391,14 +391,14 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
             "planned_start": candidate_date,
             "planned_end": candidate_date,
             "allocation": amendment["allocation"],
-            "operations": [
+            "tasks": [
                 {
                     "id": row["id"],
                     "type_id": row["type_id"],
                     "name": row["name"],
                     "allocation": row["allocation"],
                 }
-                for row in amendment["operations"]
+                for row in amendment["tasks"]
             ],
         },
     )
@@ -463,7 +463,7 @@ def test_execution_reads_are_scoped_paginated_and_read_only_for_reviewers(planni
 
 def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     body = {
         "action": "record",
         "actual_spent": None,
@@ -476,7 +476,7 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     assert (
         patch(
             planning["agent"],
-            execution_path(activity, other["operations"][0]),
+            execution_path(activity, other["tasks"][0]),
             body,
         ).status_code
         == 404
@@ -504,7 +504,7 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     assert (
         patch(
             planning["agent"],
-            execution_path(unapproved, unapproved["operations"][0]),
+            execution_path(unapproved, unapproved["tasks"][0]),
             {
                 **body,
                 "expected_version": unapproved["version"],
@@ -564,7 +564,7 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     assert (
         patch(
             planning["agent"],
-            execution_path(withdrawn, withdrawn["operations"][0]),
+            execution_path(withdrawn, withdrawn["tasks"][0]),
             {
                 **body,
                 "expected_version": withdrawn["version"],
@@ -584,7 +584,7 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     assert (
         patch(
             planning["agent"],
-            execution_path(inactive, inactive["operations"][0]),
+            execution_path(inactive, inactive["tasks"][0]),
             {
                 **body,
                 "expected_version": inactive["version"],
@@ -597,7 +597,7 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
 
 def test_zero_overspend_and_variance_observation_rules(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     missing_observation = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -624,11 +624,11 @@ def test_zero_overspend_and_variance_observation_rules(planning):
         },
     )
     assert zero.status_code == 200, zero.text
-    assert zero.json()["operations"][0]["actual_spent"] == "0"
-    assert zero.json()["operations"][0]["variance"] == "-100000"
+    assert zero.json()["tasks"][0]["actual_spent"] == "0"
+    assert zero.json()["tasks"][0]["variance"] == "-100000"
     overflow = patch(
         planning["agent"],
-        execution_path(activity, activity["operations"][1]),
+        execution_path(activity, activity["tasks"][1]),
         {
             "action": "record",
             "expected_version": zero.json()["version"],
@@ -641,7 +641,7 @@ def test_zero_overspend_and_variance_observation_rules(planning):
     assert overflow.status_code == 422
     overspent = patch(
         planning["agent"],
-        execution_path(activity, activity["operations"][1]),
+        execution_path(activity, activity["tasks"][1]),
         {
             "action": "record",
             "expected_version": zero.json()["version"],
@@ -657,7 +657,7 @@ def test_zero_overspend_and_variance_observation_rules(planning):
 
 def test_blank_initial_reason_and_bounded_unicode_observation_are_accepted(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     response = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -676,7 +676,7 @@ def test_blank_initial_reason_and_bounded_unicode_observation_are_accepted(plann
 
 def test_started_activity_blocks_withdrawal_transfer_and_operation_removal(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     started = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -712,7 +712,7 @@ def test_started_activity_blocks_withdrawal_transfer_and_operation_removal(plann
     )
     assert transfer.status_code == 409
     amendment = open_amendment(planning, started)
-    remaining = amendment["operations"][1]
+    remaining = amendment["tasks"][1]
     removal = patch(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}",
@@ -723,7 +723,7 @@ def test_started_activity_blocks_withdrawal_transfer_and_operation_removal(plann
             "planned_start": amendment["planned_start"],
             "planned_end": amendment["planned_end"],
             "allocation": remaining["allocation"],
-            "operations": [
+            "tasks": [
                 {
                     "id": remaining["id"],
                     "type_id": remaining["type_id"],
@@ -738,7 +738,7 @@ def test_started_activity_blocks_withdrawal_transfer_and_operation_removal(plann
 
 def test_amendment_pause_preserves_execution_and_cancellation_resumes(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     started = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -757,7 +757,7 @@ def test_amendment_pause_preserves_execution_and_cancellation_resumes(planning):
     )
     assert paused["execution_paused"] is True
     assert paused["pause_reason"] == "amendment_pending"
-    assert paused["operations"][0]["execution_started_at"] is not None
+    assert paused["tasks"][0]["execution_started_at"] is not None
     assert (
         patch(
             planning["agent"],
@@ -799,7 +799,7 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
     if future_start and tomorrow.year != today.year:
         pytest.skip("No future same-year amendment date exists on December 31")
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -822,7 +822,7 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
             if row["id"] == operation["id"]
             else row["allocation"],
         }
-        for row in opened["operations"]
+        for row in opened["tasks"]
     ]
     changed = patch(
         planning["agent2"],
@@ -836,7 +836,7 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
             else opened["planned_start"],
             "planned_end": opened["planned_end"],
             "allocation": "320000",
-            "operations": operations,
+            "tasks": operations,
         },
     ).json()
     revision = post(
@@ -860,12 +860,12 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
         .get(f"/api/v1/activities/{activity['id']}/execution")
         .json()
     )
-    assert execution["operations"][0]["actual_spent"] == "110000"
-    assert execution["operations"][0]["execution_completed"] is True
-    assert execution["operations"][0]["execution_observation"] == (
+    assert execution["tasks"][0]["actual_spent"] == "110000"
+    assert execution["tasks"][0]["execution_completed"] is True
+    assert execution["tasks"][0]["execution_observation"] == (
         "Dépassement initial justifié."
     )
-    assert execution["operations"][0]["approved_allocation"] == "120000"
+    assert execution["tasks"][0]["approved_allocation"] == "120000"
     from tests.execution.test_funding import authorize
 
     assert execution["pause_reason"] == "funding_required"
@@ -873,8 +873,8 @@ def test_approved_budget_amendment_preserves_execution_and_recording_basis(
     agent_execution = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
-    assert agent_execution["operations"][0]["allowed_actions"] == ["record"]
-    assert agent_execution["operations"][1]["allowed_actions"] == (
+    assert agent_execution["tasks"][0]["allowed_actions"] == ["record"]
+    assert agent_execution["tasks"][1]["allowed_actions"] == (
         [] if future_start else ["record"]
     )
     history = (
@@ -893,7 +893,7 @@ def test_execution_audit_failure_rolls_back_operation_and_activity(
     planning, monkeypatch
 ):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     original = planning["auth"].business_audit
 
     def fail_execution(db, action, actor, target, business):
@@ -933,7 +933,7 @@ def test_execution_constraint_or_commit_failure_rolls_back(
     planning, monkeypatch, failure
 ):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     original_audit = planning["auth"].business_audit
 
     def mark_failure(db, action, *args, **kwargs):
@@ -990,7 +990,7 @@ def test_execution_constraint_or_commit_failure_rolls_back(
 
 def test_first_submission_and_amendment_race_serializes_without_lost_state(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     record_body = {
         "action": "record",
         "actual_spent": None,
@@ -1020,11 +1020,11 @@ def test_first_submission_and_amendment_race_serializes_without_lost_state(plann
     current = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
-    assert current["operations"][0]["execution_started_at"] is not None
+    assert current["tasks"][0]["execution_started_at"] is not None
     assert current["execution_paused"] is False
 
     activity2 = approved_execution_activity(planning)
-    operation2 = activity2["operations"][0]
+    operation2 = activity2["tasks"][0]
     opened, blocked_start = ordered_advisory_race(
         planning["auth"],
         lambda: post(
@@ -1052,14 +1052,14 @@ def test_first_submission_and_amendment_race_serializes_without_lost_state(plann
         planning["agent"].get(f"/api/v1/activities/{activity2['id']}/execution").json()
     )
     assert paused["execution_paused"] is True
-    assert paused["operations"][0]["execution_started_at"] is None
+    assert paused["tasks"][0]["execution_started_at"] is None
 
 
 @pytest.mark.parametrize("kind", ["withdrawals", "transfers"])
 @pytest.mark.parametrize("first", ["execution", "lifecycle"])
 def test_first_submission_and_lifecycle_request_serialize(planning, kind, first):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
 
     def execute():
         return patch(
@@ -1105,17 +1105,17 @@ def test_first_submission_and_lifecycle_request_serialize(planning, kind, first)
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
     if first == "execution":
-        assert execution["operations"][0]["execution_started_at"] is not None
+        assert execution["tasks"][0]["execution_started_at"] is not None
         assert "request_withdrawal" not in detail["allowed_actions"]
         assert "request_transfer" not in detail["allowed_actions"]
     else:
         assert execution["execution_paused"] is True
-        assert execution["operations"][0]["execution_started_at"] is None
+        assert execution["tasks"][0]["execution_started_at"] is None
 
 
 def test_concurrent_execution_edits_reject_stale_second_write(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     started = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -1176,7 +1176,7 @@ def test_execution_openapi_exposes_closure_responsibility(planning):
 
 def test_execution_audit_rejects_unbounded_or_unexpected_facts(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     facts = {
         "execution_started_at": None,
         "execution_completed": False,
@@ -1349,14 +1349,14 @@ def test_clean_predecessor_round_trip_preserves_approved_history(planning, auth_
                     "AND actual_spent IS NULL AND execution_observation=''"
                 ),
                 {"id": activity["id"]},
-            ) == len(activity["operations"])
+            ) == len(activity["tasks"])
     finally:
         engine.dispose()
 
 
 def test_execution_evidence_refuses_destructive_downgrade(planning, auth_env):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     response = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -1408,7 +1408,7 @@ def test_reasoned_withdrawal_cancellation_preserves_late_execution_evidence(plan
         },
     ).json()
     withdrawal = requested["snapshot"]["withdrawal"]
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     with planning["auth"].engine.begin() as db:
         db.execute(
             text(
@@ -1435,13 +1435,13 @@ def test_reasoned_withdrawal_cancellation_preserves_late_execution_evidence(plan
         .json()
     )
     assert execution["execution_paused"] is False
-    assert execution["operations"][0]["execution_started_at"] is not None
+    assert execution["tasks"][0]["execution_started_at"] is not None
 
 
 def test_database_rejects_reset_removal_and_deletion_of_started_operation(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
-    unstarted = activity["operations"][1]
+    operation = activity["tasks"][0]
+    unstarted = activity["tasks"][1]
     for statement in (
         "UPDATE pta_operation SET actual_spent=0 WHERE id=:id",
         "UPDATE pta_operation SET execution_observation='fait' WHERE id=:id",
@@ -1482,7 +1482,7 @@ def test_database_rejects_reset_removal_and_deletion_of_started_operation(planni
 @pytest.mark.parametrize("first", ["execution", "deactivation"])
 def test_execution_and_actor_deactivation_serialize(planning, first):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     account = next(
         row
         for row in planning["admin"].get("/api/v1/access/users").json()["items"]
@@ -1542,9 +1542,9 @@ def test_execution_filters_use_approved_name_and_do_not_change_authorization(pla
     assert client.get(path, params={"agent": "invalid"}).status_code == 422
 
 
-def test_execution_filter_ignores_new_unapproved_operations(planning):
+def test_execution_filter_ignores_new_unapproved_tasks(planning):
     activity = approved_execution_activity(planning, allocations=[100000])
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     agent = planning["agent"]
     recorded = patch(
         agent,
@@ -1570,7 +1570,7 @@ def test_execution_filter_ignores_new_unapproved_operations(planning):
             "planned_start": opened["planned_start"],
             "planned_end": opened["planned_end"],
             "allocation": "110000",
-            "operations": [
+            "tasks": [
                 {
                     key: operation[key]
                     for key in ["id", "type_id", "name", "allocation"]

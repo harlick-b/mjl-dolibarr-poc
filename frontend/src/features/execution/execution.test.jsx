@@ -1,10 +1,18 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { App, makeRouter } from '@/app/router.jsx'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { ExecutionView } from './ExecutionView'
+import { TaskEditor } from './ExecutionOperations'
 
 function makeExecutionRouter(history) {
   return makeRouter(history, {
@@ -50,8 +58,9 @@ function detail({ started = false, completed = false } = {}) {
     closure_blockers: ['execution_incomplete'],
     execution_paused: false,
     pause_reason: null,
-    completed_operations: completed ? 1 : 0,
-    operation_count: 1,
+    completed_tasks: completed ? 1 : 0,
+    task_count: 1,
+    progress: completed ? '100.00' : started ? '0.00' : null,
     works_completed: completed,
     spending_total: completed ? '100000' : null,
     balance: completed ? '0' : null,
@@ -70,13 +79,16 @@ function detail({ started = false, completed = false } = {}) {
       unavailable_reason: 'disbursement_required',
     },
     allowed_actions: ['read'],
-    operations: [
+    tasks: [
       {
         id: '22222222-2222-4222-8222-222222222222',
         type_id: 'type-1',
         type_label: 'Formation',
         name: 'Préparer la session',
+        description: '',
         approved_allocation: '100000',
+        weight: '100.00',
+        progress: completed ? '100.00' : started ? '0.00' : null,
         position: 1,
         execution_started_at: started ? '2026-10-28T09:00:00Z' : null,
         execution_completed: completed,
@@ -84,10 +96,51 @@ function detail({ started = false, completed = false } = {}) {
         execution_observation: completed ? 'Session terminée.' : '',
         variance: completed ? '0' : null,
         allowed_actions: ['record'],
+        subtasks: [],
       },
     ],
   }
 }
+
+test('a spending correction preserves completion for a legacy unweighted Task', async () => {
+  const user = userEvent.setup()
+  const mutate = vi.fn().mockResolvedValue({})
+  const activity = detail({ started: true, completed: true })
+  const task = {
+    ...activity.tasks[0],
+    weight: null,
+    progress: null,
+  }
+  render(
+    <TaskEditor
+      activity={activity}
+      task={task}
+      target={task}
+      isSubtask={false}
+      pending={false}
+      mutate={mutate}
+    />,
+  )
+  expect(screen.getByLabelText('Tâche physiquement terminée')).toBeChecked()
+  const amount = screen.getByLabelText('Montant dépensé final (F CFA)')
+  await user.clear(amount)
+  await user.type(amount, '90000')
+  await user.type(
+    screen.getByLabelText('Motif de la correction *'),
+    'Montant corrigé.',
+  )
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  expect(mutate).toHaveBeenCalledWith(
+    task.id,
+    null,
+    expect.objectContaining({
+      actual_spent: '90000',
+      execution_completed: true,
+      correction_reason: 'Montant corrigé.',
+    }),
+  )
+  expect(mutate.mock.calls[0][2]).not.toHaveProperty('progress')
+})
 
 test('legacy execution detail URLs enter the canonical activity shell', async () => {
   vi.stubGlobal(
@@ -154,7 +207,7 @@ test('activity tabs keep one header and preserve the execution sidebar context',
       },
     ],
     agent_ids: ['agent'],
-    operations: execution.operations.map((operation) => ({
+    tasks: execution.tasks.map((operation) => ({
       ...operation,
       allocation: operation.approved_allocation,
     })),
@@ -164,7 +217,7 @@ test('activity tabs keep one header and preserve the execution sidebar context',
       planned_start: execution.planned_start,
       planned_end: execution.planned_end,
       allocation: execution.approved_allocation,
-      operations: execution.operations,
+      tasks: execution.tasks,
     },
     candidate: null,
     amendment: null,
@@ -362,7 +415,7 @@ test('activity tabs keep one header and preserve the execution sidebar context',
   expect(await screen.findByText('Budget autorisé actuel')).toBeVisible()
 })
 
-test('agent records operations before the collapsed financial workflow', async () => {
+test('agent records tasks before the collapsed financial workflow', async () => {
   const user = userEvent.setup()
   let current = detail()
   const empty = {
@@ -449,7 +502,7 @@ test('agent records operations before the collapsed financial workflow', async (
   current = {
     ...current,
     spending_total: '0',
-    operations: current.operations.map((operation) => ({
+    tasks: current.tasks.map((operation) => ({
       ...operation,
       actual_spent: '0',
     })),
@@ -466,6 +519,158 @@ test('agent records operations before the collapsed financial workflow', async (
     })[0],
   ).toBeVisible()
   expect(administration.queryByText('Déclaration sans dépense')).toBeNull()
+})
+
+test('agent completes a subtask and keeps the draft after a failed save', async () => {
+  const user = userEvent.setup()
+  let attempts = 0
+  let current = {
+    ...detail({ started: true }),
+    progress: '0.00',
+    tasks: [
+      {
+        ...detail({ started: true }).tasks[0],
+        description: 'Préparation générale',
+        weight: '100.00',
+        progress: '0.00',
+        actual_spent: null,
+        execution_completed: false,
+        subtasks: [
+          {
+            id: 'subtask-1',
+            name: 'Réserver la salle',
+            description: 'Confirmer la réservation.',
+            weight: '50.00',
+            approved_allocation: '50000',
+            execution_started_at: null,
+            execution_completed: false,
+            actual_spent: null,
+            execution_observation: '',
+            allowed_actions: ['record'],
+          },
+          {
+            id: 'subtask-2',
+            name: 'Préparer les supports',
+            description: '',
+            weight: '50.00',
+            approved_allocation: '50000',
+            execution_started_at: null,
+            execution_completed: false,
+            actual_spent: null,
+            execution_observation: '',
+            allowed_actions: ['record'],
+          },
+        ],
+      },
+    ],
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (options.method === 'PATCH' && path.includes('/subtasks/subtask-1')) {
+        attempts += 1
+        if (attempts === 1)
+          return new Response(JSON.stringify({ code: 'activity_stale' }), {
+            status: 409,
+          })
+        current = {
+          ...current,
+          version: 7,
+          progress: '50.00',
+          spending_total: null,
+          tasks: [
+            {
+              ...current.tasks[0],
+              progress: '50.00',
+              subtasks: current.tasks[0].subtasks.map((child) =>
+                child.id === 'subtask-1'
+                  ? {
+                      ...child,
+                      execution_started_at: '2026-11-13T09:00:00Z',
+                      execution_completed: true,
+                      actual_spent: '45000',
+                      execution_observation: 'Salle confirmée.',
+                    }
+                  : child,
+              ),
+            },
+          ],
+        }
+        return new Response(JSON.stringify(current))
+      }
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(current))
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Renseigner Réserver la salle' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Réserver la salle' })
+  expect(dialog).toHaveTextContent('Tâche parente : Préparer la session')
+  await user.click(
+    within(dialog).getByLabelText('Sous-tâche physiquement terminée'),
+  )
+  await user.type(
+    within(dialog).getByLabelText('Montant dépensé final (F CFA)'),
+    '45000',
+  )
+  await user.type(
+    within(dialog).getByLabelText('Observation'),
+    'Salle confirmée.',
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
+  await waitFor(() => expect(attempts).toBe(1))
+  expect(
+    screen.getByRole('dialog', { name: 'Réserver la salle' }),
+  ).toBeVisible()
+  expect(screen.getByLabelText('Montant dépensé final (F CFA)')).toHaveValue(
+    '45 000',
+  )
+  expect(
+    screen.getByLabelText('Sous-tâche physiquement terminée'),
+  ).toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Réserver la salle' }),
+    ).not.toBeInTheDocument(),
+  )
+  const parentRow = screen.getByText('Préparer la session').closest('tr')
+  expect(within(parentRow).getByText('50.00 %')).toBeVisible()
 })
 
 test('execution detail stays in page loading until all first-view reads are ready', async () => {
@@ -587,7 +792,7 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(
     screen.getByRole('columnheader', { name: 'Suivi administratif' }),
   ).toBeVisible()
-  expect(screen.getByText('1 / 1 opérations terminées')).toBeVisible()
+  expect(screen.getByText('100.00 %')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
   expect(screen.queryByText(/Révision 1/)).not.toBeInTheDocument()
   expect(
@@ -771,15 +976,15 @@ test('an observation draft keeps its version across refresh and can be explicitl
   ).toHaveTextContent('ACT-000001 · Former les équipes')
   expect(
     screen.getByRole('dialog', { name: 'Préparer la session' }),
-  ).toHaveTextContent('Type : Formation')
+  ).toHaveTextContent('Catégorie : Formation')
   expect(
     screen.getByRole('dialog', { name: 'Préparer la session' }),
   ).toHaveTextContent('Montant autorisé')
   expect(screen.getByLabelText('Montant dépensé final (F CFA)')).toBeVisible()
-  expect(screen.getByLabelText('Opération physiquement terminée')).toBeVisible()
+  expect(screen.getByLabelText('Réalisation physique')).toBeVisible()
   expect(
     screen.getByText(
-      'Saisissez 0 uniquement si aucune dépense n’a été engagée.',
+      'La progression physique et la dépense sont enregistrées séparément.',
     ),
   ).toBeVisible()
   expect(
@@ -798,10 +1003,11 @@ test('an observation draft keeps its version across refresh and can be explicitl
   current = {
     ...current,
     version: 8,
-    operations: [
+    tasks: [
       {
-        ...current.operations[0],
+        ...current.tasks[0],
         actual_spent: '110000',
+        progress: '0.00',
         execution_completed: false,
         execution_observation: 'Correction distante.',
       },
@@ -834,11 +1040,9 @@ test('an observation draft keeps its version across refresh and can be explicitl
     'Correction distante.',
   )
   expect(screen.getByLabelText('Montant dépensé final (F CFA)')).toHaveValue(
-    '110000',
+    '110 000',
   )
-  expect(
-    screen.getByLabelText('Opération physiquement terminée'),
-  ).not.toBeChecked()
+  expect(screen.getByLabelText('Réalisation physique')).toHaveValue('0,00')
   await user.type(screen.getByLabelText('Observation'), ' Complément.')
   await user.type(
     screen.getByLabelText('Motif de la correction *'),
@@ -1068,9 +1272,9 @@ test('Agent submits a zero-spending declaration without financial requests', asy
     required_reversement: '0',
     realization_status: 'completed_pending_validation',
     closure_blockers: ['zero_spending_not_approved'],
-    operations: [
+    tasks: [
       {
-        ...detail({ started: true, completed: true }).operations[0],
+        ...detail({ started: true, completed: true }).tasks[0],
         actual_spent: '0',
         variance: '-100000',
       },
@@ -1666,7 +1870,7 @@ test('Agent records an Operation and its start in one submission', async () => {
           }),
         ),
       )
-    if (path.includes('/operations/') && options.method === 'PATCH') {
+    if (path.includes('/tasks/') && options.method === 'PATCH') {
       current = detail({ started: true, completed: true })
       return Promise.resolve(new Response(JSON.stringify(current)))
     }
@@ -1704,11 +1908,12 @@ test('Agent records an Operation and its start in one submission', async () => {
     '100000',
   )
   await user.type(screen.getByLabelText('Observation'), 'Session terminée.')
-  await user.click(screen.getByLabelText('Opération physiquement terminée'))
+  await user.clear(screen.getByLabelText('Réalisation physique'))
+  await user.type(screen.getByLabelText('Réalisation physique'), '100')
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
   await waitFor(() =>
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/activities/activity-1/operations/22222222-2222-4222-8222-222222222222/execution',
+      '/api/v1/activities/activity-1/tasks/22222222-2222-4222-8222-222222222222/execution',
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({
@@ -1718,6 +1923,7 @@ test('Agent records an Operation and its start in one submission', async () => {
           actual_spent: '100000',
           execution_completed: true,
           execution_observation: 'Session terminée.',
+          progress: '100',
         }),
       }),
     ),
@@ -2476,10 +2682,12 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   expect(
     await screen.findByText(/MJL enregistre la déclaration/i),
   ).toBeVisible()
-  await user.type(
-    screen.getByLabelText('Date effective du virement *'),
-    '2026-10-28',
+  await user.click(
+    screen.getByRole('button', { name: /Date effective du virement/ }),
   )
+  fireEvent.change(screen.getByLabelText('Date effective du virement'), {
+    target: { value: '2026-10-28' },
+  })
   await user.type(screen.getByLabelText(/Référence ou commentaire/), 'TEST-001')
   await user.click(screen.getByLabelText(/Je confirme que ce montant/))
   await user.click(
@@ -2500,11 +2708,12 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   const virementPanel = within(
     screen.getByText('Virement externe', { exact: true }).closest('details'),
   )
-  await user.clear(virementPanel.getByLabelText('Date effective du virement *'))
-  await user.type(
-    virementPanel.getByLabelText('Date effective du virement *'),
-    '2026-10-27',
+  await user.click(
+    virementPanel.getByRole('button', { name: /Date effective du virement/ }),
   )
+  fireEvent.change(screen.getByLabelText('Date effective du virement'), {
+    target: { value: '2026-10-27' },
+  })
   await user.clear(virementPanel.getByLabelText(/Référence ou commentaire/))
   await user.type(
     virementPanel.getByLabelText(/Référence ou commentaire/),
@@ -2524,8 +2733,10 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     ).toHaveValue(''),
   )
   expect(
-    virementPanel.getByLabelText('Date effective du virement *'),
-  ).toHaveValue('2026-10-27')
+    virementPanel.getByRole('button', {
+      name: 'Date effective du virement : 27 octobre 2026',
+    }),
+  ).toBeVisible()
   await user.type(
     virementPanel.getByLabelText('Motif de la correction *'),
     'Deuxième correction.',
@@ -3150,7 +3361,7 @@ test.each([
       execution_paused: true,
       pause_reason: 'funding_required',
       mutation_unavailable_reason: 'funding_required',
-      operations: detail().operations.map((row) => ({
+      tasks: detail().tasks.map((row) => ({
         ...row,
         allowed_actions: [],
       })),
@@ -3305,7 +3516,7 @@ test('a reasoned execution correction refreshes the funding version without rele
         current = {
           ...current,
           version: 8,
-          operations: current.operations.map((row) => ({
+          tasks: current.tasks.map((row) => ({
             ...row,
             actual_spent: '90000',
           })),

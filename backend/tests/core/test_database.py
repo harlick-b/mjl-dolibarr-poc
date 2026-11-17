@@ -63,7 +63,7 @@ def test_alembic_repeatable_upgrade_to_head(isolated_url, monkeypatch):
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0035_uncertain_notification_mail"
+                == "0037_transfer_task_dates"
             )
             assert set(inspect(connection).get_table_names()) == {
                 "alembic_version",
@@ -81,6 +81,7 @@ def test_alembic_repeatable_upgrade_to_head(isolated_url, monkeypatch):
                 "pta_annual",
                 "pta_activity",
                 "pta_operation",
+                "pta_subtask",
                 "pta_activity_agent_assignment",
                 "pta_activity_contributor",
                 "pta_activity_revision",

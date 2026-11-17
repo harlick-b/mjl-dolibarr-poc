@@ -221,7 +221,7 @@ def test_returned_disbursement_can_be_corrected_to_zero_and_closed(planning):
     activity, path, request, _ = request_fixture(planning, "disbursement")
     returned = decide(planning, path, request, "return")
     version = returned["activity_version"]
-    for operation in activity["operations"]:
+    for operation in activity["tasks"]:
         corrected = patch(
             planning["agent"],
             execution_path(activity, operation),

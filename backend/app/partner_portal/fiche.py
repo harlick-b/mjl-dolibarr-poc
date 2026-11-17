@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.planning.reports.activity_fiche_pdf import render_activity_fiche
+from app.planning.reports.activity_fiche_pdf import (
+    render_activity_fiche,
+    task_fiche_label,
+)
 
 
 def xof(value: object | None) -> str:
@@ -79,11 +82,11 @@ def render_partner_fiche(detail: dict[str, Any], generated_at: str) -> bytes:
         "returned": finance["reversement_amount"] if finance is not None else None,
         "operations": [
             {
-                "name": row["name"],
+                "name": task_fiche_label(row),
                 "authorized": row["allocation"],
                 "spent": row["final_spending"],
             }
-            for row in detail["operations"]
+            for row in detail["tasks"]
         ],
         "requests": detail.get("fiche_requests", []),
         "events": events,

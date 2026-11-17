@@ -2,8 +2,8 @@ import LocalizedStrings from 'react-localization'
 export const strings = new LocalizedStrings({
   fr: {
     operationTypes: [
-      'Aucun type d’opération',
-      'Aucun type d’opération n’est enregistré pour le moment.',
+      'Aucune catégorie de tâche',
+      'Aucune catégorie de tâche n’est enregistrée pour le moment.',
     ],
     revisions: [
       'Aucune information soumise',

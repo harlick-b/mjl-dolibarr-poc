@@ -153,9 +153,9 @@ def test_fiche_keeps_returned_resubmission_in_initial_programming_cycle(planning
             operation_type,
             description="Planification initiale corrigée",
             expected_version=returned["activity_version"],
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in detail["operations"]
+                for row in detail["tasks"]
             ],
         ),
     ).json()
@@ -202,7 +202,7 @@ def test_fiche_keeps_historical_amounts_for_successive_amendments(planning):
                 **{key: value for key, value in row.items() if key != "position"},
                 "allocation": str(allocation - 200_000 if index == 0 else 200_000),
             }
-            for index, row in enumerate(opened["operations"])
+            for index, row in enumerate(opened["tasks"])
         ]
         changed = patch(
             planning["agent"],
@@ -210,7 +210,7 @@ def test_fiche_keeps_historical_amounts_for_successive_amendments(planning):
             plan(
                 operation_type,
                 allocation=str(allocation),
-                operations=operations,
+                tasks=operations,
                 expected_version=opened["version"],
             ),
         ).json()
@@ -283,12 +283,12 @@ def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
             candidate_type,
             description="CONTENU CANDIDAT NON APPROUVÉ",
             allocation=approved["allocation"],
-            operations=[
+            tasks=[
                 {
                     **{key: value for key, value in row.items() if key != "position"},
                     "type_id": candidate_type["id"],
                 }
-                for row in approved["operations"]
+                for row in approved["tasks"]
             ],
             expected_version=opened["version"],
         ),
@@ -296,7 +296,7 @@ def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
     assert changed.status_code == 200, changed.text
 
     content = pdf_text(planning["supervisor"].get(fiche_path(approved)))
-    for operation in approved["operations"]:
+    for operation in approved["tasks"]:
         assert operation["name"] in content
     assert "Type candidat non approuvé" not in content
 
@@ -395,7 +395,7 @@ def test_fiche_renders_withdrawal_submission_reason(planning):
 
 def test_fiche_renders_execution_corrections_and_financial_return(planning):
     activity = approved_execution_activity(planning, allocations=(100_000, 200_000))
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -433,7 +433,7 @@ def test_fiche_renders_execution_corrections_and_financial_return(planning):
     assert "terminé Oui → Oui" not in normalized
     assert "réalisé — → —" not in normalized
 
-    second_operation = activity["operations"][1]
+    second_operation = activity["tasks"][1]
     second_recorded = patch(
         planning["agent"],
         execution_path(activity, second_operation),
@@ -592,7 +592,7 @@ def test_fiche_splits_valid_maximum_length_description(planning):
 
 def test_fiche_splits_valid_maximum_length_correction_history(planning):
     activity = approved_execution_activity(planning)
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     recorded = patch(
         planning["agent"],
         execution_path(activity, operation),

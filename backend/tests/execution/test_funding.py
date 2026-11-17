@@ -18,7 +18,7 @@ def increase(clients, activity, increment=20000):
     opened = open_amendment(clients, detail(clients, activity))
     operations = [
         {k: row[k] for k in ("id", "name", "type_id", "allocation")}
-        for row in opened["operations"]
+        for row in opened["tasks"]
     ]
     operations[0]["allocation"] = str(int(operations[0]["allocation"]) + increment)
     changed = patch(
@@ -31,7 +31,7 @@ def increase(clients, activity, increment=20000):
             },
             "expected_version": opened["version"],
             "allocation": str(int(opened["allocation"]) + increment),
-            "operations": operations,
+            "tasks": operations,
         },
     )
     assert changed.status_code == 200, changed.text
@@ -257,7 +257,7 @@ def test_actual_shortfall_correction_history_and_finance_gate(planning, correcte
 
     current = finish_activity(planning, amounts=(100000, 210000))
     assert current["pause_reason"] == "funding_required"
-    operation = current["operations"][1]
+    operation = current["tasks"][1]
     body = {
         "action": "record",
         "expected_version": current["version"],
@@ -270,7 +270,7 @@ def test_actual_shortfall_correction_history_and_finance_gate(planning, correcte
     response = patch(planning["agent"], execution_path(current, operation), body)
     assert response.status_code == 200, response.text
     current = response.json()
-    assert current["operations"][1]["actual_spent"] == str(corrected)
+    assert current["tasks"][1]["actual_spent"] == str(corrected)
     assert current["pause_reason"] == "funding_required"
     denied = post(
         planning["agent"],
@@ -429,7 +429,7 @@ def test_funding_approval_serializes_against_other_work(planning, other):
         if other == "execution":
             return patch(
                 planning["agent"],
-                execution_path(current, current["operations"][0]),
+                execution_path(current, current["tasks"][0]),
                 {
                     **body,
                     "action": "record",
@@ -563,7 +563,7 @@ def test_migration_roundtrip_preserves_predecessor_and_refuses_frozen_increases(
                             "approved_allocation": row["allocation"],
                         }
                         for row, amount in zip(
-                            activity["operations"], ["100000", "200000"], strict=True
+                            activity["tasks"], ["100000", "200000"], strict=True
                         )
                     ],
                     "excluded_reviewer_ids": [actor],

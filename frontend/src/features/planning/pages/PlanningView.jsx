@@ -2,6 +2,8 @@ import { Urls } from '@/app/urls'
 import { PTAModal } from '../components/PTAModal'
 import { ActivityBriefModal } from '../components/ActivityBriefModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
+import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
+import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { strings as ptaStrings } from '@/locales/fr/PTAModal'
 import { readCalendar } from '../lib/calendar'
 import { PlanningActivities } from '../components/PlanningActivities'
@@ -115,6 +117,32 @@ function cursorFrom(link) {
   return link ? new URL(link).searchParams.get('cursor') || '' : ''
 }
 
+function shiftTransferDate(value, dayDelta) {
+  if (!value) return null
+  const shifted = new Date(`${value}T00:00:00Z`)
+  shifted.setUTCDate(shifted.getUTCDate() + dayDelta)
+  return shifted.toISOString().slice(0, 10)
+}
+
+function shiftedTransferTasks(tasks, sourceStart, targetStart) {
+  if (!sourceStart || !targetStart) return []
+  const dayDelta = Math.round(
+    (Date.parse(`${targetStart}T00:00:00Z`) -
+      Date.parse(`${sourceStart}T00:00:00Z`)) /
+      86400000,
+  )
+  return (tasks || []).map((task) => ({
+    id: task.id,
+    planned_start: shiftTransferDate(task.planned_start, dayDelta),
+    planned_end: shiftTransferDate(task.planned_end, dayDelta),
+    subtasks: (task.subtasks || []).map((child) => ({
+      id: child.id,
+      planned_start: shiftTransferDate(child.planned_start, dayDelta),
+      planned_end: shiftTransferDate(child.planned_end, dayDelta),
+    })),
+  }))
+}
+
 function workflowActivityId(path) {
   return path.match(
     /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|withdrawals(?:\/[^/]+\/cancellation)?|transfers(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
@@ -188,7 +216,7 @@ function Workspace({ screen, session, onDenied }) {
             : []),
         ])
       }
-      if (variables.path !== '/operation-types')
+      if (variables.path !== '/task-categories')
         setError(
           problem.code === 'activity_assignment_required'
             ? strings.assignmentRequired
@@ -386,8 +414,8 @@ function Workspace({ screen, session, onDenied }) {
     ...planningQuery(
       api,
       user.id,
-      ['operation-types', search.typeCursor],
-      cursorPath('/operation-types', search.typeCursor),
+      ['task-categories', search.typeCursor],
+      cursorPath('/task-categories', search.typeCursor),
       onDenied,
     ),
     enabled:
@@ -604,7 +632,7 @@ function Workspace({ screen, session, onDenied }) {
             year={context.data?.year}
             onCreateType={(body) =>
               mutation.mutateAsync({
-                path: '/operation-types',
+                path: '/task-categories',
                 body,
                 silentSuccess: true,
               })
@@ -801,11 +829,11 @@ function ReferenceList({
                     <>
                       <td className="px-3 py-4">{row.project_count ?? '—'}</td>
                       <td className="px-3 py-4">
-                        <span className="rounded-card bg-selected px-2 py-1 text-xs text-primary">
+                        <StatusBadge className="bg-selected text-primary">
                           {row.active
                             ? strings.activeProject
                             : strings.closedProject}
-                        </span>
+                        </StatusBadge>
                       </td>
                       <td className="px-3 py-4">
                         {row.allowed_actions?.includes('edit') && (
@@ -1029,17 +1057,17 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
                   </td>
                   <td className="p-4">{row.partner_name || '—'}</td>
                   <td className="p-4">
-                    <span
+                    <StatusBadge
                       className={
                         row.state === 'active'
-                          ? 'rounded-card bg-selected px-2 py-1 text-xs text-primary'
-                          : 'rounded-card bg-disabled px-2 py-1 text-xs text-muted-foreground'
+                          ? 'bg-selected text-primary'
+                          : 'bg-disabled text-muted-foreground'
                       }
                     >
                       {row.state === 'active'
                         ? strings.activeProject
                         : strings.closedProject}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="p-4">
                     <div className="flex flex-wrap gap-2">
@@ -1388,22 +1416,95 @@ export function ActivityForm({
   )
   const requestKey = useRef(initial ? null : crypto.randomUUID())
   const [operations, setOperations] = useState(
-    initial?.operations || [{ type_id: '', name: '', allocation: '' }],
+    initial?.tasks || [
+      {
+        type_id: '',
+        name: '',
+        description: '',
+        allocation: '',
+        weight: '',
+        planned_start: '',
+        planned_end: '',
+        subtasks: [],
+      },
+    ],
   )
   const strictPlan = [
     'amendment_draft',
     'returned_supervisor',
     'returned_validator',
   ].includes(initial?.state)
-  const startedOperations = operations.filter((row) =>
-    [row.type_id, row.name, row.allocation].some((value) =>
-      String(value || '').trim(),
-    ),
-  )
+  const taskHasInput = (row) =>
+    [
+      row.type_id,
+      row.name,
+      row.description,
+      row.allocation,
+      row.weight,
+      row.planned_start,
+      row.planned_end,
+    ].some((value) => String(value || '').trim()) ||
+    (row.subtasks || []).length > 0
+  const startedOperations = operations.filter(taskHasInput)
   const startedOperationsComplete = startedOperations.every(
     (row) =>
-      row.type_id && row.name.trim() && /^[1-9]\d*$/.test(row.allocation),
+      row.type_id &&
+      row.name.trim() &&
+      /^[1-9]\d*$/.test(row.allocation) &&
+      (row.subtasks || []).every(
+        (child) => child.name.trim() && /^[1-9]\d*$/.test(child.allocation),
+      ) &&
+      (row.subtasks || []).reduce(
+        (sum, child) => sum + BigInt(child.allocation || 0),
+        0n,
+      ) <= BigInt(row.allocation || 0),
   )
+  const percentPattern = /^(?:100(?:\.0{1,2})?|(?:[1-9]?\d)(?:\.\d{1,2})?)$/
+  const positivePercent = (value) =>
+    percentPattern.test(value) && Number(value) > 0
+  const taskWeights = startedOperations.reduce(
+    (sum, row) =>
+      sum +
+      (positivePercent(row.weight) ? Math.round(Number(row.weight) * 100) : 0),
+    0,
+  )
+  const tasksCompleteForSubmission =
+    startedOperationsComplete &&
+    startedOperations.length > 0 &&
+    taskWeights === 10000 &&
+    startedOperations.every((row) => {
+      if (!positivePercent(row.weight)) return false
+      if (!row.planned_start || !row.planned_end) return false
+      if (row.planned_start < start || row.planned_end > end) return false
+      if (!row.subtasks?.length) return true
+      const subtaskAmount = row.subtasks.reduce(
+        (sum, child) =>
+          sum +
+          (/^[1-9]\d*$/.test(child.allocation) ? BigInt(child.allocation) : 0n),
+        0n,
+      )
+      const subtaskWeight = row.subtasks.reduce(
+        (sum, child) =>
+          sum +
+          (positivePercent(child.weight)
+            ? Math.round(Number(child.weight) * 100)
+            : 0),
+        0,
+      )
+      return (
+        subtaskAmount === BigInt(row.allocation || 0) &&
+        subtaskWeight === 10000 &&
+        row.subtasks.every(
+          (child) =>
+            child.name.trim() &&
+            positivePercent(child.weight) &&
+            child.planned_start &&
+            child.planned_end &&
+            child.planned_start >= row.planned_start &&
+            child.planned_end <= row.planned_end,
+        )
+      )
+    })
   const availableTypes = [...types]
   for (const operation of operations)
     if (
@@ -1432,8 +1533,28 @@ export function ActivityForm({
     (!start || !end || end < start) && strings.submissionDatesMissing,
     (startedOperations.length === 0 || !startedOperationsComplete) &&
       strings.submissionOperationsMissing,
+    !tasksCompleteForSubmission && strings.submissionTaskStructureMissing,
     !plannedAmountMatches && strings.submissionBudgetMissing,
   ].filter(Boolean)
+  const updateTask = (index, changes) =>
+    setOperations((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...changes } : item,
+      ),
+    )
+  const updateSubtask = (taskIndex, subtaskIndex, changes) =>
+    setOperations((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === taskIndex
+          ? {
+              ...item,
+              subtasks: (item.subtasks || []).map((child, childIndex) =>
+                childIndex === subtaskIndex ? { ...child, ...changes } : child,
+              ),
+            }
+          : item,
+      ),
+    )
   return (
     <Panel
       as={BusinessForm}
@@ -1443,7 +1564,10 @@ export function ActivityForm({
         if (pending || optionsUnavailable) return false
         const intent = event.nativeEvent.submitter?.value || 'draft'
         const requiresCompletePlan = strictPlan || intent === 'submit'
-        if (!startedOperationsComplete) {
+        if (
+          !startedOperationsComplete ||
+          (requiresCompletePlan && !tasksCompleteForSubmission)
+        ) {
           setOperationError(true)
           return false
         }
@@ -1468,13 +1592,26 @@ export function ActivityForm({
             planned_end: end || null,
             allocation:
               startedOperations.length > 0
-                ? (plannedAmount ?? total.toString())
+                ? plannedAmount || total.toString()
                 : null,
-            operations: startedOperations.map((row) => ({
+            tasks: startedOperations.map((row) => ({
               id: row.id || undefined,
               type_id: row.type_id,
               name: row.name,
+              description: row.description || '',
               allocation: row.allocation,
+              weight: row.weight || null,
+              planned_start: row.planned_start || null,
+              planned_end: row.planned_end || null,
+              subtasks: (row.subtasks || []).map((child) => ({
+                id: child.id || undefined,
+                name: child.name,
+                description: child.description || '',
+                allocation: child.allocation,
+                weight: child.weight || null,
+                planned_start: child.planned_start || null,
+                planned_end: child.planned_end || null,
+              })),
             })),
             ...(initial
               ? { expected_version: draftBase.version }
@@ -1566,21 +1703,34 @@ export function ActivityForm({
             <label className="max-w-80">
               {strings.plannedAmount}
               {strictPlan && ' *'}
-              <input
-                inputMode="numeric"
-                pattern="[1-9][0-9]*"
+              <ExactNumberInput
+                suffix="F CFA"
+                aria-label={strings.plannedAmount}
                 value={
                   plannedAmount ?? (allOperationAmounts ? total.toString() : '')
                 }
-                onChange={(event) => setPlannedAmount(event.target.value)}
+                onChange={setPlannedAmount}
               />
             </label>
             <fieldset className="grid gap-4">
               <legend className="sr-only">{strings.operations}</legend>
               {operations.map((row, index) => {
-                const rowStarted = [row.type_id, row.name, row.allocation].some(
-                  (value) => String(value || '').trim(),
+                const rowStarted = taskHasInput(row)
+                const allocatedSubtaskAmount = (row.subtasks || []).reduce(
+                  (sum, child) =>
+                    sum +
+                    (/^[1-9]\d*$/.test(child.allocation)
+                      ? BigInt(child.allocation)
+                      : 0n),
+                  0n,
                 )
+                const taskBudget = /^[1-9]\d*$/.test(row.allocation)
+                  ? BigInt(row.allocation)
+                  : 0n
+                const remainingSubtaskAmount =
+                  taskBudget > allocatedSubtaskAmount
+                    ? taskBudget - allocatedSubtaskAmount
+                    : 0n
                 return (
                   <div
                     className="grid items-start gap-4 rounded-card border border-border p-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]"
@@ -1680,25 +1830,211 @@ export function ActivityForm({
                     <label>
                       {strings.operationAmount}
                       {rowStarted && ' *'}
-                      <input
+                      <ExactNumberInput
+                        suffix="F CFA"
                         aria-label={strings.formatString(
                           strings.operationBudgetNumber,
                           index + 1,
                         )}
-                        inputMode="numeric"
-                        pattern="[1-9][0-9]*"
                         value={row.allocation}
-                        onChange={(e) =>
-                          setOperations(
-                            operations.map((item, i) =>
-                              i === index
-                                ? { ...item, allocation: e.target.value }
-                                : item,
-                            ),
-                          )
+                        onChange={(value) =>
+                          updateTask(index, { allocation: value })
                         }
                       />
                     </label>
+                    <label className="sm:col-span-2 lg:col-span-3">
+                      {strings.description}
+                      <textarea
+                        maxLength="4000"
+                        value={row.description || ''}
+                        onChange={(event) =>
+                          updateTask(index, { description: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      {strings.taskWeight} {strictPlan && '*'}
+                      <ExactNumberInput
+                        scale={2}
+                        suffix="%"
+                        aria-label={`${strings.taskWeight} ${index + 1}`}
+                        value={row.weight || ''}
+                        onChange={(value) =>
+                          updateTask(index, { weight: value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      {strings.plannedStart} {strictPlan && '*'}
+                      <DatePicker
+                        label={strings.plannedStart}
+                        value={row.planned_start || ''}
+                        min={start || undefined}
+                        max={row.planned_end || end || undefined}
+                        optional={!strictPlan}
+                        onChange={(value) =>
+                          updateTask(index, { planned_start: value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      {strings.plannedEnd} {strictPlan && '*'}
+                      <DatePicker
+                        label={strings.plannedEnd}
+                        value={row.planned_end || ''}
+                        min={row.planned_start || start || undefined}
+                        max={end || undefined}
+                        optional={!strictPlan}
+                        onChange={(value) =>
+                          updateTask(index, { planned_end: value })
+                        }
+                      />
+                    </label>
+                    <div className="grid gap-3 sm:col-span-2 lg:col-span-3">
+                      {(row.subtasks || []).map((child, childIndex) => (
+                        <div
+                          key={child.id || childIndex}
+                          className="grid gap-3 rounded-card bg-background p-4 sm:grid-cols-2 lg:grid-cols-3"
+                        >
+                          <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-3">
+                            <h4 className="font-medium">
+                              {strings.subtask} {childIndex + 1}
+                            </h4>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                updateTask(index, {
+                                  subtasks: row.subtasks.filter(
+                                    (_, position) => position !== childIndex,
+                                  ),
+                                })
+                              }
+                            >
+                              {strings.remove}
+                            </Button>
+                          </div>
+                          <label>
+                            {strings.name} *
+                            <input
+                              value={child.name}
+                              maxLength="200"
+                              onChange={(event) =>
+                                updateSubtask(index, childIndex, {
+                                  name: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            {strings.operationAmount} *
+                            <ExactNumberInput
+                              suffix="F CFA"
+                              aria-label={`${strings.operationAmount} ${childIndex + 1}`}
+                              value={child.allocation}
+                              onChange={(value) =>
+                                updateSubtask(index, childIndex, {
+                                  allocation: value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            {strings.taskWeight} {strictPlan && '*'}
+                            <ExactNumberInput
+                              scale={2}
+                              suffix="%"
+                              aria-label={`${strings.taskWeight} ${childIndex + 1}`}
+                              value={child.weight || ''}
+                              onChange={(value) =>
+                                updateSubtask(index, childIndex, {
+                                  weight: value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="sm:col-span-2 lg:col-span-3">
+                            {strings.description}
+                            <textarea
+                              value={child.description || ''}
+                              maxLength="4000"
+                              onChange={(event) =>
+                                updateSubtask(index, childIndex, {
+                                  description: event.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            {strings.plannedStart} {strictPlan && '*'}
+                            <DatePicker
+                              label={strings.plannedStart}
+                              value={child.planned_start || ''}
+                              min={row.planned_start || undefined}
+                              max={
+                                child.planned_end ||
+                                row.planned_end ||
+                                undefined
+                              }
+                              optional={!strictPlan}
+                              onChange={(value) =>
+                                updateSubtask(index, childIndex, {
+                                  planned_start: value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label>
+                            {strings.plannedEnd} {strictPlan && '*'}
+                            <DatePicker
+                              label={strings.plannedEnd}
+                              value={child.planned_end || ''}
+                              min={
+                                child.planned_start ||
+                                row.planned_start ||
+                                undefined
+                              }
+                              max={row.planned_end || undefined}
+                              optional={!strictPlan}
+                              onChange={(value) =>
+                                updateSubtask(index, childIndex, {
+                                  planned_end: value,
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                      ))}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-sm text-muted-foreground">
+                          {strings.remainingAmount}:{' '}
+                          {formatXof(String(remainingSubtaskAmount))}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={remainingSubtaskAmount === 0n}
+                          onClick={() => {
+                            updateTask(index, {
+                              subtasks: [
+                                ...(row.subtasks || []),
+                                {
+                                  name: '',
+                                  description: '',
+                                  allocation: remainingSubtaskAmount.toString(),
+                                  weight: '',
+                                  planned_start: row.planned_start || '',
+                                  planned_end: row.planned_end || '',
+                                },
+                              ],
+                            })
+                          }}
+                        >
+                          <Plus size={16} /> {strings.addSubtask}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )
               })}
@@ -1716,7 +2052,16 @@ export function ActivityForm({
               onClick={() =>
                 setOperations([
                   ...operations,
-                  { type_id: '', name: '', allocation: '' },
+                  {
+                    type_id: '',
+                    name: '',
+                    description: '',
+                    allocation: '',
+                    weight: '',
+                    planned_start: '',
+                    planned_end: '',
+                    subtasks: [],
+                  },
                 ])
               }
             >
@@ -1841,6 +2186,76 @@ export function ActivityForm({
   )
 }
 
+function formatWeight(value) {
+  return value ? `${String(value).replace('.', ',')} %` : '—'
+}
+
+function TaskHierarchy({ tasks }) {
+  return (
+    <ul className="grid gap-3 p-0 list-none" data-ui="planning-list">
+      {(tasks || []).map((task) => (
+        <li key={task.id} className="rounded-card border border-border p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <strong>{task.name}</strong>
+              {task.type_label && (
+                <p className="text-xs text-muted-foreground">
+                  {task.type_label}
+                </p>
+              )}
+              {task.description && <p className="mt-1">{task.description}</p>}
+            </div>
+            <strong>{formatXof(task.allocation)}</strong>
+          </div>
+          <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm [&_dt]:text-muted-foreground">
+            <div>
+              <dt>{strings.weight}</dt>
+              <dd>{formatWeight(task.weight)}</dd>
+            </div>
+            <div>
+              <dt>{strings.period}</dt>
+              <dd>
+                {task.planned_start && task.planned_end
+                  ? `${formatDate(task.planned_start)} – ${formatDate(task.planned_end)}`
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
+          {(task.subtasks || []).length > 0 && (
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="text-sm font-medium">{strings.subtasks}</p>
+              <ul className="mt-2 grid gap-2 p-0 list-none">
+                {task.subtasks.map((child) => (
+                  <li
+                    key={child.id}
+                    className="rounded-control bg-background p-3"
+                  >
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <strong className="text-sm">{child.name}</strong>
+                      <span className="text-sm font-medium">
+                        {formatXof(child.allocation)}
+                      </span>
+                    </div>
+                    {child.description && (
+                      <p className="mt-1 text-sm">{child.description}</p>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatWeight(child.weight)} ·{' '}
+                      {child.planned_start && child.planned_end
+                        ? `${formatDate(child.planned_start)} – ${formatDate(child.planned_end)}`
+                        : '—'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function PlanningVersion({ title, value }) {
   return (
     <section
@@ -1864,18 +2279,7 @@ function PlanningVersion({ title, value }) {
           <dd>{formatXof(value.allocation)}</dd>
         </div>
       </dl>
-      <ul
-        className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
-        data-ui="planning-list"
-      >
-        {value.operations.map((operation) => (
-          <li key={operation.id}>
-            {operation.type_label ? `${operation.type_label} — ` : ''}
-            {operation.name}
-            <span>{formatXof(operation.allocation)}</span>
-          </li>
-        ))}
-      </ul>
+      <TaskHierarchy tasks={value.tasks} />
     </section>
   )
 }
@@ -2197,6 +2601,10 @@ function ActivityDetail({
   const [transferTargetYear, setTransferTargetYear] = useState(
     item.transfer?.target_year || '',
   )
+  const [transferStart, setTransferStart] = useState('')
+  const [transferEnd, setTransferEnd] = useState('')
+  const [transferTasks, setTransferTasks] = useState([])
+  const [requestedAmount, setRequestedAmount] = useState('')
   const workflowOpener = useRef(null)
   const assignmentOpener = useRef(null)
   const [assignmentDraft, setAssignmentDraft] = useState(null)
@@ -2216,8 +2624,8 @@ function ActivityDetail({
     ...planningQuery(
       api,
       user.id,
-      ['operation-types', search.typeCursor],
-      cursorPath('/operation-types', search.typeCursor),
+      ['task-categories', search.typeCursor],
+      cursorPath('/task-categories', search.typeCursor),
       onDenied,
     ),
     enabled: editing,
@@ -2227,6 +2635,10 @@ function ActivityDetail({
   const closeDecision = () => {
     setDecisionUpload(null)
     setDecisionFile(null)
+    setTransferStart('')
+    setTransferEnd('')
+    setTransferTasks([])
+    setRequestedAmount('')
     setWorkflowAction('')
   }
   const refreshDecisionEvidence = async () => {
@@ -2359,6 +2771,7 @@ function ActivityDetail({
                 ? {
                     planned_start: data.get('planned_start'),
                     planned_end: data.get('planned_end'),
+                    tasks: transferTasks,
                     ...(item.transfer
                       ? {
                           transfer_id: item.transfer.id,
@@ -2392,6 +2805,27 @@ function ActivityDetail({
     }
     closeDecision()
   }
+  const transferDatesValid = transferTasks.every((task) => {
+    if (!task.planned_start && !task.planned_end)
+      return task.subtasks.every(
+        (child) => !child.planned_start && !child.planned_end,
+      )
+    if (
+      !task.planned_start ||
+      !task.planned_end ||
+      task.planned_start < transferStart ||
+      task.planned_end > transferEnd
+    )
+      return false
+    return task.subtasks.every(
+      (child) =>
+        (!child.planned_start && !child.planned_end) ||
+        (child.planned_start &&
+          child.planned_end &&
+          child.planned_start >= task.planned_start &&
+          child.planned_end <= task.planned_end),
+    )
+  })
   if (editing)
     return (
       <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
@@ -2443,7 +2877,7 @@ function ActivityDetail({
         <ActivityForm
           onCreateType={(body) =>
             mutation.mutateAsync({
-              path: '/operation-types',
+              path: '/task-categories',
               body,
               silentSuccess: true,
             })
@@ -2496,7 +2930,7 @@ function ActivityDetail({
       !item.planned_start ||
       !item.planned_end ||
       item.allocation === null ||
-      !item.operations.length)
+      !(item.tasks || []).length)
   const executionContext = search.origin === 'execution'
   const nextStep = executionContext ? '' : activityNextStep(item)
   return (
@@ -2553,11 +2987,9 @@ function ActivityDetail({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem]">
-            <span
-              className={`w-fit rounded-card px-2 py-1 text-xs ${activityStatusClass(item.state)}`}
-            >
+            <StatusBadge className={activityStatusClass(item.state)}>
               {strings[item.state] || item.state}
-            </span>
+            </StatusBadge>
             <span className="font-medium">
               {formatDate(item.planned_start)} {strings.until}{' '}
               {item.planned_end ? formatDate(item.planned_end) : '—'}
@@ -2848,37 +3280,8 @@ function ActivityDetail({
                 <h2 className="border-b border-border px-5 py-4">
                   {strings.operations}
                 </h2>
-                <div className="overflow-x-auto p-5">
-                  <table className="w-full text-sm">
-                    <thead className="bg-background">
-                      <tr>
-                        <th className="p-3 text-left font-medium">
-                          {strings.operationType}
-                        </th>
-                        <th className="p-3 text-right font-medium">
-                          {strings.budget}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {item.operations.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="border-b border-border last:border-0"
-                        >
-                          <td className="p-3">
-                            {row.name}
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {row.type_label}
-                            </p>
-                          </td>
-                          <td className="p-3 text-right">
-                            {formatXof(row.allocation)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="p-5">
+                  <TaskHierarchy tasks={item.tasks} />
                 </div>
               </section>
             )}
@@ -3176,7 +3579,7 @@ function ActivityDetail({
                     className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
                     data-ui="planning-list"
                   >
-                    {item.operations.map((operation) => (
+                    {(item.tasks || []).map((operation) => (
                       <li key={operation.id}>
                         {operation.name}
                         <span>{formatXof(operation.allocation)}</span>
@@ -3186,24 +3589,74 @@ function ActivityDetail({
                   <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_18rem),_1fr))] gap-4 my-5">
                     <label>
                       {strings.targetStart} *
-                      <input
+                      <DatePicker
                         name="planned_start"
-                        type="date"
-                        required
-                        onChange={(event) =>
-                          setTransferTargetYear(
-                            event.target.value
-                              ? Number(event.target.value.slice(0, 4))
-                              : '',
+                        label={strings.targetStart}
+                        value={transferStart}
+                        onChange={(value) => {
+                          setTransferStart(value)
+                          setTransferTasks(
+                            shiftedTransferTasks(
+                              item.tasks,
+                              item.planned_start,
+                              value,
+                            ),
                           )
-                        }
+                          setTransferTargetYear(
+                            value ? Number(value.slice(0, 4)) : '',
+                          )
+                        }}
+                      />
+                      <input
+                        type="hidden"
+                        name="planned_start"
+                        value={transferStart}
                       />
                     </label>
                     <label>
                       {strings.targetEnd} *
-                      <input name="planned_end" type="date" required />
+                      <DatePicker
+                        label={strings.targetEnd}
+                        value={transferEnd}
+                        min={transferStart || undefined}
+                        onChange={setTransferEnd}
+                      />
+                      <input
+                        type="hidden"
+                        name="planned_end"
+                        value={transferEnd}
+                      />
                     </label>
                   </div>
+                  {transferStart && (
+                    <ul className="grid gap-3 p-0 list-none">
+                      {(item.tasks || []).map((task, taskIndex) => {
+                        const dates = transferTasks[taskIndex]
+                        return (
+                          <li key={task.id} className="rounded-card border p-3">
+                            <strong>{task.name}</strong>
+                            <p className="text-sm text-muted-foreground">
+                              {dates?.planned_start && dates?.planned_end
+                                ? `${formatDate(dates.planned_start)} – ${formatDate(dates.planned_end)}`
+                                : strings.dateUnknown}
+                            </p>
+                            {(task.subtasks || []).map((child, childIndex) => {
+                              const childDates = dates?.subtasks[childIndex]
+                              return (
+                                <p key={child.id} className="text-sm">
+                                  {child.name}:{' '}
+                                  {childDates?.planned_start &&
+                                  childDates?.planned_end
+                                    ? `${formatDate(childDates.planned_start)} – ${formatDate(childDates.planned_end)}`
+                                    : strings.dateUnknown}
+                                </p>
+                              )
+                            })}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
                 </>
               )}
               {workflowAction === 'return' &&
@@ -3212,10 +3665,11 @@ function ActivityDetail({
                 !item.transfer && (
                   <label>
                     {strings.requestedAmount}
-                    <input
+                    <ExactNumberInput
                       name="requested_amount"
-                      inputMode="numeric"
-                      pattern="[1-9][0-9]*"
+                      value={requestedAmount}
+                      onChange={setRequestedAmount}
+                      suffix="F CFA"
                     />
                   </label>
                 )}
@@ -3250,7 +3704,17 @@ function ActivityDetail({
                   : strings.verifyAttachments}
               </Button>
             ) : (
-              <Button type="submit" disabled={mutationBlocked}>
+              <Button
+                type="submit"
+                disabled={
+                  mutationBlocked ||
+                  (workflowAction === 'request_transfer' &&
+                    (!transferStart ||
+                      !transferEnd ||
+                      transferEnd < transferStart ||
+                      !transferDatesValid))
+                }
+              >
                 {workflowAction === 'prevalidate'
                   ? strings.prevalidateAndSend
                   : workflowAction === 'approve'

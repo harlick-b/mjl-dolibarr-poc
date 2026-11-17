@@ -898,3 +898,182 @@ the candidate. An earlier combined run caught the History remount (81 passed,
 1 failed); the final run includes that correction. An independent concurrent
 focused run timed out, then passed both selected tests with a 15-second timeout.
 Human visual acceptance remains outstanding.
+
+## Weighted Tasks and Subtasks — 2026-11-13
+
+The Activity editor and execution view now use Tasks and one optional level of
+Subtasks. Exact weights, date containment, child-budget allocation and submission
+totals are server validated. Drafts retain incomplete weights. Approved execution
+uses manual Task progress or binary weighted Subtask completion, independently
+from spending, and consolidates child spending once at Task level.
+
+Migration `0036_weighted_tasks` preserves Task identifiers and legacy snapshots.
+Legacy approved Activities do not receive fabricated weights; weighted progress
+remains unavailable until an approved amendment supplies complete planning data.
+The next Activity slice must use the public `tasks` contract and the shared exact
+number, date and wrapping badge controls rather than reintroducing local variants.
+
+Review corrections completed the amendment and execution invariants: cancellation
+reconciles the approved hierarchy, final approval invalidates stale parent totals,
+zero is valid manual progress, and a second Subtask execution entry is treated as
+a correction across the UI, API and history. Partner lists use creation-time
+keysets, Partner/Fiche projections include derived progress, and the Subtask
+foreign key proves that its parent belongs to the same Activity.
+Financial verification now replays Subtask audit chains before consolidating
+their facts at Task level, so it detects child-level tampering and excludes every
+Agent who recorded either Task or Subtask execution from reviewing the request.
+The funding-shortfall replay uses the same hierarchy without double counting;
+an earlier child overspend remains blocking after a later amount correction.
+
+### Review remediation plan — drafted 2026-11-13
+
+Status: implemented and independently re-reviewed. The subsequent review
+identified eight unresolved findings and superseded the earlier review clearance.
+This plan covers those findings, their adjacent workflows and verification.
+Existing business rules, exact XOF amounts, immutable approvals, role/resource
+isolation and the existing financial approval process remain the governing
+contracts. No standalone Tasks module or additional Subtask approval is planned.
+
+**Approved transfer decision.** Shift every dated Task and Subtask by the calendar
+day difference between the old approved Activity start and the proposed start.
+Preserve durations and spacing; show the proposed hierarchy before submission.
+If a shifted date falls outside its new parent period, require correction before
+submission rather than clipping dates. Missing legacy child dates remain unknown;
+do not invent dates or weights for previously approved legacy records.
+
+For example, moving an Activity start forward seven days moves each child start
+and end forward seven days. A shorter proposed Activity period requires the Agent
+to extend its end or choose another start; child dates remain the exact reviewed
+shift. Recalculate the preview from the approved baseline when the proposed start
+changes, avoiding accumulated shifts.
+
+1. **Restore current-contract regression coverage.** Update shared request
+   fixtures and response assertions to `tasks`, valid weights and contained
+   dates. Update migration expectations to `0036_weighted_tasks` and include
+   `pta_subtask`. Retain dedicated predecessor/legacy snapshot cases using their
+   historical shape; do not restore public `operations` aliases. Run affected
+   suites to distinguish outdated fixtures from application failures. Add focused
+   failing regressions for the remaining findings before their respective fixes.
+
+2. **Make hierarchy edits atomic and preserve partial input.** In Activity update,
+   assign or flush the fully populated new Task before constructing its children.
+   Temporarily vacate current Subtask positions and flush before applying final
+   ordering/removals, using the existing hierarchy restoration approach. Include
+   description, dates and child presence in the frontend started-row predicate;
+   only wholly blank rows may be ignored. Verify adding a new hierarchy to an
+   existing draft, swapping children, removing the first child and retaining a
+   description-only/date-only draft row with actionable validation. Verify failed
+   saves roll back the whole edit and leave the entered frontend draft intact.
+
+3. **Enforce funding pauses on effective progress.** Parse proposed manual
+   progress and derive completion before checking the correction exception.
+   During a funding pause, reject physical progress increases even when the
+   request's completion flag disagrees. Keep eligible reasoned downward spending
+   corrections available, without erasing historical funding obligations. Project
+   the equivalent correction action for Subtasks and use the existing editor.
+   Verify rejected progress advancement below and at 100%, contradictory request
+   fields, accepted downward corrections, remaining pause and UI draft retention.
+
+4. **Keep progress display truthful and transfer dates contained.** Reserve
+   displayed 100.00% for an exactly complete weighted aggregate; show at most
+   99.99% for an incomplete aggregate that would otherwise round up. Preserve
+   exact calculation until formatting and apply the rule to internal, Partner
+   and Fiche projections. Test the near-100% case and exact completion.
+   Extend the existing transfer form and request contract with the proposed
+   hierarchy dates, retaining Task/Subtask identities and approved financial
+   facts. The server must validate exact membership, date ordering and containment
+   before storing the immutable transfer revision. Approval persists exactly
+   those reviewed dates; return/cancellation leaves the approved baseline intact.
+   Verify day-offset shifting across year/leap-day boundaries, shortened periods,
+   explicit corrections, altered/missing child IDs, legacy undated records and
+   approval/return/cancellation. Inspect older pending transfer compatibility so
+   approval cannot silently retain invalid child dates or invent reviewer consent.
+
+5. **Verify, record evidence and obtain independent review.** Run affected
+   planning, execution, funding, transfer, financial integrity and migration tests
+   on disposable PostgreSQL, including adjacent authorization/isolation cases.
+   Run focused frontend interactions and browser checks for changed transfer and
+   correction forms, then applicable lint/type/format/build checks. Record exact
+   commands, candidate, results, exclusions and migration compatibility evidence;
+   a focused pass must not be presented as a full-suite pass. Update this section
+   with progress and unresolved work after each slice, and update project status
+   when remediation is complete. Finish with a separate review-only agent who
+   did not implement the changes; resolve blocking findings and return the final
+   candidate to that same reviewer. Review does not establish human acceptance
+   or production readiness.
+
+Primary seams: backend planning routes and hierarchy calculations, execution
+mutation/action projection, migration tests and shared workflow fixtures;
+frontend Activity editing, transfer form and execution tests. Reuse existing
+components and transaction boundaries. No production migration or deployment is
+authorized by this documentation-only task.
+
+### Remediation implementation — 2026-11-16
+
+The hierarchy update now flushes new Tasks before attaching Subtasks and vacates
+existing child positions before reordering them. The Activity form retains rows
+that contain descriptions, dates, weights or Subtasks, so validation can explain
+incomplete entries instead of dropping them. Funding pauses evaluate the effective
+manual or derived progress and expose the same correction path for Subtasks.
+Weighted Activity progress remains below 100% until every weighted contribution is
+complete.
+
+Annual transfer requests now contain the reviewed Task and Subtask dates. The UI
+previews an exact calendar-day shift from the approved baseline, and the server
+requires the complete hierarchy with matching identities, the exact shift and
+valid parent containment. Approval persists those reviewed dates. Migration
+`0037_transfer_task_dates` narrows the immutable transfer comparison to permit
+only these hierarchy-date changes and rejects older pending transfers that did
+not capture reviewer consent for them.
+
+Current-contract fixtures use the public `tasks` request and response shape while
+historical snapshot tests keep their stored `operations` shape. Focused PostgreSQL
+checks passed for hierarchy creation and reorder, weighted execution and funding
+pause behavior, migration repeatability, transfer persistence and legacy pending
+transfer rejection. The complete transfer suite first reported 53 passes and
+three stale-fixture failures; each affected case passed after correction. The
+focused frontend checks passed 51 tests across Activity planning, exact numbers
+and dates, followed by all 49 Activity-planning tests after review corrections.
+Ruff, mypy and ESLint passed. A broader planning run stopped at historical
+multi-Agent draft-assignment scenarios that conflict with current draft privacy;
+it is not reported as a full pass. Final format, build and independent-review
+evidence follows on the final candidate.
+
+Independent review then found that audit compaction omitted the new Task fields
+and Subtasks, and that clearing the Activity amount could send an empty value even
+though the form remained enabled. Safe audit facts and the human history projection
+now cover Task descriptions, weights, dates and the Subtask hierarchy. The compact
+record retains only changed allowlisted fields, uses bounded identity for additions
+and removals, and omits unchanged children. A blank Activity amount now resolves
+to the exact sum of its Tasks. Both focused regressions passed. The surrounding
+audit file reported 10 passes and five historical current-contract fixture
+failures; it is not reported as a full pass and does not replace the focused
+hierarchy-audit result. The same independent reviewer cleared the corrected
+candidate with no blocking finding.
+
+### Follow-up review corrections — 2026-11-17
+
+A later review found six remaining integration gaps. Active Activity replacement
+audits now read the public `tasks` payload, reviewer screens show the full Task
+and Subtask hierarchy, and legacy unweighted completed Tasks preserve completion
+when an Agent corrects spending. Backend execution and Partner projections also
+preserve that legacy completion after a weighted amendment. Consolidated Subtask
+spending is range-checked before assigning the Task total, so an exact-XOF
+overflow returns the intended 422 without changing execution or audit state.
+Shared workflow fixtures now use Task execution routes and retain hierarchy
+fields, weights, dates and progress.
+
+The affected backend run passed 18 PostgreSQL tests across audit history and
+weighted execution. Independent re-review then found that the funding-pause
+guard still compared a legacy completed Task against stored zero progress after
+a weighted amendment. The guard now uses the same effective completion fallback
+as read projections. Its end-to-end regression failed before the correction and
+passed afterward; the full weighted-execution file passed all four tests.
+
+The combined frontend run passed 86 of 87 tests; one
+unchanged zero-spending interaction exceeded its five-second timeout and passed
+immediately on focused rerun. All 49 Activity-planning tests passed. Ruff, mypy,
+Prettier, ESLint and the production PWA build passed, with the existing React
+hook and bundle-size warnings. The corrected funding-pause candidate has been
+returned to the same independent reviewer, who cleared the remaining P2 with no
+additional blocking finding in the focused re-review.

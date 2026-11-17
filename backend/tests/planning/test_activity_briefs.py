@@ -25,7 +25,7 @@ def test_agent_saves_reopens_and_submits_a_title_only_draft(planning):
     assert draft["planned_start"] is None
     assert draft["planned_end"] is None
     assert draft["allocation"] is None
-    assert draft["operations"] == []
+    assert draft["tasks"] == []
     assert "submit" not in draft["allowed_actions"]
     assert planning["agent"].get("/api/v1/notifications").json()["count"] == 0
 
@@ -227,7 +227,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
     assert item["state"] == "draft"
     assert item["planned_end"] == body["planned_end"]
     assert item["allocation"] is None
-    assert item["description"] == "" and item["operations"] == []
+    assert item["description"] == "" and item["tasks"] == []
     assert item["agent_ids"] == [agent_id]
     notification = planning["agent"].get("/api/v1/notifications").json()
     assert notification["count"] == 1
@@ -368,7 +368,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
     from tests.execution.test_execution import execution_path
 
     detail = planning["agent"].get(url + "/execution").json()
-    for operation in detail["operations"]:
+    for operation in detail["tasks"]:
         recorded = patch(
             planning["agent"],
             execution_path(detail, operation),

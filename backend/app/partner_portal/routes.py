@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from urllib.parse import quote, urlencode
 from uuid import UUID, uuid4
@@ -9,7 +10,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
@@ -32,12 +33,19 @@ from app.planning.core.models import (
     Partner,
     Project,
     ReversementDeclaration,
+    Subtask,
     VirementConfirmation,
     VirementRequest,
     ZeroSpendingDecision,
     ZeroSpendingDeclaration,
 )
 from app.planning.core.service import CONTEXT, Cursor, page_rows
+from app.planning.core.task_hierarchy import (
+    activity_progress,
+    format_percentage,
+    manual_task_progress,
+    percentage,
+)
 from app.planning.reports import annual_export as annual_csv
 from app.planning.routes import (
     MUTATION_HEADERS,
@@ -127,11 +135,27 @@ class ActivityContext(Output):
     year: int
 
 
-class OperationItem(Output):
+class SubtaskItem(Output):
     name: str
     description: str
     allocation: str
+    weight: str | None
+    planned_start: str | None
+    planned_end: str | None
     final_spending: str | None
+    progress: str
+
+
+class TaskItem(Output):
+    name: str
+    description: str
+    allocation: str
+    weight: str | None
+    planned_start: str | None
+    planned_end: str | None
+    final_spending: str | None
+    progress: str | None
+    subtasks: list[SubtaskItem]
 
 
 class FinalDecision(Output):
@@ -155,7 +179,8 @@ class CompletedFinance(Output):
 class ActivityDetail(ActivityItem):
     description: str
     context: ActivityContext
-    operations: list[OperationItem]
+    tasks: list[TaskItem]
+    progress: str | None
     decisions: list[FinalDecision]
     finance: CompletedFinance | None
 
@@ -253,16 +278,76 @@ def activity_detail_data(
             )
         )
     }
-    operations = []
+    child_ids = {
+        str(child.get("id"))
+        for row in snapshot_operations
+        if isinstance(row, dict)
+        for child in row.get("subtasks", [])
+        if isinstance(child, dict) and child.get("id")
+    }
+    current_subtasks = {
+        row.id: row
+        for row in db.scalars(select(Subtask).where(Subtask.id.in_(child_ids)))
+    }
+    tasks = []
+    weighted_progress: list[tuple[int, int]] = []
+    progress_available = True
     for row in snapshot_operations:
         if not isinstance(row, dict):
             raise AuthError(409, "portal_projection_unavailable")
         current = current_operations.get(str(row.get("id")))
-        operations.append(
+        subtasks = []
+        child_weighted: list[tuple[int, int]] = []
+        for child in row.get("subtasks", []):
+            if not isinstance(child, dict):
+                raise AuthError(409, "portal_projection_unavailable")
+            current_child = current_subtasks.get(str(child.get("id")))
+            child_progress = (
+                10000 if current_child and current_child.execution_completed else 0
+            )
+            child_weight = percentage(child.get("weight"), required=True)
+            assert child_weight is not None
+            child_weighted.append((child_weight, child_progress))
+            subtasks.append(
+                {
+                    "name": str(child.get("name") or ""),
+                    "description": str(child.get("description") or ""),
+                    "allocation": str(child.get("allocation") or "0"),
+                    "weight": child.get("weight"),
+                    "planned_start": child.get("planned_start"),
+                    "planned_end": child.get("planned_end"),
+                    "final_spending": (
+                        str(current_child.actual_spent)
+                        if activity.state == "closed"
+                        and current_child
+                        and current_child.actual_spent is not None
+                        else None
+                    ),
+                    "progress": format_percentage(child_progress),
+                }
+            )
+        task_progress = (
+            activity_progress(child_weighted)
+            if child_weighted
+            else manual_task_progress(
+                current.manual_progress_basis_points if current else None,
+                completed=bool(current and current.execution_completed),
+                weighted=row.get("weight") is not None,
+            )
+        )
+        task_weight = percentage(row.get("weight"), required=False)
+        if task_weight is None or task_progress is None:
+            progress_available = False
+        else:
+            weighted_progress.append((task_weight, task_progress))
+        tasks.append(
             {
                 "name": str(row.get("name") or ""),
                 "description": str(row.get("description") or ""),
                 "allocation": str(row.get("allocation") or "0"),
+                "weight": row.get("weight"),
+                "planned_start": row.get("planned_start"),
+                "planned_end": row.get("planned_end"),
                 "final_spending": (
                     str(current.actual_spent)
                     if activity.state == "closed"
@@ -270,6 +355,8 @@ def activity_detail_data(
                     and current.actual_spent is not None
                     else None
                 ),
+                "progress": format_percentage(task_progress),
+                "subtasks": subtasks,
             }
         )
     decision_rows = list(
@@ -363,7 +450,12 @@ def activity_detail_data(
             "project": project.name,
             "year": pta.year,
         },
-        "operations": operations,
+        "tasks": tasks,
+        "progress": (
+            format_percentage(activity_progress(weighted_progress))
+            if progress_available
+            else None
+        ),
         "decisions": decisions,
         "finance": finance,
     }
@@ -385,13 +477,22 @@ def scoped_page(
     page_conditions = list(conditions)
     if marker:
         try:
-            marker = str(UUID(marker))
-        except ValueError:
+            marker_created_raw, marker_id_raw = marker.split("|", 1)
+            marker_created = datetime.fromisoformat(marker_created_raw)
+            marker_id = str(UUID(marker_id_raw))
+        except (ValueError, TypeError):
             raise AuthError(422, "cursor_invalid") from None
         page_conditions.append(
-            model.id > marker if direction == "next" else model.id < marker
+            tuple_(model.created_at, model.id) < tuple_(marker_created, marker_id)
+            if direction == "next"
+            else tuple_(model.created_at, model.id) > tuple_(marker_created, marker_id)
         )
-    ordering = (model.id.asc() if direction == "next" else model.id.desc(),)
+    ordering = (
+        model.created_at.desc(),
+        model.id.desc(),
+    )
+    if direction == "previous":
+        ordering = (model.created_at.asc(), model.id.asc())
     rows, total = page_rows(
         db, model, conditions, tuple(page_conditions), ordering, limit
     )
@@ -403,12 +504,16 @@ def scoped_page(
     next_link = previous_link = None
     base = f"{auth.policy.origin}/api/v1/partner-portal/{resource}"
     if rows and ((direction == "next" and more) or direction == "previous"):
-        params["cursor"] = cursor.encode(rows[-1].id, "next")
+        params["cursor"] = cursor.encode(
+            f"{rows[-1].created_at.isoformat()}|{rows[-1].id}", "next"
+        )
         next_link = f"{base}?{urlencode(params)}"
     if rows and (
         (direction == "previous" and more) or (direction == "next" and marker)
     ):
-        params["cursor"] = cursor.encode(rows[0].id, "previous")
+        params["cursor"] = cursor.encode(
+            f"{rows[0].created_at.isoformat()}|{rows[0].id}", "previous"
+        )
         previous_link = f"{base}?{urlencode(params)}"
     return rows, total, next_link, previous_link
 
@@ -823,14 +928,23 @@ def shared_documents(
         page_conditions = list(conditions)
         if marker:
             try:
-                marker = str(UUID(marker))
-            except ValueError:
+                marker_time_raw, marker_id_raw = marker.split("|", 1)
+                marker_time = datetime.fromisoformat(marker_time_raw)
+                marker_id = str(UUID(marker_id_raw))
+            except (ValueError, TypeError):
                 raise AuthError(422, "cursor_invalid") from None
             page_conditions.append(
-                ActivityDocument.id > marker
+                tuple_(ActivityDocument.uploaded_at, ActivityDocument.id)
+                < tuple_(marker_time, marker_id)
                 if direction == "next"
-                else ActivityDocument.id < marker
+                else tuple_(ActivityDocument.uploaded_at, ActivityDocument.id)
+                > tuple_(marker_time, marker_id)
             )
+        ordering = (
+            (ActivityDocument.uploaded_at.desc(), ActivityDocument.id.desc())
+            if direction == "next"
+            else (ActivityDocument.uploaded_at.asc(), ActivityDocument.id.asc())
+        )
         rows = list(
             db.execute(
                 select(
@@ -838,13 +952,10 @@ def shared_documents(
                     ActivityDocument.display_name.label("name"),
                     ActivityDocument.media_type,
                     ActivityDocument.byte_size.label("size"),
+                    ActivityDocument.uploaded_at,
                 )
                 .where(*page_conditions)
-                .order_by(
-                    ActivityDocument.id.asc()
-                    if direction == "next"
-                    else ActivityDocument.id.desc()
-                )
+                .order_by(*ordering)
                 .limit(limit + 1)
             )
         )
@@ -860,7 +971,8 @@ def shared_documents(
             rows.reverse()
 
         def link(row: Any, move: str) -> str:
-            query = urlencode({"limit": limit, "cursor": cursor.encode(row.id, move)})
+            mark = f"{row.uploaded_at.isoformat()}|{row.id}"
+            query = urlencode({"limit": limit, "cursor": cursor.encode(mark, move)})
             return (
                 f"{auth.policy.origin}/api/v1/partner-portal/activities/"
                 f"{activity_id}/documents?{query}"

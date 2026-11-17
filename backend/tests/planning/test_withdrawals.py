@@ -194,13 +194,13 @@ def test_w05_annual_history_tracks_amendment_then_withdrawal(planning):
         plan(
             operation_type,
             allocation="350000",
-            operations=[
+            tasks=[
                 {
                     **{key: value for key, value in row.items() if key != "position"},
                     "allocation": amount,
                 }
                 for row, amount in zip(
-                    opened["operations"], ["150000", "200000"], strict=True
+                    opened["tasks"], ["150000", "200000"], strict=True
                 )
             ],
             expected_version=opened["version"],

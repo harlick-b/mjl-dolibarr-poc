@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
@@ -25,6 +25,7 @@ from app.planning.core.models import (
     OperationType,
     Partner,
     Project,
+    Subtask,
 )
 from app.planning.core.presentation import (
     activity_rows,
@@ -58,6 +59,7 @@ from app.planning.core.service import (
     visible_activity_condition,
     xof,
 )
+from app.planning.core.task_hierarchy import percentage
 from app.planning.dashboard import dashboard_attention_data, dashboard_finance_data
 from app.planning.notifications.assignment_notifications import (
     deliver_assignment_notification,
@@ -160,11 +162,26 @@ class ProjectClose(Input):
     action: Literal["close"]
 
 
-class OperationInput(Input):
+class SubtaskInput(Input):
+    id: str | None = Field(default=None, max_length=36)
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
+    allocation: str = Field(min_length=1, max_length=19, pattern=r"^[1-9][0-9]*$")
+    weight: str | None = Field(default=None, max_length=6)
+    planned_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class TaskInput(Input):
     id: str | None = Field(default=None, max_length=36)
     type_id: str = Field(max_length=36)
     name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
     allocation: str = Field(min_length=1, max_length=19, pattern=r"^[1-9][0-9]*$")
+    weight: str | None = Field(default=None, max_length=6)
+    planned_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    subtasks: list[SubtaskInput] = Field(default_factory=list, max_length=100)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -178,7 +195,7 @@ class PlanningInput(Input):
     planned_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     planned_end: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     allocation: str = Field(min_length=1, max_length=19, pattern=r"^[1-9][0-9]*$")
-    operations: list[OperationInput] = Field(min_length=1, max_length=100)
+    tasks: list[TaskInput] = Field(min_length=1, max_length=100)
 
     @field_validator("name", "description", mode="before")
     @classmethod
@@ -194,7 +211,7 @@ class DraftPlanningInput(Input):
     allocation: str | None = Field(
         default=None, max_length=19, pattern=r"^[1-9][0-9]*$"
     )
-    operations: list[OperationInput] = Field(default_factory=list, max_length=100)
+    tasks: list[TaskInput] = Field(default_factory=list, max_length=100)
 
     @field_validator("name", "description", mode="before")
     @classmethod
@@ -293,9 +310,31 @@ class WithdrawalCancellationInput(AmendmentInput):
         return str(UUID(value))
 
 
+class TransferSubtaskDates(Input):
+    id: str = Field(max_length=36)
+    planned_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    planned_end: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+    @field_validator("id")
+    @classmethod
+    def identifier_uuid(cls, value: str) -> str:
+        return str(UUID(value))
+
+    @model_validator(mode="after")
+    def complete_date_pair(self) -> "TransferSubtaskDates":
+        if (self.planned_start is None) != (self.planned_end is None):
+            raise ValueError("Transfer dates must be a complete pair")
+        return self
+
+
+class TransferTaskDates(TransferSubtaskDates):
+    subtasks: list[TransferSubtaskDates] = Field(max_length=100)
+
+
 class TransferInput(AmendmentInput):
     planned_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     planned_end: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    tasks: list[TransferTaskDates] = Field(max_length=100)
     transfer_id: str | None = Field(default=None, max_length=36)
     expected_revision_id: str | None = Field(default=None, max_length=36)
 
@@ -332,7 +371,7 @@ class PartnerOutput(Input):
     project_count: int | None = None
 
 
-class OperationTypeOutput(Input):
+class TaskCategoryOutput(Input):
     id: str
     label: str
     description: str | None
@@ -351,12 +390,28 @@ class ProjectOutput(Input):
     partner_name: str | None = None
 
 
-class OperationOutput(Input):
+class SubtaskOutput(Input):
+    id: str
+    name: str
+    description: str
+    allocation: str
+    weight: str | None
+    planned_start: str | None
+    planned_end: str | None
+    position: int
+
+
+class TaskOutput(Input):
     id: str
     type_id: str
     name: str
+    description: str = ""
     allocation: str
+    weight: str | None = None
+    planned_start: str | None = None
+    planned_end: str | None = None
     position: int
+    subtasks: list[SubtaskOutput] = Field(default_factory=list)
 
 
 class CorrectionOutput(Input):
@@ -372,10 +427,10 @@ class PlanningProjection(Input):
     planned_start: str
     planned_end: str
     allocation: str
-    operations: list[OperationOutput]
+    tasks: list[TaskOutput]
 
 
-class AmendmentOperationOutput(OperationOutput):
+class AmendmentTaskOutput(TaskOutput):
     type_label: str
 
 
@@ -385,7 +440,7 @@ class AmendmentPlanningProjection(Input):
     planned_start: str
     planned_end: str
     allocation: str
-    operations: list[AmendmentOperationOutput]
+    tasks: list[AmendmentTaskOutput]
 
 
 class AmendmentOutput(Input):
@@ -473,7 +528,7 @@ class ActivityOutput(Input):
     placement_year: int
     execution_paused: bool
     correction: CorrectionOutput | None
-    operations: list[OperationOutput]
+    tasks: list[TaskOutput]
     agent_ids: list[str]
     allowed_actions: list[str]
     closure: dict[str, str] | None
@@ -539,8 +594,8 @@ class AnnualMetricsOutput(Input):
 class DashboardFinanceOutput(Input):
     approved_allocation: str = Field(pattern=r"^(0|[1-9][0-9]*)$")
     recorded_spending: str | None = Field(pattern=r"^(0|[1-9][0-9]*)$")
-    recorded_operations: int = Field(ge=0)
-    approved_operations: int = Field(ge=0)
+    recorded_tasks: int = Field(ge=0)
+    approved_tasks: int = Field(ge=0)
     closed_spending: str = Field(pattern=r"^(0|[1-9][0-9]*)$")
     reversement_due: str | None = Field(pattern=r"^(0|[1-9][0-9]*)$")
     reversement_confirmed: str | None = Field(pattern=r"^(0|[1-9][0-9]*)$")
@@ -656,7 +711,7 @@ class SnapshotActivity(Input):
     reference: str
 
 
-class SnapshotOperation(OperationOutput):
+class SnapshotOperation(TaskOutput):
     type_label: str
 
 
@@ -689,7 +744,7 @@ class RevisionSnapshot(Input):
     planned_start: str
     planned_end: str
     allocation: str
-    operations: list[SnapshotOperation]
+    tasks: list[SnapshotOperation]
     agent_ids: list[str]
     agents: list[SnapshotIdentity]
     submitter: SnapshotIdentity
@@ -937,7 +992,7 @@ def update_partner(
         return partner_item(item, actor.role)
 
 
-@router.get("/operation-types", response_model=ListOutput[OperationTypeOutput])
+@router.get("/task-categories", response_model=ListOutput[TaskCategoryOutput])
 def operation_types(
     request: Request,
     auth: Auth,
@@ -949,7 +1004,7 @@ def operation_types(
             db,
             auth,
             OperationType,
-            "operation-types",
+            "task-categories",
             CONTEXT,
             actor.role,
             *args,
@@ -958,9 +1013,9 @@ def operation_types(
 
 
 @router.post(
-    "/operation-types",
+    "/task-categories",
     status_code=201,
-    response_model=OperationTypeOutput,
+    response_model=TaskCategoryOutput,
     openapi_extra=MUTATION_HEADERS,
 )
 def create_operation_type(body: TypeInput, request: Request, auth: Auth) -> Response:
@@ -993,7 +1048,7 @@ def create_operation_type(body: TypeInput, request: Request, auth: Auth) -> Resp
             {"context_id": CONTEXT, "after": type_item(item, actor.role)},
         )
         return created(
-            request, f"/api/v1/operation-types/{item.id}", type_item(item, actor.role)
+            request, f"/api/v1/task-categories/{item.id}", type_item(item, actor.role)
         )
 
 
@@ -1503,12 +1558,33 @@ def create_activity(
             "allocation": str(plan["allocation"])
             if plan["allocation"] is not None
             else None,
-            "operations": [
+            "tasks": [
                 {
                     "type_id": row["type_id"],
                     "name": row["name"],
+                    "description": row["description"],
                     "allocation": str(row["allocation"]),
+                    "weight_basis_points": row["weight_basis_points"],
+                    "planned_start": row["planned_start"].isoformat()
+                    if row["planned_start"]
+                    else None,
+                    "planned_end": row["planned_end"].isoformat()
+                    if row["planned_end"]
+                    else None,
                     "position": row["position"],
+                    "subtasks": [
+                        {
+                            **child,
+                            "allocation": str(child["allocation"]),
+                            "planned_start": child["planned_start"].isoformat()
+                            if child["planned_start"]
+                            else None,
+                            "planned_end": child["planned_end"].isoformat()
+                            if child["planned_end"]
+                            else None,
+                        }
+                        for child in row["subtasks"]
+                    ],
                 }
                 for row in operations
             ],
@@ -1575,20 +1651,43 @@ def create_activity(
         db.add(item)
         db.flush()
         for row in operations:
-            db.add(
-                Operation(
-                    context_id=CONTEXT,
-                    activity_id=item.id,
-                    type_id=row["type_id"],
-                    name=row["name"],
-                    allocation=row["allocation"],
-                    position=row["position"],
-                    creator_id=actor.id,
-                    updated_by_id=actor.id,
-                    created_at=now,
-                    updated_at=now,
-                )
+            task = Operation(
+                context_id=CONTEXT,
+                activity_id=item.id,
+                type_id=row["type_id"],
+                name=row["name"],
+                description=row["description"],
+                allocation=row["allocation"],
+                weight_basis_points=row["weight_basis_points"],
+                planned_start=row["planned_start"],
+                planned_end=row["planned_end"],
+                position=row["position"],
+                creator_id=actor.id,
+                updated_by_id=actor.id,
+                created_at=now,
+                updated_at=now,
             )
+            db.add(task)
+            db.flush()
+            for child in row["subtasks"]:
+                db.add(
+                    Subtask(
+                        context_id=CONTEXT,
+                        activity_id=item.id,
+                        task_id=task.id,
+                        name=child["name"],
+                        description=child["description"],
+                        allocation=child["allocation"],
+                        weight_basis_points=child["weight_basis_points"],
+                        planned_start=child["planned_start"],
+                        planned_end=child["planned_end"],
+                        position=child["position"],
+                        creator_id=actor.id,
+                        updated_by_id=actor.id,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
         db.flush()
         db.add(
             ActivityContributor(
@@ -1831,19 +1930,29 @@ def activities(
         conditions = list(base)
         if marker:
             try:
-                marker = str(UUID(marker))
+                marker_created_raw, marker_id_raw = marker.split("|", 1)
+                marker_created = datetime.fromisoformat(marker_created_raw)
+                marker_id = str(UUID(marker_id_raw))
             except ValueError:
                 raise AuthError(422, "cursor_invalid") from None
             conditions.append(
-                Activity.id > marker if direction == "next" else Activity.id < marker
+                tuple_(Activity.created_at, Activity.id)
+                < tuple_(marker_created, marker_id)
+                if direction == "next"
+                else tuple_(Activity.created_at, Activity.id)
+                > tuple_(marker_created, marker_id)
             )
-        order = Activity.id.asc() if direction == "next" else Activity.id.desc()
+        order = (
+            (Activity.created_at.desc(), Activity.id.desc())
+            if direction == "next"
+            else (Activity.created_at.asc(), Activity.id.asc())
+        )
         rows, total = page_rows(
             db,
             Activity,
             tuple(base),
             tuple(conditions),
-            (order,),
+            order,
             limit,
         )
         more = len(rows) > limit
@@ -1863,7 +1972,7 @@ def activities(
             rows = [locked[row.id] for row in rows]
 
         def link(row: Activity, move: str) -> str:
-            value = cursor.encode(row.id, move)
+            value = cursor.encode(f"{row.created_at.isoformat()}|{row.id}", move)
             query = urlencode({**filters, "limit": limit, "cursor": value})
             return f"{auth.policy.origin}/api/v1/ptas/{pta.id}/activities?{query}"
 
@@ -1997,6 +2106,224 @@ def lifecycle_eligible(db: Session, auth: Auth, item: Activity) -> None:
     assert_never_started(db, item)
 
 
+def _shifted_date(value: object, delta: timedelta) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return (date.fromisoformat(cast(str, value)) + delta).isoformat()
+    except (TypeError, ValueError):
+        raise AuthError(409, "transfer_base_invalid") from None
+
+
+def _reviewed_transfer_dates(
+    base_operations: list[dict[str, Any]],
+    submitted: list[TransferTaskDates],
+    *,
+    source_start: date,
+    target_start: date,
+    target_end: date,
+) -> dict[str, TransferTaskDates]:
+    submitted_by_id = {row.id: row for row in submitted}
+    if len(submitted_by_id) != len(submitted) or set(submitted_by_id) != {
+        cast(str, row.get("id")) for row in base_operations
+    }:
+        raise AuthError(409, "transfer_hierarchy_stale")
+    delta = target_start - source_start
+    for fact in base_operations:
+        task_id = cast(str, fact["id"])
+        task = submitted_by_id[task_id]
+        expected_start = _shifted_date(fact.get("planned_start"), delta)
+        expected_end = _shifted_date(fact.get("planned_end"), delta)
+        if (task.planned_start, task.planned_end) != (expected_start, expected_end):
+            raise AuthError(422, "transfer_dates_invalid")
+        if expected_start and (
+            expected_start < target_start.isoformat()
+            or cast(str, expected_end) > target_end.isoformat()
+        ):
+            raise AuthError(422, "transfer_dates_outside_activity")
+        child_facts = [
+            cast(dict[str, Any], child)
+            for child in fact.get("subtasks", [])
+            if isinstance(child, dict)
+        ]
+        children_by_id = {row.id: row for row in task.subtasks}
+        if len(children_by_id) != len(task.subtasks) or set(children_by_id) != {
+            cast(str, child.get("id")) for child in child_facts
+        }:
+            raise AuthError(409, "transfer_hierarchy_stale")
+        for child_fact in child_facts:
+            child = children_by_id[cast(str, child_fact["id"])]
+            child_start = _shifted_date(child_fact.get("planned_start"), delta)
+            child_end = _shifted_date(child_fact.get("planned_end"), delta)
+            if (child.planned_start, child.planned_end) != (
+                child_start,
+                child_end,
+            ):
+                raise AuthError(422, "transfer_dates_invalid")
+            if child_start and (
+                expected_start is None
+                or expected_end is None
+                or child_start < expected_start
+                or cast(str, child_end) > expected_end
+            ):
+                raise AuthError(422, "transfer_dates_outside_task")
+    return submitted_by_id
+
+
+def _apply_reviewed_transfer_dates(
+    operations: list[dict[str, Any]], reviewed: dict[str, TransferTaskDates]
+) -> None:
+    for fact in operations:
+        task = reviewed[cast(str, fact["id"])]
+        fact["planned_start"] = task.planned_start
+        fact["planned_end"] = task.planned_end
+        children = {row.id: row for row in task.subtasks}
+        for child in fact.get("subtasks", []):
+            reviewed_child = children[cast(str, child["id"])]
+            child["planned_start"] = reviewed_child.planned_start
+            child["planned_end"] = reviewed_child.planned_end
+
+
+def _transfer_date_facts(operations: object) -> list[dict[str, Any]]:
+    if not isinstance(operations, list):
+        return []
+    return [
+        {
+            "id": row.get("id"),
+            "planned_start": row.get("planned_start"),
+            "planned_end": row.get("planned_end"),
+            "subtasks": [
+                {
+                    "id": child.get("id"),
+                    "planned_start": child.get("planned_start"),
+                    "planned_end": child.get("planned_end"),
+                }
+                for child in row.get("subtasks", [])
+                if isinstance(child, dict)
+            ],
+        }
+        for row in operations
+        if isinstance(row, dict)
+    ]
+
+
+def _persist_transfer_dates(
+    db: Session, item: Activity, snapshot: dict[str, Any]
+) -> None:
+    transfer = snapshot.get("transfer")
+    if not isinstance(transfer, dict):
+        raise AuthError(409, "transfer_dates_invalid")
+    operations = cast(list[dict[str, Any]], snapshot.get("operations", []))
+    base = db.get(ActivityRevision, transfer.get("base_approved_revision_id"))
+    if not base:
+        raise AuthError(409, "transfer_base_invalid")
+    try:
+        source_start = date.fromisoformat(cast(str, base.snapshot["planned_start"]))
+        target_start = date.fromisoformat(cast(str, snapshot["planned_start"]))
+        base_operations = cast(list[dict[str, Any]], base.snapshot["operations"])
+    except (KeyError, TypeError, ValueError):
+        raise AuthError(409, "transfer_base_invalid") from None
+    delta = target_start - source_start
+    expected_dates = [
+        {
+            "id": row.get("id"),
+            "planned_start": _shifted_date(row.get("planned_start"), delta),
+            "planned_end": _shifted_date(row.get("planned_end"), delta),
+            "subtasks": [
+                {
+                    "id": child.get("id"),
+                    "planned_start": _shifted_date(child.get("planned_start"), delta),
+                    "planned_end": _shifted_date(child.get("planned_end"), delta),
+                }
+                for child in row.get("subtasks", [])
+                if isinstance(child, dict)
+            ],
+        }
+        for row in base_operations
+    ]
+    if _transfer_date_facts(operations) != expected_dates:
+        raise AuthError(409, "transfer_dates_invalid")
+    task_rows = {
+        row.id: row
+        for row in db.scalars(
+            select(Operation)
+            .where(
+                Operation.activity_id == item.id,
+                Operation.removed_at.is_(None),
+            )
+            .with_for_update()
+        )
+    }
+    if set(task_rows) != {cast(str, row.get("id")) for row in operations}:
+        raise AuthError(409, "transfer_hierarchy_stale")
+    child_rows = {
+        row.id: row
+        for row in db.scalars(
+            select(Subtask)
+            .where(
+                Subtask.activity_id == item.id,
+                Subtask.removed_at.is_(None),
+            )
+            .with_for_update()
+        )
+    }
+    snapshot_child_ids = {
+        cast(str, child.get("id"))
+        for operation in operations
+        for child in operation.get("subtasks", [])
+        if isinstance(child, dict)
+    }
+    if set(child_rows) != snapshot_child_ids:
+        raise AuthError(409, "transfer_hierarchy_stale")
+    activity_start = date.fromisoformat(cast(str, snapshot["planned_start"]))
+    activity_end = date.fromisoformat(cast(str, snapshot["planned_end"]))
+    for fact in operations:
+        task = task_rows[cast(str, fact["id"])]
+        task_start = (
+            date.fromisoformat(cast(str, fact["planned_start"]))
+            if fact.get("planned_start")
+            else None
+        )
+        task_end = (
+            date.fromisoformat(cast(str, fact["planned_end"]))
+            if fact.get("planned_end")
+            else None
+        )
+        if (task_start is None) != (task_end is None) or (
+            task_start is not None
+            and (task_start < activity_start or cast(date, task_end) > activity_end)
+        ):
+            raise AuthError(409, "transfer_dates_invalid")
+        task.planned_start = task_start
+        task.planned_end = task_end
+        for child_fact in fact.get("subtasks", []):
+            child = child_rows[cast(str, child_fact["id"])]
+            if child.task_id != task.id:
+                raise AuthError(409, "transfer_hierarchy_stale")
+            child_start = (
+                date.fromisoformat(cast(str, child_fact["planned_start"]))
+                if child_fact.get("planned_start")
+                else None
+            )
+            child_end = (
+                date.fromisoformat(cast(str, child_fact["planned_end"]))
+                if child_fact.get("planned_end")
+                else None
+            )
+            if (child_start is None) != (child_end is None) or (
+                child_start is not None
+                and (
+                    task_start is None
+                    or task_end is None
+                    or child_start < task_start
+                    or cast(date, child_end) > task_end
+                )
+            ):
+                raise AuthError(409, "transfer_dates_invalid")
+            child.planned_start = child_start
+            child.planned_end = child_end
+
+
 @router.post(
     "/activities/{identifier}/transfers",
     status_code=201,
@@ -2050,6 +2377,8 @@ def request_transfer(
         ):
             raise AuthError(409, "pta_required")
         correcting = item.transfer_id is not None
+        prior: ActivityRevision | None = None
+        prior_transfer: dict[str, Any] = {}
         if correcting:
             if (
                 item.state not in {"returned_supervisor", "returned_validator"}
@@ -2061,12 +2390,6 @@ def request_transfer(
             if not prior or not isinstance(prior.snapshot.get("transfer"), dict):
                 raise AuthError(409, "transfer_stale")
             prior_transfer = cast(dict[str, Any], prior.snapshot["transfer"])
-            if (
-                prior_transfer.get("reason") == body.reason
-                and prior.snapshot.get("planned_start") == body.planned_start
-                and prior.snapshot.get("planned_end") == body.planned_end
-            ):
-                raise AuthError(409, "correction_unchanged")
             transfer_id = item.transfer_id
         else:
             if (
@@ -2080,6 +2403,22 @@ def request_transfer(
         approved = db.get(ActivityRevision, item.approved_revision_id)
         if not approved:
             raise AuthError(409, "transfer_base_invalid")
+        try:
+            source_start = date.fromisoformat(
+                cast(str, approved.snapshot["planned_start"])
+            )
+            base_operations = cast(
+                list[dict[str, Any]], approved.snapshot["operations"]
+            )
+        except (KeyError, TypeError, ValueError):
+            raise AuthError(409, "transfer_base_invalid") from None
+        reviewed_dates = _reviewed_transfer_dates(
+            base_operations,
+            body.tasks,
+            source_start=source_start,
+            target_start=planned_start,
+            target_end=planned_end,
+        )
         now = auth.now(db)
         if not db.scalar(
             select(ActivityContributor.id).where(
@@ -2108,6 +2447,9 @@ def request_transfer(
             snapshot.pop(key, None)
         snapshot["planned_start"] = body.planned_start
         snapshot["planned_end"] = body.planned_end
+        _apply_reviewed_transfer_dates(
+            cast(list[dict[str, Any]], snapshot["operations"]), reviewed_dates
+        )
         snapshot["pta"] = {"id": None, "year": target_year}
         snapshot["transfer"] = {
             "id": transfer_id,
@@ -2116,6 +2458,15 @@ def request_transfer(
             "source_pta": {"id": item.pta_id, "year": item.placement_year},
             "target_year": target_year,
         }
+        if correcting and (
+            prior_transfer.get("reason") == body.reason
+            and prior is not None
+            and prior.snapshot.get("planned_start") == body.planned_start
+            and prior.snapshot.get("planned_end") == body.planned_end
+            and _transfer_date_facts(prior.snapshot.get("operations"))
+            == _transfer_date_facts(snapshot.get("operations"))
+        ):
+            raise AuthError(409, "correction_unchanged")
         fingerprint_value = fingerprint(snapshot)
         snapshot["content_fingerprint"] = fingerprint_value
         encoded = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
@@ -2565,6 +2916,7 @@ def amendment_projection(db: Session, item: Activity) -> dict[str, Any]:
     }
     for operation in projection["operations"]:
         operation["type_label"] = labels[operation["type_id"]]
+    projection["tasks"] = projection.pop("operations")
     return projection
 
 
@@ -2574,11 +2926,174 @@ def amendment_snapshot_projection(snapshot: dict[str, Any]) -> dict[str, Any]:
         str(row["id"]): row
         for row in cast(list[dict[str, Any]], snapshot["operations"])
     }
-    for operation in projection["operations"]:
+    for operation in projection["tasks"]:
         operation["type_label"] = str(
             snapshot_operations[operation["id"]]["type_label"]
         )
     return projection
+
+
+def recalculate_hierarchical_task_facts(
+    db: Session, task_facts: list[dict[str, Any]]
+) -> None:
+    task_ids = [str(row["id"]) for row in task_facts]
+    tasks = {
+        row.id: row
+        for row in db.scalars(
+            select(Operation)
+            .where(Operation.id.in_(task_ids))
+            .order_by(Operation.id)
+            .with_for_update()
+        )
+    }
+    child_ids = [
+        str(child["id"])
+        for task in task_facts
+        for child in task.get("subtasks", [])
+        if isinstance(child, dict)
+    ]
+    children = {
+        row.id: row
+        for row in db.scalars(
+            select(Subtask)
+            .where(Subtask.id.in_(child_ids))
+            .order_by(Subtask.id)
+            .with_for_update()
+        )
+    }
+    if set(tasks) != set(task_ids) or set(children) != set(child_ids):
+        raise AuthError(409, "amendment_base_invalid")
+    for task_fact in task_facts:
+        child_facts = cast(list[dict[str, Any]], task_fact.get("subtasks", []))
+        if not child_facts:
+            continue
+        task = tasks[str(task_fact["id"])]
+        task_children = [children[str(child["id"])] for child in child_facts]
+        known = [child.actual_spent for child in task_children]
+        task.actual_spent = (
+            sum(cast(int, amount) for amount in known)
+            if all(amount is not None for amount in known)
+            else None
+        )
+        task.execution_completed = all(
+            child.execution_completed for child in task_children
+        )
+        starts = [
+            child.execution_started_at
+            for child in task_children
+            if child.execution_started_at is not None
+        ]
+        task.execution_started_at = min(starts) if starts else None
+        task.manual_progress_basis_points = None
+
+
+def restore_approved_hierarchy(
+    db: Session,
+    item: Activity,
+    approved_tasks: list[dict[str, Any]],
+    *,
+    actor_id: str,
+    now: datetime,
+) -> None:
+    approved_task_ids = {str(row["id"]) for row in approved_tasks}
+    tasks = {
+        row.id: row
+        for row in db.scalars(
+            select(Operation)
+            .where(Operation.activity_id == item.id)
+            .order_by(Operation.id)
+            .with_for_update()
+        )
+    }
+    if not approved_task_ids.issubset(tasks):
+        raise AuthError(409, "amendment_base_invalid")
+    children = {
+        row.id: row
+        for row in db.scalars(
+            select(Subtask)
+            .where(Subtask.activity_id == item.id)
+            .order_by(Subtask.id)
+            .with_for_update()
+        )
+    }
+    approved_child_ids = {
+        str(child["id"])
+        for task in approved_tasks
+        for child in task.get("subtasks", [])
+        if isinstance(child, dict)
+    }
+    if not approved_child_ids.issubset(children):
+        raise AuthError(409, "amendment_base_invalid")
+    for task in tasks.values():
+        if task.removed_at is None:
+            task.position += 1000
+    for child in children.values():
+        if child.removed_at is None:
+            child.position += 1000
+    db.flush()
+
+    for position, saved in enumerate(approved_tasks, start=1):
+        task = tasks[str(saved["id"])]
+        task.type_id = str(saved["type_id"])
+        task.name = str(saved["name"])
+        task.description = str(saved.get("description", ""))
+        task.allocation = int(str(saved["allocation"]))
+        task.weight_basis_points = percentage(saved.get("weight"), required=False)
+        task.planned_start = (
+            date.fromisoformat(str(saved["planned_start"]))
+            if saved.get("planned_start")
+            else None
+        )
+        task.planned_end = (
+            date.fromisoformat(str(saved["planned_end"]))
+            if saved.get("planned_end")
+            else None
+        )
+        task.position = int(saved.get("position", position))
+        task.removed_at = None
+        task.removed_by_id = None
+        task.updated_by_id = actor_id
+        task.updated_at = now
+        for child_position, child_saved in enumerate(
+            cast(list[dict[str, Any]], saved.get("subtasks", [])), start=1
+        ):
+            child = children[str(child_saved["id"])]
+            child.task_id = task.id
+            child.name = str(child_saved["name"])
+            child.description = str(child_saved.get("description", ""))
+            child.allocation = int(str(child_saved["allocation"]))
+            child.weight_basis_points = percentage(
+                child_saved.get("weight"), required=False
+            )
+            child.planned_start = (
+                date.fromisoformat(str(child_saved["planned_start"]))
+                if child_saved.get("planned_start")
+                else None
+            )
+            child.planned_end = (
+                date.fromisoformat(str(child_saved["planned_end"]))
+                if child_saved.get("planned_end")
+                else None
+            )
+            child.position = int(child_saved.get("position", child_position))
+            child.removed_at = None
+            child.removed_by_id = None
+            child.updated_by_id = actor_id
+            child.updated_at = now
+
+    for child in children.values():
+        if child.id not in approved_child_ids and child.removed_at is None:
+            if child.execution_started_at is not None:
+                raise AuthError(409, "amendment_base_invalid")
+            child.removed_at = now
+            child.removed_by_id = actor_id
+    for task in tasks.values():
+        if task.id not in approved_task_ids and task.removed_at is None:
+            if task.execution_started_at is not None:
+                raise AuthError(409, "amendment_base_invalid")
+            task.removed_at = now
+            task.removed_by_id = actor_id
+    recalculate_hierarchical_task_facts(db, approved_tasks)
 
 
 @router.get(
@@ -2696,36 +3211,9 @@ def cancel_amendment(
         approved_operations = cast(
             list[dict[str, Any]], approved.snapshot["operations"]
         )
-        approved_ids = {str(row["id"]) for row in approved_operations}
-        operations = {
-            row.id: row
-            for row in db.scalars(
-                select(Operation)
-                .where(Operation.activity_id == item.id)
-                .order_by(Operation.id)
-                .with_for_update()
-            )
-        }
-        if not approved_ids.issubset(operations):
-            raise AuthError(409, "amendment_base_invalid")
-        for row in operations.values():
-            if row.removed_at is None:
-                row.position += 1000
-        db.flush()
-        for position, saved in enumerate(approved_operations, start=1):
-            row = operations[str(saved["id"])]
-            row.type_id = str(saved["type_id"])
-            row.name = str(saved["name"])
-            row.allocation = int(str(saved["allocation"]))
-            row.position = int(saved.get("position", position))
-            row.removed_at = None
-            row.removed_by_id = None
-            row.updated_by_id = actor.id
-            row.updated_at = now
-        for row in operations.values():
-            if row.id not in approved_ids and row.removed_at is None:
-                row.removed_at = now
-                row.removed_by_id = actor.id
+        restore_approved_hierarchy(
+            db, item, approved_operations, actor_id=actor.id, now=now
+        )
         item.name = str(approved.snapshot["name"])
         item.description = str(approved.snapshot["description"])
         item.planned_start = date.fromisoformat(str(approved.snapshot["planned_start"]))
@@ -2911,8 +3399,16 @@ def submit_activity(
             }
             previous_structure["operations"] = [
                 {
-                    key: row[key]
-                    for key in ("id", "type_id", "name", "allocation", "position")
+                    "id": row["id"],
+                    "type_id": row["type_id"],
+                    "name": row["name"],
+                    "description": row.get("description", ""),
+                    "allocation": row["allocation"],
+                    "weight": row.get("weight"),
+                    "planned_start": row.get("planned_start"),
+                    "planned_end": row.get("planned_end"),
+                    "position": row["position"],
+                    "subtasks": row.get("subtasks", []),
                 }
                 for row in previous_operations
             ]
@@ -3204,6 +3700,7 @@ def decide_activity(
                     )
                     if not target:
                         raise AuthError(409, "pta_required")
+                    _persist_transfer_dates(db, item, snapshot)
                     item.pta_id = target.id
                     item.placement_year = target_year
                     item.planned_start = date.fromisoformat(
@@ -3220,6 +3717,10 @@ def decide_activity(
                     item.approved_revision_id = revision.id
                     item.amendment_id = None
                     item.amendment_reason = None
+                    recalculate_hierarchical_task_facts(
+                        db,
+                        cast(list[dict[str, Any]], snapshot["operations"]),
+                    )
                 prevalidation_id = revision.id
                 action = (
                     "activity.withdrawal_approve"
@@ -3580,19 +4081,47 @@ def replace_activity(
                 .with_for_update()
             )
         }
+        current_subtasks = {
+            row.id: row
+            for row in db.scalars(
+                select(Subtask)
+                .where(
+                    Subtask.activity_id == item.id,
+                    Subtask.removed_at.is_(None),
+                )
+                .with_for_update()
+            )
+        }
+        current_subtasks_by_task: dict[str, list[Subtask]] = {}
+        for child in current_subtasks.values():
+            current_subtasks_by_task.setdefault(child.task_id, []).append(child)
         before_structure = structural_content(db, item)
         before = activity_item(db, item, actor.role, actor.id)
         if item.current_revision_id:
             revision = db.get(ActivityRevision, item.current_revision_id)
             assert revision
             submitted_operations = cast(
-                list[dict[str, str | int]], revision.snapshot["operations"]
+                list[dict[str, Any]], revision.snapshot["operations"]
             )
             submitted_ids = {str(row["id"]) for row in submitted_operations}
+            submitted_subtask_ids = {
+                str(child["id"])
+                for row in submitted_operations
+                for child in row.get("subtasks", [])
+                if isinstance(child, dict) and child.get("id")
+            }
             submitted_allocation = int(cast(str, revision.snapshot["allocation"]))
             incoming_ids = {row["id"] for row in incoming if row["id"]}
             if not submitted_ids.issubset(incoming_ids):
                 raise AuthError(409, "submitted_operation_removal_forbidden")
+            incoming_subtask_ids = {
+                child["id"]
+                for row in incoming
+                for child in row["subtasks"]
+                if child["id"]
+            }
+            if not submitted_subtask_ids.issubset(incoming_subtask_ids):
+                raise AuthError(409, "submitted_subtask_removal_forbidden")
             if (
                 item.state == "returned_supervisor"
                 and plan["allocation"] != submitted_allocation
@@ -3618,7 +4147,35 @@ def replace_activity(
                 row["id"] in current
                 and all(
                     getattr(current[row["id"]], key) == row[key]
-                    for key in ("type_id", "name", "allocation", "position")
+                    for key in (
+                        "type_id",
+                        "name",
+                        "description",
+                        "allocation",
+                        "weight_basis_points",
+                        "planned_start",
+                        "planned_end",
+                        "position",
+                    )
+                )
+                and len(row["subtasks"])
+                == len(current_subtasks_by_task.get(row["id"], []))
+                and all(
+                    child["id"] in current_subtasks
+                    and current_subtasks[child["id"]].task_id == row["id"]
+                    and all(
+                        getattr(current_subtasks[child["id"]], key) == child[key]
+                        for key in (
+                            "name",
+                            "description",
+                            "allocation",
+                            "weight_basis_points",
+                            "planned_start",
+                            "planned_end",
+                            "position",
+                        )
+                    )
+                    for child in row["subtasks"]
                 )
                 for row in incoming
             )
@@ -3630,6 +4187,8 @@ def replace_activity(
         }
         for existing_operation in current.values():
             existing_operation.position += 1000
+        for existing_subtask in current_subtasks.values():
+            existing_subtask.position += 1000
         db.flush()
         used: set[str] = set()
         removed_operations: list[dict[str, Any]] = []
@@ -3650,10 +4209,62 @@ def replace_activity(
                 used.add(operation.id)
             operation.type_id = row["type_id"]
             operation.name = row["name"]
+            operation.description = row["description"]
             operation.allocation = row["allocation"]
+            operation.weight_basis_points = row["weight_basis_points"]
+            operation.planned_start = row["planned_start"]
+            operation.planned_end = row["planned_end"]
             operation.position = row["position"]
             operation.updated_by_id = actor.id
             operation.updated_at = now
+            if current_operation is None:
+                db.flush()
+            previous_children = current_subtasks_by_task.get(operation.id, [])
+            if (
+                row["subtasks"]
+                and not previous_children
+                and (
+                    operation.execution_started_at is not None
+                    or operation.actual_spent is not None
+                    or operation.manual_progress_basis_points is not None
+                )
+            ):
+                raise AuthError(409, "started_task_subtasks_forbidden")
+            child_used: set[str] = set()
+            for child_row in row["subtasks"]:
+                candidate_child = (
+                    current_subtasks.get(child_row["id"]) if child_row["id"] else None
+                )
+                if child_row["id"] and (
+                    not candidate_child or candidate_child.task_id != operation.id
+                ):
+                    raise AuthError(409, "subtask_stale")
+                if candidate_child is None:
+                    candidate_child = Subtask(
+                        context_id=CONTEXT,
+                        activity_id=item.id,
+                        task_id=operation.id,
+                        creator_id=actor.id,
+                        created_at=now,
+                    )
+                    db.add(candidate_child)
+                else:
+                    child_used.add(candidate_child.id)
+                candidate_child.name = child_row["name"]
+                candidate_child.description = child_row["description"]
+                candidate_child.allocation = child_row["allocation"]
+                candidate_child.weight_basis_points = child_row["weight_basis_points"]
+                candidate_child.planned_start = child_row["planned_start"]
+                candidate_child.planned_end = child_row["planned_end"]
+                candidate_child.position = child_row["position"]
+                candidate_child.updated_by_id = actor.id
+                candidate_child.updated_at = now
+            for child in previous_children:
+                if child.id not in child_used:
+                    if child.execution_started_at is not None:
+                        raise AuthError(409, "started_subtask_removal_forbidden")
+                    child.removed_at = now
+                    child.removed_by_id = actor.id
         for operation in current.values():
             if operation.id not in used:
                 if operation.execution_started_at is not None:

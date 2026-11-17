@@ -53,6 +53,20 @@ export function DatePicker({
           className="z-50 rounded-panel border border-border bg-white shadow-md"
           onEscapeKeyDown={(event) => event.stopPropagation()}
         >
+          <label className="grid gap-1 border-b border-border p-3 text-xs text-muted-foreground">
+            {label}
+            <input
+              type="date"
+              value={value || ''}
+              min={min}
+              max={max}
+              onChange={(event) => {
+                onChange(event.target.value)
+                if (event.target.value) setOpen(false)
+              }}
+              className="min-h-10 text-sm text-foreground"
+            />
+          </label>
           <Calendar
             mode="single"
             selected={localDate(value)}

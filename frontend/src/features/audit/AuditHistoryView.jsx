@@ -6,6 +6,7 @@ import { QueryFilterSelect } from '@/shared/ui/QueryFilterSelect'
 import { strings as filtersText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Button } from '@/shared/ui/button'
+import { DatePicker } from '@/shared/ui/DatePicker'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/session/SessionProvider'
 import { authorization } from '@/features/auth/session/authorization'
@@ -198,26 +199,22 @@ function History({ session, onDenied }) {
           ))}
           <label>
             {filtersText.from}
-            <input
-              aria-label="Date de début de période"
-              type="date"
+            <DatePicker
+              label="Date de début de période"
               value={search.date_from || ''}
               max={search.date_to || undefined}
-              onChange={(event) =>
-                changeFilters({ date_from: event.target.value })
-              }
+              onChange={(date_from) => changeFilters({ date_from })}
+              optional
             />
           </label>
           <label>
             {filtersText.to}
-            <input
-              aria-label="Date de fin de période"
-              type="date"
+            <DatePicker
+              label="Date de fin de période"
               value={search.date_to || ''}
               min={search.date_from || undefined}
-              onChange={(event) =>
-                changeFilters({ date_to: event.target.value })
-              }
+              onChange={(date_to) => changeFilters({ date_to })}
+              optional
             />
           </label>
         </ListFilters>

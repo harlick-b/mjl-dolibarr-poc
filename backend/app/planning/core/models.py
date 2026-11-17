@@ -280,6 +280,12 @@ class Operation(Base):
             ["pta_operation_type.context_id", "pta_operation_type.id"],
         ),
         UniqueConstraint("context_id", "id"),
+        UniqueConstraint(
+            "context_id",
+            "activity_id",
+            "id",
+            name="operation_activity_identity",
+        ),
         Index(
             "operation_current_position",
             "activity_id",
@@ -300,8 +306,18 @@ class Operation(Base):
             name="operation_execution_started_before_facts",
         ),
         CheckConstraint(
-            "execution_completed=false OR actual_spent IS NOT NULL",
-            name="operation_completion_has_amount",
+            "weight_basis_points IS NULL OR weight_basis_points BETWEEN 0 AND 10000",
+            name="operation_weight_allowed",
+        ),
+        CheckConstraint(
+            "manual_progress_basis_points IS NULL OR "
+            "manual_progress_basis_points BETWEEN 0 AND 10000",
+            name="operation_progress_allowed",
+        ),
+        CheckConstraint(
+            "planned_start IS NULL OR planned_end IS NULL OR "
+            "planned_end >= planned_start",
+            name="operation_dates_ordered",
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -309,8 +325,83 @@ class Operation(Base):
     activity_id: Mapped[str] = mapped_column(String(36))
     type_id: Mapped[str] = mapped_column(String(36))
     name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String(4000), default="")
     allocation: Mapped[int] = mapped_column(BigInteger)
+    weight_basis_points: Mapped[int | None] = mapped_column(Integer)
+    manual_progress_basis_points: Mapped[int | None] = mapped_column(Integer)
+    planned_start: Mapped[date | None] = mapped_column(Date)
+    planned_end: Mapped[date | None] = mapped_column(Date)
     position: Mapped[int] = mapped_column()
+    creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    updated_by_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removed_by_id: Mapped[str | None] = mapped_column(ForeignKey("auth_user.id"))
+    execution_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    execution_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    actual_spent: Mapped[int | None] = mapped_column(BigInteger)
+    execution_observation: Mapped[str] = mapped_column(String(4000), default="")
+
+
+class Subtask(Base):
+    __tablename__ = "pta_subtask"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["context_id", "activity_id"],
+            ["pta_activity.context_id", "pta_activity.id"],
+        ),
+        ForeignKeyConstraint(
+            ["context_id", "activity_id", "task_id"],
+            [
+                "pta_operation.context_id",
+                "pta_operation.activity_id",
+                "pta_operation.id",
+            ],
+        ),
+        UniqueConstraint("context_id", "id"),
+        Index(
+            "subtask_current_position",
+            "task_id",
+            "position",
+            unique=True,
+            postgresql_where=text("removed_at IS NULL"),
+        ),
+        CheckConstraint("allocation > 0", name="subtask_allocation_positive"),
+        CheckConstraint("position > 0", name="subtask_position_positive"),
+        CheckConstraint(
+            "weight_basis_points IS NULL OR weight_basis_points BETWEEN 0 AND 10000",
+            name="subtask_weight_allowed",
+        ),
+        CheckConstraint(
+            "planned_end IS NULL OR planned_start IS NULL OR "
+            "planned_end >= planned_start",
+            name="subtask_dates_ordered",
+        ),
+        CheckConstraint(
+            "actual_spent IS NULL OR actual_spent >= 0",
+            name="subtask_actual_spent_nonnegative",
+        ),
+        CheckConstraint(
+            "execution_started_at IS NOT NULL OR "
+            "(execution_completed=false AND actual_spent IS NULL "
+            "AND execution_observation='')",
+            name="subtask_execution_started_before_facts",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    context_id: Mapped[str] = mapped_column(String(3))
+    activity_id: Mapped[str] = mapped_column(String(36))
+    task_id: Mapped[str] = mapped_column(String(36))
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String(4000), default="")
+    allocation: Mapped[int] = mapped_column(BigInteger)
+    weight_basis_points: Mapped[int | None] = mapped_column(Integer)
+    planned_start: Mapped[date | None] = mapped_column(Date)
+    planned_end: Mapped[date | None] = mapped_column(Date)
+    position: Mapped[int] = mapped_column(Integer)
     creator_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     updated_by_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

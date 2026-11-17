@@ -501,15 +501,15 @@ function attentionAction(reason, action) {
 }
 
 function FinanceSummary({ finance }) {
-  const partial = finance.recorded_operations < finance.approved_operations
+  const partial = finance.recorded_tasks < finance.approved_tasks
   const values = [
     [strings.approvedBudget, dashboardMoney(finance.approved_allocation)],
     [
       `${strings.recordedSpending}${partial ? ` · ${strings.partial}` : ''}`,
       dashboardMoney(finance.recorded_spending),
       strings.formatString(strings.operationCount, {
-        known: finance.recorded_operations,
-        total: finance.approved_operations,
+        known: finance.recorded_tasks,
+        total: finance.approved_tasks,
       }),
     ],
     [strings.closedSpending, dashboardMoney(finance.closed_spending)],

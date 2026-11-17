@@ -119,9 +119,7 @@ def test_reminder_projection_rejects_a_missing_activity_name():
             ]
 
     with pytest.raises(AuthError, match="reminder_source_invalid"):
-        _reminder_outputs(
-            InvalidSnapshotSession(), [SimpleNamespace(id="notice-id")]
-        )
+        _reminder_outputs(InvalidSnapshotSession(), [SimpleNamespace(id="notice-id")])
 
 
 def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
@@ -178,9 +176,9 @@ def test_approved_end_date_change_creates_a_new_cycle_and_keeps_history(planning
             operation_type,
             planned_end="2028-03-31",
             allocation=activity["allocation"],
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in activity["operations"]
+                for row in activity["tasks"]
             ],
             expected_version=opened["version"],
         ),
@@ -244,9 +242,9 @@ def test_same_end_date_amendment_keeps_the_existing_delivery_cycle(
             operation_type,
             description="Même échéance, contenu corrigé",
             allocation=activity["allocation"],
-            operations=[
+            tasks=[
                 {key: value for key, value in row.items() if key != "position"}
-                for row in activity["operations"]
+                for row in activity["tasks"]
             ],
             expected_version=opened["version"],
         ),
@@ -581,9 +579,7 @@ def test_notification_history_blocks_each_unsafe_downgrade(planning):
     activity, _ = approved_activity(planning)
     assign(planning, activity, "agent")
     dispatch_due_reminders(planning["auth"], date(2028, 2, 8))
-    with pytest.raises(
-        RuntimeError, match="Preserve Activity workflow notifications"
-    ):
+    with pytest.raises(RuntimeError, match="Preserve Activity workflow notifications"):
         command.downgrade(Config("alembic.ini"), "0015_pta3f")
     with planning["auth"].engine.begin() as connection:
         connection.execute(text("DELETE FROM pta_activity_workflow_notification"))

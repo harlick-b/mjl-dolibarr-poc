@@ -1603,3 +1603,86 @@ the candidate. An earlier combined run caught the History remount (81 passed,
 1 failed); the final run includes that correction. An independent concurrent
 focused run timed out, then passed both selected tests with a 15-second timeout.
 Human visual acceptance remains outstanding.
+
+## Weighted Tasks and Subtasks — 2026-11-13
+
+Implemented the coordinated public rename from Operations to Tasks for Activity
+planning and execution, with optional one-level Subtasks. Tasks remain inside the
+Activity and remain the budget, authorization, validation and reporting unit.
+Planning supports exact weights, dates, child allocations and draft-incomplete
+totals; submission enforces both 100% weight totals and exact child budget totals.
+
+Assigned Agents can record manual Task progress or binary Subtask completion.
+The backend derives Task and Activity progress from approved weights and keeps it
+independent from expenditure and closure. Subtask expenditure consolidates once
+at Task level. The established amendment, financial freeze, funding, settlement,
+reversement and closure workflows remain in force. Existing approved records keep
+their history and show weighted progress as unavailable until amended.
+
+Shared exact numeric entry, keyboard-capable French dates and wrapping badges are
+available to touched screens. Resource lists touched by this slice sort on stored
+creation time and identifier before cursor pagination. Visual acceptance and
+production readiness remain separate external gates.
+
+Independent review found and the implementation now covers hierarchy changes at
+amendment boundaries. Cancelling restores every approved Task and Subtask field;
+approving a child change recomputes the Task's completion, start and consolidated
+spending before downstream finance checks can proceed. Amendment detail uses the
+public `tasks` shape in active, approved and cancelled states. Subtask execution
+appears in audit, execution history and Fiche chronology, and Partner views expose
+derived progress while legacy unweighted Activities retain an unavailable value.
+The database also binds each Subtask to a Task in the same Activity with one
+composite foreign key.
+Financial verification replays Subtask audit chains and then consolidates their
+facts at Task level. It rejects mismatches in either layer and excludes every
+Agent who recorded Task or Subtask execution from reviewing the request.
+Funding verification also replays child spending at each approval boundary, so
+historical child overspending remains a funding obligation after correction and
+child-only execution actors remain excluded from funding review.
+
+### Weighted hierarchy review remediation — 2026-11-16
+
+New Task hierarchies and Subtask reordering are now saved atomically, including
+partially completed draft rows. Funding pauses cannot be bypassed with conflicting
+completion fields, and Subtasks receive the established correction action.
+Rounded Activity progress reaches 100% only when the weighted work is complete.
+
+Annual transfers now preview and review the exact calendar-day shift of every
+dated Task and Subtask. The API verifies hierarchy identity, shifted dates and
+parent containment; approval persists the reviewed schedule. Migration
+`0037_transfer_task_dates` permits only the reviewed hierarchy-date differences
+inside immutable transfer snapshots and blocks legacy pending transfers whose
+hierarchy dates were never reviewed.
+
+Focused backend and frontend regression checks, schema repeatability, Ruff, mypy
+and ESLint passed. The full transfer run's three failures were corrected and each
+affected case passed on focused rerun; that earlier run remains recorded as 53
+passes and three failures. A broader planning run stopped on historical tests that
+assign additional Agents to another Agent's private draft and is not reported as
+a full-suite pass. Production migration, deployment and human visual acceptance
+remain outside this implementation evidence.
+
+Final independent review found two further gaps. Activity history now retains and
+shows safe changes to Task descriptions, weights, dates and Subtasks, including a
+removed Subtask's bounded identity, without copying unchanged child content.
+Clearing an Activity amount now submits the computed Task total instead of an
+empty value. Their focused regressions and all 49 Activity planning UI tests
+passed. The surrounding audit file remains recorded as 10 passes and five stale
+current-contract fixture failures rather than a full pass. The same independent
+reviewer cleared the corrected candidate with no blocking finding.
+
+A follow-up review on 2026-11-17 identified and corrected six integration gaps:
+live Task hierarchy audit input, complete reviewer hierarchy display, legacy
+completion preservation in frontend and backend projections, exact-XOF overflow
+handling during Subtask consolidation, and stale shared test helpers. The
+affected backend run passed 18 PostgreSQL tests. Independent re-review found one
+adjacent legacy funding-pause gap: a completed Task with newly approved weights
+was compared against stored zero progress during a spending correction. The
+guard now uses the effective displayed progress; its workflow regression failed
+before the correction and passed afterward, and the full weighted-execution file
+passed all four tests. Activity planning passed all 49
+frontend tests; the combined planning/execution run passed 86 of 87 before one
+unchanged five-second timeout, and that timed-out interaction passed on focused
+rerun. Static checks and the production build passed with the existing warnings.
+The same independent reviewer cleared the corrected funding-pause behavior with
+no additional blocking finding in the focused re-review.

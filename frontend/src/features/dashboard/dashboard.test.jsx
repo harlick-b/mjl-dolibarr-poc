@@ -35,7 +35,7 @@ test('dashboard attention titles and actions link to their activity workflow', a
         body = {
           physical: { closed_activities: 0, approved_activities: 0 },
           financial: { closed_spending: '0', approved_allocation: '0' },
-          finance: { approved_operations: 0, recorded_operations: 0 },
+          finance: { approved_tasks: 0, recorded_tasks: 0 },
           attention: {
             count: 4,
             items: [

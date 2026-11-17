@@ -22,9 +22,7 @@ def detail():
         "planned_end": "2027-12-31",
         "allocation": 100,
         "approved_revision": 1,
-        "operations": [
-            {"name": "Opération", "allocation": 100, "final_spending": None}
-        ],
+        "tasks": [{"name": "Opération", "allocation": 100, "final_spending": None}],
         "decisions": [],
         "finance": None,
     }
@@ -42,7 +40,7 @@ def test_template_uses_the_six_approved_sections_and_excludes_description():
     for section in (
         "Situation de l’activité",
         "Synthèse financière",
-        "Opérations et dépenses",
+        "Tâches et dépenses",
         "Demandes de financement",
         "Événements significatifs",
         "Pièces justificatives",
@@ -52,7 +50,7 @@ def test_template_uses_the_six_approved_sections_and_excludes_description():
 
 def test_operation_names_wrap_and_preserve_special_characters():
     activity = detail()
-    activity["operations"] = [
+    activity["tasks"] = [
         {
             "name": "Recherche & développement <local>",
             "allocation": 100,
@@ -105,7 +103,7 @@ def test_closed_partner_fiche_uses_shareable_approved_milestones_only():
             ],
         }
     )
-    activity["operations"][0]["final_spending"] = "100"
+    activity["tasks"][0]["final_spending"] = "100"
 
     pdf = PdfReader(BytesIO(render_partner_fiche(activity, "2027-12-01")))
     content = "\n".join(page.extract_text() for page in pdf.pages)

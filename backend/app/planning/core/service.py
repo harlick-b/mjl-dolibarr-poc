@@ -7,7 +7,7 @@ from typing import Any, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, text, true
+from sqlalchemy import and_, func, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
@@ -23,7 +23,9 @@ from app.planning.core.models import (
     OperationType,
     Partner,
     Project,
+    Subtask,
 )
+from app.planning.core.task_hierarchy import format_percentage, normalize_tasks
 
 CONTEXT = "MJL"
 BUSINESS_ROLES = {"AGENT_SAISIE", "AGENT_VERIFICATEUR", "VALIDATEUR_DEFINITIF"}
@@ -244,6 +246,23 @@ def activity_item(
             .order_by(Operation.position)
         )
     )
+    subtasks = (
+        list(
+            db.scalars(
+                select(Subtask)
+                .where(
+                    Subtask.task_id.in_([row.id for row in operations]),
+                    Subtask.removed_at.is_(None),
+                )
+                .order_by(Subtask.task_id, Subtask.position)
+            )
+        )
+        if operations
+        else []
+    )
+    subtasks_by_task: dict[str, list[Subtask]] = {}
+    for subtask in subtasks:
+        subtasks_by_task.setdefault(subtask.task_id, []).append(subtask)
     has_execution = bool(
         db.scalar(
             select(Operation.id)
@@ -322,7 +341,10 @@ def activity_item(
                 if returned.requested_amount is not None
                 else None,
             }
-    candidate_projection = structural_content(db, item) if item.amendment_id else None
+    candidate_projection = None
+    if item.amendment_id:
+        candidate_projection = structural_content(db, item)
+        candidate_projection["tasks"] = candidate_projection.pop("operations")
     withdrawal = None
     if item.withdrawal_id and item.current_revision_id:
         request_revision = db.get(ActivityRevision, item.current_revision_id)
@@ -420,13 +442,36 @@ def activity_item(
         or (item.withdrawal_id is not None and item.state != "withdrawn")
         or item.transfer_id is not None,
         "correction": correction,
-        "operations": [
+        "tasks": [
             {
                 "id": row.id,
                 "type_id": row.type_id,
                 "name": row.name,
+                "description": row.description,
                 "allocation": str(row.allocation),
+                "weight": format_percentage(row.weight_basis_points),
+                "planned_start": row.planned_start.isoformat()
+                if row.planned_start
+                else None,
+                "planned_end": row.planned_end.isoformat() if row.planned_end else None,
                 "position": row.position,
+                "subtasks": [
+                    {
+                        "id": child.id,
+                        "name": child.name,
+                        "description": child.description,
+                        "allocation": str(child.allocation),
+                        "weight": format_percentage(child.weight_basis_points),
+                        "planned_start": child.planned_start.isoformat()
+                        if child.planned_start
+                        else None,
+                        "planned_end": child.planned_end.isoformat()
+                        if child.planned_end
+                        else None,
+                        "position": child.position,
+                    }
+                    for child in subtasks_by_task.get(row.id, [])
+                ],
             }
             for row in operations
         ],
@@ -544,10 +589,18 @@ def snapshot_projection(snapshot: dict[str, object]) -> dict[str, Any]:
         "planned_start": snapshot["planned_start"],
         "planned_end": snapshot["planned_end"],
         "allocation": snapshot["allocation"],
-        "operations": [
+        "tasks": [
             {
-                key: row[key]
-                for key in ("id", "type_id", "name", "allocation", "position")
+                "id": row["id"],
+                "type_id": row["type_id"],
+                "name": row["name"],
+                "description": row.get("description", ""),
+                "allocation": row["allocation"],
+                "weight": row.get("weight"),
+                "planned_start": row.get("planned_start"),
+                "planned_end": row.get("planned_end"),
+                "position": row["position"],
+                "subtasks": row.get("subtasks", []),
             }
             for row in operations
             if isinstance(row, dict)
@@ -563,6 +616,23 @@ def structural_content(db: Session, item: Activity) -> dict[str, Any]:
             .order_by(Operation.position)
         )
     )
+    subtasks = (
+        list(
+            db.scalars(
+                select(Subtask)
+                .where(
+                    Subtask.task_id.in_([row.id for row in operations]),
+                    Subtask.removed_at.is_(None),
+                )
+                .order_by(Subtask.task_id, Subtask.position)
+            )
+        )
+        if operations
+        else []
+    )
+    by_task: dict[str, list[Subtask]] = {}
+    for child in subtasks:
+        by_task.setdefault(child.task_id, []).append(child)
     return {
         "name": item.name,
         "description": item.description,
@@ -576,8 +646,31 @@ def structural_content(db: Session, item: Activity) -> dict[str, Any]:
                 "id": row.id,
                 "type_id": row.type_id,
                 "name": row.name,
+                "description": row.description,
                 "allocation": str(row.allocation),
+                "weight": format_percentage(row.weight_basis_points),
+                "planned_start": row.planned_start.isoformat()
+                if row.planned_start
+                else None,
+                "planned_end": row.planned_end.isoformat() if row.planned_end else None,
                 "position": row.position,
+                "subtasks": [
+                    {
+                        "id": child.id,
+                        "name": child.name,
+                        "description": child.description,
+                        "allocation": str(child.allocation),
+                        "weight": format_percentage(child.weight_basis_points),
+                        "planned_start": child.planned_start.isoformat()
+                        if child.planned_start
+                        else None,
+                        "planned_end": child.planned_end.isoformat()
+                        if child.planned_end
+                        else None,
+                        "position": child.position,
+                    }
+                    for child in by_task.get(row.id, [])
+                ],
             }
             for row in operations
         ],
@@ -619,7 +712,9 @@ def revision_item(
         ],
     }
     if include_snapshot:
-        result["snapshot"] = revision.snapshot
+        snapshot = dict(revision.snapshot)
+        snapshot["tasks"] = snapshot.pop("operations", [])
+        result["snapshot"] = snapshot
     return result
 
 
@@ -799,14 +894,28 @@ def list_rows(
     conditions = list(where)
     if marker:
         try:
-            marker = str(UUID(marker))
+            marker_created_raw, marker_id_raw = marker.split("|", 1)
+            marker_created = datetime.fromisoformat(marker_created_raw)
+            marker_id = str(UUID(marker_id_raw))
         except ValueError:
             raise AuthError(422, "cursor_invalid") from None
         conditions.append(
-            model.id > marker if direction == "next" else model.id < marker
+            or_(
+                model.created_at < marker_created,
+                and_(model.created_at == marker_created, model.id < marker_id),
+            )
+            if direction == "next"
+            else or_(
+                model.created_at > marker_created,
+                and_(model.created_at == marker_created, model.id > marker_id),
+            )
         )
-    order = model.id.asc() if direction == "next" else model.id.desc()
-    rows, total = page_rows(db, model, tuple(where), tuple(conditions), (order,), limit)
+    ordering = (
+        (model.created_at.desc(), model.id.desc())
+        if direction == "next"
+        else (model.created_at.asc(), model.id.asc())
+    )
+    rows, total = page_rows(db, model, tuple(where), tuple(conditions), ordering, limit)
     more = len(rows) > limit
     rows = rows[:limit]
     if direction == "previous":
@@ -814,12 +923,16 @@ def list_rows(
     params: dict[str, int | str] = {"limit": limit}
     next_link = previous_link = None
     if rows and ((direction == "next" and more) or direction == "previous"):
-        params["cursor"] = cursor.encode(rows[-1].id, "next")
+        params["cursor"] = cursor.encode(
+            f"{rows[-1].created_at.isoformat()}|{rows[-1].id}", "next"
+        )
         next_link = f"{auth.policy.origin}/api/v1/{resource}?{urlencode(params)}"
     if rows and (
         (direction == "previous" and more) or (direction == "next" and marker)
     ):
-        params["cursor"] = cursor.encode(rows[0].id, "previous")
+        params["cursor"] = cursor.encode(
+            f"{rows[0].created_at.isoformat()}|{rows[0].id}", "previous"
+        )
         previous_link = f"{auth.policy.origin}/api/v1/{resource}?{urlencode(params)}"
     serializer = (
         partner_item
@@ -888,36 +1001,13 @@ def validate_plan(
         raise AuthError(422, "input_invalid") from None
     if start.year != year or end < start:
         raise AuthError(422, "input_invalid")
-    operations = payload.get("operations")
-    if not isinstance(operations, list) or not 1 <= len(operations) <= 100:
-        raise AuthError(422, "input_invalid")
-    normalized = []
-    total = 0
-    operation_ids: set[str] = set()
-    for position, row in enumerate(operations, 1):
-        try:
-            operation_id = str(UUID(row["id"])) if row.get("id") else None
-            if operation_id and operation_id in operation_ids:
-                raise AuthError(422, "input_invalid")
-            if operation_id:
-                operation_ids.add(operation_id)
-            type_id = str(UUID(row["type_id"]))
-            name = clean(row["name"], 200)
-            amount = xof(row.get("allocation", ""))
-            total += amount
-            if total > 9_223_372_036_854_775_807:
-                raise AuthError(422, "input_invalid")
-            normalized.append(
-                {
-                    "id": operation_id,
-                    "type_id": type_id,
-                    "name": name,
-                    "allocation": amount,
-                    "position": position,
-                }
-            )
-        except (KeyError, TypeError, ValueError):
-            raise AuthError(422, "input_invalid") from None
+    normalized = normalize_tasks(
+        payload.get("tasks", payload.get("operations")),
+        activity_start=start,
+        activity_end=end,
+        submitting=True,
+    )
+    total = sum(row["allocation"] for row in normalized)
     allocation = xof(payload.get("allocation", ""))
     if allocation != total:
         raise AuthError(422, "allocation_mismatch")
@@ -946,34 +1036,13 @@ def validate_draft(
         raise AuthError(422, "input_invalid") from None
     if (start and start.year != year) or (start and end and end < start):
         raise AuthError(422, "input_invalid")
-    operations = payload.get("operations", [])
-    if not isinstance(operations, list) or len(operations) > 100:
-        raise AuthError(422, "input_invalid")
-    normalized: list[dict[str, Any]] = []
-    total = 0
-    operation_ids: set[str] = set()
-    for position, row in enumerate(operations, 1):
-        try:
-            operation_id = str(UUID(row["id"])) if row.get("id") else None
-            if operation_id and operation_id in operation_ids:
-                raise AuthError(422, "input_invalid")
-            if operation_id:
-                operation_ids.add(operation_id)
-            amount = xof(row.get("allocation", ""))
-            total += amount
-            if total > 9_223_372_036_854_775_807:
-                raise AuthError(422, "input_invalid")
-            normalized.append(
-                {
-                    "id": operation_id,
-                    "type_id": str(UUID(row["type_id"])),
-                    "name": clean(row["name"], 200),
-                    "allocation": amount,
-                    "position": position,
-                }
-            )
-        except (KeyError, TypeError, ValueError):
-            raise AuthError(422, "input_invalid") from None
+    normalized = normalize_tasks(
+        payload.get("tasks", payload.get("operations", [])),
+        activity_start=start,
+        activity_end=end,
+        submitting=False,
+    )
+    total = sum(row["allocation"] for row in normalized)
     raw_allocation = payload.get("allocation")
     allocation = xof(raw_allocation) if raw_allocation else None
     if normalized and allocation != total:

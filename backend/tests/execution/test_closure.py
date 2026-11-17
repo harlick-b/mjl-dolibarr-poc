@@ -198,7 +198,7 @@ def test_terminal_activity_does_not_hide_unfinished_sibling(planning):
     )
     assert closed.status_code == 200, closed.text
     terminal = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
-    operation_type = {"id": terminal["operations"][0]["type_id"]}
+    operation_type = {"id": terminal["tasks"][0]["type_id"]}
     draft = post(
         planning["agent2"],
         f"/api/v1/projects/{terminal['project_id']}/ptas/"
@@ -209,7 +209,7 @@ def test_terminal_activity_does_not_hide_unfinished_sibling(planning):
             "planned_start": f"{terminal['placement_year']}-06-01",
             "planned_end": f"{terminal['placement_year']}-09-01",
             "allocation": "1000",
-            "operations": [
+            "tasks": [
                 {
                     "type_id": operation_type["id"],
                     "name": "Travail restant",
@@ -414,7 +414,7 @@ def test_closed_activity_rejects_execution_and_settlement_changes(planning):
         planning["agent"], close_path(activity), {"expected_version": version}
     )
     assert closed.status_code == 200, closed.text
-    operation = before["operations"][0]
+    operation = before["tasks"][0]
     execution = patch(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}/operations/{operation['id']}/execution",
@@ -604,7 +604,7 @@ def test_closure_serializes_before_adjacent_mutations(planning, competing):
     execution = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
-    operation = execution["operations"][0]
+    operation = execution["tasks"][0]
 
     def close():
         return post(

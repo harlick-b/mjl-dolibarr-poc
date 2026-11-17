@@ -19,6 +19,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/AccessView'
 import { strings as common } from '@/locales/fr/common'
 import { Button } from '@/shared/ui/button'
+import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { Helmet } from 'react-helmet-async'
 import { ApplicationSidebar } from '@/features/auth/components/ApplicationSidebar'
@@ -490,12 +491,12 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                             : 'MJL'}
                         </td>
                         <td>
-                          <span
-                            className="inline-flex items-center gap-1 min-h-5 bg-warning-soft text-warning py-1 px-2 rounded-card text-xs [&[data-state='active']]:bg-success-badge [&[data-state='active']]:text-success [&[data-state='inactive']]:bg-disabled [&[data-state='inactive']]:text-muted-foreground"
+                          <StatusBadge
+                            className="bg-warning-soft text-warning [&[data-state='active']]:bg-success-badge [&[data-state='active']]:text-success [&[data-state='inactive']]:bg-disabled [&[data-state='inactive']]:text-muted-foreground"
                             data-state={u.state}
                           >
                             {states[u.state]}
-                          </span>
+                          </StatusBadge>
                           {invitationStatus(u, users.dataUpdatedAt) && (
                             <small className="block mt-1 text-muted-foreground">
                               {invitationStatus(u, users.dataUpdatedAt)}

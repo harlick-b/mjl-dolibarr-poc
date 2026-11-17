@@ -32,8 +32,8 @@ def test_dashboard_finance_uses_current_pta_execution_and_settlement_facts(plann
     assert before_return.json()["finance"] == {
         "approved_allocation": "300000",
         "recorded_spending": "200000",
-        "recorded_operations": 2,
-        "approved_operations": 2,
+        "recorded_tasks": 2,
+        "approved_tasks": 2,
         "closed_spending": "0",
         "reversement_due": "100000",
         "reversement_confirmed": None,

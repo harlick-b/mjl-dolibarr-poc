@@ -198,7 +198,9 @@ ACTION_LABELS = {
     "operation.execution_corrected": "Réalisation corrigée",
     "operation.execution_recorded": "Réalisation enregistrée",
     "operation.execution_started": "Réalisation commencée",
-    "operation_type.create": "Type d’opération créé",
+    "subtask.execution_corrected": "Réalisation de la sous-tâche corrigée",
+    "subtask.execution_recorded": "Réalisation de la sous-tâche enregistrée",
+    "operation_type.create": "Catégorie de tâche créée",
     "otp_delivery": "Code de vérification envoyé",
     "otp_prepare": "Code de vérification préparé",
     "otp_resend": "Code de vérification renvoyé",
@@ -307,6 +309,7 @@ CHANGE_FIELDS = {
     "state": "État",
     "role": "Rôle",
     "allocation": "Budget (F CFA)",
+    "weight": "Poids (%)",
     "actual_spent": "Dépenses (F CFA)",
     "amount": "Montant (F CFA)",
     "planned_start": "Début prévu",
@@ -378,7 +381,16 @@ def public_changes(
     }
     for identifier in sorted(old_ops.keys() | new_ops.keys()):
         old, new = old_ops.get(identifier, {}), new_ops.get(identifier, {})
-        for field in ("name", "type_id", "allocation", "position"):
+        for field in (
+            "name",
+            "description",
+            "type_id",
+            "allocation",
+            "weight",
+            "planned_start",
+            "planned_end",
+            "position",
+        ):
             if old.get(field) != new.get(field):
                 operation_name = old.get("name") or new.get("name")
                 operation_label = (
@@ -404,13 +416,51 @@ def public_changes(
                     )
                 result.append(
                     {
-                        "field": (
-                            f"Opération {operation_label} · {CHANGE_FIELDS[field]}"
-                        ),
+                        "field": (f"Tâche {operation_label} · {CHANGE_FIELDS[field]}"),
                         "before": before_value,
                         "after": after_value,
                     }
                 )
+        old_subtasks = {
+            item["id"]: item
+            for item in old.get("subtasks", [])
+            if isinstance(item, dict) and "id" in item
+        }
+        new_subtasks = {
+            item["id"]: item
+            for item in new.get("subtasks", [])
+            if isinstance(item, dict) and "id" in item
+        }
+        for subtask_id in sorted(old_subtasks.keys() | new_subtasks.keys()):
+            old_subtask = old_subtasks.get(subtask_id, {})
+            new_subtask = new_subtasks.get(subtask_id, {})
+            subtask_name = old_subtask.get("name") or new_subtask.get("name")
+            subtask_label = (
+                str(subtask_name)
+                if human_activity and subtask_name
+                else "indisponible"
+                if human_activity
+                else subtask_id
+            )
+            for field in (
+                "name",
+                "description",
+                "allocation",
+                "weight",
+                "planned_start",
+                "planned_end",
+                "position",
+            ):
+                if old_subtask.get(field) != new_subtask.get(field):
+                    result.append(
+                        {
+                            "field": (
+                                f"Sous-tâche {subtask_label} · {CHANGE_FIELDS[field]}"
+                            ),
+                            "before": display_value(old_subtask.get(field), field),
+                            "after": display_value(new_subtask.get(field), field),
+                        }
+                    )
     if before.get("agent_ids") != after.get("agent_ids"):
         labels = identity_labels or {}
         result.append(
@@ -679,6 +729,7 @@ def projected_rows(
                     "activity.replace",
                     "activity.assign_agents",
                     "operation.execution_corrected",
+                    "subtask.execution_corrected",
                     "virement_confirmation.corrected",
                     "reversement.corrected",
                 }

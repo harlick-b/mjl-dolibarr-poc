@@ -12,7 +12,7 @@ export const strings = new LocalizedStrings({
     chooseAgents: 'Sélectionner des Agents',
     search: 'Rechercher un Agent…',
     assignmentHelp: 'Au moins un Agent. Plusieurs sélections possibles.',
-    help: 'Les Agents compléteront les opérations et le budget.',
+    help: 'Les Agents compléteront les tâches et le budget.',
     save: 'Créer l’activité',
     created: 'Activité créée.',
     retry: 'Vérifier l’enregistrement',

@@ -27,7 +27,85 @@ FIELDS = {
     "withdrawal_id",
     "transfer_id",
 }
-OPERATION_FIELDS = {"id", "type_id", "name", "allocation", "position"}
+OPERATION_FIELDS = {
+    "id",
+    "type_id",
+    "name",
+    "description",
+    "allocation",
+    "weight",
+    "planned_start",
+    "planned_end",
+    "position",
+}
+SUBTASK_FIELDS = {
+    "id",
+    "name",
+    "description",
+    "allocation",
+    "weight",
+    "planned_start",
+    "planned_end",
+    "position",
+}
+
+
+def _safe_row(row: dict[str, Any], fields: set[str]) -> dict[str, Any]:
+    return {key: value for key, value in row.items() if key in fields}
+
+
+def _delta_row(
+    row: dict[str, Any], peer: dict[str, Any] | None, fields: set[str]
+) -> dict[str, Any]:
+    result = {key: row[key] for key in ("id", "name") if key in row}
+    if peer is not None:
+        result.update(
+            {
+                key: row.get(key)
+                for key in fields - {"id", "name"}
+                if row.get(key) != peer.get(key)
+            }
+        )
+    return result
+
+
+def _operation_deltas(
+    old: dict[str, Any] | None, new: dict[str, Any] | None
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    old_safe = _safe_row(old, OPERATION_FIELDS) if old is not None else None
+    new_safe = _safe_row(new, OPERATION_FIELDS) if new is not None else None
+    old_children = {
+        child["id"]: _safe_row(child, SUBTASK_FIELDS)
+        for child in (old or {}).get("subtasks", [])
+        if isinstance(child, dict) and "id" in child
+    }
+    new_children = {
+        child["id"]: _safe_row(child, SUBTASK_FIELDS)
+        for child in (new or {}).get("subtasks", [])
+        if isinstance(child, dict) and "id" in child
+    }
+    if old_safe == new_safe and old_children == new_children:
+        return None, None
+    old_delta = _delta_row(old_safe, new_safe, OPERATION_FIELDS) if old_safe else None
+    new_delta = _delta_row(new_safe, old_safe, OPERATION_FIELDS) if new_safe else None
+    changed_children = {
+        identifier
+        for identifier in old_children.keys() | new_children.keys()
+        if old_children.get(identifier) != new_children.get(identifier)
+    }
+    if old_delta is not None:
+        old_delta["subtasks"] = [
+            _delta_row(old_children[key], new_children.get(key), SUBTASK_FIELDS)
+            for key in sorted(changed_children)
+            if key in old_children
+        ]
+    if new_delta is not None:
+        new_delta["subtasks"] = [
+            _delta_row(new_children[key], old_children.get(key), SUBTASK_FIELDS)
+            for key in sorted(changed_children)
+            if key in new_children
+        ]
+    return old_delta, new_delta
 
 
 def compact_planning_facts(facts: dict[str, Any]) -> dict[str, Any]:
@@ -59,24 +137,22 @@ def compact_planning_facts(facts: dict[str, Any]) -> dict[str, Any]:
         content = raw.get("content") or raw
         operations.append(
             {
-                row["id"]: {k: v for k, v in row.items() if k in OPERATION_FIELDS}
-                for row in content.get("operations", [])
+                row["id"]: row
+                for row in content.get("tasks", content.get("operations", []))
+                if isinstance(row, dict) and "id" in row
             }
         )
     old, new = operations
-    changed_ids = {
-        key for key in old.keys() | new.keys() if old.get(key) != new.get(key)
+    deltas = {
+        key: _operation_deltas(old.get(key), new.get(key))
+        for key in old.keys() | new.keys()
     }
-    for side, rows in zip(("before", "after"), operations, strict=True):
-        if side in result and changed_ids:
-            result[side]["operations"] = [
-                {
-                    field: value
-                    for field, value in rows[key].items()
-                    if field == "id"
-                    or old.get(key, {}).get(field) != new.get(key, {}).get(field)
-                }
-                for key in sorted(changed_ids)
-                if key in rows
-            ]
+    for index, side in enumerate(("before", "after")):
+        rows = [
+            pair[index]
+            for _key, pair in sorted(deltas.items())
+            if pair[index] is not None
+        ]
+        if side in result and rows:
+            result[side]["operations"] = rows
     return result

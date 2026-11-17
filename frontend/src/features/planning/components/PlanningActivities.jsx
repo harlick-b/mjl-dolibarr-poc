@@ -8,6 +8,7 @@ import { AgentNames } from '@/shared/ui/AgentNames'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { ActivityTimeline } from './ActivityTimeline'
 import { activityStatusClass } from '../lib/activity-status'
+import { StatusBadge } from '@/shared/ui/StatusBadge'
 
 const stateOptions = [
   ['', strings.allStates],
@@ -177,11 +178,9 @@ export function PlanningActivities({
                     <AgentNames activityId={row.id} names={row.agents} />
                   </td>
                   <td className="px-3 py-3">
-                    <span
-                      className={`inline-block rounded-card px-2 py-1 text-xs ${activityStatusClass(row.state)}`}
-                    >
+                    <StatusBadge className={activityStatusClass(row.state)}>
                       {strings[row.state] || '—'}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="px-3 py-3 text-right">
                     <Button asChild variant="outline" size="sm">

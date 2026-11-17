@@ -445,13 +445,29 @@ test('an eligible Agent confirms submission of the current Activity version', as
     current_revision_id: null,
     approved_revision_id: null,
     approved_allocation: null,
-    operations: [
+    tasks: [
       {
         id: 'operation-1',
         type_id: 'type-1',
         name: 'Préparer',
+        description: 'Préparer la logistique complète.',
         allocation: '100000',
+        weight: '100.00',
         position: 1,
+        planned_start: '2027-01-10',
+        planned_end: '2027-04-10',
+        subtasks: [
+          {
+            id: 'subtask-1',
+            name: 'Réserver la salle',
+            description: 'Confirmer le lieu.',
+            allocation: '100000',
+            weight: '100.00',
+            position: 1,
+            planned_start: '2027-01-10',
+            planned_end: '2027-02-10',
+          },
+        ],
       },
     ],
     agent_ids: [],
@@ -554,13 +570,29 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     planned_start: '2027-01-10',
     planned_end: '2027-04-10',
     allocation: '100000',
-    operations: [
+    tasks: [
       {
         id: 'operation-1',
         type_id: 'type-1',
         name: 'Préparer',
+        description: 'Préparer la logistique complète.',
         allocation: '100000',
+        weight: '100.00',
         position: 1,
+        planned_start: '2027-01-10',
+        planned_end: '2027-04-10',
+        subtasks: [
+          {
+            id: 'subtask-1',
+            name: 'Réserver la salle',
+            description: 'Confirmer le lieu.',
+            allocation: '100000',
+            weight: '100.00',
+            position: 1,
+            planned_start: '2027-01-10',
+            planned_end: '2027-02-10',
+          },
+        ],
       },
     ],
   }
@@ -582,7 +614,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     transfer: null,
     placement_year: 2027,
     execution_paused: false,
-    operations: approved.operations,
+    tasks: approved.tasks,
     correction: null,
     agent_ids: ['agent'],
     allowed_actions: [
@@ -822,6 +854,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
         withdrawal: null,
         transfer: null,
         candidate: null,
+        tasks: approved.tasks.map((task) => ({ ...task, subtasks: [] })),
         execution_paused: false,
         allowed_actions: [
           'read',
@@ -1036,12 +1069,25 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     await screen.findByText(/exécution de cette activité est suspendue/i),
   ).toBeVisible()
-  expect(
-    screen.getByRole('region', { name: 'Informations approuvées' }),
-  ).toBeVisible()
-  expect(
-    screen.getByRole('region', { name: 'Modification en préparation' }),
-  ).toBeVisible()
+  const approvedRegion = screen.getByRole('region', {
+    name: 'Informations approuvées',
+  })
+  const candidateRegion = screen.getByRole('region', {
+    name: 'Modification en préparation',
+  })
+  for (const region of [approvedRegion, candidateRegion]) {
+    expect(region).toBeVisible()
+    expect(
+      within(region).getByText('Préparer la logistique complète.'),
+    ).toBeVisible()
+    const child = within(region).getByText('Réserver la salle').closest('li')
+    expect(child).toHaveTextContent('100,00 %')
+    expect(child).toHaveTextContent('10 janvier 2027 – 10 février 2027')
+    expect(within(region).getByText('100,00 %')).toBeVisible()
+    expect(
+      within(region).getByText('10 janvier 2027 – 10 avril 2027'),
+    ).toBeVisible()
+  }
   expect(screen.getByText('Prochaine étape').parentElement).toHaveTextContent(
     'Un Agent responsable prépare la modification avant de la soumettre pour examen.',
   )
@@ -1145,19 +1191,24 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     '2027',
   )
   expect(screen.getByText(/Budget approuvé inchangé/)).toBeVisible()
-  expect(screen.getByText(/Les Opérations et leurs montants/)).toBeVisible()
+  expect(screen.getByText(/Les tâches et leurs montants/)).toBeVisible()
   await user.type(
     screen.getByLabelText('Motif du transfert *'),
     'Calendrier 2028.',
   )
-  await user.type(
-    screen.getByLabelText('Nouvelle date de début *'),
-    '2028-02-01',
+  await user.click(
+    screen.getByRole('button', { name: /Nouvelle date de début/ }),
   )
+  fireEvent.change(screen.getByLabelText('Nouvelle date de début'), {
+    target: { value: '2028-02-01' },
+  })
   expect(screen.getByText('PTA cible :').parentElement).toHaveTextContent(
     '2028',
   )
-  await user.type(screen.getByLabelText('Nouvelle date de fin *'), '2028-08-31')
+  await user.click(screen.getByRole('button', { name: /Nouvelle date de fin/ }))
+  fireEvent.change(screen.getByLabelText('Nouvelle date de fin'), {
+    target: { value: '2028-08-31' },
+  })
   await user.click(
     screen.getByRole('dialog').querySelector('button[type="submit"]'),
   )
@@ -1172,6 +1223,14 @@ test('an Agent opens and cancels an amendment while the approved version stays v
           reason: 'Calendrier 2028.',
           planned_start: '2028-02-01',
           planned_end: '2028-08-31',
+          tasks: [
+            {
+              id: 'operation-1',
+              planned_start: '2028-02-01',
+              planned_end: '2028-05-01',
+              subtasks: [],
+            },
+          ],
         }),
       }),
     ),
@@ -1247,7 +1306,7 @@ function amendmentHistoryFetch({ failed = false, historyFailed = false } = {}) {
     candidate: null,
     amendment: null,
     execution_paused: false,
-    operations: [],
+    tasks: [],
     correction: null,
     agent_ids: [],
     allowed_actions: ['read', 'open_amendment'],
@@ -1292,7 +1351,7 @@ function amendmentHistoryFetch({ failed = false, historyFailed = false } = {}) {
                   planned_start: '2027-01-10',
                   planned_end: '2027-04-10',
                   allocation: '100000',
-                  operations: [
+                  tasks: [
                     {
                       id: 'operation-1',
                       type_id: 'type-1',
@@ -1390,7 +1449,7 @@ test('an edited Activity retains its draft version after a background refresh', 
     description: 'Description',
     planned_start: '2027-01-01',
     planned_end: '2027-04-01',
-    operations: [
+    tasks: [
       {
         id: 'operation-1',
         type_id: 'type-1',
@@ -1416,7 +1475,7 @@ test('an edited Activity retains its draft version after a background refresh', 
         ...initial,
         version: 2,
         planned_end: '2027-05-01',
-        operations: [{ ...initial.operations[0], allocation: '200' }],
+        tasks: [{ ...initial.tasks[0], allocation: '200' }],
       }}
     />,
   )
@@ -1445,7 +1504,7 @@ test('an edited Activity keeps its approved draft amount while operations are re
         planned_start: '2027-01-01',
         planned_end: '2027-04-01',
         allocation: '100',
-        operations: [
+        tasks: [
           {
             id: 'operation-1',
             type_id: 'type-1',
@@ -1459,7 +1518,7 @@ test('an edited Activity keeps its approved draft amount while operations are re
       onSubmit={vi.fn()}
     />,
   )
-  const operationAmount = screen.getByLabelText('Budget de l’opération 1')
+  const operationAmount = screen.getByLabelText('Budget de la tâche 1')
   await user.clear(operationAmount)
   await user.type(operationAmount, '80')
   expect(screen.getByRole('status')).toHaveTextContent('20 F CFA')
@@ -1477,6 +1536,42 @@ test('an edited Activity keeps its approved draft amount while operations are re
   ).toBeEnabled()
 })
 
+test('a cleared Activity amount is submitted as the computed Task total', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      initial={{
+        version: 1,
+        name: 'Activité initiale',
+        description: 'Description',
+        planned_start: '2027-01-01',
+        planned_end: '2027-04-01',
+        allocation: '100',
+        tasks: [
+          {
+            id: 'task-1',
+            type_id: 'type-1',
+            name: 'Atelier',
+            allocation: '100',
+          },
+        ],
+      }}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={submit}
+    />,
+  )
+  await user.clear(screen.getByLabelText('Montant prévu de l’activité (F CFA)'))
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+  expect(submit).toHaveBeenCalledWith(
+    expect.objectContaining({ allocation: '100' }),
+    'draft',
+  )
+})
+
 test('an Agent can clear an obsolete draft budget after removing its Operations', async () => {
   const submit = vi.fn()
   const user = userEvent.setup()
@@ -1489,7 +1584,7 @@ test('an Agent can clear an obsolete draft budget after removing its Operations'
         planned_start: null,
         planned_end: null,
         allocation: '100',
-        operations: [],
+        tasks: [],
       }}
       types={[]}
       pending={false}
@@ -1501,9 +1596,54 @@ test('an Agent can clear an obsolete draft budget after removing its Operations'
     screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
   )
   expect(submit).toHaveBeenCalledWith(
-    expect.objectContaining({ allocation: null, operations: [] }),
+    expect.objectContaining({ allocation: null, tasks: [] }),
     'draft',
   )
+})
+
+test('subtasks prefill and expose the exact remaining Task budget', async () => {
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      initial={{
+        version: 1,
+        state: 'draft',
+        name: 'Répartition',
+        description: '',
+        planned_start: null,
+        planned_end: null,
+        allocation: '100',
+        tasks: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            type_id: 'type-1',
+            name: 'Préparer',
+            description: '',
+            allocation: '100',
+            weight: '',
+            planned_start: '',
+            planned_end: '',
+            subtasks: [],
+          },
+        ],
+      }}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={vi.fn()}
+    />,
+  )
+  const add = screen.getByRole('button', { name: 'Ajouter une sous-tâche' })
+  await user.click(add)
+  const first = screen.getByLabelText('Montant prévu (F CFA) 1')
+  expect(first).toHaveValue('100')
+  expect(add).toBeDisabled()
+  await user.type(screen.getByLabelText('Nom *'), 'Salle')
+  await user.clear(first)
+  await user.type(first, '60')
+  expect(screen.getByText(/40 F CFA/)).toBeVisible()
+  expect(add).toBeEnabled()
+  await user.click(add)
+  expect(screen.getByLabelText('Montant prévu (F CFA) 2')).toHaveValue('40')
 })
 
 test('a returned correction keeps the complete-plan contract when saved', () => {
@@ -1518,7 +1658,7 @@ test('a returned correction keeps the complete-plan contract when saved', () => 
         planned_start: null,
         planned_end: null,
         allocation: '100',
-        operations: [
+        tasks: [
           {
             id: 'operation-1',
             type_id: 'type-1',
@@ -1560,7 +1700,7 @@ test('assignment edits retain their base version and can discard a stale draft',
     planned_start: '2027-01-01',
     planned_end: null,
     allocation: '100',
-    operations: [],
+    tasks: [],
     agent_ids: [],
     agents: [],
     creator: {
@@ -1617,10 +1757,10 @@ test('assignment edits retain their base version and can discard a stale draft',
   )
   render(<App router={router} />)
   await screen.findByRole('heading', { name: 'Coordination' })
-  expect(screen.getByText(/Opérations et budget à compléter\./)).toBeVisible()
+  expect(screen.getByText(/Tâches et budget à compléter\./)).toBeVisible()
   expect(screen.getByText(/Brief créé par Sali Superviseure\./)).toBeVisible()
   expect(
-    screen.queryByRole('heading', { name: 'Opérations' }),
+    screen.queryByRole('heading', { name: 'Tâches' }),
   ).not.toBeInTheDocument()
   expect(screen.queryByText('Budget approuvé')).not.toBeInTheDocument()
   activity = { ...activity, planned_end: '2027-04-01' }
@@ -1630,7 +1770,7 @@ test('assignment edits retain their base version and can discard a stale draft',
     })
   })
   expect(
-    await screen.findByText(/Opérations et budget à compléter\./),
+    await screen.findByText(/Tâches et budget à compléter\./),
   ).toBeVisible()
   expect(
     fetch.mock.calls.some(([url]) => String(url).includes('/history')),
@@ -1720,7 +1860,7 @@ test.each([
       planned_end: '2027-04-01',
       placement_year: 2027,
       allocation: '100',
-      operations: [],
+      tasks: [],
       agent_ids: ['agent-1'],
       agents: [
         {
@@ -1918,31 +2058,6 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   await user.type(
     screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
     'Activité',
-  )
-  await user.type(screen.getByLabelText('Description'), 'Description')
-  await user.click(screen.getByRole('button', { name: /^Début/ }))
-  await user.click(
-    screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
-  )
-  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
-    '30 avril 2027',
-  )
-  await user.click(screen.getByRole('button', { name: /^Fin/ }))
-  await user.click(screen.getByRole('button', { name: /mois suivant/i }))
-  await user.click(screen.getByRole('button', { name: /samedi 15 mai 2027/i }))
-  await user.click(screen.getByRole('button', { name: /^Début/ }))
-  await user.click(screen.getByRole('button', { name: /mois suivant/i }))
-  await user.click(
-    screen.getByRole('button', { name: /dimanche 28 février 2027/i }),
-  )
-  expect(screen.getByRole('button', { name: /^Fin/ })).toHaveTextContent(
-    '15 mai 2027',
-  )
-  await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
-  await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
-  await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
-  await user.click(
-    screen.getByRole('button', { name: /Ajouter une opération/ }),
   )
   await user.click(
     screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
@@ -2463,7 +2578,7 @@ test.each(['success', 'failure'])(
       current_revision_id: null,
       approved_revision_id: null,
       approved_allocation: null,
-      operations: [
+      tasks: [
         {
           id: 'operation-1',
           type_id: 'type-1',
@@ -2696,7 +2811,7 @@ test('new activity loads its context and operation choices without fetching acti
   const newPaths = fetch.mock.calls
     .slice(boundary)
     .map(([url]) => new URL(url, 'http://localhost').pathname)
-  expect(newPaths).toContain('/api/v1/operation-types')
+  expect(newPaths).toContain('/api/v1/task-categories')
   expect(newPaths.filter((path) => path.startsWith('/api/v1/ptas/'))).toEqual(
     [],
   )
@@ -2863,7 +2978,7 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
         planned_start: '2027-01-01',
         planned_end: null,
         allocation: null,
-        operations: [],
+        tasks: [],
       }}
       types={[{ id: 'type-1', label: 'Atelier' }]}
       pending={false}
@@ -2877,12 +2992,13 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
     'Choisir une date',
   )
   await user.type(screen.getByLabelText('Description'), 'Plan complété')
-  await user.click(
-    screen.getByRole('button', { name: /Ajouter une opération/ }),
+  await user.click(screen.getByRole('button', { name: /Ajouter une tâche/ }))
+  await selectOption(
+    screen.getByLabelText('Catégorie de la tâche 1'),
+    'Atelier',
   )
-  await selectOption(screen.getByLabelText('Type d’opération 1'), 'Atelier')
-  await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
-  await user.type(screen.getByLabelText('Budget de l’opération 1'), '10')
+  await user.type(screen.getByLabelText('Nom de la tâche 1'), 'Préparer')
+  await user.type(screen.getByLabelText('Budget de la tâche 1'), '10')
   await user.click(
     screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
   )
@@ -2893,7 +3009,7 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
   expect(
     screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
   ).toBeDisabled()
-  await user.click(screen.getByRole('button', { name: /^Fin/ }))
+  await user.click(screen.getAllByRole('button', { name: /^Fin/ })[0])
   await user.click(
     screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
   )
@@ -2909,6 +3025,20 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
     }),
     'draft',
   )
+  await user.type(screen.getByLabelText('Poids dans la progression 1'), '0')
+  expect(
+    screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
+  ).toBeDisabled()
+  await user.clear(screen.getByLabelText('Poids dans la progression 1'))
+  await user.type(screen.getByLabelText('Poids dans la progression 1'), '100')
+  await user.click(screen.getByRole('button', { name: /^Début prévu/ }))
+  await user.click(
+    screen.getByRole('button', { name: /vendredi 1 janvier 2027/i }),
+  )
+  await user.click(screen.getByRole('button', { name: /^Fin prévu/ }))
+  await user.click(
+    screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
+  )
   expect(
     screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
   ).toBeEnabled()
@@ -2917,15 +3047,13 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
   )
   expect(submit).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      operations: [
-        expect.objectContaining({ name: 'Préparer', allocation: '10' }),
-      ],
+      tasks: [expect.objectContaining({ name: 'Préparer', allocation: '10' })],
     }),
     'submit',
   )
 })
 
-test('a started Operation must be completed or removed without losing its input', async () => {
+test('a started Task must be completed or removed without losing its input', async () => {
   const submit = vi.fn()
   const user = userEvent.setup()
   render(
@@ -2940,22 +3068,48 @@ test('a started Operation must be completed or removed without losing its input'
     screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
     'Brouillon terrain',
   )
-  await user.type(screen.getByLabelText('Nom de l’opération 1'), 'Préparer')
+  await user.type(screen.getByLabelText('Nom de la tâche 1'), 'Préparer')
   expect(
-    screen.getByLabelText('Nom de l’opération 1').closest('label'),
-  ).toHaveTextContent('Nom de l’opération *')
+    screen.getByLabelText('Nom de la tâche 1').closest('label'),
+  ).toHaveTextContent('Nom de la tâche *')
   expect(
-    screen.getByLabelText('Type d’opération 1').closest('label'),
-  ).toHaveTextContent('Type *')
+    screen.getByLabelText('Catégorie de la tâche 1').closest('label'),
+  ).toHaveTextContent('Catégorie *')
   expect(
-    screen.getByLabelText('Budget de l’opération 1').closest('label'),
+    screen.getByLabelText('Budget de la tâche 1').closest('label'),
   ).toHaveTextContent('Montant prévu (F CFA) *')
   await user.click(
     screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
   )
   expect(submit).not.toHaveBeenCalled()
   expect(screen.getByRole('alert')).toHaveTextContent(
-    'Complétez les champs de cette opération ou retirez-la avant d’enregistrer.',
+    'Complétez les champs de cette tâche ou retirez-la avant d’enregistrer.',
   )
-  expect(screen.getByLabelText('Nom de l’opération 1')).toHaveValue('Préparer')
+  expect(screen.getByLabelText('Nom de la tâche 1')).toHaveValue('Préparer')
+})
+
+test('a Task started only through its description is not silently discarded', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      year={2027}
+      types={[{ id: 'type-1', label: 'Atelier' }]}
+      pending={false}
+      onSubmit={submit}
+    />,
+  )
+  await user.type(
+    screen.getByLabelText('Intitulé de l’activité *', { exact: true }),
+    'Brouillon descriptif',
+  )
+  await user.type(screen.getAllByLabelText('Description')[1], 'À organiser')
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+  expect(submit).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Complétez les champs de cette tâche ou retirez-la avant d’enregistrer.',
+  )
+  expect(screen.getAllByLabelText('Description')[1]).toHaveValue('À organiser')
 })

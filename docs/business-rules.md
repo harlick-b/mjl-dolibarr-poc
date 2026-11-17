@@ -13,7 +13,36 @@ The hierarchy is **Partenaire → Projet → PTA annuel → Activité → Opéra
 A Partner is the supporting organization, with a name and an optional saved
 description (up to 4,000 characters). A Project belongs permanently to one
 Partner and may span years. PTA means **Planification des activités sur l’année**: its calendar-year planning collection.
-An Activity is a planned body of work; Operations are its planned work units.
+An Activity is a planned body of work; Tasks (`Tâches`) are its planned work
+units. The historical database model may retain the internal `Operation` name,
+but public API and product language use `task` / `tasks`.
+
+## Weighted Tasks and Subtasks
+
+Each Task belongs to one Activity and one Category. It has a name, optional
+description, planned amount, exact weight and planned dates. An optional single
+level of Subtasks inherits the parent Category. Task weights must total exactly
+100% per Activity when submitted for prevalidation. When Subtasks exist, their
+positive weights and planned amounts must respectively total 100% and the Task
+planned amount. Drafts may keep incomplete weights and under-allocated child
+budgets.
+
+An assigned Agent enters progress for a Task without Subtasks. Subtask progress
+is binary, and the Task derives its progress from its Subtask weights. Activity
+progress derives from Task weights. Percentages support two decimal places and
+are calculated exactly. Physical progress is independent of expenditure and
+administrative validation; 100% progress does not validate or close anything.
+
+The Task remains the financial authority. Spending is recorded directly on a
+Task without Subtasks, or on its Subtasks when they exist. Child spending is
+consolidated once at Task level and remains unknown until every child amount is
+known. Subtasks have no separate authorization or validation workflow.
+
+Task and Subtask dates may be absent in Draft. Submission requires them: Task
+dates stay within the Activity period and Subtask dates stay within the Task
+period. Approved legacy Activities remain executable without invented weights.
+A directly executed Task cannot later gain Subtasks; an existing hierarchy may
+be amended through the established amendment workflow.
 Use these names consistently; Programme is not a generic entity.
 
 One Partner has at most one active Project. A Validator creates and closes
@@ -112,9 +141,9 @@ than edit its content. Agents
 use the full Activity workspace, not a standalone brief page. An Agent may save
 a title-only initial draft and resume it later. Wholly blank Operation rows are
 ignored; a started row must be completed or explicitly removed before save.
-Description, both dates, complete Operations and balanced budget are mandatory
+Description, both dates, complete Tasks and balanced budget are mandatory
 before submission. A submitted Activity has one
-or more Operations with positive allocations whose sum equals its allocation.
+or more Tasks with positive allocations whose sum equals its allocation.
 In the full Agent form, the suggested end date is start plus three calendar
 months: preserve the day when valid, otherwise clamp to the month's last day.
 This is an editable suggestion; never overwrite a manual end date.
@@ -146,7 +175,7 @@ financial processing; resolve any pending amendment first. Submission pauses the
 affected Activity and requires Supervisor then Validator approval. Pending requests
 may be cancelled with a reason. Withdrawal is terminal, ends assignments and
 excludes the Activity from current metrics. Transfer moves the same Activity only
-forward to a later PTA in the same Project, preserving identity, Operations,
+forward to a later PTA in the same Project, preserving identity, Tasks,
 allocations, assignment history and decisions. Source placement remains effective
 until final approval; no reverse transfer or restoration is enabled. The destination
 PTA must already exist; a Supervisor or Validator creates it first. This also
@@ -155,7 +184,7 @@ applies when approving an older pending transfer with a missing destination.
 ## Execution and additional funding
 
 Prévisions d'activités owns planning; Réalisation d'activités executes approved,
-scheduled Activities. Operations cannot start before the approved planned start
+scheduled Activities. Tasks cannot start before the approved planned start
 date. The Agent opens an Operation and submits its progress directly; the first
 successful submission records its start automatically. There is no separate
 start action. The form is never gated behind a start button. Start facts are
@@ -169,7 +198,7 @@ funding approval** before work or financial processing resumes. Funding is the
 server-calculated positive increment bound to that approved revision: 100,000 →
 120,000 authorizes 20,000 F CFA, not the whole allocation or final spending.
 Both reviews require Supervisor then distinct Validator. Forecast increases do
-not require completed Operations. Already-spent cases before finance retain
+not require completed Tasks. Already-spent cases before finance retain
 truthful spending but pause further work and requests.
 
 Financial and funding reviewers must not be the request submitter, an execution
@@ -247,7 +276,7 @@ inherit it. Already downloaded copies cannot be recalled.
 
 Several invited users may belong to one Partner, each permanently bound to it.
 The separate portal shows only that Partner's current/past Projects, approved
-PTAs/Activities/Operations, progress, successful final Validator decisions,
+PTAs/Activities/Tasks, progress, successful final Validator decisions,
 definitive closed finance and sanitized Fiche. Draft/candidate content, internal
 identities/comments/correction reasons, global audit and access administration
 remain hidden. Shared file projection is name/type/size and protected delivery.
@@ -296,7 +325,7 @@ denominator and `-` for missing/unconfirmed finance, per the user’s explicit
 display instruction; underlying facts and export semantics remain unchanged.
 Effective withdrawal is excluded; approved transfer uses its destination.
 
-Internal Fiche PDF regenerates approved planning, Operations, execution,
+Internal Fiche PDF regenerates approved planning, Tasks, execution,
 settlement, chronology, document references and generation date; it remains
 available after withdrawal/closure when an approved revision exists. Partner
 Fiche uses a separate sanitized projection. No stored PDF or signature system.

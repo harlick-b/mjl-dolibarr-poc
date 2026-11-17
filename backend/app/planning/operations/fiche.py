@@ -30,6 +30,7 @@ from app.planning.core.models import (
     Partner,
     Project,
     ReversementDeclaration,
+    Subtask,
     VirementConfirmation,
     VirementDecision,
     VirementRequest,
@@ -37,7 +38,15 @@ from app.planning.core.models import (
     ZeroSpendingDeclaration,
 )
 from app.planning.core.service import principal
-from app.planning.reports.activity_fiche_pdf import render_activity_fiche
+from app.planning.core.task_hierarchy import (
+    activity_progress,
+    format_percentage,
+    percentage,
+)
+from app.planning.reports.activity_fiche_pdf import (
+    render_activity_fiche,
+    task_fiche_label,
+)
 from app.planning.routes import get_activity, locked_read
 
 router = APIRouter(
@@ -86,6 +95,8 @@ EXECUTION_ACTION_LABELS = {
     "operation.execution_started": "Exécution commencée",
     "operation.execution_recorded": "Réalisation enregistrée",
     "operation.execution_corrected": "Réalisation corrigée",
+    "subtask.execution_recorded": "Réalisation de sous-tâche enregistrée",
+    "subtask.execution_corrected": "Réalisation de sous-tâche corrigée",
 }
 ACTIVITY_ACTION_LABELS = {
     "activity.create": "Activité créée",
@@ -197,6 +208,7 @@ def projection(
         db, ActivityRevisionDecision, activity.id, ActivityRevisionDecision.decided_at
     )
     operations = rows(db, Operation, activity.id, Operation.position)
+    subtasks = rows(db, Subtask, activity.id, Subtask.position)
     operation_type_ids = {item.type_id for item in operations}
     snapshot_operations = revision.snapshot.get("operations", [])
     if isinstance(snapshot_operations, list):
@@ -310,9 +322,7 @@ def projection(
         )
     }
     activity_linked_actions = {
-        "operation.execution_started",
-        "operation.execution_recorded",
-        "operation.execution_corrected",
+        *EXECUTION_ACTION_LABELS,
         "zero_spending.submit",
         "activity.amendment_open",
         "activity.amendment_cancel",
@@ -399,6 +409,7 @@ def projection(
         "revisions": revisions,
         "decisions": decisions,
         "operations": {item.id: item for item in operations},
+        "subtasks": {item.id: item for item in subtasks},
         "operation_types": operation_types,
         "funding_requests": funding_requests,
         "funding_decisions": funding_decisions,
@@ -423,9 +434,44 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
     activity: Activity = data["activity"]
     snapshot: dict[str, Any] = data["snapshot"]
     actors: dict[str, str] = data["actors"]
-    approved_rows = [
-        row for row in snapshot.get("operations", []) if isinstance(row, dict)
-    ]
+    current_subtasks: dict[str, Subtask] = data["subtasks"]
+    approved_rows = []
+    for raw_task in snapshot.get("operations", []):
+        if not isinstance(raw_task, dict):
+            continue
+        task = dict(raw_task)
+        children = []
+        child_weighted: list[tuple[int, int]] = []
+        for raw_child in raw_task.get("subtasks", []):
+            if not isinstance(raw_child, dict):
+                continue
+            child = dict(raw_child)
+            current_child = current_subtasks.get(str(child.get("id")))
+            child_progress = (
+                10000 if current_child and current_child.execution_completed else 0
+            )
+            child["progress"] = format_percentage(child_progress)
+            child_weight = percentage(child.get("weight"), required=True)
+            assert child_weight is not None
+            child_weighted.append((child_weight, child_progress))
+            children.append(child)
+        current_task = data["operations"].get(str(task.get("id")))
+        task_progress = (
+            activity_progress(child_weighted)
+            if child_weighted
+            else current_task.manual_progress_basis_points
+            if current_task
+            else None
+        )
+        if (
+            not child_weighted
+            and task.get("weight") is not None
+            and task_progress is None
+        ):
+            task_progress = 0
+        task["progress"] = format_percentage(task_progress)
+        task["subtasks"] = children
+        approved_rows.append(task)
     current: dict[str, Operation] = data["operations"]
     operation_rows = [current.get(str(row.get("id"))) for row in approved_rows]
     spending_known = bool(operation_rows) and all(
@@ -640,10 +686,15 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
         after: dict[str, Any] = (
             cast(dict[str, Any], raw_after) if isinstance(raw_after, dict) else {}
         )
-        if audit.action.startswith("operation.execution_"):
-            operation = current.get(str(facts.get("operation_id")))
-            operation_name = operation.name if operation else "indisponible"
-            detail += f" · Opération : {operation_name}"
+        if audit.action.startswith(("operation.execution_", "subtask.execution_")):
+            if audit.action.startswith("subtask.execution_"):
+                audit_child = current_subtasks.get(str(facts.get("subtask_id")))
+                child_name = audit_child.name if audit_child else "indisponible"
+                detail += f" · Sous-tâche : {child_name}"
+            else:
+                operation = current.get(str(facts.get("operation_id")))
+                operation_name = operation.name if operation else "indisponible"
+                detail += f" · Tâche : {operation_name}"
             if before.get("actual_spent") != after.get("actual_spent"):
                 detail += (
                     f" · Dépense finale : {xof(before.get('actual_spent'))}"
@@ -767,7 +818,7 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
         "returned": str(current_return.amount) if current_return else None,
         "operations": [
             {
-                "name": row.get("name") or "",
+                "name": task_fiche_label(row),
                 "authorized": row.get("allocation") or "0",
                 "spent": str(current[str(row.get("id"))].actual_spent)
                 if current.get(str(row.get("id"))) is not None

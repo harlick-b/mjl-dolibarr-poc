@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -125,6 +125,18 @@ test('validator browses the sanitized global history', async () => {
     '/activities/activity-1',
   )
   expect(screen.queryByRole('button', { name: /Exporter/ })).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: 'Filtres' }))
+  await userEvent.click(
+    screen.getByRole('button', { name: /Date de début de période/ }),
+  )
+  fireEvent.change(screen.getByLabelText('Date de début de période'), {
+    target: { value: '2028-02-01' },
+  })
+  await waitFor(() =>
+    expect(calls.some(([path]) => path.includes('date_from=2028-02-01'))).toBe(
+      true,
+    ),
+  )
   const online = vi.spyOn(window.navigator, 'onLine', 'get')
   online.mockReturnValue(false)
   await userEvent.click(screen.getByRole('button', { name: 'Exporter le CSV' }))
@@ -152,7 +164,9 @@ test('validator browses the sanitized global history', async () => {
     }),
   )
   expect(await screen.findByText('Historique exporté')).toBeVisible()
-  await userEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+  await userEvent.click(
+    screen.getAllByRole('button', { name: 'Suivant' }).at(-1),
+  )
   await waitFor(() =>
     expect(calls.some(([path]) => path.includes('cursor=next-page'))).toBe(
       true,

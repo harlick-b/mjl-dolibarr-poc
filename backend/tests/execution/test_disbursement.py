@@ -39,7 +39,7 @@ def finish_activity(
     detail = (
         clients["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
-    for operation, amount in zip(detail["operations"], amounts, strict=True):
+    for operation, amount in zip(detail["tasks"], amounts, strict=True):
         recorded = patch(
             clients[actor],
             execution_path(detail, operation),
@@ -48,6 +48,7 @@ def finish_activity(
                 "expected_version": detail["version"],
                 "expected_approved_revision_id": detail["approved_revision_id"],
                 "actual_spent": str(amount),
+                "progress": "100.00",
                 "execution_completed": True,
                 "execution_observation": "Travaux terminés.",
             },
@@ -86,7 +87,7 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
     assert frozen_execution["mutation_unavailable_reason"] == "disbursement_frozen"
-    assert all(not row["allowed_actions"] for row in frozen_execution["operations"])
+    assert all(not row["allowed_actions"] for row in frozen_execution["tasks"])
     planning_detail = (
         planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
     )
@@ -139,7 +140,7 @@ def test_cancellation_or_return_releases_execution_for_fresh_request(planning, r
             "expected_approved_revision_id": activity["approved_revision_id"],
         },
     ).json()
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     frozen = patch(
         planning["agent"],
         execution_path(activity, operation),
@@ -179,7 +180,7 @@ def test_cancellation_or_return_releases_execution_for_fresh_request(planning, r
         planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
     )
     assert released["mutation_unavailable_reason"] is None
-    assert released["operations"][0]["allowed_actions"] == ["record"]
+    assert released["tasks"][0]["allowed_actions"] == ["record"]
     if release != "cancel":
         old = planning["agent"].get(f"{collection(activity)}/{submitted['id']}").json()
         assert old["state"] == "returned"
@@ -435,7 +436,7 @@ def test_historical_overspending_remains_blocked_after_budget_increase(
                 if index == 0
                 else row["allocation"],
             }
-            for index, row in enumerate(opened["operations"])
+            for index, row in enumerate(opened["tasks"])
         ]
         allocation = sum(int(row["allocation"]) for row in operations)
         changed = patch(
@@ -448,7 +449,7 @@ def test_historical_overspending_remains_blocked_after_budget_increase(
                 "planned_start": opened["planned_start"],
                 "planned_end": opened["planned_end"],
                 "allocation": str(allocation),
-                "operations": operations,
+                "tasks": operations,
             },
         ).json()
         revision = post(
@@ -735,7 +736,7 @@ def test_missing_execution_audits_fail_closed(planning):
 
 def test_legacy_separate_start_and_record_history_remains_verifiable(planning):
     activity = approved_execution_activity(planning, allocations=[100_000])
-    operation = activity["operations"][0]
+    operation = activity["tasks"][0]
     actor_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
     with Session(planning["auth"].engine) as db, db.begin():
         item = db.get(Activity, activity["id"], with_for_update=True)
@@ -887,7 +888,7 @@ def test_approval_and_cancellation_race_has_one_final_outcome(planning):
 
 def test_submission_serializes_with_execution_correction_and_amendment(planning):
     correction_activity = finish_activity(planning)
-    operation = correction_activity["operations"][0]
+    operation = correction_activity["tasks"][0]
     body = {
         "expected_version": correction_activity["version"],
         "expected_approved_revision_id": correction_activity["approved_revision_id"],
@@ -1138,7 +1139,7 @@ def test_database_rejects_invalid_initial_request_basis(
             "actual_spent": row["actual_spent"],
             "execution_completed": True,
         }
-        for row in activity["operations"]
+        for row in activity["tasks"]
     ]
     snapshot = {
         "allocation": activity["approved_allocation"],

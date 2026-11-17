@@ -96,9 +96,7 @@ def test_reassignment_blocks_execution_finance_and_documents(planning):
             path + "/assignments",
             {"expected_version": activity["version"], "agent_ids": [other_id]},
         ),
-        lambda: patch(
-            agent, execution_path(activity, activity["operations"][0]), start
-        ),
+        lambda: patch(agent, execution_path(activity, activity["tasks"][0]), start),
     )
     assert reassigned.status_code == 200, reassigned.text
     assert waiting.status_code == 403, waiting.text
@@ -106,7 +104,7 @@ def test_reassignment_blocks_execution_finance_and_documents(planning):
     detail = agent.get(path + "/execution")
     assert detail.status_code == 200
     assert detail.json()["allowed_actions"] == ["read"]
-    assert all(row["allowed_actions"] == [] for row in detail.json()["operations"])
+    assert all(row["allowed_actions"] == [] for row in detail.json()["tasks"])
     assert detail.json()["virement_context"]["can_submit"] is False
     assert (
         detail.json()["mutation_unavailable_reason"] == "activity_assignment_required"
@@ -177,7 +175,7 @@ def test_reassignment_blocks_execution_finance_and_documents(planning):
         assert response.status_code == 403, (suffix, response.text)
     started = patch(
         other,
-        execution_path(current, current["operations"][0]),
+        execution_path(current, current["tasks"][0]),
         {**start, "expected_version": current["version"]},
     )
     assert started.status_code == 200, started.text

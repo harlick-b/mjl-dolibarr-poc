@@ -136,7 +136,7 @@ test('a Partner sees only the read-only portfolio projection', async () => {
             project: 'Projet Santé',
             year: 2027,
           },
-          operations: [
+          tasks: [
             {
               name: 'Consultations',
               description: 'Trois journées de consultations.',
@@ -419,7 +419,7 @@ test('Partner detail distinguishes unfinished and validated-zero finance', async
                 project: 'Projet',
                 year: 2027,
               },
-              operations: [],
+              tasks: [],
               decisions: [
                 {
                   kind: 'initial',

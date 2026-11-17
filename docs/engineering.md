@@ -84,6 +84,13 @@ frontend/
   package.json, vite.config.js, other tool configuration
 ```
 
+Public Activity planning and execution contracts call the historical work unit a
+`task`; `subtasks` are nested one level below it. The existing database
+`pta_operation` name is a compatibility detail and must not leak into new routes,
+schemas or product copy. Store percentages as integer hundredths, calculate parent
+progress on the server from the approved hierarchy and keep Task financial totals
+as the only Activity-level aggregation source.
+
 Page/control translations live in `src/locales/fr/`, named for their consumer;
 `common.js` contains only reused labels. Keep French default/fallback in every dictionary.
 
