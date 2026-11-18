@@ -340,7 +340,7 @@ def test_category_migration_refuses_to_discard_an_incomplete_draft(planning, aut
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0038_draft_task_categories"
+                == "0039_editable_activity_dates"
             )
             assert (
                 connection.scalar(

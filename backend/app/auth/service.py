@@ -157,7 +157,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0038_draft_task_categories"]:
+        if revisions != ["0039_editable_activity_dates"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -321,7 +321,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "f11880b8e1414e95691ddaa489cd5d1b6af6e44d631bdd616243a1eb309f10b2"
+            "c8c48ccf25ac765431c0b269c04acd68c6a7964bee4877d1317a8e6ee14807ad"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -1334,8 +1334,24 @@ class AuthService:
                 and (0 if value.get("state") == "draft" else 1) <= len(tasks) <= 100
                 and all(
                     isinstance(value.get(field), str)
-                    or (value.get("state") == "draft" and value.get(field) is None)
-                    for field in ("planned_start", "planned_end", "allocation")
+                    or (
+                        value.get("state")
+                        in {
+                            "draft",
+                            "amendment_draft",
+                            "returned_supervisor",
+                            "returned_validator",
+                        }
+                        and value.get(field) is None
+                    )
+                    for field in ("planned_start", "planned_end")
+                )
+                and (
+                    isinstance(value.get("allocation"), str)
+                    or (
+                        value.get("state") == "draft"
+                        and value.get("allocation") is None
+                    )
                 )
                 and all(valid_task(row) for row in tasks)
                 and isinstance(value.get("agent_ids"), list)
@@ -1451,7 +1467,14 @@ class AuthService:
             return (
                 isinstance(value, dict)
                 and set(value) == fields
-                and all(isinstance(value.get(key), str) for key in fields - {"tasks"})
+                and all(
+                    isinstance(value.get(key), str)
+                    for key in fields - {"tasks", "planned_start", "planned_end"}
+                )
+                and all(
+                    value.get(key) is None or isinstance(value.get(key), str)
+                    for key in ("planned_start", "planned_end")
+                )
                 and isinstance(value.get("tasks"), list)
                 and 1 <= len(value["tasks"]) <= 100
                 and all(valid_task(row) for row in value["tasks"])

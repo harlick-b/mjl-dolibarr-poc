@@ -5,8 +5,10 @@ from time import monotonic
 from uuid import uuid4
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import event, func, select, text
+from sqlalchemy import create_engine, event, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
@@ -251,6 +253,231 @@ def test_m03_m04_m05_amendment_edits_are_isolated_and_submit_frozen_base(plannin
         revision.json()["snapshot"]["base_approved_revision_id"]
         == approved["approved_revision_id"]
     )
+
+
+def test_editable_activity_dates_migration_round_trip_preserves_complete_activity(
+    planning, auth_env
+):
+    config = Config("alembic.ini")
+    approved, _operation_type = approved_activity(planning)
+    complete = open_amendment(
+        planning, approved, "Candidat complet compatible avec le prédécesseur"
+    )
+    expected = (
+        "amendment_draft",
+        complete["planned_start"],
+        complete["planned_end"],
+        complete["allocation"],
+    )
+    planning["auth"].engine.dispose()
+
+    def schema_and_activity(activity_id):
+        engine = create_engine(auth_env.url)
+        try:
+            with engine.connect() as db:
+                constraint = next(
+                    row["sqltext"]
+                    for row in inspect(db).get_check_constraints("pta_activity")
+                    if row["name"] == "activity_complete_after_submission"
+                )
+                activity = db.execute(
+                    text(
+                        "SELECT state,planned_start,planned_end,allocation "
+                        "FROM pta_activity WHERE id=:id"
+                    ),
+                    {"id": activity_id},
+                ).one()
+                return (
+                    db.scalar(text("SELECT version_num FROM alembic_version")),
+                    tuple(str(value) for value in activity),
+                    constraint,
+                )
+        finally:
+            engine.dispose()
+
+    try:
+        command.downgrade(config, "0038_draft_task_categories")
+        revision, saved, constraint = schema_and_activity(approved["id"])
+        assert revision == "0038_draft_task_categories"
+        assert saved == expected
+        assert "returned_supervisor" not in constraint
+
+        command.upgrade(config, "0039_editable_activity_dates")
+        revision, saved, constraint = schema_and_activity(approved["id"])
+        assert revision == "0039_editable_activity_dates"
+        assert saved == expected
+        assert "returned_supervisor" in constraint
+
+        command.downgrade(config, "0038_draft_task_categories")
+        revision, saved, constraint = schema_and_activity(approved["id"])
+        assert revision == "0038_draft_task_categories"
+        assert saved == expected
+        assert "returned_supervisor" not in constraint
+    finally:
+        command.upgrade(config, "head")
+
+
+def test_m04_editable_amendments_can_clear_dates_and_keep_audit_history(
+    planning, auth_env
+):
+    approved, operation_type = approved_activity(planning)
+    opened = open_amendment(planning, approved, "Corriger un calendrier incomplet")
+    opened = assign_agents(planning, opened, planning["agent"], planning["agent2"])
+
+    cleared = patch(
+        planning["agent2"],
+        f"/api/v1/activities/{approved['id']}",
+        plan(
+            operation_type,
+            planned_start=None,
+            planned_end=None,
+            tasks=[
+                {
+                    **{key: value for key, value in row.items() if key != "position"},
+                    "planned_start": None,
+                    "planned_end": None,
+                }
+                for row in opened["tasks"]
+            ],
+            expected_version=opened["version"],
+        ),
+    )
+    assert cleared.status_code == 200, cleared.text
+    candidate = cleared.json()
+    assert candidate["state"] == "amendment_draft"
+    assert candidate["planned_start"] is None
+    assert candidate["planned_end"] is None
+
+    cancelled = cancel_amendment(
+        planning, candidate, "Annuler le candidat au calendrier incomplet"
+    )
+    assert cancelled["state"] == "approved"
+    with Session(planning["auth"].engine) as db:
+        audit = db.scalar(
+            select(Audit).where(
+                Audit.target == approved["id"],
+                Audit.action == "activity.replace",
+            )
+        )
+    assert audit is not None
+    assert audit.business["after"]["planned_start"] is None
+    assert audit.business["after"]["planned_end"] is None
+
+    reopened = open_amendment(planning, cancelled, "Corriger après un retour")
+    changed = patch(
+        planning["agent"],
+        f"/api/v1/activities/{approved['id']}",
+        plan(
+            operation_type,
+            description="Candidat à retourner pour correction",
+            allocation=reopened["allocation"],
+            tasks=[
+                {key: value for key, value in row.items() if key != "position"}
+                for row in reopened["tasks"]
+            ],
+            expected_version=reopened["version"],
+        ),
+    )
+    assert changed.status_code == 200, changed.text
+    submission = post(
+        planning["agent"],
+        f"/api/v1/activities/{approved['id']}/submissions",
+        {"expected_version": changed.json()["version"]},
+    )
+    assert submission.status_code == 201, submission.text
+    revision = submission.json()
+    returned = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{approved['id']}/revisions/{revision['id']}/decisions",
+        {
+            "expected_version": revision["activity_version"],
+            "decision": "return",
+            "reason": "Dates à reprendre.",
+        },
+    ).json()
+    current = planning["agent"].get(f"/api/v1/activities/{approved['id']}").json()
+    assert current["version"] == returned["activity_version"]
+    assert current["state"] == "returned_supervisor"
+
+    corrected = patch(
+        planning["agent"],
+        f"/api/v1/activities/{approved['id']}",
+        plan(
+            operation_type,
+            planned_start=None,
+            planned_end=None,
+            tasks=[
+                {
+                    **{key: value for key, value in row.items() if key != "position"},
+                    "planned_start": None,
+                    "planned_end": None,
+                }
+                for row in current["tasks"]
+            ],
+            expected_version=current["version"],
+        ),
+    )
+    assert corrected.status_code == 200, corrected.text
+    assert corrected.json()["state"] == "returned_supervisor"
+    assert corrected.json()["planned_start"] is None
+    with Session(planning["auth"].engine) as db:
+        audit_count = db.scalar(
+            select(func.count())
+            .select_from(Audit)
+            .where(
+                Audit.target == approved["id"],
+                Audit.action == "activity.replace",
+            )
+        )
+    assert audit_count == 3
+    planning["auth"].engine.dispose()
+    with pytest.raises(
+        RuntimeError, match="Refusing to discard incomplete editable Activity dates"
+    ):
+        command.downgrade(Config("alembic.ini"), "0038_draft_task_categories")
+    engine = create_engine(auth_env.url)
+    try:
+        with engine.connect() as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0039_editable_activity_dates"
+            )
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("workflow", ["withdrawal", "transfer"])
+def test_editable_date_constraint_protects_returned_non_editable_content(
+    planning, workflow
+):
+    approved, _operation_type = approved_activity(planning)
+    approved = assign_agents(planning, approved, planning["agent"], planning["agent2"])
+    if workflow == "withdrawal":
+        from tests.planning.test_withdrawals import request_withdrawal
+
+        revision = request_withdrawal(planning, approved)
+    else:
+        from tests.planning.test_transfers import request_transfer
+
+        revision = request_transfer(planning, approved)
+    returned = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{approved['id']}/revisions/{revision['id']}/decisions",
+        {
+            "expected_version": revision["activity_version"],
+            "decision": "return",
+            "reason": "Conserver le contenu approuvé.",
+        },
+    )
+    assert returned.status_code == 201, returned.text
+    with pytest.raises(IntegrityError):
+        with planning["auth"].engine.begin() as db:
+            db.execute(
+                text(
+                    "UPDATE pta_activity SET planned_start=NULL,planned_end=NULL "
+                    "WHERE id=:id"
+                ),
+                {"id": approved["id"]},
+            )
 
 
 def test_m13_cancellation_restores_approved_content_and_preserves_evidence(planning):

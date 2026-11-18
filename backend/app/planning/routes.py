@@ -522,7 +522,7 @@ class ActivityOutput(Input):
     approved_revision_id: str | None
     approved_allocation: str | None
     approved: PlanningProjection | None
-    candidate: PlanningProjection | None
+    candidate: AmendmentPlanningProjection | None
     amendment: AmendmentOutput | None
     withdrawal: WithdrawalOutput | None
     transfer: TransferOutput | None

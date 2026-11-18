@@ -232,6 +232,9 @@ class Activity(Base):
         CheckConstraint(
             "(state = 'draft' AND current_revision_id IS NULL "
             "AND approved_revision_id IS NULL) OR "
+            "(state IN ('amendment_draft','returned_supervisor',"
+            "'returned_validator') AND allocation IS NOT NULL "
+            "AND withdrawal_id IS NULL AND transfer_id IS NULL) OR "
             "(planned_start IS NOT NULL AND planned_end IS NOT NULL "
             "AND allocation IS NOT NULL)",
             name="activity_complete_after_submission",
