@@ -60,7 +60,7 @@ export const strings = new LocalizedStrings({
     progressIndependent:
       'La progression physique et la dépense sont enregistrées séparément.',
     task: 'Tâche / Sous-tâche',
-    weight: 'Poids',
+    weight: 'Pondération',
     parentTask: 'Tâche parente',
     subtaskCompleted: 'Sous-tâche physiquement terminée',
     administration: 'Administration',

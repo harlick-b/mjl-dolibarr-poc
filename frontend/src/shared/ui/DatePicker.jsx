@@ -38,7 +38,7 @@ export function DatePicker({
           variant="outline"
           aria-label={`${label} : ${value ? formatDate(value) : strings.choose}`}
           className={cn(
-            'w-full justify-between text-left font-normal text-[10px]',
+            'w-full justify-between text-left text-sm font-normal',
             className,
           )}
         >

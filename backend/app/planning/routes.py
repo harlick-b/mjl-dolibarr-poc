@@ -174,7 +174,7 @@ class SubtaskInput(Input):
 
 class TaskInput(Input):
     id: str | None = Field(default=None, max_length=36)
-    type_id: str = Field(max_length=36)
+    type_id: str | None = Field(default=None, max_length=36)
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=4000)
     allocation: str = Field(min_length=1, max_length=19, pattern=r"^[1-9][0-9]*$")
@@ -403,7 +403,8 @@ class SubtaskOutput(Input):
 
 class TaskOutput(Input):
     id: str
-    type_id: str
+    type_id: str | None
+    type_label: str | None = None
     name: str
     description: str = ""
     allocation: str
@@ -431,15 +432,15 @@ class PlanningProjection(Input):
 
 
 class AmendmentTaskOutput(TaskOutput):
-    type_label: str
+    type_label: str | None = None
 
 
 class AmendmentPlanningProjection(Input):
     name: str
     description: str
-    planned_start: str
-    planned_end: str
-    allocation: str
+    planned_start: str | None
+    planned_end: str | None
+    allocation: str | None
     tasks: list[AmendmentTaskOutput]
 
 
@@ -1353,18 +1354,22 @@ def project_ptas(
         conditions = list(base)
         if marker:
             try:
-                marker_year, marker_id = marker.split(":", 1)
-                marker_value = (int(marker_year), str(UUID(marker_id)))
-            except (ValueError, TypeError):
+                marker_created_raw, marker_id_raw = marker.split("|", 1)
+                marker_created = datetime.fromisoformat(marker_created_raw)
+                marker_id = str(UUID(marker_id_raw))
+            except ValueError:
                 raise AuthError(422, "cursor_invalid") from None
-            pair = tuple_(AnnualPTA.year, AnnualPTA.id)
             conditions.append(
-                pair > marker_value if direction == "next" else pair < marker_value
+                tuple_(AnnualPTA.created_at, AnnualPTA.id)
+                < tuple_(marker_created, marker_id)
+                if direction == "next"
+                else tuple_(AnnualPTA.created_at, AnnualPTA.id)
+                > tuple_(marker_created, marker_id)
             )
         ordering = (
-            (AnnualPTA.year.asc(), AnnualPTA.id.asc())
+            (AnnualPTA.created_at.desc(), AnnualPTA.id.desc())
             if direction == "next"
-            else (AnnualPTA.year.desc(), AnnualPTA.id.desc())
+            else (AnnualPTA.created_at.asc(), AnnualPTA.id.asc())
         )
         rows, total = page_rows(
             db,
@@ -1380,7 +1385,7 @@ def project_ptas(
             rows.reverse()
 
         def link(row: AnnualPTA, move: str) -> str:
-            value = cursor.encode(f"{row.year}:{row.id}", move)
+            value = cursor.encode(f"{row.created_at.isoformat()}|{row.id}", move)
             query = urlencode({"limit": limit, "cursor": value})
             path = f"/projects/{identifier}/ptas" if identifier else "/ptas"
             return f"{auth.policy.origin}/api/v1{path}?{query}"
@@ -2909,13 +2914,17 @@ def amendment_projection(db: Session, item: Activity) -> dict[str, Any]:
         for row in db.scalars(
             select(OperationType).where(
                 OperationType.id.in_(
-                    [row["type_id"] for row in projection["operations"]]
+                    [
+                        row["type_id"]
+                        for row in projection["operations"]
+                        if row["type_id"] is not None
+                    ]
                 )
             )
         )
     }
     for operation in projection["operations"]:
-        operation["type_label"] = labels[operation["type_id"]]
+        operation["type_label"] = labels.get(operation["type_id"])
     projection["tasks"] = projection.pop("operations")
     return projection
 
@@ -3380,7 +3389,8 @@ def submit_activity(
         )
         current_structure = structural_content(db, item)
         try:
-            validate_plan(current_structure, item.placement_year)
+            _, normalized = validate_plan(current_structure, item.placement_year)
+            assert_types(db, normalized)
         except AuthError:
             raise AuthError(409, "activity_incomplete") from None
         if previous:
@@ -4067,11 +4077,7 @@ def replace_activity(
             "returned_validator",
         }:
             raise AuthError(409, "activity_not_editable")
-        plan, incoming = (
-            validate_draft(payload, pta.year)
-            if item.state == "draft" and item.current_revision_id is None
-            else validate_plan(payload, pta.year)
-        )
+        plan, incoming = validate_draft(payload, pta.year)
         assert_types(db, incoming)
         current = {
             row.id: row

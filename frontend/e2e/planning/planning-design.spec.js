@@ -36,7 +36,7 @@ const activity = {
   allocation: '3000000',
   state: 'draft',
   version: 1,
-  operations: [
+  tasks: [
     {
       id: 'op-1',
       type_id: 'type-1',
@@ -170,7 +170,7 @@ async function setup(page, role = 'AGENT_SAISIE', detail = {}) {
         ...activity,
         planned_end: null,
         allocation: null,
-        operations: [],
+        tasks: [],
         operation_count: 0,
         ...detail,
       }
@@ -198,7 +198,7 @@ async function setup(page, role = 'AGENT_SAISIE', detail = {}) {
               },
             ],
           }
-    else if (path === '/api/v1/operation-types')
+    else if (path === '/api/v1/task-categories')
       json = {
         ...empty,
         count: 1,
@@ -226,7 +226,8 @@ test('planning references: index, table, calendar, form and detail tabs', async 
   ).toBeVisible()
   await expect(page.locator('aside nav a[aria-current="page"]')).toHaveCount(1)
   await page.getByRole('button', { name: 'Filtres' }).click()
-  await expect(page.getByRole('combobox', { name: 'Validation' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Validation' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Brouillon' })).toBeVisible()
   await page.screenshot({ path: '/tmp/mjl-design-pta.png' })
   await page.getByRole('button', { name: 'Calendrier', exact: true }).click()
   await expect(
@@ -522,7 +523,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
     version: 2,
     planned_end: '2027-04-01',
     allocation: '1500000',
-    operations: [
+    tasks: [
       {
         id: 'op-1',
         type_id: 'type-1',
@@ -731,8 +732,8 @@ test('complete activity editing matches the populated desktop and reflow referen
   const page = await context.newPage()
   await setup(page, 'AGENT_SAISIE', {
     planned_end: activity.planned_end,
-    operations: [
-      ...activity.operations,
+    tasks: [
+      ...activity.tasks,
       {
         id: 'op-2',
         type_id: 'type-1',
@@ -745,7 +746,16 @@ test('complete activity editing matches the populated desktop and reflow referen
     allocation: '4000000',
   })
   await page.goto('/activities/activity-1')
-  await page.getByRole('button', { name: 'Modifier', exact: true }).click()
+  await expect(
+    page.getByRole('heading', { name: activity.name, level: 1 }),
+  ).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-design-detail-complete.png',
+    fullPage: true,
+  })
+  await page
+    .getByRole('button', { name: 'Modifier la programmation', exact: true })
+    .click()
   await expect(
     page.getByRole('heading', { name: 'Réviser la programmation', level: 1 }),
   ).toBeVisible()
@@ -765,5 +775,88 @@ test('complete activity editing matches the populated desktop and reflow referen
     path: '/tmp/mjl-design-edit-complete-mobile.png',
     fullPage: true,
   })
+  await page.setViewportSize({ width: 1837, height: 964 })
+  await page
+    .getByRole('button', { name: 'Modifier', exact: true })
+    .first()
+    .click()
+  await expect(
+    page.getByRole('heading', {
+      name: 'Atelier et missions de terrain',
+      level: 1,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Réviser la programmation', level: 1 }),
+  ).toHaveCount(0)
+  await page.screenshot({
+    path: '/tmp/mjl-design-task-edit.png',
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  await page.screenshot({
+    path: '/tmp/mjl-design-task-edit-mobile.png',
+    fullPage: true,
+  })
+  await page.getByRole('button', { name: 'Ajouter une sous-tâche' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Ajouter une sous-tâche' })
+  await expect(drawer.getByLabel('Montant prévu de la sous-tâche')).toHaveValue(
+    '',
+  )
+  await expect(
+    drawer.getByLabel('Pondération de la sous-tâche (%)'),
+  ).toHaveValue('')
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  await page.screenshot({ path: '/tmp/mjl-design-subtask-drawer-mobile.png' })
   await context.close()
+})
+
+test('a failed editor attachment keeps the saved Draft and skips submission', async ({
+  page,
+}) => {
+  let submissionRequests = 0
+  await setup(page, 'AGENT_SAISIE', {
+    planned_end: activity.planned_end,
+    allocation: activity.allocation,
+    tasks: [
+      {
+        ...activity.tasks[0],
+        weight: '100.00',
+        planned_start: activity.planned_start,
+        planned_end: activity.planned_end,
+        subtasks: [],
+      },
+    ],
+  })
+  await page.route('**/api/v1/activities/activity-1/documents', (route) =>
+    route.fulfill({ status: 500, json: { code: 'upload_failed' } }),
+  )
+  await page.route('**/api/v1/activities/activity-1/submissions', (route) => {
+    submissionRequests += 1
+    return route.fulfill({ json: { id: 'unexpected-submission' } })
+  })
+
+  await page.goto('/activities/activity-1')
+  await page
+    .getByRole('button', { name: 'Modifier la programmation', exact: true })
+    .click()
+  await page.getByLabel('Fichier facultatif').setInputFiles({
+    name: 'preuve.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('preuve'),
+  })
+  await page
+    .getByRole('button', { name: 'Soumettre pour prévalidation' })
+    .click()
+
+  await expect(
+    page.getByText(
+      'Le brouillon est enregistré, mais la pièce n’a pas été téléversée. Réessayez depuis l’activité.',
+    ),
+  ).toBeVisible()
+  expect(submissionRequests).toBe(0)
+  await expect(
+    page.getByRole('heading', { name: 'Programmation' }),
+  ).toBeVisible()
 })

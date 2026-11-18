@@ -5,7 +5,7 @@ export function StatusBadge({ children, className, ...props }) {
     <span
       {...props}
       className={cn(
-        'inline-flex min-h-5 max-w-full shrink-0 items-center rounded-card px-2 py-1 text-xs leading-4 whitespace-normal break-words text-center',
+        'inline-flex min-h-5 w-fit min-w-0 max-w-full items-center self-start rounded-card px-2 py-1 text-center text-xs leading-4 whitespace-normal break-words',
         className,
       )}
     >

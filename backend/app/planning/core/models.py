@@ -323,7 +323,7 @@ class Operation(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(String(3))
     activity_id: Mapped[str] = mapped_column(String(36))
-    type_id: Mapped[str] = mapped_column(String(36))
+    type_id: Mapped[str | None] = mapped_column(String(36))
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(4000), default="")
     allocation: Mapped[int] = mapped_column(BigInteger)

@@ -10,7 +10,6 @@ import { PlanningActivities } from '../components/PlanningActivities'
 import { PlanningSummary } from '../components/PlanningSummary'
 import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
 import { activityStatusClass } from '../lib/activity-status'
-import { CategoryCreator } from '../components/CategoryCreator'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
 import { businessActionClassName } from '@/shared/ui/button-variants'
@@ -35,20 +34,13 @@ import {
   Folder,
   Pencil,
   Plus,
-  Save,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import {
-  addThreeMonths,
-  formatDate,
-  formatDateTime,
-  formatXof,
-  localDateInput,
-} from '@/shared/lib/format'
+import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
 import { strings as executionStrings } from '@/locales/fr/ExecutionView'
@@ -59,6 +51,9 @@ import { useProtectedCleanup } from '@/features/auth/session/access-verification
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
+import { ActivityForm } from '../components/ActivityForm'
+
+export { ActivityForm } from '../components/ActivityForm'
 
 const labels = {
   partners: strings.partners,
@@ -441,9 +436,7 @@ function Workspace({ screen, session, onDenied }) {
       (projects.isPending ||
         context.isPending ||
         (Boolean(context.data?.pta?.id) && list.isPending))) ||
-    (screen === 'activityNew' &&
-      (context.isPending ||
-        (!authorization(session).can('ptaManagement') && types.isPending))) ||
+    (screen === 'activityNew' && context.isPending) ||
     (screen === 'activity' && activity.isPending)
   const submitSimple = async (event, path, field) => {
     event.preventDefault()
@@ -479,7 +472,7 @@ function Workspace({ screen, session, onDenied }) {
         : screen === 'pta'
           ? [projects, context, ...(context.data?.pta?.id ? [list] : [])]
           : screen === 'activityNew'
-            ? [types, context]
+            ? [context]
             : [activity, ...(historyActive ? [revisions] : [])]
   if (
     primaryQueries.some(
@@ -603,16 +596,8 @@ function Workspace({ screen, session, onDenied }) {
           }
         />
       )}
-      {screen === 'activityNew' && types.isPending && (
-        <LoadingPlaceholder
-          label={strings.formatString(common.pageLoading, {
-            page: strings.newActivity,
-          })}
-          variant="form"
-        />
-      )}
       {screen === 'activityNew' && (
-        <div hidden={types.isPending} className="grid gap-6">
+        <div className="grid gap-6 [&:has(.activity-task-editor)>header]:hidden">
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-navy">
@@ -641,12 +626,35 @@ function Workspace({ screen, session, onDenied }) {
             typeResult={types.data}
             navigate={navigate}
             pending={mutation.isPending}
-            onSubmit={async (body, intent) => {
+            optionsUnavailable={
+              types.isFetching || !types.data || types.isError
+            }
+            onSubmit={async (body, intent, file) => {
               const row = await mutation.mutateAsync({
                 path: `/projects/${projectId}/ptas/${year}/activities`,
                 body,
                 silentSuccess: intent === 'submit',
               })
+              if (file) {
+                try {
+                  await api.request(`/api/v1/activities/${row.id}/documents`, {
+                    method: 'POST',
+                    csrf: session.csrf,
+                    rawBody: file,
+                    headers: {
+                      'Content-Type': file.type,
+                      'X-File-Name': file.name,
+                    },
+                  })
+                } catch {
+                  toast.error(strings.draftSavedUploadFailed)
+                  await navigate({
+                    to: Urls.activity,
+                    params: { activityId: row.id },
+                  })
+                  return
+                }
+              }
               if (intent === 'submit') {
                 try {
                   await mutation.mutateAsync({
@@ -1382,877 +1390,62 @@ function Pager({ result, cursorKey, navigate }) {
   )
 }
 
-export function ActivityForm({
-  year,
-  onCreateType,
-  types,
-  typeResult,
-  navigate,
-  pending,
-  optionsUnavailable = false,
-  initial,
-  onSubmit,
-  onCancel,
-}) {
-  const suggestedStart =
-    !initial && Number(year) === new Date().getFullYear()
-      ? localDateInput()
-      : ''
-  const suggestedEnd = addThreeMonths(suggestedStart)
-  const [draftBase] = useState(initial)
-  const [name, setName] = useState(initial?.name || '')
-  const [description, setDescription] = useState(initial?.description || '')
-  const [dateError, setDateError] = useState(false)
-  const [operationError, setOperationError] = useState(false)
-  const [plannedAmount, setPlannedAmount] = useState(
-    initial?.allocation ?? null,
-  )
-  const [start, setStart] = useState(initial?.planned_start || suggestedStart)
-  const [end, setEnd] = useState(
-    initial ? initial.planned_end || '' : suggestedEnd,
-  )
-  const [endWasEdited, setEndWasEdited] = useState(
-    Boolean(initial?.planned_end),
-  )
-  const requestKey = useRef(initial ? null : crypto.randomUUID())
-  const [operations, setOperations] = useState(
-    initial?.tasks || [
-      {
-        type_id: '',
-        name: '',
-        description: '',
-        allocation: '',
-        weight: '',
-        planned_start: '',
-        planned_end: '',
-        subtasks: [],
-      },
-    ],
-  )
-  const strictPlan = [
-    'amendment_draft',
-    'returned_supervisor',
-    'returned_validator',
-  ].includes(initial?.state)
-  const taskHasInput = (row) =>
-    [
-      row.type_id,
-      row.name,
-      row.description,
-      row.allocation,
-      row.weight,
-      row.planned_start,
-      row.planned_end,
-    ].some((value) => String(value || '').trim()) ||
-    (row.subtasks || []).length > 0
-  const startedOperations = operations.filter(taskHasInput)
-  const startedOperationsComplete = startedOperations.every(
-    (row) =>
-      row.type_id &&
-      row.name.trim() &&
-      /^[1-9]\d*$/.test(row.allocation) &&
-      (row.subtasks || []).every(
-        (child) => child.name.trim() && /^[1-9]\d*$/.test(child.allocation),
-      ) &&
-      (row.subtasks || []).reduce(
-        (sum, child) => sum + BigInt(child.allocation || 0),
-        0n,
-      ) <= BigInt(row.allocation || 0),
-  )
-  const percentPattern = /^(?:100(?:\.0{1,2})?|(?:[1-9]?\d)(?:\.\d{1,2})?)$/
-  const positivePercent = (value) =>
-    percentPattern.test(value) && Number(value) > 0
-  const taskWeights = startedOperations.reduce(
-    (sum, row) =>
-      sum +
-      (positivePercent(row.weight) ? Math.round(Number(row.weight) * 100) : 0),
-    0,
-  )
-  const tasksCompleteForSubmission =
-    startedOperationsComplete &&
-    startedOperations.length > 0 &&
-    taskWeights === 10000 &&
-    startedOperations.every((row) => {
-      if (!positivePercent(row.weight)) return false
-      if (!row.planned_start || !row.planned_end) return false
-      if (row.planned_start < start || row.planned_end > end) return false
-      if (!row.subtasks?.length) return true
-      const subtaskAmount = row.subtasks.reduce(
-        (sum, child) =>
-          sum +
-          (/^[1-9]\d*$/.test(child.allocation) ? BigInt(child.allocation) : 0n),
-        0n,
-      )
-      const subtaskWeight = row.subtasks.reduce(
-        (sum, child) =>
-          sum +
-          (positivePercent(child.weight)
-            ? Math.round(Number(child.weight) * 100)
-            : 0),
-        0,
-      )
-      return (
-        subtaskAmount === BigInt(row.allocation || 0) &&
-        subtaskWeight === 10000 &&
-        row.subtasks.every(
-          (child) =>
-            child.name.trim() &&
-            positivePercent(child.weight) &&
-            child.planned_start &&
-            child.planned_end &&
-            child.planned_start >= row.planned_start &&
-            child.planned_end <= row.planned_end,
-        )
-      )
-    })
-  const availableTypes = [...types]
-  for (const operation of operations)
-    if (
-      operation.type_id &&
-      !availableTypes.some((type) => type.id === operation.type_id)
-    )
-      availableTypes.push({
-        id: operation.type_id,
-        label: operation.type_label || `Type ${operation.type_id}`,
-      })
-  const total = operations.reduce(
-    (sum, row) =>
-      sum + (/^[1-9]\d*$/.test(row.allocation) ? BigInt(row.allocation) : 0n),
-    0n,
-  )
-  const allOperationAmounts =
-    startedOperations.length > 0 &&
-    startedOperations.every((row) => /^[1-9]\d*$/.test(row.allocation))
-  const plannedAmountMatches =
-    plannedAmount === null ||
-    plannedAmount === '' ||
-    (/^[1-9]\d*$/.test(plannedAmount) && BigInt(plannedAmount) === total)
-  const submissionIssues = [
-    !name.trim() && strings.submissionTitleMissing,
-    !description.trim() && strings.submissionDescriptionMissing,
-    (!start || !end || end < start) && strings.submissionDatesMissing,
-    (startedOperations.length === 0 || !startedOperationsComplete) &&
-      strings.submissionOperationsMissing,
-    !tasksCompleteForSubmission && strings.submissionTaskStructureMissing,
-    !plannedAmountMatches && strings.submissionBudgetMissing,
-  ].filter(Boolean)
-  const updateTask = (index, changes) =>
-    setOperations((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, ...changes } : item,
-      ),
-    )
-  const updateSubtask = (taskIndex, subtaskIndex, changes) =>
-    setOperations((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === taskIndex
-          ? {
-              ...item,
-              subtasks: (item.subtasks || []).map((child, childIndex) =>
-                childIndex === subtaskIndex ? { ...child, ...changes } : child,
-              ),
-            }
-          : item,
-      ),
-    )
-  return (
-    <Panel
-      as={BusinessForm}
-      className="border-0 bg-transparent p-0 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] items-start"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (pending || optionsUnavailable) return false
-        const intent = event.nativeEvent.submitter?.value || 'draft'
-        const requiresCompletePlan = strictPlan || intent === 'submit'
-        if (
-          !startedOperationsComplete ||
-          (requiresCompletePlan && !tasksCompleteForSubmission)
-        ) {
-          setOperationError(true)
-          return false
-        }
-        setOperationError(false)
-        if (
-          (start && end && end < start) ||
-          (requiresCompletePlan && (!start || !end))
-        ) {
-          setDateError(true)
-          event.currentTarget
-            .querySelector('[data-date-invalid="true"]')
-            ?.focus()
-          return false
-        }
-        setDateError(false)
-        const data = new FormData(event.currentTarget)
-        return onSubmit(
-          {
-            name: data.get('name'),
-            description: data.get('description'),
-            planned_start: start || null,
-            planned_end: end || null,
-            allocation:
-              startedOperations.length > 0
-                ? plannedAmount || total.toString()
-                : null,
-            tasks: startedOperations.map((row) => ({
-              id: row.id || undefined,
-              type_id: row.type_id,
-              name: row.name,
-              description: row.description || '',
-              allocation: row.allocation,
-              weight: row.weight || null,
-              planned_start: row.planned_start || null,
-              planned_end: row.planned_end || null,
-              subtasks: (row.subtasks || []).map((child) => ({
-                id: child.id || undefined,
-                name: child.name,
-                description: child.description || '',
-                allocation: child.allocation,
-                weight: child.weight || null,
-                planned_start: child.planned_start || null,
-                planned_end: child.planned_end || null,
-              })),
-            })),
-            ...(initial
-              ? { expected_version: draftBase.version }
-              : { request_key: requestKey.current }),
-          },
-          intent,
-        )
-      }}
-    >
-      <div className="grid min-w-0 gap-6">
-        <section className="rounded-panel border border-border bg-white">
-          <h2 className="border-b border-border px-5 py-4">
-            {strings.generalInformation}
-          </h2>
-          <div className="grid gap-6 p-5">
-            <label>
-              {strings.activityName} *
-              <input
-                name="name"
-                required
-                maxLength="200"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            <label>
-              {strings.description}
-              {strictPlan && ' *'}
-              <textarea
-                name="description"
-                required={strictPlan}
-                maxLength="4000"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </label>
-          </div>
-        </section>
-        <section className="rounded-panel border border-border bg-white">
-          <h2 className="border-b border-border px-5 py-4">
-            {strings.planningTitle}
-          </h2>
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <label>
-              {strings.start}
-              {strictPlan && ' *'}
-              <DatePicker
-                label={strings.start}
-                aria-invalid={dateError && !start}
-                data-date-invalid={!start}
-                value={start}
-                min={year ? `${year}-01-01` : undefined}
-                max={year ? `${year}-12-31` : undefined}
-                onChange={(value) => {
-                  setStart(value)
-                  if (!endWasEdited) setEnd(addThreeMonths(value))
-                }}
-                optional={!strictPlan}
-              />
-            </label>
-            <label>
-              {strings.end}
-              {strictPlan && ' *'}
-              <DatePicker
-                label={strings.end}
-                aria-invalid={dateError && (!end || end < start)}
-                data-date-invalid={!end || end < start}
-                value={end}
-                min={start || undefined}
-                onChange={(value) => {
-                  setEnd(value)
-                  setEndWasEdited(true)
-                }}
-                optional={!strictPlan}
-              />
-            </label>
-          </div>
-          {dateError && (!start || !end || end < start) && (
-            <p role="alert" className="px-5 pb-5 text-sm text-destructive">
-              {strings.requiredDates}
-            </p>
-          )}
-        </section>
-        <section className="rounded-panel border border-border bg-white">
-          <h2 className="border-b border-border px-5 py-4">
-            {strings.operationsBudget}
-          </h2>
-          <div className="grid gap-5 p-5">
-            <label className="max-w-80">
-              {strings.plannedAmount}
-              {strictPlan && ' *'}
-              <ExactNumberInput
-                suffix="F CFA"
-                aria-label={strings.plannedAmount}
-                value={
-                  plannedAmount ?? (allOperationAmounts ? total.toString() : '')
-                }
-                onChange={setPlannedAmount}
-              />
-            </label>
-            <fieldset className="grid gap-4">
-              <legend className="sr-only">{strings.operations}</legend>
-              {operations.map((row, index) => {
-                const rowStarted = taskHasInput(row)
-                const allocatedSubtaskAmount = (row.subtasks || []).reduce(
-                  (sum, child) =>
-                    sum +
-                    (/^[1-9]\d*$/.test(child.allocation)
-                      ? BigInt(child.allocation)
-                      : 0n),
-                  0n,
-                )
-                const taskBudget = /^[1-9]\d*$/.test(row.allocation)
-                  ? BigInt(row.allocation)
-                  : 0n
-                const remainingSubtaskAmount =
-                  taskBudget > allocatedSubtaskAmount
-                    ? taskBudget - allocatedSubtaskAmount
-                    : 0n
-                return (
-                  <div
-                    className="grid items-start gap-4 rounded-card border border-border p-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]"
-                    key={row.id || index}
-                  >
-                    <div className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-3">
-                      <h3 className="font-semibold">
-                        {strings.operation} {index + 1}
-                      </h3>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        aria-label={strings.formatString(
-                          strings.operationRemoveNumber,
-                          index + 1,
-                        )}
-                        data-edits-form
-                        onClick={() =>
-                          setOperations(
-                            operations.filter((_, i) => i !== index),
-                          )
-                        }
-                      >
-                        {strings.remove}
-                      </Button>
-                    </div>
-                    <label>
-                      {strings.operationName}
-                      {rowStarted && ' *'}
-                      <input
-                        aria-label={strings.formatString(
-                          strings.operationNameNumber,
-                          index + 1,
-                        )}
-                        maxLength="200"
-                        value={row.name}
-                        onChange={(e) =>
-                          setOperations(
-                            operations.map((item, i) =>
-                              i === index
-                                ? { ...item, name: e.target.value }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </label>
-                    <div className="grid gap-2">
-                      <label>
-                        {strings.activityOperationType}
-                        {rowStarted && ' *'}
-                        <Select
-                          aria-label={strings.formatString(
-                            strings.operationTypeNumber,
-                            index + 1,
-                          )}
-                          value={row.type_id}
-                          onChange={(e) =>
-                            setOperations(
-                              operations.map((item, i) =>
-                                i === index
-                                  ? { ...item, type_id: e.target.value }
-                                  : item,
-                              ),
-                            )
-                          }
-                        >
-                          <option value="">Choisir</option>
-                          {availableTypes.map((type) => (
-                            <option value={type.id} key={type.id}>
-                              {type.label}
-                            </option>
-                          ))}
-                        </Select>
-                      </label>
-                      {onCreateType && (
-                        <CategoryCreator
-                          onCreate={onCreateType}
-                          disabled={pending || optionsUnavailable}
-                          onCreated={(type) =>
-                            setOperations((current) =>
-                              current.map((item, i) =>
-                                i === index
-                                  ? {
-                                      ...item,
-                                      type_id: type.id,
-                                      type_label: type.label,
-                                    }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                      )}
-                    </div>
-                    <label>
-                      {strings.operationAmount}
-                      {rowStarted && ' *'}
-                      <ExactNumberInput
-                        suffix="F CFA"
-                        aria-label={strings.formatString(
-                          strings.operationBudgetNumber,
-                          index + 1,
-                        )}
-                        value={row.allocation}
-                        onChange={(value) =>
-                          updateTask(index, { allocation: value })
-                        }
-                      />
-                    </label>
-                    <label className="sm:col-span-2 lg:col-span-3">
-                      {strings.description}
-                      <textarea
-                        maxLength="4000"
-                        value={row.description || ''}
-                        onChange={(event) =>
-                          updateTask(index, { description: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      {strings.taskWeight} {strictPlan && '*'}
-                      <ExactNumberInput
-                        scale={2}
-                        suffix="%"
-                        aria-label={`${strings.taskWeight} ${index + 1}`}
-                        value={row.weight || ''}
-                        onChange={(value) =>
-                          updateTask(index, { weight: value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      {strings.plannedStart} {strictPlan && '*'}
-                      <DatePicker
-                        label={strings.plannedStart}
-                        value={row.planned_start || ''}
-                        min={start || undefined}
-                        max={row.planned_end || end || undefined}
-                        optional={!strictPlan}
-                        onChange={(value) =>
-                          updateTask(index, { planned_start: value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      {strings.plannedEnd} {strictPlan && '*'}
-                      <DatePicker
-                        label={strings.plannedEnd}
-                        value={row.planned_end || ''}
-                        min={row.planned_start || start || undefined}
-                        max={end || undefined}
-                        optional={!strictPlan}
-                        onChange={(value) =>
-                          updateTask(index, { planned_end: value })
-                        }
-                      />
-                    </label>
-                    <div className="grid gap-3 sm:col-span-2 lg:col-span-3">
-                      {(row.subtasks || []).map((child, childIndex) => (
-                        <div
-                          key={child.id || childIndex}
-                          className="grid gap-3 rounded-card bg-background p-4 sm:grid-cols-2 lg:grid-cols-3"
-                        >
-                          <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-3">
-                            <h4 className="font-medium">
-                              {strings.subtask} {childIndex + 1}
-                            </h4>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                updateTask(index, {
-                                  subtasks: row.subtasks.filter(
-                                    (_, position) => position !== childIndex,
-                                  ),
-                                })
-                              }
-                            >
-                              {strings.remove}
-                            </Button>
-                          </div>
-                          <label>
-                            {strings.name} *
-                            <input
-                              value={child.name}
-                              maxLength="200"
-                              onChange={(event) =>
-                                updateSubtask(index, childIndex, {
-                                  name: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label>
-                            {strings.operationAmount} *
-                            <ExactNumberInput
-                              suffix="F CFA"
-                              aria-label={`${strings.operationAmount} ${childIndex + 1}`}
-                              value={child.allocation}
-                              onChange={(value) =>
-                                updateSubtask(index, childIndex, {
-                                  allocation: value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label>
-                            {strings.taskWeight} {strictPlan && '*'}
-                            <ExactNumberInput
-                              scale={2}
-                              suffix="%"
-                              aria-label={`${strings.taskWeight} ${childIndex + 1}`}
-                              value={child.weight || ''}
-                              onChange={(value) =>
-                                updateSubtask(index, childIndex, {
-                                  weight: value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label className="sm:col-span-2 lg:col-span-3">
-                            {strings.description}
-                            <textarea
-                              value={child.description || ''}
-                              maxLength="4000"
-                              onChange={(event) =>
-                                updateSubtask(index, childIndex, {
-                                  description: event.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label>
-                            {strings.plannedStart} {strictPlan && '*'}
-                            <DatePicker
-                              label={strings.plannedStart}
-                              value={child.planned_start || ''}
-                              min={row.planned_start || undefined}
-                              max={
-                                child.planned_end ||
-                                row.planned_end ||
-                                undefined
-                              }
-                              optional={!strictPlan}
-                              onChange={(value) =>
-                                updateSubtask(index, childIndex, {
-                                  planned_start: value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label>
-                            {strings.plannedEnd} {strictPlan && '*'}
-                            <DatePicker
-                              label={strings.plannedEnd}
-                              value={child.planned_end || ''}
-                              min={
-                                child.planned_start ||
-                                row.planned_start ||
-                                undefined
-                              }
-                              max={row.planned_end || undefined}
-                              optional={!strictPlan}
-                              onChange={(value) =>
-                                updateSubtask(index, childIndex, {
-                                  planned_end: value,
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-                      ))}
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span className="text-sm text-muted-foreground">
-                          {strings.remainingAmount}:{' '}
-                          {formatXof(String(remainingSubtaskAmount))}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={remainingSubtaskAmount === 0n}
-                          onClick={() => {
-                            updateTask(index, {
-                              subtasks: [
-                                ...(row.subtasks || []),
-                                {
-                                  name: '',
-                                  description: '',
-                                  allocation: remainingSubtaskAmount.toString(),
-                                  weight: '',
-                                  planned_start: row.planned_start || '',
-                                  planned_end: row.planned_end || '',
-                                },
-                              ],
-                            })
-                          }}
-                        >
-                          <Plus size={16} /> {strings.addSubtask}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </fieldset>
-            {operationError && (
-              <p role="alert" className="text-sm text-destructive">
-                {strings.completeOrRemoveOperation}
-              </p>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-self-start"
-              data-edits-form
-              onClick={() =>
-                setOperations([
-                  ...operations,
-                  {
-                    type_id: '',
-                    name: '',
-                    description: '',
-                    allocation: '',
-                    weight: '',
-                    planned_start: '',
-                    planned_end: '',
-                    subtasks: [],
-                  },
-                ])
-              }
-            >
-              <Plus size={16} />
-              {strings.addOperation}
-            </Button>
-            {navigate && (
-              <Pager
-                result={typeResult}
-                cursorKey="typeCursor"
-                navigate={navigate}
-              />
-            )}
-          </div>
-        </section>
-        <div className="flex flex-wrap justify-end gap-3">
-          <Button
-            type="submit"
-            name="intent"
-            value="draft"
-            aria-describedby={
-              strictPlan && submissionIssues.length
-                ? 'activity-submission-guidance'
-                : undefined
-            }
-            disabled={
-              pending ||
-              optionsUnavailable ||
-              !plannedAmountMatches ||
-              (strictPlan && submissionIssues.length > 0)
-            }
-          >
-            <Save size={16} /> {strings.saveDraft}
-          </Button>
-          <Button
-            type="submit"
-            name="intent"
-            value="submit"
-            aria-describedby={
-              submissionIssues.length
-                ? 'activity-submission-guidance'
-                : undefined
-            }
-            disabled={
-              pending || optionsUnavailable || submissionIssues.length > 0
-            }
-          >
-            {strings.submitReview}
-          </Button>
-          {submissionIssues.length > 0 && (
-            <p
-              id="activity-submission-guidance"
-              className="basis-full text-right text-sm text-muted-foreground"
-            >
-              {strings.submissionMissing} {submissionIssues.join(' · ')}
-            </p>
-          )}
-          {onCancel && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={onCancel}
-            >
-              {strings.cancelEditing}
-            </Button>
-          )}
-        </div>
-      </div>
-      <aside className="rounded-panel border border-border bg-white lg:sticky lg:top-6">
-        <h2 className="border-b border-border px-5 py-4">
-          {strings.budgetDistribution}
-        </h2>
-        <dl className="grid gap-6 p-5">
-          <div>
-            <dt className="text-[0.8125rem] text-muted-foreground">
-              {strings.plannedAmount}
-            </dt>
-            <dd className="mt-2 font-semibold">
-              {formatXof(
-                /^[1-9]\d*$/.test(plannedAmount || '')
-                  ? plannedAmount
-                  : allOperationAmounts
-                    ? total
-                    : null,
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[0.8125rem] text-muted-foreground">
-              {strings.operationTotal}
-            </dt>
-            <dd className="mt-2 font-semibold">
-              {allOperationAmounts ? formatXof(total) : '—'}
-            </dd>
-          </div>
-          <div role="status">
-            <dt className="text-[0.8125rem] text-muted-foreground">
-              {strings.budgetDifference}
-            </dt>
-            <dd
-              className={`mt-2 font-semibold ${
-                allOperationAmounts &&
-                plannedAmount !== null &&
-                /^[1-9]\d*$/.test(plannedAmount) &&
-                BigInt(plannedAmount) !== total
-                  ? 'text-warning'
-                  : 'text-success'
-              }`}
-            >
-              {allOperationAmounts &&
-              plannedAmount !== null &&
-              /^[1-9]\d*$/.test(plannedAmount) &&
-              BigInt(plannedAmount) !== total
-                ? formatXof(BigInt(plannedAmount) - total)
-                : '—'}
-            </dd>
-          </div>
-        </dl>
-      </aside>
-    </Panel>
-  )
-}
-
 function formatWeight(value) {
   return value ? `${String(value).replace('.', ',')} %` : '—'
 }
 
 function TaskHierarchy({ tasks }) {
   return (
-    <ul className="grid gap-3 p-0 list-none" data-ui="planning-list">
-      {(tasks || []).map((task) => (
-        <li key={task.id} className="rounded-card border border-border p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <strong>{task.name}</strong>
-              {task.type_label && (
+    <div className="overflow-x-auto" data-ui="planning-list">
+      <table className="w-full min-w-150 table-fixed text-left text-[0.8125rem] leading-5">
+        <colgroup>
+          <col />
+          <col className="w-44" />
+          <col className="w-32" />
+        </colgroup>
+        <thead className="border-b border-border bg-background">
+          <tr>
+            <th className="px-3 py-3 font-medium">{strings.operation}</th>
+            <th className="px-3 py-3 text-right font-medium">
+              {strings.operationAmount}
+            </th>
+            <th className="px-3 py-3 text-right font-medium">
+              {strings.weight}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {(tasks || []).map((task) => (
+            <tr
+              key={task.id}
+              className="border-b border-border last:border-b-0"
+            >
+              <td className="px-3 py-3 align-top">
+                <strong className="text-[0.8125rem] font-semibold">
+                  {task.name}
+                </strong>
+                {task.type_label && (
+                  <p className="text-xs text-muted-foreground">
+                    {task.type_label}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  {task.type_label}
+                  {task.planned_start && task.planned_end
+                    ? `${formatDate(task.planned_start)} – ${formatDate(task.planned_end)}`
+                    : strings.datesToComplete}
                 </p>
-              )}
-              {task.description && <p className="mt-1">{task.description}</p>}
-            </div>
-            <strong>{formatXof(task.allocation)}</strong>
-          </div>
-          <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm [&_dt]:text-muted-foreground">
-            <div>
-              <dt>{strings.weight}</dt>
-              <dd>{formatWeight(task.weight)}</dd>
-            </div>
-            <div>
-              <dt>{strings.period}</dt>
-              <dd>
-                {task.planned_start && task.planned_end
-                  ? `${formatDate(task.planned_start)} – ${formatDate(task.planned_end)}`
-                  : '—'}
-              </dd>
-            </div>
-          </dl>
-          {(task.subtasks || []).length > 0 && (
-            <div className="mt-4 border-t border-border pt-3">
-              <p className="text-sm font-medium">{strings.subtasks}</p>
-              <ul className="mt-2 grid gap-2 p-0 list-none">
-                {task.subtasks.map((child) => (
-                  <li
-                    key={child.id}
-                    className="rounded-control bg-background p-3"
-                  >
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <strong className="text-sm">{child.name}</strong>
-                      <span className="text-sm font-medium">
-                        {formatXof(child.allocation)}
-                      </span>
-                    </div>
-                    {child.description && (
-                      <p className="mt-1 text-sm">{child.description}</p>
-                    )}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {formatWeight(child.weight)} ·{' '}
-                      {child.planned_start && child.planned_end
-                        ? `${formatDate(child.planned_start)} – ${formatDate(child.planned_end)}`
-                        : '—'}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
+              </td>
+              <td className="px-3 py-3 text-right align-top font-medium">
+                {formatXof(task.allocation)}
+              </td>
+              <td className="px-3 py-3 text-right align-top text-muted-foreground">
+                {formatWeight(task.weight)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -2555,32 +1748,6 @@ function AssignmentModal({
   )
 }
 
-function activityNextStep(item) {
-  if (item.state === 'draft') return strings.nextStepDraft
-  if (item.state?.startsWith('returned'))
-    return item.transfer
-      ? strings.nextStepTransferCorrection
-      : item.withdrawal
-        ? strings.nextStepWithdrawalCorrection
-        : item.amendment
-          ? strings.nextStepAmendmentCorrection
-          : strings.nextStepActivityCorrection
-  if (item.state === 'amendment_draft') return strings.nextStepAmendment
-  const subject = item.transfer
-    ? strings.transferSubject
-    : item.withdrawal
-      ? strings.withdrawalSubject
-      : item.amendment
-        ? strings.amendmentSubject
-        : strings.activitySubject
-  if (item.state === 'submitted')
-    return strings.formatString(strings.nextStepSupervisor, { subject })
-  if (item.state === 'prevalidated')
-    return strings.formatString(strings.nextStepValidator, { subject })
-  if (item.state === 'approved') return strings.nextStepExecution
-  return ''
-}
-
 function ActivityDetail({
   item,
   user,
@@ -2828,7 +1995,10 @@ function ActivityDetail({
   })
   if (editing)
     return (
-      <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
+      <Panel
+        as="div"
+        className="gap-6 border-0 bg-transparent p-0 [&:has(.activity-task-editor)>header]:hidden [&:has(.activity-task-editor)>nav]:hidden"
+      >
         <nav
           aria-label={strings.breadcrumb}
           className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
@@ -2837,18 +2007,7 @@ function ActivityDetail({
             {strings.planningIndex}
           </Link>
           <span aria-hidden="true">/</span>
-          <Link
-            to={Urls.pta}
-            params={{
-              projectId: item.project_id,
-              year: String(item.placement_year),
-            }}
-            className="text-primary"
-          >
-            {item.pta_name}
-          </Link>
-          <span aria-hidden="true">/</span>
-          <span>{strings.programming}</span>
+          <span>{strings.revision}</span>
         </nav>
         <header className="flex flex-wrap items-start justify-between gap-6">
           <div>
@@ -2858,16 +2017,10 @@ function ActivityDetail({
                 : strings.reviseProgramming}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {item.project_name} · {item.partner_name} · {item.pta_name}
+              {item.project_name} · {item.partner_name} · PTA{' '}
+              {item.placement_year}
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setEditing(false)}
-          >
-            {strings.cancel}
-          </Button>
         </header>
         {typeChoices.isError && (
           <RetryableError onRetry={() => void typeChoices.refetch()}>
@@ -2891,13 +2044,30 @@ function ActivityDetail({
           }
           initial={item}
           year={item.placement_year}
-          onSubmit={async (body, intent) => {
+          onSubmit={async (body, intent, file) => {
             const saved = await mutation.mutateAsync({
               path: `/activities/${item.id}`,
               method: 'PATCH',
               body,
               silentSuccess: intent === 'submit',
             })
+            if (file) {
+              try {
+                await api.request(`/api/v1/activities/${item.id}/documents`, {
+                  method: 'POST',
+                  csrf,
+                  rawBody: file,
+                  headers: {
+                    'Content-Type': file.type,
+                    'X-File-Name': file.name,
+                  },
+                })
+              } catch {
+                toast.error(strings.draftSavedUploadFailed)
+                setEditing(false)
+                return
+              }
+            }
             if (intent === 'submit') {
               try {
                 await mutation.mutateAsync({
@@ -2911,19 +2081,12 @@ function ActivityDetail({
             }
             setEditing(false)
           }}
+          onCancel={() => setEditing(false)}
         />
       </Panel>
     )
   const creatorName =
     item.creator?.full_name || item.creator?.email || strings.unknownActor
-  const submitterName =
-    item.current_submitter?.full_name ||
-    item.current_submitter?.email ||
-    creatorName
-  const latestDecisionName =
-    item.latest_decision_actor?.full_name ||
-    item.latest_decision_actor?.email ||
-    strings.unknownActor
   const programmingIncomplete =
     item.state === 'draft' &&
     (!item.description?.trim() ||
@@ -2932,9 +2095,8 @@ function ActivityDetail({
       item.allocation === null ||
       !(item.tasks || []).length)
   const executionContext = search.origin === 'execution'
-  const nextStep = executionContext ? '' : activityNextStep(item)
   return (
-    <Panel as="div" className="gap-5 border-0 bg-transparent p-0">
+    <div className="grid gap-5">
       <nav
         aria-label={strings.breadcrumb}
         className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
@@ -2967,39 +2129,31 @@ function ActivityDetail({
         )}
         <span>{item.reference}</span>
       </nav>
-      <div className="flex flex-wrap items-start justify-between gap-6 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-6 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
         <div className="grid min-w-0 gap-3">
+          <p className="text-xs text-muted-foreground">{item.reference}</p>
           <h1 className="max-w-5xl break-words text-2xl font-semibold leading-8 text-navy">
             {item.name}
           </h1>
           <p className="break-words text-[0.8125rem] text-muted-foreground">
-            {item.reference} · {item.project_name} · {item.partner_name} ·{' '}
-            {item.pta_name}
+            {item.project_name} · {item.partner_name} · PTA{' '}
+            {item.placement_year}
           </p>
-          {item.description?.trim() && (
-            <div className="max-w-4xl text-[0.8125rem] leading-5">
-              <p className="text-xs text-muted-foreground">
-                {strings.activityPurpose}
-              </p>
-              <p className="mt-1 line-clamp-2 break-words">
-                {item.description}
-              </p>
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem]">
+          <div>
             <StatusBadge className={activityStatusClass(item.state)}>
               {strings[item.state] || item.state}
             </StatusBadge>
-            <span className="font-medium">
-              {formatDate(item.planned_start)} {strings.until}{' '}
-              {item.planned_end ? formatDate(item.planned_end) : '—'}
+          </div>
+          <div className="grid gap-1 text-[0.8125rem]">
+            <span className="text-xs text-muted-foreground">
+              {strings.activityOwners}
             </span>
             <span className="flex flex-wrap items-center gap-3">
-              <span className="font-medium">
+              <strong className="font-semibold">
                 {(item.agents || [])
                   .map((agent) => agent.full_name || agent.email)
                   .join(', ') || '—'}
-              </span>
+              </strong>
               {canAssign && (
                 <Button
                   type="button"
@@ -3017,12 +2171,32 @@ function ActivityDetail({
               )}
             </span>
           </div>
-          {nextStep && (
-            <p className="max-w-4xl text-[0.8125rem] leading-5">
-              <strong className="font-medium">{strings.nextStep}</strong>
-              <span className="text-muted-foreground"> · {nextStep}</span>
-            </p>
-          )}
+          <dl className="grid grid-cols-[repeat(3,minmax(100px,max-content))] gap-8 text-[0.8125rem] max-[480px]:grid-cols-2">
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {strings.plannedStart}
+              </dt>
+              <dd className="mt-1 font-medium">
+                {item.planned_start ? formatDate(item.planned_start) : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {strings.plannedEnd}
+              </dt>
+              <dd className="mt-1 font-medium">
+                {item.planned_end ? formatDate(item.planned_end) : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {strings.revision}
+              </dt>
+              <dd className="mt-1 font-medium">
+                {item.current_revision_number || 1}
+              </dd>
+            </div>
+          </dl>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {item.approved_revision_id && (
@@ -3037,16 +2211,6 @@ function ActivityDetail({
           )}
           {!executionContext && search.tab !== 'finance' && (
             <>
-              {item.allowed_actions.includes('edit') && (
-                <Button
-                  disabled={mutationBlocked}
-                  onClick={() => setEditing(true)}
-                >
-                  {!item.planned_end || item.allocation === null
-                    ? strings.completeProgramming
-                    : strings.modify}
-                </Button>
-              )}
               {item.allowed_actions.includes('open_amendment') && (
                 <Button
                   disabled={mutationBlocked}
@@ -3123,7 +2287,6 @@ function ActivityDetail({
                 </Button>
               )}
               {[
-                ['submit', strings.submitReview],
                 ['prevalidate', strings.prevalidate],
                 ['approve', strings.approve],
                 ['return', strings.returnCorrection],
@@ -3252,41 +2415,61 @@ function ActivityDetail({
           </Link>
         ))}
       </nav>
-      {!item.approved_revision_id && (
-        <p className="text-sm text-muted-foreground">
-          {strings.financeAfterApproval}
-        </p>
-      )}
       <div hidden={search.tab && search.tab !== 'programming'}>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
           <div className="grid gap-6">
-            <section className="rounded-panel border border-border bg-white">
-              <h2 className="border-b border-border px-5 py-4">
-                {strings.programming}
-              </h2>
+            <Panel className="gap-0 overflow-hidden p-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+                <h2>{strings.programming}</h2>
+                {item.allowed_actions.includes('edit') && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={mutationBlocked}
+                    onClick={() => setEditing(true)}
+                  >
+                    {strings.editProgramming}
+                  </Button>
+                )}
+              </div>
               <div className="grid gap-6 p-5">
-                <p className="max-w-4xl text-sm leading-6">
-                  {item.description || '—'}
-                </p>
+                <div className="max-w-4xl text-sm leading-6">
+                  <p className="text-xs text-muted-foreground">
+                    {strings.activityPurpose}
+                  </p>
+                  <p className="mt-1">{item.description || '—'}</p>
+                </div>
                 {programmingIncomplete && (
                   <p className="text-sm text-muted-foreground">
                     {strings.programmingToComplete}
                   </p>
                 )}
               </div>
-            </section>
+            </Panel>
             {!programmingIncomplete && (
-              <section className="rounded-panel border border-border bg-white">
-                <h2 className="border-b border-border px-5 py-4">
-                  {strings.operations}
-                </h2>
+              <Panel className="gap-0 overflow-hidden p-0">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+                  <h2>{strings.operations}</h2>
+                  {item.allowed_actions.includes('edit') && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={mutationBlocked}
+                      onClick={() => setEditing(true)}
+                    >
+                      {strings.organizeTasks}
+                    </Button>
+                  )}
+                </div>
                 <div className="p-5">
                   <TaskHierarchy tasks={item.tasks} />
                 </div>
-              </section>
+              </Panel>
             )}
           </div>
-          <aside className="rounded-panel border border-border bg-white">
+          <Panel as="aside" className="gap-0 overflow-hidden p-0">
             <h2 className="border-b border-border px-5 py-4">
               {programmingIncomplete ? strings.draft : strings.budgetValidation}
             </h2>
@@ -3298,76 +2481,58 @@ function ActivityDetail({
               <dl className="grid gap-6 p-5 text-sm">
                 <div>
                   <dt className="text-muted-foreground">
-                    {strings.assignedTo}
+                    {strings.formatString(
+                      strings.plannedAmountRevision,
+                      item.current_revision_number || 1,
+                    )}
                   </dt>
-                  <dd className="mt-2 font-semibold">
-                    {(item.agents || [])
-                      .map((agent) => agent.full_name || agent.email)
-                      .join(', ') || '—'}
+                  <dd className="mt-2 text-base font-semibold">
+                    {formatXof(item.allocation)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">
-                    {item.state === 'draft'
-                      ? strings.createdBy
-                      : item.state === 'submitted'
-                        ? strings.submittedBy
-                        : strings.latestDecisionBy}
+                    {strings.currentAuthorizedAmount}
                   </dt>
                   <dd className="mt-2 font-semibold">
-                    {item.state === 'draft'
-                      ? creatorName
-                      : item.state === 'submitted'
-                        ? submitterName
-                        : latestDecisionName}
+                    {item.approved_allocation
+                      ? formatXof(item.approved_allocation)
+                      : strings.notProvided}
                   </dd>
                 </div>
-                {item.state === 'submitted' && (
-                  <div>
-                    <dt className="text-muted-foreground">
-                      {strings.validation}
-                    </dt>
-                    <dd className="mt-2 font-semibold">
-                      {strings.awaitingPrevalidation}
-                    </dd>
-                  </div>
-                )}
-                {item.state === 'prevalidated' && (
-                  <div>
-                    <dt className="text-muted-foreground">
-                      {strings.validation}
-                    </dt>
-                    <dd className="mt-2 font-semibold">
-                      {strings.awaitingFinalValidation}
-                    </dd>
-                  </div>
-                )}
-                {!programmingIncomplete && (
-                  <>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        {strings.budget}
-                      </dt>
-                      <dd className="mt-2 font-semibold">
-                        {formatXof(item.allocation)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        {strings.approvedBudget}
-                      </dt>
-                      <dd className="mt-2 font-semibold">
-                        {item.approved_allocation
-                          ? formatXof(item.approved_allocation)
-                          : strings.notApproved}
-                      </dd>
-                    </div>
-                  </>
-                )}
+                <div className="border-t border-border pt-5">
+                  <dt className="text-muted-foreground">
+                    {strings.validation}
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {strings[item.state] || item.state}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="sr-only">{strings.requester}</dt>
+                  <dd className="text-muted-foreground">
+                    {strings.requester} : {creatorName}
+                  </dd>
+                </div>
               </dl>
             )}
-          </aside>
+          </Panel>
         </div>
+        {!executionContext &&
+          item.allowed_actions.includes('submit') &&
+          !programmingIncomplete && (
+            <div className="mt-8 flex justify-end">
+              <Button
+                disabled={mutationBlocked}
+                onClick={(event) => {
+                  workflowOpener.current = event.currentTarget
+                  setWorkflowAction('submit')
+                }}
+              >
+                {strings.submitReview}
+              </Button>
+            </div>
+          )}
       </div>
       {search.tab === 'finance' && <ExecutionView screen="detail" embedded />}
       {search.tab === 'files' && (
@@ -3725,7 +2890,7 @@ function ActivityDetail({
           </footer>
         </BusinessForm>
       </Modal>
-    </Panel>
+    </div>
   )
 }
 

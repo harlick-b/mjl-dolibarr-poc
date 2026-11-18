@@ -1077,3 +1077,113 @@ Prettier, ESLint and the production PWA build passed, with the existing React
 hook and bundle-size warnings. The corrected funding-pause candidate has been
 returned to the same independent reviewer, who cleared the remaining P2 with no
 additional blocking finding in the focused re-review.
+
+## Authoritative Activity, Task and Subtask editor — 2026-11-18
+
+Status: implemented; independent re-review cleared. The visuals in
+`docs/inspiration/activities/edit` govern this slice, with the settled exceptions
+recorded in business-rules.md and design.md.
+
+The Activity amount remains a manual value and never defaults to the Task total.
+Initial Drafts, amendment Drafts and returned corrections may preserve missing
+Categories, dates and weights and mismatched allocation totals. A Task or Subtask
+must have a name and positive amount before it can be saved into the Activity
+Draft. Submission is blocked until Activity/Task/Subtask amounts balance, Task and
+Subtask weights each total 100%, Categories and dates are present, and dates stay
+within their parent periods.
+
+The Activity editor keeps its Répartition card and compact Task rows. Task editing
+uses a dedicated three-card page; Subtask editing uses the approved right drawer.
+Both removal paths ask for confirmation. Activity detail keeps Task-only rows.
+The editor accepts one optional Activity attachment: the Activity is saved first,
+then the file is uploaded. Upload failure leaves the saved Draft in place and
+stops a requested submission.
+
+Implementation seams are the existing Activity create/replace/submission routes,
+hierarchy normalization, amendment projection, Activity editor and shared number
+and date controls. Migration `0038_draft_task_categories` makes a Task Category
+nullable only so incomplete editable states can be restored; strict submission
+continues to require an active Category. No standalone Task module or Subtask
+approval workflow is added.
+
+Final evidence must include focused hierarchy and Activity-editor behavior,
+backend static checks, frontend lint/build, migration compatibility when a
+disposable PostgreSQL database is available, and review by a separate review-only
+agent. Runtime database checks that cannot run must be reported as unavailable,
+not passed.
+
+Implementation evidence: all 54 Activity-planning tests, the two shared exact
+number tests and seven pure hierarchy tests pass. Ruff, mypy, ESLint, Prettier and
+the production build pass with the existing hook and chunk-size warnings. The
+responsive Activity → Task → Subtask Playwright journey passes, as does the
+browser regression proving that attachment failure keeps the saved Draft and
+skips submission. Alembic reports migration `0038_draft_task_categories` as its
+single head. No `TEST_DATABASE_URL` is available, so disposable PostgreSQL and
+migration upgrade/downgrade checks remain unavailable rather than passed.
+
+The independent reviewer found Category-outage Draft blocking, dropped Category
+pagination, a missing Task form boundary, incomplete visual hierarchy, stale
+terminology, nonconforming number semantics, untranslated copy, missing focus
+restoration and stale status documentation. The candidate now keeps Draft save
+available during Category failure, restores cursor navigation and Task form
+semantics, isolates drawer submission, restores focus, uses Pondération, keeps
+formatted exact numbers as text inputs, centralizes the new French copy, and
+records the current manual Activity-amount rule here and in project status.
+
+The second re-review found one remaining route-level Category-outage gap and two
+accessibility/localization issues. New Activity creation now treats the Category
+query as nonblocking, renders its retry inline, and preserves Draft save while
+Category controls and submission stay unavailable. Task cancel/save returns
+focus to the stable Activity Task-section heading. Responsive amount and weight
+labels are real localized text, and the remaining Task-page action and Subtask
+count copy uses the page locale. Route-level Category failure and focus-return
+regressions now pass, and the full planning plus exact-number run passes 56 tests.
+The same independent reviewer completed the focused re-review with no concrete
+finding. Disposable PostgreSQL migration compatibility remains the only
+unavailable verification item.
+
+### Authoritative visual alignment — 2026-11-18
+
+The populated Activity detail, Activity editor and dedicated Task editor were
+compared again with every applicable image in
+`docs/inspiration/activities/edit`. The detail header now carries the reference,
+context, state, responsible Agents, planned dates and revision in the approved
+order; its Programming and Task cards sit beside the Budget and validation card,
+with submission at the bottom of the workspace. Dates remain header-only under
+the user's settled exception.
+
+The Activity editor keeps the approved wide form plus 280 px Répartition card,
+uses the custom French attachment control and places its actions beneath both
+columns. The Task page is centered at the approved bounded width with three
+cards and no sidebar. Category creation is now an action inside the Category
+selector. The Subtask drawer uses the approved 560 px desktop width, title and
+parent-Task header, compact two-column fields and fixed bottom actions. Required
+data rules, Draft behavior and validation workflows are unchanged.
+
+The focused planning and exact-number run passes 58 tests, ESLint passes, and the
+production build passes with the existing bundle-size warning. The complete
+populated Activity → Task → Subtask Playwright visual flow passes at desktop,
+reflow and mobile widths, and fresh rendered screenshots were inspected against
+the references. The broader planning-reference browser flow reaches its
+pre-existing calendar-dialog focus-return assertion and fails there; that
+calendar interaction is outside this Activity visual slice and is not reported
+as passed.
+
+The final component-standard pass removed local card and list imitations from
+these three screens. Activity, Task and Subtask cards now use the existing shared
+`Panel`; actions use the shared `Button`; amount and weight fields use the shared
+exact-number control at the full width of their existing field grid; and compact
+Task/Subtask rows use the application's established responsive table pattern.
+The shared status badge now shrinks and wraps inside its available space instead
+of forcing overflow during viewport changes. No new UI component was introduced.
+
+After this pass, the focused planning and exact-number run again passes 58 tests,
+targeted ESLint passes, the production build passes with its existing chunk-size
+warning, and the rebuilt Activity editing Playwright flow passes at desktop,
+918 px reflow and 390 px mobile widths. Fresh Activity detail, Activity edit,
+Task edit and Subtask drawer captures were inspected against the authoritative
+references. Independent re-review and the unresolved Draft-fiche product conflict
+were the final gates for this correction. The independent reviewer found no
+component-standard, responsive or accessibility defect in the candidate and
+confirmed the Draft-fiche conflict requires the user's product choice before the
+screen can be called an exact reproduction.

@@ -1,29 +1,36 @@
-import { Children, useCallback, useState } from 'react'
+import { Children, forwardRef, useCallback, useState } from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
 // shadcn Select composition, with the existing form value/change contract.
 // Keep popups inside native dialogs so they remain in the browser's top layer.
-export function Select({
-  children,
-  value,
-  defaultValue,
-  onChange,
-  name,
-  required,
-  disabled,
-  className,
-  ...props
-}) {
+export const Select = forwardRef(function Select(
+  {
+    children,
+    value,
+    defaultValue,
+    onChange,
+    name,
+    required,
+    disabled,
+    className,
+    ...props
+  },
+  forwardedRef,
+) {
   const options = Children.toArray(children).filter(
     (child) => child?.type === 'option',
   )
   const [localValue, setLocalValue] = useState(() => defaultValue)
   const [container, setContainer] = useState(undefined)
   const triggerRef = useCallback(
-    (node) => setContainer(node?.closest('dialog') || undefined),
-    [],
+    (node) => {
+      setContainer(node?.closest('dialog') || undefined)
+      if (typeof forwardedRef === 'function') forwardedRef(node)
+      else if (forwardedRef) forwardedRef.current = node
+    },
+    [forwardedRef],
   )
   const selected = String(
     value ??
@@ -93,4 +100,4 @@ export function Select({
       </SelectPrimitive.Portal>
     </SelectPrimitive.Root>
   )
-}
+})

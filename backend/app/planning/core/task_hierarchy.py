@@ -115,10 +115,16 @@ def normalize_tasks(
             raise AuthError(422, "input_invalid")
         if identifier:
             seen.add(identifier)
-        try:
-            type_id = str(UUID(str(raw["type_id"])))
-        except (KeyError, ValueError):
-            raise AuthError(422, "input_invalid") from None
+        raw_type_id = raw.get("type_id")
+        if raw_type_id in (None, ""):
+            if submitting:
+                raise AuthError(422, "task_category_incomplete")
+            type_id = None
+        else:
+            try:
+                type_id = str(UUID(str(raw_type_id)))
+            except ValueError:
+                raise AuthError(422, "input_invalid") from None
         start = _date(raw.get("planned_start"), required=submitting)
         end = _date(raw.get("planned_end"), required=submitting)
         if start and end and end < start:
@@ -173,8 +179,6 @@ def normalize_tasks(
             raise AuthError(422, "subtask_weights_mismatch")
         if subtasks and submitting and subtask_amount_total != allocation:
             raise AuthError(422, "subtask_allocation_mismatch")
-        if subtasks and subtask_amount_total > allocation:
-            raise AuthError(422, "subtask_allocation_exceeded")
         normalized.append(
             {
                 "id": identifier,

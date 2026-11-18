@@ -72,6 +72,28 @@ def test_draft_allows_incomplete_weights_but_submission_requires_exact_totals():
     assert problem.value.code == "task_weights_mismatch"
 
 
+def test_draft_allows_a_missing_category_until_submission():
+    rows = [task("Préparation", "100", "20.00")]
+    rows[0]["type_id"] = None
+
+    normalized = normalize_tasks(
+        rows,
+        activity_start=None,
+        activity_end=None,
+        submitting=False,
+    )
+    assert normalized[0]["type_id"] is None
+
+    with pytest.raises(AuthError) as problem:
+        normalize_tasks(
+            rows,
+            activity_start=date(2027, 1, 1),
+            activity_end=date(2027, 12, 31),
+            submitting=True,
+        )
+    assert problem.value.code == "task_category_incomplete"
+
+
 def test_submission_requires_balanced_positive_subtasks_inside_parent_dates():
     rows = [
         task(
@@ -94,3 +116,23 @@ def test_submission_requires_balanced_positive_subtasks_inside_parent_dates():
     )
     assert sum(row["allocation"] for row in normalized[0]["subtasks"]) == 2000000
     assert sum(row["weight_basis_points"] for row in normalized[0]["subtasks"]) == 10000
+
+
+def test_draft_keeps_manual_subtask_totals_even_when_they_do_not_match():
+    rows = [
+        task(
+            "Formation",
+            "100",
+            "",
+            subtasks=[subtask("Salle", "120", "")],
+        )
+    ]
+
+    normalized = normalize_tasks(
+        rows,
+        activity_start=None,
+        activity_end=None,
+        submitting=False,
+    )
+    assert normalized[0]["allocation"] == 100
+    assert normalized[0]["subtasks"][0]["allocation"] == 120

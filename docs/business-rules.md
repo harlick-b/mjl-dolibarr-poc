@@ -9,7 +9,7 @@ business choices; do not invent exception workflows.
 
 ## Domain and roles
 
-The hierarchy is **Partenaire → Projet → PTA annuel → Activité → Opération**.
+The hierarchy is **Partenaire → Projet → PTA annuel → Activité → Tâche → Sous-tâche**.
 A Partner is the supporting organization, with a name and an optional saved
 description (up to 4,000 characters). A Project belongs permanently to one
 Partner and may span years. PTA means **Planification des activités sur l’année**: its calendar-year planning collection.
@@ -24,8 +24,11 @@ description, planned amount, exact weight and planned dates. An optional single
 level of Subtasks inherits the parent Category. Task weights must total exactly
 100% per Activity when submitted for prevalidation. When Subtasks exist, their
 positive weights and planned amounts must respectively total 100% and the Task
-planned amount. Drafts may keep incomplete weights and under-allocated child
-budgets.
+planned amount. Initial Drafts, amendment Drafts and returned corrections may
+keep missing Categories, dates and weights, and may keep incomplete or excessive
+Task/Subtask allocations. Saving a started Task or Subtask still requires its
+name and a positive planned amount. Submission requires every Category, date and
+positive weight, exact 100% weight totals and exact Activity/Task amount totals.
 
 An assigned Agent enters progress for a Task without Subtasks. Subtask progress
 is binary, and the Task derives its progress from its Subtask weights. Activity
@@ -73,6 +76,10 @@ visibility applies; amendment drafts retain the approved Activity's existing
 access. Backend role, resource, state and contributor checks apply to direct
 requests as well as visible buttons.
 All business amounts are exact integer XOF, displayed F CFA; missing is not zero.
+Business lists are ordered newest creation first from the persisted API creation
+timestamp, with the identifier only as a deterministic tie-breaker. Applying
+filters must preserve that creation order, including views assembled in the
+frontend from several API pages.
 
 ## Accounts and mail
 
@@ -139,8 +146,9 @@ belongs to the PTA year and an end cannot precede it; the end may cross the PTA
 year boundary. Missing dates stay unknown. They then request corrections rather
 than edit its content. Agents
 use the full Activity workspace, not a standalone brief page. An Agent may save
-a title-only initial draft and resume it later. Wholly blank Operation rows are
-ignored; a started row must be completed or explicitly removed before save.
+a title-only initial draft and resume it later. A Task or Subtask is added through
+its dedicated editor and must have a name and positive amount before it joins the
+Activity Draft. Category, dates and weight may remain empty until submission.
 Description, both dates, complete Tasks and balanced budget are mandatory
 before submission. A submitted Activity has one
 or more Tasks with positive allocations whose sum equals its allocation.
@@ -160,7 +168,7 @@ restrictions below. There is
 no reviewer assignment, claim or quorum. Valid decisions survive personnel changes;
 absence of an eligible reviewer never permits bypass.
 
-Draft removal preserves history. An Operation already included in a submitted
+Draft removal asks for confirmation and preserves history. A Task already included in a submitted
 revision cannot be removed through draft removal. User-facing states remain few
 and follow business actions; there is no manual Activity status selector.
 

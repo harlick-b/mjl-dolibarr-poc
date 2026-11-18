@@ -267,6 +267,40 @@ def plan(operation_type, **changes):
     return body
 
 
+def test_draft_preserves_manual_activity_total_and_a_task_without_category(planning):
+    _partner, _operation_type, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            "request_key": str(uuid4()),
+            "name": "Brouillon manuel",
+            "description": "",
+            "planned_start": None,
+            "planned_end": None,
+            "allocation": "500000",
+            "tasks": [
+                {
+                    "type_id": None,
+                    "name": "Préparation",
+                    "description": "",
+                    "allocation": "300000",
+                    "weight": None,
+                    "planned_start": None,
+                    "planned_end": None,
+                    "subtasks": [],
+                }
+            ],
+        },
+    )
+
+    assert created.status_code == 201, created.text
+    activity = created.json()
+    assert activity["allocation"] == "500000"
+    assert activity["tasks"][0]["type_id"] is None
+    assert "submit" not in activity["allowed_actions"]
+
+
 def test_v04_v05_assigned_submission_and_exact_revision_approval(planning, auth_env):
     """One eligible reviewer at each stage completes the immutable first revision."""
     _partner, operation_type, project = references(planning)

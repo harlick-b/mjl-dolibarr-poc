@@ -246,6 +246,16 @@ def activity_item(
             .order_by(Operation.position)
         )
     )
+    type_labels = {
+        row.id: row.label
+        for row in db.scalars(
+            select(OperationType).where(
+                OperationType.id.in_(
+                    [row.type_id for row in operations if row.type_id is not None]
+                )
+            )
+        )
+    }
     subtasks = (
         list(
             db.scalars(
@@ -389,14 +399,14 @@ def activity_item(
         withdrawal=item.withdrawal_id is not None,
         transfer=item.transfer_id is not None,
     )
-    if (
-        not item.description.strip()
-        or item.planned_start is None
-        or item.planned_end is None
-        or item.allocation is None
-        or not operations
-    ):
-        actions = [action for action in actions if action != "submit"]
+    if "submit" in actions:
+        try:
+            _, normalized = validate_plan(
+                structural_content(db, item), item.placement_year
+            )
+            assert_types(db, normalized)
+        except AuthError:
+            actions = [action for action in actions if action != "submit"]
     if role == "AGENT_SAISIE" and actor_id not in agent_ids:
         actions = ["read"]
     if has_execution:
@@ -446,6 +456,9 @@ def activity_item(
             {
                 "id": row.id,
                 "type_id": row.type_id,
+                "type_label": (
+                    type_labels.get(row.type_id) if row.type_id is not None else None
+                ),
                 "name": row.name,
                 "description": row.description,
                 "allocation": str(row.allocation),
@@ -1042,13 +1055,8 @@ def validate_draft(
         activity_end=end,
         submitting=False,
     )
-    total = sum(row["allocation"] for row in normalized)
     raw_allocation = payload.get("allocation")
     allocation = xof(raw_allocation) if raw_allocation else None
-    if normalized and allocation != total:
-        raise AuthError(422, "allocation_mismatch")
-    if not normalized and allocation is not None:
-        raise AuthError(422, "allocation_mismatch")
     try:
         return {
             "name": clean(payload["name"], 200),
@@ -1062,7 +1070,7 @@ def validate_draft(
 
 
 def assert_types(db: Session, operations: list[dict[str, Any]]) -> None:
-    ids = {row["type_id"] for row in operations}
+    ids = {row["type_id"] for row in operations if row["type_id"] is not None}
     found = set(
         db.scalars(
             select(OperationType.id).where(

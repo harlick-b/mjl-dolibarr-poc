@@ -7,32 +7,48 @@ import { Button } from '@/shared/ui/button'
 import { strings } from '@/locales/fr/PlanningView'
 import { toast } from 'sonner'
 
-export function CategoryCreator({ onCreate, onCreated, disabled }) {
-  const [open, setOpen] = useState(false)
+export function CategoryCreator({
+  onCreate,
+  onCreated,
+  disabled,
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+  openerRef,
+}) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [error, setError] = useState('')
-  const opener = useRef(null)
+  const internalOpener = useRef(null)
+  const opener = openerRef || internalOpener
   const generation = useRef(0)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = (nextOpen) => {
+    if (controlledOpen === undefined) setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
   const close = () => {
     generation.current += 1
     setOpen(false)
   }
   return (
     <>
-      <Button
-        ref={opener}
-        type="button"
-        variant="outline"
-        size="sm"
-        className="justify-self-start self-end"
-        disabled={disabled}
-        onClick={() => {
-          setError('')
-          setOpen(true)
-        }}
-      >
-        <Plus size={16} aria-hidden="true" />
-        {strings.createCategory}
-      </Button>
+      {!hideTrigger && (
+        <Button
+          ref={opener}
+          type="button"
+          variant="outline"
+          size="sm"
+          className="justify-self-start self-end"
+          disabled={disabled}
+          onClick={() => {
+            setError('')
+            setOpen(true)
+          }}
+        >
+          <Plus size={16} aria-hidden="true" />
+          {strings.createCategory}
+        </Button>
+      )}
       {open &&
         createPortal(
           <Modal

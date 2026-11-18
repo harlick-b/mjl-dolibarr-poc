@@ -10,6 +10,7 @@ export function Modal({
   open,
   onClose,
   label,
+  subtitle,
   children,
   opener,
   className,
@@ -68,7 +69,14 @@ export function Modal({
       }}
     >
       <header className="flex min-h-18 items-center justify-between gap-4 border-b border-border px-6 py-4">
-        <h2 className="text-xl font-semibold">{label}</h2>
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold">{label}</h2>
+          {subtitle && (
+            <p className="mt-2 truncate text-xs text-muted-foreground">
+              {subtitle}
+            </p>
+          )}
+        </div>
         <Button
           type="button"
           variant="ghost"

@@ -234,10 +234,12 @@ incomplete calendar reads remain errors, never a partial successful year.
 Only the active page's sidebar entry is highlighted, including nested PTA routes.
 
 Activity creation groups general information, dates and Tasks alongside the
-budget breakdown. Details separate programming, History and documents; approved
-Activities link to their existing financial workspace. Saving, submission and
-file attachment retain their existing separate workflow steps. Prototype controls
-do not authorize new mutations. Empty planning tables retain headers and distinguish
+budget breakdown. Its editor includes the supplied optional **Pièces justificatives**
+section. Save the Activity Draft first, then upload the selected file; an upload
+failure leaves the Draft saved and does not continue a requested submission.
+Details separate programming, History and documents; approved Activities link to
+their existing financial workspace. Prototype controls do not authorize new
+mutations. Empty planning tables retain headers and distinguish
 filtered results from an unused PTA. Shared controls use the approved compact and
 standard sizes; XOF amounts display as F CFA without changing exact stored values.
 
@@ -264,6 +266,16 @@ Canonical state wording prevents duplicate review chips. Activity History uses t
 supplied compact vertical timeline with event, date, actor and reason; it shows
 before/after values only for facts that changed and omits raw snapshots and metadata.
 Calendars use horizontal spans and a distinct start-only marker.
+
+The Activity editor follows `docs/inspiration/activities/edit`: retain the
+Activity-level Répartition card and show compact Task rows with name, Category,
+dates, amount, weight and Subtask count. Task editing uses its dedicated page with
+three bordered cards for general information, budget/weight and Subtasks; it has
+no Répartition sidebar. Subtasks use a right-side drawer and a compact aligned
+list with amount and weight totals. Amounts and weights remain manually entered;
+the UI never distributes them or changes sibling/parent values. Confirm before
+removing a Task or Subtask. Activity detail follows the supplied screenshots and
+shows Task-only rows without a Subtask disclosure.
 
 The Activity fiche reproduces the internal and Partner references in
 `docs/inspiration/fiche de suivi`: A4, 48-point side margins, 65-point navy header,

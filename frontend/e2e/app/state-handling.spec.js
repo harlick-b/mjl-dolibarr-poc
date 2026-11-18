@@ -167,7 +167,7 @@ test('a waiting application update replaces an unsaved screen and opens login', 
     .toBe(true)
   await page.getByRole('button', { name: 'Modifier', exact: true }).click()
   await page
-    .getByLabel('Intitulé de l’activité *', { exact: true })
+    .getByLabel('Intitulé de l’activité', { exact: true })
     .fill('Modification non enregistrée')
   const workerPath = new URL('../../dist/sw.js', import.meta.url)
   const original = await readFile(workerPath, 'utf8')

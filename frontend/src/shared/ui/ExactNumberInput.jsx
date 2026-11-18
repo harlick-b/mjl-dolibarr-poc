@@ -28,7 +28,7 @@ export function ExactNumberInput({
   const [focused, setFocused] = useState(false)
   const raw = value === null || value === undefined ? '' : String(value)
   return (
-    <span className={cn('relative block', className)}>
+    <span className={cn('relative block w-full', className)}>
       {name && <input type="hidden" name={name} value={raw} />}
       <input
         {...props}
@@ -46,7 +46,7 @@ export function ExactNumberInput({
           const next = normalize(event.target.value, scale)
           if (next !== null) onChange(next)
         }}
-        className={cn(suffix && 'pr-16')}
+        className={cn('w-full', suffix && 'pr-16')}
       />
       {suffix && (
         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
