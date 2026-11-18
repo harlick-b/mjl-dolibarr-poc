@@ -1,6 +1,6 @@
 # Engineering standards adoption plan
 
-Drafted 2026-11-18. Status: planning only; implementation has not started.
+Drafted 2026-11-18. Status: Steps 1–3 complete; Step 4 is next.
 
 ## Outcome and authority
 
@@ -24,10 +24,10 @@ The user confirmed:
 - Preserve métier and ongoing design work.
 - Commit all current intended changes before implementation begins.
 
-This file records the agreed sequence. Writing it does not start implementation,
-complete the baseline checks or authorize production changes. Existing guides
-remain the record of current implementation until their respective slices update
-them. Setup commands remain owned by [README](../README.md).
+This file records the agreed sequence and the evidence from completed slices.
+Existing guides remain the record of current implementation until their
+respective slices update them. Setup commands remain owned by
+[README](../README.md).
 
 ## Invariants and adaptations
 
@@ -73,8 +73,12 @@ checks and review condition. The baseline inventory is:
 
 No database replacement, schema redesign, new business workflow, dependency-wide
 upgrade, deployment, production migration or external acceptance exercise belongs
-to this plan. The existing migration `0038_draft_task_categories` belongs to the
-design baseline and still needs its own compatibility evidence.
+to this plan. Migration `0038_draft_task_categories` belongs to the design
+baseline. Its automated round trip demonstrates the affected Task-category
+schema transition and preservation of a representative persisted row; it is not
+claimed as an exact rehearsal of a writer built from revision `0037`. The
+corrective migration `0039_editable_activity_dates` has a separate exact predecessor
+rehearsal recorded in Step 3.
 
 ### Partner pilot contract
 
@@ -161,6 +165,129 @@ the affected slice; an unrelated passing check cannot waive them.
 
 **Exit:** recorded baseline and design comparison points; affected prerequisites
 available; known failures distinguished from migration regressions.
+
+Completed 2026-11-18 against baseline `f6e65cd`, with the Step 2 documentation
+commit `9bbfcac`, baseline integration repair `3d58d3a` and editable-date repair
+`f6964f2`.
+The verification found and corrected integration drift introduced by the latest
+Activity/Task design baseline: schema eligibility now recognizes migration
+`0038`, its exact schema manifest is current, Task audit facts accept a genuinely
+incomplete Draft only when category ID and label are both absent, current Task
+execution/category paths are used by affected checks, and Partner browser fixtures
+match the current protected PDF preview contract. No business rule changed.
+
+Configured frontend evidence:
+
+- `cd frontend && npm run lint && npm run format:check && npm run lint:css`
+  passed, with the
+  existing React Hooks warning at
+  `src/features/auth/session/access-verification.jsx:457`.
+- `cd frontend && npm run test:unit` passed: 29 files and 257 tests.
+- `cd frontend && npm run build` passed; the existing Vite chunk-size warning
+  remains.
+- Focused Playwright passed the current Partner desktop/mobile journey and two
+  Activity editor journeys covering populated responsive editing, the Subtask
+  drawer and attachment-failure Draft retention. Current screenshots were
+  captured under `/tmp` for local comparison and were not committed.
+
+Configured backend/static evidence:
+
+- `cd backend && .venv/bin/pytest --collect-only -q` collected 917 tests with the existing
+  Starlette/httpx deprecation warning.
+- `cd backend && .venv/bin/alembic heads` reported
+  `0039_editable_activity_dates (head)` for the final candidate.
+- `cd backend && .venv/bin/ruff check app tests`,
+  `cd backend && .venv/bin/ruff format --check app tests`, and
+  `cd backend && .venv/bin/mypy app` passed. The formatter checked 115 files and
+  mypy checked 59 source files. Repository-wide
+  Ruff still reports the historical migration line at
+  `migrations/versions/0013_virement_confirmation.py:73`; the formatter would
+  rewrite migrations `0009`, `0013` and `0036`. Historical migrations were not
+  rewritten for style.
+- `git diff --check` passed for both committed candidates.
+- A rebuilt disposable PostgreSQL 17 stack passed the baseline repair's 19-test
+  focused set. This covered the categorized Task schema/persisted-row round trip
+  `0038 -> 0037 -> 0038 -> 0037 -> head`, refusal to discard an incomplete Draft,
+  both impossible audit category pairs, schema readiness, repeatable Alembic
+  upgrade, the corrected audit export actor, current Task/Category routes, closure
+  serialization and amendment audit/category projection. This is not claimed as
+  an exact revision-`0037` application-writer rehearsal.
+- A fail-fast broad run reached 226 passes before exposing an obsolete expected
+  Alembic head; that assertion was corrected and its focused rerun passed. An
+  earlier broad run was interrupted at about 31% and is not reported as a pass.
+
+The bounded recovery/core/closure run reported 78 passes and seven failures.
+Three current Task-path/head mismatches were corrected and their five relevant
+focused checks passed; the final OpenAPI rerun then exposed and led to removal of
+the remaining old `operation-types` path fixtures. Eight historical backend test
+cases remain recorded rather than being hidden or used to change métier:
+
+- Three recovery tests still expect `recovery_prepare` or
+  `recovery_notification` rows in the business audit table, although the current
+  documented security boundary routes routine authentication evidence away from
+  business history.
+- The closure destructive-downgrade test expects the older PTA-3F guard, while a
+  newer Task-hierarchy guard correctly refuses the downgrade first.
+- Four parameterizations of the older operation-tombstone predecessor test are
+  likewise stopped by the newer Task-hierarchy loss guard before they can reach
+  migration `0005`.
+
+A 31-test browser group was interrupted after 9 passes and 4 failures, leaving
+18 tests unrun; its failures were old screen fixtures that no longer reach current
+Activity controls. A direct rerun passed the Partner portal journey, skipped the
+Planning journey because its supplied inspiration gate is absent, and exposed five
+existing Execution fixture failures before the repaired Task mutation mock could
+exercise its controls. These are baseline evidence, not a passing browser suite.
+
+These failures predate the standards structure work and do not block the shared
+Axios/ownership slice. They must be reconciled with the settled security,
+migration and current-screen contracts before the authentication, closure or
+Execution UI slices.
+
+The repair review found that the Activity API, audit validator and database
+constraint disagreed with the authoritative rule permitting missing dates in
+amendment Drafts and returned corrections, while initial Draft handling was
+already aligned. Commit `f6964f2` adds migration
+`0039_editable_activity_dates` and aligns those three layers. The constraint still
+rejects missing dates in returned withdrawal and transfer content, so the repair
+does not broaden those workflows.
+
+The final focused migration/workflow command used the disposable Compose stack:
+
+```text
+docker compose --env-file /tmp/mjl-standards-baseline.env -p mjl-standards-baseline -f compose.rebuild.yaml exec -T backend sh -lc 'TEST_DATABASE_URL="$DATABASE_URL" .venv/bin/pytest -q tests/planning/test_amendments.py::test_editable_activity_dates_migration_round_trip_preserves_complete_activity tests/planning/test_amendments.py::test_m04_editable_amendments_can_clear_dates_and_keep_audit_history tests/planning/test_amendments.py::test_m04_amendment_edits_keep_bounded_structural_audit_history tests/planning/test_planning.py::test_category_migration_refuses_to_discard_an_incomplete_draft tests/core/test_database.py::test_alembic_repeatable_upgrade_to_head'
+```
+
+It passed 5 tests in 22.72 seconds. After the independent reviewer identified
+the withdrawal/transfer integrity gap and the constraint was corrected, this
+affected command passed both parameterizations in 12.70 seconds:
+
+```text
+docker compose --env-file /tmp/mjl-standards-baseline.env -p mjl-standards-baseline -f compose.rebuild.yaml exec -T backend sh -lc 'TEST_DATABASE_URL="$DATABASE_URL" .venv/bin/pytest -q tests/planning/test_amendments.py::test_editable_date_constraint_protects_returned_non_editable_content'
+```
+
+A broader 22-test candidate run passed 21 tests and exposed one stale expected
+head assertion. The assertion was updated from `0038` to `0039`, and its focused
+rerun passed. This is recorded as an affected rerun, not as a complete passing
+rerun of the 22-test group.
+
+The exact cutover rehearsal used disposable PostgreSQL and two application images.
+Image `f638b614375a2adfc0f1c339a2f3f3e95ff3e0ab54d686e2a419d06bd3009818`,
+built from committed predecessor `3d58d3a`, created a complete amendment under
+schema `0038`. The initial wrapper exited after the successful database write
+because its evidence mount was not writable; a read-only extraction recovered the
+created identifiers without changing the row. Corrected-candidate image
+`873245b6132ddf1ec99fa33ddf3744e0c04eea49f90d58f69fb012e2b96d1f0a` then ran
+`alembic upgrade head`, verified the preserved row and new constraint, and used a
+distinct assigned Agent login to read the Activity through the API. It reported
+`0038 exact predecessor data preserved through 0039`.
+
+The final staged diff for `f6964f2` had SHA-256
+`de31ce66a7f96d52933c084324fc50fe61d940fdbf8121b8875c9c4d123dcc61`.
+The independent reviewer first reported the missing withdrawal/transfer guard;
+after correction, the same reviewer found no remaining blocking findings and
+cleared the candidate. The earlier `3d58d3a` candidate was also independently
+reviewed and cleared before commit.
 
 ### Step 4 — Establish the shared structure and Axios transport
 
@@ -296,15 +423,16 @@ production readiness or authorization for additional work.
 
 ## Progress and evidence
 
-| Item                                               | Status                                                                                                                                                                                  |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Database/tooling, structure and Axios decisions    | Confirmed by user on 2026-11-18.                                                                                                                                                        |
-| Current-work commit checkpoint                     | Complete at `f6e65cd`; worktree was clean immediately after the commit.                                                                                                                 |
-| Complete rule inventory and per-resource contracts | Baseline rule matrix and Partner pilot contract recorded; remaining resources are inventoried immediately before their slice.                                                           |
-| Runtime baseline and migration compatibility       | Not run for this documentation task; pending Step 3.                                                                                                                                    |
-| Application implementation                         | Not started; the Step 2 documentation inventory is complete.                                                                                                                            |
-| Earlier conversational plan review                 | Bounded review of supplied source excerpts; not direct repository or implementation review.                                                                                             |
-| Step 2 independent review                          | No blocking content finding from the exact candidate supplied to the reviewer. The reviewer lacked direct filesystem/tool access and could not independently rerun the reported checks. |
+| Item                                               | Status                                                                                                                                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Database/tooling, structure and Axios decisions    | Confirmed by user on 2026-11-18.                                                                                                                                                                                                             |
+| Current-work commit checkpoint                     | Complete at `f6e65cd`; worktree was clean immediately after the commit.                                                                                                                                                                      |
+| Complete rule inventory and per-resource contracts | Baseline rule matrix and Partner pilot contract recorded; remaining resources are inventoried immediately before their slice.                                                                                                                |
+| Runtime baseline and migration compatibility       | Step 3 complete on disposable PostgreSQL. The 19-test baseline set, 5-test editable-date set, affected 2-test invariant rerun and exact `0038`→`0039` cutover are recorded above. Broad runs, skips and historical failures remain explicit. |
+| Application implementation                         | Baseline integration repairs are committed in `3d58d3a` and `f6964f2`; standards structure/Axios implementation has not started. Step 4 is next.                                                                                             |
+| Earlier conversational plan review                 | Bounded review of supplied source excerpts; not direct repository or implementation review.                                                                                                                                                  |
+| Step 2 independent review                          | No blocking content finding from the exact candidate supplied to the reviewer. The reviewer lacked direct filesystem/tool access and could not independently rerun the reported checks.                                                      |
+| Step 3 independent review                          | Complete. The reviewer-cleared baseline repair is `3d58d3a`; the editable-date review found one integrity gap, then cleared the corrected candidate committed as `f6964f2`.                                                                  |
 
 After each slice, record its commit, changed contracts, commands/results,
 independent-review outcome, remaining work and lessons that change the next step.
