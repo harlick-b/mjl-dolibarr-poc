@@ -1,3 +1,5 @@
+import axios from 'axios'
+
 export class ApiError extends Error {
   constructor(message, { status, code, fields, kind = 'http', retryAt } = {}) {
     super(message)
@@ -14,6 +16,67 @@ function messageFor(status) {
   if (status === 429) return 'Trop de tentatives. Veuillez patienter.'
   if (status === 503) return 'Service indisponible. Réessayez plus tard.'
   return 'Vérification refusée. Vérifiez les informations saisies.'
+}
+
+function abortError(reason) {
+  if (reason?.name === 'AbortError') return reason
+  return new DOMException('Aborted', 'AbortError')
+}
+
+function getHeader(headers, name) {
+  if (typeof headers?.get === 'function') return headers.get(name)
+  const normalizedName = name.toLowerCase()
+  const entry = Object.entries(headers ?? {}).find(
+    ([key]) => key.toLowerCase() === normalizedName,
+  )
+  return entry?.[1]
+}
+
+function parseJson(data) {
+  if (typeof data !== 'string') return data
+  return JSON.parse(data)
+}
+
+async function responseText(data) {
+  return data instanceof Response ? data.text() : data
+}
+
+async function responseBlob(data) {
+  return data instanceof Response ? data.blob() : data
+}
+
+async function parseErrorPayload(data) {
+  try {
+    if (data instanceof Response) return parseJson(await data.text()) ?? {}
+    if (typeof Blob !== 'undefined' && data instanceof Blob)
+      return parseJson(await data.text()) ?? {}
+    return parseJson(data) ?? {}
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error
+    return {}
+  }
+}
+
+async function headerAwareAdapter(config) {
+  const response = await fetch(config.url, {
+    method: config.method?.toUpperCase(),
+    headers:
+      typeof config.headers?.toJSON === 'function'
+        ? config.headers.toJSON()
+        : config.headers,
+    body: config.data,
+    signal: config.signal,
+    credentials: config.withCredentials ? 'include' : 'same-origin',
+    cache: 'no-store',
+  })
+  return {
+    config,
+    data: response,
+    headers: response.headers,
+    request: null,
+    status: response.status,
+    statusText: response.statusText,
+  }
 }
 
 export class RestClient {
@@ -81,31 +144,38 @@ export class RestClient {
     try {
       let response
       try {
-        response = await fetch(path, {
+        response = await axios.request({
+          adapter: headerAwareAdapter,
+          url: path,
           method: method ?? (body === undefined ? 'GET' : 'POST'),
-          credentials: 'same-origin',
-          cache: 'no-store',
+          withCredentials: true,
           signal: requestSignal,
-          headers:
-            body === undefined
-              ? {
-                  ...headers,
-                  ...(rawBody === undefined ? {} : { 'X-CSRF-Token': csrf }),
-                }
+          headers: {
+            ...headers,
+            'Cache-Control': 'no-store',
+            ...(body === undefined
+              ? rawBody === undefined
+                ? {}
+                : { 'X-CSRF-Token': csrf }
               : {
-                  ...headers,
                   'Content-Type': 'application/json',
                   'X-CSRF-Token': csrf,
-                },
-          body: body === undefined ? rawBody : JSON.stringify(body),
+                }),
+          },
+          data: body === undefined ? rawBody : body,
+          responseType: responseType === 'blob' ? 'blob' : 'text',
+          transformResponse:
+            responseType === 'blob' ? undefined : [(data) => data],
+          validateStatus: () => true,
         })
       } catch (error) {
-        if (error?.name === 'AbortError') throw error
+        if (error?.name === 'AbortError' || axios.isCancel(error))
+          throw abortError(requestSignal?.reason ?? error)
         throw new ApiError('Service indisponible. Réessayez plus tard.', {
           kind: 'network',
         })
       }
-      if (!response.ok) {
+      if (response.status < 200 || response.status >= 300) {
         checkGeneration()
         // Authentication is already uncertain from the status alone. An error
         // body must never delay masking or the bounded session check.
@@ -114,9 +184,9 @@ export class RestClient {
           accessCoordinator?.requestFailed(path, error)
           throw error
         }
-        const payload = await response.json().catch(() => ({}))
+        const payload = await parseErrorPayload(response.data)
         checkGeneration()
-        const retryHeader = response.headers?.get('Retry-After')
+        const retryHeader = getHeader(response.headers, 'Retry-After')
         const retrySeconds = Number(retryHeader)
         const retryAt = retryHeader
           ? Number.isFinite(retrySeconds)
@@ -141,10 +211,11 @@ export class RestClient {
         return null
       }
       if (responseType === 'blob') {
-        const disposition = response.headers.get('Content-Disposition') || ''
+        const disposition =
+          getHeader(response.headers, 'Content-Disposition') || ''
         const match = disposition.match(/filename="([A-Za-z0-9._-]{1,200})"/)
         const result = {
-          blob: await response.blob(),
+          blob: await responseBlob(response.data),
           filename: match?.[1] || 'telechargement.csv',
         }
         checkGeneration()
@@ -153,7 +224,7 @@ export class RestClient {
       }
       let result
       try {
-        result = await response.json()
+        result = parseJson(await responseText(response.data))
       } catch (error) {
         if (error?.name === 'AbortError') throw error
         throw new ApiError('Réponse du service invalide.', {

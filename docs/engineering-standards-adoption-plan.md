@@ -1,6 +1,7 @@
 # Engineering standards adoption plan
 
-Drafted 2026-11-18. Status: Steps 1–3 complete; Step 4 is next.
+Drafted 2026-11-18. Status: Steps 1–3 and the Step 4 transport slice are
+complete; Step 4 structure work remains.
 
 ## Outcome and authority
 
@@ -62,7 +63,7 @@ checks and review condition. The baseline inventory is:
 | FE-003   | Current JavaScript/JSX naming is largely compatible; imports still reflect the old layout. Apply component/helper naming and direct shared imports during moves.                                                                                                                                             | ESLint plus review must catch barrel cycles, deprecated paths and stale aliases.                                             | Ongoing.                                       |
 | FE-004   | Browser paths live in `app/urls.js`; API strings are repeated in screens. Move to `data/Urls.js`, add `data/ApiUrls.js`, and migrate affected callers with their resource.                                                                                                                                   | Preserve Router parsing, back/forward and route guards. API path changes require paired backend/client updates.              | Shared structure and each resource slice.      |
 | FE-005   | Tailwind/shadcn/Lucide and the approved MJL design are established. Existing structured forms use local accessible components rather than React Hook Form/Zod. Preserve current forms while moving them; use the standard default for genuinely new structured forms.                                        | Compare populated/empty/error/dialog/narrow states; do not alter tokens or drop dirty input.                                 | Approved local pattern; ongoing design checks. |
-| FE-006   | One fetch-based RestClient/provider/useAPI seam exists with access-generation protection. Replace its transport with Axios under the final `helpers/RestClient`, `context` and `hooks` owners.                                                                                                               | Verify credentials, CSRF, cancellation, trusted URLs, blobs and expiry before migrating resources. No second generic client. | Step 4 pending.                                |
+| FE-006   | One RestClient/provider/useAPI seam with access-generation protection now uses Axios while preserving the current parsed-body caller contract. Its final ownership move remains.                                                                                                                             | Verify credentials, CSRF, cancellation, trusted URLs, blobs and expiry before migrating resources. No second generic client. | Step 4 transport complete; ownership pending.  |
 | FE-007   | Current reads and writes return parsed bodies. Migrate deliberately to standard method distinctions and Axios response handling, resource by resource.                                                                                                                                                       | Temporary compatibility must be bounded and removed; never leak credential-bearing Axios errors.                             | Partner pilot then Step 6.                     |
 | FE-008   | Query keys usually include user/resource/parameters. MJL's documented default is one-minute freshness and five-minute memory retention, with mount refetch; session/proof/blob queries use zero/specialized lifetimes. Treat these as data-specific project overrides.                                       | Preserve access-scope purges, readiness gates, invalidation and stale-response rejection.                                    | Approved override; verify per slice.           |
 | FE-009   | Session Query and the access coordinator already separate credentials, readiness and authorization. Move ownership without changing invitation, OTP, recovery or logout behavior.                                                                                                                            | Test network retry, account replacement, logout failure and late responses before/after the move.                            | Step 6 pending.                                |
@@ -308,17 +309,58 @@ startup references together. Preserve CSS loading order and approved token value
 update the documented token path when its file moves.
 
 Introduce Axios under the shared RestClient/provider/useAPI interface. A bounded
-temporary adapter may preserve existing callers while the underlying fetch
-transport is removed. Do not maintain a second generic client. Separate transport
-replacement from resource-contract changes into reviewable commits.
+compatibility contract may preserve existing callers while direct request
+ownership moves to Axios. Do not maintain a second generic client. Separate
+transport replacement from resource-contract changes into reviewable commits.
 
 Verify trusted URL handling, cookie/CSRF behavior, cancellation and stale-response
-suppression, session-expiry coordination, safe errors, 204 responses, multipart
-uploads, protected blobs and exact XOF strings. Never expose credential-bearing
+suppression, session-expiry coordination, safe errors, 204 responses, protected
+raw file uploads, protected blobs and exact XOF strings. Never expose credential-bearing
 Axios error objects or automatically replay writes.
 
 **Exit:** shared infrastructure works with existing callers; transport and security
 checks pass before the first contract migration.
+
+Transport sub-slice candidate, 2026-11-18: Axios `1.21.1` is pinned and the
+existing RestClient interface now delegates to Axios. Existing callers still
+receive parsed JSON, `null` for 204, the protected download `{ blob, filename }`
+shape and sanitized `ApiError` failures. Trusted relative URLs, cookies, explicit
+CSRF, access-generation cancellation, rate limits and the no-write-replay rule
+remain in the same owner. Resource contracts and Activity components are
+unchanged.
+
+The Axios adapter returns the native response as soon as headers arrive. RestClient
+therefore masks protected access on a `401` before consuming a possibly delayed
+body, while all ordinary body parsing stays centralized. The same adapter keeps
+existing fetch-based page fixtures usable during the staged test migration without
+adding another application client.
+
+Evidence for the candidate:
+
+- `npm run test:unit -- src/shared/api/rest-client.test.js src/shared/api/rest-client-adapter.test.js`:
+  15 passed, including a pending-body `401` and caller cancellation during a
+  pending error body through real Axios request handling.
+- `npm run test:unit -- src/features/planning/pages/pta-metadata.test.jsx`: 11
+  passed, proving an existing page fixture still observes reads and writes.
+- The five cases that timed out under the parallel broad run passed in focused
+  reruns: three Execution workflows, the Activity amendment/cancellation journey
+  and the audit-history journey. The two longer journeys passed with a temporary
+  30-second test limit.
+- `npm run build`, `npm run lint`, `npm run format:check`, `npm run lint:css` and
+  `git diff --check` passed. Lint retains the existing React Hooks warning in
+  `access-verification.jsx:457`; build retains the existing chunk-size warning.
+- The broad unit run was stopped after about one minute with five test timeouts
+  under parallel load. It is not reported as a pass; each observed timeout passed
+  in the focused reruns above.
+
+Independent review first found that Axios's default browser adapter delayed
+protected `401` handling until the body completed. The header-aware adapter and a
+pending-body regression corrected it. Re-review then found cancellation during an
+ordinary pending error body was normalized into an HTTP error; `AbortError` is now
+preserved and covered through real Axios handling. The same reviewer cleared the
+final candidate with no remaining findings. The remaining Step 4 structure moves
+are separate from this transport commit and will follow the active Activity design
+handoff.
 
 ### Step 5 — Migrate the Partner pilot end to end
 
@@ -429,7 +471,7 @@ production readiness or authorization for additional work.
 | Current-work commit checkpoint                     | Complete at `f6e65cd`; worktree was clean immediately after the commit.                                                                                                                                                                      |
 | Complete rule inventory and per-resource contracts | Baseline rule matrix and Partner pilot contract recorded; remaining resources are inventoried immediately before their slice.                                                                                                                |
 | Runtime baseline and migration compatibility       | Step 3 complete on disposable PostgreSQL. The 19-test baseline set, 5-test editable-date set, affected 2-test invariant rerun and exact `0038`→`0039` cutover are recorded above. Broad runs, skips and historical failures remain explicit. |
-| Application implementation                         | Baseline integration repairs are committed in `3d58d3a` and `f6964f2`; standards structure/Axios implementation has not started. Step 4 is next.                                                                                             |
+| Application implementation                         | Baseline repairs are committed. The independently reviewed Step 4 Axios transport preserves current caller contracts; structure moves and the Partner pilot remain.                                                                          |
 | Earlier conversational plan review                 | Bounded review of supplied source excerpts; not direct repository or implementation review.                                                                                                                                                  |
 | Step 2 independent review                          | No blocking content finding from the exact candidate supplied to the reviewer. The reviewer lacked direct filesystem/tool access and could not independently rerun the reported checks.                                                      |
 | Step 3 independent review                          | Complete. The reviewer-cleared baseline repair is `3d58d3a`; the editable-date review found one integrity gap, then cleared the corrected candidate committed as `f6964f2`.                                                                  |

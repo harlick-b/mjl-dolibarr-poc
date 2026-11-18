@@ -200,7 +200,8 @@ List/retrieve methods return Query functions receiving { signal }; writes return
 Promises. Return parsed JSON/full list envelopes, not Axios wrappers or arrays
 with attached metadata. Request params are local, never mutable shared state.
 Use PATCH for partial updates, PUT only where contracted; no invented IDs or
-unused CRUD methods. Fetch is sufficient; no second parallel transport.
+unused CRUD methods. Use Axios through the shared RestClient; no second generic
+transport.
 
 One application access coordinator owns protected readiness. A protected `401` or
 `csrf_invalid` closes the shared gate, clears protected state and starts one

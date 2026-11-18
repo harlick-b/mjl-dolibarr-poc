@@ -1,10 +1,28 @@
 # Project status
 
-Updated 2026-11-11. MJL is under development; implemented does not mean accepted
+Updated 2026-11-18. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
+
+## Shared Axios transport — implemented, 2026-11-18
+
+The existing RestClient now delegates request configuration and transforms to
+Axios while preserving current parsed JSON, empty-success, protected download,
+error and access-coordinator contracts. Its header-aware adapter lets protected
+`401` responses mask access before a delayed body completes; caller cancellation
+also remains silent while ordinary error bodies are pending. Direct raw-file
+uploads retain explicit CSRF without a forced JSON content type. No resource API
+contract or Activity component changed in this slice.
+
+Focused RestClient/adapter checks passed 15 tests; the existing PTA fixture passed
+11 tests, and five timeouts observed under a stopped parallel broad run passed in
+focused reruns. Lint, formatting, CSS lint, build and diff checks passed with the
+existing React Hooks and chunk-size warnings. Independent review found the two
+pending-body issues, verified their corrections and cleared the final candidate.
+The final structure move and resource-by-resource Axios response-contract migration
+remain in the adoption plan.
 
 ## PTA foundations — staged implementation, 2026-11-07
 
