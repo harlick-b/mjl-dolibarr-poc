@@ -38,7 +38,7 @@ def test_csv_export_is_sanitized_formula_safe_and_transactionally_audited(planni
     )
     assert created.status_code == 201, created.text
 
-    response = export(planning["validator"])
+    response = export(planning["admin"])
     assert response.status_code == 200, response.text
     assert response.content.startswith(b"\xef\xbb\xbf")
     assert response.headers["content-type"].startswith("text/csv")

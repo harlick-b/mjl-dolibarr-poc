@@ -724,6 +724,7 @@ def test_m10_cancellation_serializes_against_every_candidate_mutation(
 def test_m04_amendment_edits_keep_bounded_structural_audit_history(planning):
     approved, operation_type = approved_activity(planning)
     current = open_amendment(planning, approved, "Historique des éditions")
+    current = assign_agents(planning, current, planning["agent"], planning["agent2"])
     expected_descriptions = []
     for index, allocation in enumerate(("350000", "400000", "300000"), start=1):
         first = str(int(allocation) - 200000)
@@ -787,7 +788,7 @@ def test_m04_amendment_edits_keep_bounded_structural_audit_history(planning):
         "300000",
     ]
     assert all(
-        row.business["before"]["tasks"] and row.business["after"]["tasks"]
+        row.business["before"]["operations"] and row.business["after"]["operations"]
         for row in audits
     )
 

@@ -1,5 +1,7 @@
+from copy import deepcopy
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,35 @@ from tests.planning.test_planning import planning as planning_fixture
 
 planning = planning_fixture
 admin = admin_fixture
+
+
+@pytest.mark.parametrize(
+    ("type_id", "type_label"),
+    [(None, "Catégorie impossible"), ("category-impossible", None)],
+)
+def test_activity_audit_rejects_mismatched_task_category_pair(
+    planning, type_id, type_label
+):
+    _partner, category, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {**plan(category), "request_key": "5f52fd13-7079-49d0-b2f4-ed90203f8112"},
+    )
+    assert created.status_code == 201, created.text
+    actor_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    invalid = {"context_id": "MJL", "after": deepcopy(created.json())}
+    invalid["after"]["tasks"][0]["type_id"] = type_id
+    invalid["after"]["tasks"][0]["type_label"] = type_label
+    with Session(planning["auth"].engine) as db:
+        with pytest.raises(ValueError, match="Invalid business audit facts"):
+            planning["auth"].business_audit(
+                db,
+                "activity.create",
+                actor_id,
+                created.json()["id"],
+                invalid,
+            )
 
 
 def test_changes_project_existing_safe_shapes_and_never_raw_secrets():

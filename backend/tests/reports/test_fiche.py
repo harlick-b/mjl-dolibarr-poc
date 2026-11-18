@@ -272,7 +272,7 @@ def test_fiche_uses_approved_operation_type_during_pending_amendment(planning):
     approved, _operation_type = approved_activity(planning)
     candidate_type = post(
         planning["validator"],
-        "/api/v1/operation-types",
+        "/api/v1/task-categories",
         {"label": "Type candidat non approuvé"},
     ).json()
     opened = open_amendment(planning, approved, "Changer le type d’opération.")

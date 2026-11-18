@@ -105,7 +105,7 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
             project: 'Projet Santé',
             year: 2027,
           },
-          operations: [
+          tasks: [
             {
               name: 'Consultations',
               description: 'Trois journées réalisées.',
@@ -160,7 +160,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
       })
     if (path === '/api/v1/partner-portal/activities/activity-1/fiche.pdf')
       return route.fulfill({
-        body: Buffer.from('%PDF-1.4 synthetic'),
+        body: Buffer.from(
+          'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjIwMgolJUVPRgo=',
+          'base64',
+        ),
         contentType: 'application/pdf',
         headers: {
           'Content-Disposition':
@@ -195,13 +198,22 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
     page.getByRole('heading', { name: 'Campagne de santé', exact: true }),
   ).toBeVisible()
   await expect(page.getByText('Trois journées réalisées.')).toBeVisible()
-  await expect(page.getByText(/30.000 XOF/).first()).toBeVisible()
+  await expect(page.getByText(/30.000 F CFA/).first()).toBeVisible()
   await expect(page.getByText(/pièce jointe/i)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Consulter la fiche PDF' }).click()
+  const ficheDialog = page.getByRole('dialog', {
+    name: 'Fiche de suivi de l’activité',
+  })
+  await expect(ficheDialog).toBeVisible()
+  await expect(
+    ficheDialog.getByTitle('Fiche de suivi de l’activité — Aperçu'),
+  ).toBeVisible()
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Télécharger la fiche PDF' }).click()
-  await expect((await download).suggestedFilename()).toBe(
+  await ficheDialog.getByRole('button', { name: 'Télécharger' }).click()
+  expect((await download).suggestedFilename()).toBe(
     'fiche-partenaire-ACT-001.pdf',
   )
+  await ficheDialog.getByText('Fermer', { exact: true }).click()
 
   await expect(
     page
@@ -245,5 +257,5 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   })
   const bounds = await dialog.boundingBox()
   expect(bounds.width).toBeLessThanOrEqual(390)
-  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
+  await dialog.getByText('Fermer', { exact: true }).click()
 })

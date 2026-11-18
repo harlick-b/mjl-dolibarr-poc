@@ -1156,7 +1156,7 @@ def test_execution_openapi_exposes_closure_responsibility(planning):
     assert set(paths["/api/v1/activities/{identifier}/execution"]) == {"get"}
     history = "/api/v1/activities/{identifier}/execution/history"
     assert set(paths[history]) == {"get"}
-    mutation = "/api/v1/activities/{identifier}/operations/{operation_id}/execution"
+    mutation = "/api/v1/activities/{identifier}/tasks/{task_id}/execution"
     assert set(paths[mutation]) == {"patch"}
     closure = "/api/v1/activities/{identifier}/closure"
     assert set(paths[closure]) == {"post"}

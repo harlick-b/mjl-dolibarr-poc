@@ -53,7 +53,7 @@ async function fixture(
       }
     else if (url.pathname.endsWith('/activities/state-activity'))
       body = activity
-    else if (url.pathname.endsWith('/operation-types'))
+    else if (url.pathname.endsWith('/task-categories'))
       body = { ...empty, count: 1, data: [{ id: 'type-1', label: 'Atelier' }] }
     else if (url.pathname.endsWith('/partner-portal/profile'))
       body = { id: 'partner-1', name: 'Partenaire synthétique' }

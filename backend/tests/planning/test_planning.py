@@ -9,7 +9,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, func, select, text
+from sqlalchemy import create_engine, event, func, inspect, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
@@ -299,6 +299,153 @@ def test_draft_preserves_manual_activity_total_and_a_task_without_category(plann
     assert activity["allocation"] == "500000"
     assert activity["tasks"][0]["type_id"] is None
     assert "submit" not in activity["allowed_actions"]
+
+
+def test_category_migration_refuses_to_discard_an_incomplete_draft(planning, auth_env):
+    _partner, _operation_type, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            "request_key": str(uuid4()),
+            "name": "Brouillon sans catégorie",
+            "description": "",
+            "planned_start": None,
+            "planned_end": None,
+            "allocation": "500000",
+            "tasks": [
+                {
+                    "type_id": None,
+                    "name": "Préparation",
+                    "description": "",
+                    "allocation": "300000",
+                    "weight": None,
+                    "planned_start": None,
+                    "planned_end": None,
+                    "subtasks": [],
+                }
+            ],
+        },
+    )
+    assert created.status_code == 201, created.text
+    planning["auth"].engine.dispose()
+
+    with pytest.raises(
+        RuntimeError, match="Refusing to discard incomplete Task Categories"
+    ):
+        command.downgrade(Config("alembic.ini"), "0037_transfer_task_dates")
+
+    engine = create_engine(auth_env.url)
+    try:
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == "0038_draft_task_categories"
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM pta_operation WHERE type_id IS NULL")
+                )
+                == 1
+            )
+    finally:
+        engine.dispose()
+
+
+def test_category_migration_round_trip_preserves_categorized_task(planning, auth_env):
+    _partner, operation_type, project = references(planning)
+    created = post(
+        planning["agent"],
+        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
+        {
+            "request_key": str(uuid4()),
+            "name": "Brouillon du prédécesseur",
+            "description": "",
+            "planned_start": None,
+            "planned_end": None,
+            "allocation": "100000",
+            "tasks": [],
+        },
+    )
+    assert created.status_code == 201, created.text
+    activity = created.json()
+    actor_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    task_id = str(uuid4())
+    expected = (task_id, operation_type["id"], "Tâche du prédécesseur", "100000")
+    planning["auth"].engine.dispose()
+    config = Config("alembic.ini")
+
+    def schema_and_task():
+        engine = create_engine(auth_env.url)
+        try:
+            with engine.connect() as connection:
+                revision = connection.scalar(
+                    text("SELECT version_num FROM alembic_version")
+                )
+                nullable = next(
+                    column["nullable"]
+                    for column in inspect(connection).get_columns("pta_operation")
+                    if column["name"] == "type_id"
+                )
+                saved = connection.execute(
+                    text(
+                        "SELECT id,type_id,name,allocation FROM pta_operation "
+                        "WHERE id=:id"
+                    ),
+                    {"id": task_id},
+                ).one()
+                return revision, nullable, tuple(str(value) for value in saved)
+        finally:
+            engine.dispose()
+
+    try:
+        command.downgrade(config, "0037_transfer_task_dates")
+        engine = create_engine(auth_env.url)
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO pta_operation("
+                        "id,context_id,activity_id,type_id,name,description,allocation,"
+                        "weight_basis_points,manual_progress_basis_points,planned_start,"
+                        "planned_end,position,creator_id,updated_by_id,created_at,updated_at,"
+                        "removed_at,removed_by_id,execution_started_at,execution_completed,"
+                        "actual_spent,execution_observation) VALUES ("
+                        ":id,'MJL',:activity_id,:type_id,:name,'',100000,10000,NULL,"
+                        "NULL,NULL,1,:actor_id,:actor_id,clock_timestamp(),"
+                        "clock_timestamp(),NULL,NULL,NULL,false,NULL,'')"
+                    ),
+                    {
+                        "id": task_id,
+                        "activity_id": activity["id"],
+                        "type_id": operation_type["id"],
+                        "name": "Tâche du prédécesseur",
+                        "actor_id": actor_id,
+                    },
+                )
+        finally:
+            engine.dispose()
+        assert schema_and_task() == (
+            "0037_transfer_task_dates",
+            False,
+            expected,
+        )
+
+        command.upgrade(config, "0038_draft_task_categories")
+        assert schema_and_task() == (
+            "0038_draft_task_categories",
+            True,
+            expected,
+        )
+
+        command.downgrade(config, "0037_transfer_task_dates")
+        assert schema_and_task() == (
+            "0037_transfer_task_dates",
+            False,
+            expected,
+        )
+    finally:
+        command.upgrade(config, "head")
 
 
 def test_v04_v05_assigned_submission_and_exact_revision_approval(planning, auth_env):
@@ -2027,7 +2174,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     admin = planning["admin"]
     read_paths = [
         "/api/v1/partners",
-        "/api/v1/operation-types",
+        "/api/v1/task-categories",
         "/api/v1/projects",
         f"/api/v1/projects/{project['id']}",
         f"/api/v1/projects/{project['id']}/ptas",
@@ -2047,7 +2194,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
 
     restricted_reference_writes = [
         ("/api/v1/partners", {"name": "Interdit"}),
-        ("/api/v1/operation-types", {"label": "Interdit"}),
+        ("/api/v1/task-categories", {"label": "Interdit"}),
         (
             "/api/v1/projects",
             {"partner_id": partner["id"], "name": "Interdit"},
@@ -2056,7 +2203,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
     for actor in ("agent", "supervisor"):
         for path, body in restricted_reference_writes:
             expected = (
-                201 if actor == "agent" and path == "/api/v1/operation-types" else 403
+                201 if actor == "agent" and path == "/api/v1/task-categories" else 403
             )
             assert post(planning[actor], path, body).status_code == expected, (
                 actor,
@@ -2535,7 +2682,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
     paths = document["paths"]
     planning_paths = {
         "/api/v1/partners",
-        "/api/v1/operation-types",
+        "/api/v1/task-categories",
         "/api/v1/projects",
         "/api/v1/projects/{identifier}",
         "/api/v1/projects/{identifier}/ptas",
@@ -2561,7 +2708,7 @@ def test_p20_v18_openapi_cursors_and_bounded_review_surface(planning):
         "/api/v1/activities/{identifier}/fiche.pdf",
         "/api/v1/activities/{identifier}/closure",
         "/api/v1/activities/{identifier}/execution/history",
-        "/api/v1/activities/{identifier}/operations/{operation_id}/execution",
+        "/api/v1/activities/{identifier}/tasks/{task_id}/execution",
         "/api/v1/activities/{identifier}/disbursement-requests",
         "/api/v1/activities/{identifier}/disbursement-requests/{request_id}",
         "/api/v1/activities/{identifier}/disbursement-requests/{request_id}/decisions",
@@ -3013,7 +3160,7 @@ def test_v20_predecessor_upgrade_rejects_corrupted_operation_tombstone(
     _partner, operation_type, project = references(planning)
     other_type = post(
         planning["validator"],
-        "/api/v1/operation-types",
+        "/api/v1/task-categories",
         {"label": "Type de corruption"},
     ).json()
     activity = post(
@@ -3546,7 +3693,7 @@ def responsibility_cases(planning):
     pta_id = activity["pta_id"]
     paths = [
         "/api/v1/partners",
-        "/api/v1/operation-types",
+        "/api/v1/task-categories",
         "/api/v1/projects",
         f"/api/v1/projects/{project['id']}",
         f"/api/v1/projects/{project['id']}/ptas",
@@ -3559,7 +3706,7 @@ def responsibility_cases(planning):
     ]
     mutations = [
         ("POST", "/api/v1/partners", {"name": "Refusé"}),
-        ("POST", "/api/v1/operation-types", {"label": "Refusé"}),
+        ("POST", "/api/v1/task-categories", {"label": "Refusé"}),
         (
             "POST",
             "/api/v1/projects",
@@ -3745,7 +3892,7 @@ def test_p02_every_mutation_rejects_missing_or_invalid_request_evidence(planning
     agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
     cases = [
         (planning["validator"], "POST", "/api/v1/partners", {"name": "X"}),
-        (planning["validator"], "POST", "/api/v1/operation-types", {"label": "X"}),
+        (planning["validator"], "POST", "/api/v1/task-categories", {"label": "X"}),
         (
             planning["validator"],
             "POST",
@@ -4419,11 +4566,11 @@ def test_partner_description_upgrade_preserves_existing_partner(planning):
         assert row.active is True
 
 
-def test_agents_create_operation_categories_with_existing_guards(planning):
+def test_agents_create_task_categories_with_existing_guards(planning):
     for role in ("agent", "validator"):
         response = post(
             planning[role],
-            "/api/v1/operation-types",
+            "/api/v1/task-categories",
             {
                 "label": f"Catégorie {role}",
                 "description": "Interventions auprès des communautés",
@@ -4437,24 +4584,24 @@ def test_agents_create_operation_categories_with_existing_guards(planning):
         assert "create" in response.json()["allowed_actions"]
         saved = next(
             row
-            for row in planning["agent"].get("/api/v1/operation-types").json()["data"]
+            for row in planning["agent"].get("/api/v1/task-categories").json()["data"]
             if row["id"] == response.json()["id"]
         )
         assert saved["description"] == "Interventions auprès des communautés"
     for role in ("supervisor", "admin"):
         assert (
             post(
-                planning[role], "/api/v1/operation-types", {"label": "Interdit"}
+                planning[role], "/api/v1/task-categories", {"label": "Interdit"}
             ).status_code
             == 403
         )
     assert (
         planning["agent"]
-        .post("/api/v1/operation-types", json={"label": "Sans CSRF"})
+        .post("/api/v1/task-categories", json={"label": "Sans CSRF"})
         .status_code
         == 403
     )
     assert (
-        post(planning["agent"], "/api/v1/operation-types", {"label": " "}).status_code
+        post(planning["agent"], "/api/v1/task-categories", {"label": " "}).status_code
         == 422
     )

@@ -24,7 +24,7 @@ async function setup(page, role) {
 test('Partners no longer loads operation categories', async ({ page }) => {
   await setup(page, 'VALIDATEUR_DEFINITIF')
   let reads = 0
-  await page.route('**/api/v1/operation-types*', (route) => {
+  await page.route('**/api/v1/task-categories*', (route) => {
     reads += 1
     return route.fulfill({ json: empty })
   })
@@ -515,7 +515,7 @@ test('Agent creates and selects a category without submitting or losing the acti
   let categories = []
   let activityWrites = 0
   let attempts = 0
-  await page.route('**/api/v1/operation-types*', (route) => {
+  await page.route('**/api/v1/task-categories*', (route) => {
     if (route.request().method() === 'POST') {
       attempts += 1
       if (attempts === 1)

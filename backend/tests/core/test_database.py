@@ -63,7 +63,7 @@ def test_alembic_repeatable_upgrade_to_head(isolated_url, monkeypatch):
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0037_transfer_task_dates"
+                == "0038_draft_task_categories"
             )
             assert set(inspect(connection).get_table_names()) == {
                 "alembic_version",
@@ -108,5 +108,10 @@ def test_alembic_repeatable_upgrade_to_head(isolated_url, monkeypatch):
                 for column in inspect(connection).get_columns("pta_activity")
             }
             assert {"transfer_id", "placement_year"} <= columns
+            operation_columns = {
+                column["name"]: column
+                for column in inspect(connection).get_columns("pta_operation")
+            }
+            assert operation_columns["type_id"]["nullable"] is True
     finally:
         engine.dispose()

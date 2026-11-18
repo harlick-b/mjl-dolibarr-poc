@@ -157,7 +157,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0037_transfer_task_dates"]:
+        if revisions != ["0038_draft_task_categories"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -321,7 +321,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "f3518afb7d6a77ced2289f122524c5ac4098d7d7f3251435b5edbb02877f504f"
+            "f11880b8e1414e95691ddaa489cd5d1b6af6e44d631bdd616243a1eb309f10b2"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:
@@ -1231,6 +1231,7 @@ class AuthService:
             task_fields = {
                 "id",
                 "type_id",
+                "type_label",
                 "name",
                 "description",
                 "allocation",
@@ -1279,10 +1280,16 @@ class AuthService:
                         isinstance(row.get(key), str)
                         for key in (
                             "id",
-                            "type_id",
                             "name",
                             "description",
                             "allocation",
+                        )
+                    )
+                    and (
+                        (row.get("type_id") is None and row.get("type_label") is None)
+                        or (
+                            isinstance(row.get("type_id"), str)
+                            and isinstance(row.get("type_label"), str)
                         )
                     )
                     and (
@@ -1362,24 +1369,7 @@ class AuthService:
             )
 
         def valid_candidate(value: object) -> bool:
-            if not isinstance(value, dict) or not isinstance(value.get("tasks"), list):
-                return False
-            tasks = value["tasks"]
-            if not all(
-                isinstance(row, dict)
-                and set(row) >= {"type_label"}
-                and isinstance(row.get("type_label"), str)
-                for row in tasks
-            ):
-                return False
-            normalized = {
-                **value,
-                "tasks": [
-                    {key: item for key, item in row.items() if key != "type_label"}
-                    for row in tasks
-                ],
-            }
-            return valid_structural_content(normalized)
+            return valid_structural_content(value)
 
         def valid_structural_content(value: object) -> bool:
             fields = {
@@ -1393,6 +1383,7 @@ class AuthService:
             task_fields = {
                 "id",
                 "type_id",
+                "type_label",
                 "name",
                 "description",
                 "allocation",
@@ -1402,7 +1393,7 @@ class AuthService:
                 "position",
                 "subtasks",
             }
-            subtask_fields = task_fields - {"type_id", "subtasks"}
+            subtask_fields = task_fields - {"type_id", "type_label", "subtasks"}
 
             def valid_child(row: object) -> bool:
                 return (
@@ -1431,10 +1422,16 @@ class AuthService:
                         isinstance(row.get(key), str)
                         for key in (
                             "id",
-                            "type_id",
                             "name",
                             "description",
                             "allocation",
+                        )
+                    )
+                    and (
+                        (row.get("type_id") is None and row.get("type_label") is None)
+                        or (
+                            isinstance(row.get("type_id"), str)
+                            and isinstance(row.get("type_label"), str)
                         )
                     )
                     and (

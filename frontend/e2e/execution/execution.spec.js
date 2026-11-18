@@ -435,7 +435,7 @@ test('PTA-3A start, spending, completion and correction browser journey', async 
           previous: null,
         },
       })
-    if (path.includes('/operations/') && request.method() === 'PATCH') {
+    if (path.includes('/tasks/') && request.method() === 'PATCH') {
       mutationCount += 1
       const body = request.postDataJSON()
       version += 1

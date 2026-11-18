@@ -325,7 +325,7 @@ test('V19 planning, correction and final approval browser journey', async ({
   ).toBe(1)
   const planningPaths = [
     '/partners',
-    '/operation-types',
+    '/task-categories',
     '/projects',
     `/projects/${project.id}`,
     `/projects/${project.id}/ptas`,
