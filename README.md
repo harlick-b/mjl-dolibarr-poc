@@ -10,6 +10,16 @@ a PWA, but business operations require an internet connection. It is currently
 under development; see [project status](docs/project-status.md) for available
 features and remaining limits.
 
+## Engineering standards
+
+Accepted backend and frontend rules live in the
+[API engineering standard](docs/engineering-standards-api.md) and
+[UI engineering standard](docs/engineering-standards-ui.md). New and substantially
+modified code follows their accepted sections, with MJL product decisions and
+recorded adaptations taking precedence over source-project examples. The
+[adoption plan](docs/engineering-standards-adoption-plan.md) records the staged
+migration, evidence and remaining work.
+
 ## Run locally
 
 For an existing development setup, use the database already configured in `.env`.

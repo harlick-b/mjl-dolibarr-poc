@@ -2,7 +2,10 @@
 
 The user's latest explicit request takes precedence. Read docs/business-rules.md
 first, then only current guides relevant to the task: docs/engineering.md,
-docs/security.md, docs/design.md and docs/project-status.md. README.md owns setup.
+docs/security.md, docs/design.md and docs/project-status.md. For new or
+substantially modified code, also read the relevant accepted sections of
+docs/engineering-standards-api.md and docs/engineering-standards-ui.md; record
+MJL adaptations in docs/engineering-standards-adoption-plan.md. README.md owns setup.
 Requirements govern behavior; code and passing tests are implementation evidence,
 never user acceptance or production readiness. Ask only about unresolved business
 choices, contradictory requirements or missing external inputs.

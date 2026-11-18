@@ -3,6 +3,11 @@
 Use this guide for application changes and the [business rules](business-rules.md)
 for behavior. [Security](security.md) owns protection and external acceptance;
 [design](design.md) owns presentation. Setup commands are in [README](../README.md).
+The accepted [API standard](engineering-standards-api.md) and
+[UI standard](engineering-standards-ui.md) govern new and substantially modified
+code. Their observed examples do not override MJL decisions. The staged
+[adoption plan](engineering-standards-adoption-plan.md) records current deviations,
+approved adaptations and the migration sequence.
 
 ## Architecture and ownership
 
@@ -39,6 +44,11 @@ when a collection can share one projection query.
 Group files by the feature they implement. Put code in shared folders only when
 several features actually use it. Keep tool configuration at the package root
 where the tool discovers it; directory depth is not an architectural goal.
+
+The layout below describes the current implementation before standards adoption.
+The target ownership and exact directory names are defined by BE-002 and FE-002;
+update this section as each coherent slice moves rather than claiming the target
+layout before the code reaches it.
 
 ```text
 backend/
