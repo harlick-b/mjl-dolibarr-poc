@@ -1187,3 +1187,38 @@ were the final gates for this correction. The independent reviewer found no
 component-standard, responsive or accessibility defect in the candidate and
 confirmed the Draft-fiche conflict requires the user's product choice before the
 screen can be called an exact reproduction.
+
+### Authoritative Activity realization and finance detail — 2026-11-18
+
+The later references in `docs/inspiration/activities/details` supersede the former
+combined **Réalisation & finances** presentation. Approved Activities retain one
+stable identity header and now expose separate **Réalisation** and **Finance**
+tabs. Réalisation uses one compact card for its summary, Task/Subtask execution
+table and readiness requirements. Subtasks are collapsed initially. Finance uses
+three separate cards for financial totals, financial requests, and external
+administration/closure. Technical revision numbers are absent from the header.
+
+This visual slice preserves the existing assigned-Agent execution boundary and
+the existing rule that approved final décaissement or approved zero spending
+establishes validated realization. It does not add a separate realization
+approval workflow, permit early financial requests, require reversement evidence,
+or make recorded external amounts editable. Existing `api.request` and
+`api.download` calls are sufficient; no shared REST-client contract change is
+required.
+
+Independent review corrected five gaps: validation wording is now distinct from
+physical execution, authorized amounts come only from an approved décaissement,
+readiness actions respect execution permission and group repeated blockers,
+financial requests have the approved compact list, and execution-summary failure
+has an inline retry. Blocked closure no longer exposes a disabled closure action.
+The request list is the only inline financial workflow summary: it shows the
+latest decision with its actor/date and opens submission or review in the shared
+right-side modal.
+Financial decision projections now include the authorized actor display name,
+and each zero-spending row carries its own declaration identity into the modal.
+The focused execution and Planning run passes 94 tests; targeted Prettier/ESLint,
+the production build and the canonical Activity Playwright flow pass. That browser
+flow covers desktop/mobile Réalisation, collapsed/expanded Subtasks, absent,
+pending and approved authorization amounts, read-only readiness, financial request
+columns and execution-summary failure. Fresh screenshots were inspected directly
+against the references.

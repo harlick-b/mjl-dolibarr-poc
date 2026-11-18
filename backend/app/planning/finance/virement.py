@@ -29,6 +29,7 @@ from app.planning.core.service import (
     locked_mutation,
     principal,
 )
+from app.planning.finance import actor_display_names
 from app.planning.finance.disbursement import verified_financial_basis
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
@@ -93,6 +94,7 @@ class DecisionOutput(Input):
     stage: str
     outcome: str
     actor_id: str
+    actor_name: str
     actor_role: str
     decided_at: str
     reason: str | None
@@ -281,6 +283,7 @@ def output(
         db, financial.activity_id, financial.disbursement_request_id
     )
     rows = request_decisions(db, financial.id)
+    actors = actor_display_names(db, (row.actor_id for row in rows))
     confirmation = db.scalar(
         select(VirementConfirmation)
         .where(VirementConfirmation.request_id == financial.id)
@@ -378,6 +381,7 @@ def output(
                 "stage": row.stage,
                 "outcome": row.outcome,
                 "actor_id": row.actor_id,
+                "actor_name": actors.get(row.actor_id, "Utilisateur indisponible"),
                 "actor_role": row.actor_role,
                 "decided_at": row.decided_at.isoformat(),
                 "reason": row.reason,

@@ -237,9 +237,8 @@ Activity creation groups general information, dates and Tasks alongside the
 budget breakdown. Its editor includes the supplied optional **Pièces justificatives**
 section. Save the Activity Draft first, then upload the selected file; an upload
 failure leaves the Draft saved and does not continue a requested submission.
-Details separate programming, History and documents; approved Activities link to
-their existing financial workspace. Prototype controls do not authorize new
-mutations. Empty planning tables retain headers and distinguish
+Details separate Programming, Réalisation, Finance, History and documents.
+Prototype controls do not authorize new mutations. Empty planning tables retain headers and distinguish
 filtered results from an unused PTA. Shared controls use the approved compact and
 standard sizes; XOF amounts display as F CFA without changing exact stored values.
 
@@ -252,9 +251,11 @@ suffix. The reviewer modal uses **Assigner à**, preloads the first ten active
 Agents and keeps server search. PTA Activity lists do not expose a **Mes activités**
 button; draft visibility is already enforced by the server. Undated drafts appear
 under **Sans date**. Activity detail keeps reference, title, Project/Partner/PTA,
-state, period and responsible Agents in one compact identity block. Its
-tabs always place **Réalisation & finances** second when available; Programming
-does not repeat the dates already shown above. Activity detail prioritizes context, responsibility, validation and one
+programming approval, physical progress, realization validation, period and
+responsible Agents in one compact identity block. Technical revision numbers are
+not displayed. Its tabs place **Réalisation** then **Finance** after Programming
+when available; Programming does not repeat the dates already shown above.
+Activity detail prioritizes context, responsibility, validation and one
 authorized next action. Table/calendar share search and filters, removable chips
 and reset. The filter trigger opens the supplied floating panel with canonical
 state chips and an overlapping date range. Search, Agent and Filters share one
@@ -274,8 +275,15 @@ three bordered cards for general information, budget/weight and Subtasks; it has
 no Répartition sidebar. Subtasks use a right-side drawer and a compact aligned
 list with amount and weight totals. Amounts and weights remain manually entered;
 the UI never distributes them or changes sibling/parent values. Confirm before
-removing a Task or Subtask. Activity detail follows the supplied screenshots and
-shows Task-only rows without a Subtask disclosure.
+removing a Task or Subtask. The approved Activity detail follows
+`docs/inspiration/activities/details`: Réalisation combines its four-value summary,
+compact Task table and validation readiness in one card. Subtasks are collapsed by
+default and expand within that table. Finance uses separate **Situation financière**,
+**Demandes financières** and **Suivi administratif et clôture** cards; its Task
+expense breakdown is collapsed by default. Financial requests remain a compact
+table: each row shows the latest decision, actor and date, and its action opens
+the existing workflow in the shared right-side modal. History and
+supporting-document tabs retain their existing layouts.
 
 The Activity fiche reproduces the internal and Partner references in
 `docs/inspiration/fiche de suivi`: A4, 48-point side margins, 65-point navy header,

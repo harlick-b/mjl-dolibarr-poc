@@ -75,6 +75,10 @@ def test_agent_declares_zero_distinct_reviewers_approve_and_agent_closes(plannin
     )
     assert approved.status_code == 201, approved.text
     assert approved.json()["state"] == "approved"
+    assert all(
+        row["actor_name"] and row["actor_name"] != row["actor_id"]
+        for row in approved.json()["decisions"]
+    )
     approval_notice = next(
         row
         for row in planning["agent"].get("/api/v1/notifications").json()["data"]

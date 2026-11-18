@@ -31,6 +31,7 @@ from app.planning.core.service import (
     locked_mutation,
     principal,
 )
+from app.planning.finance import actor_display_names
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
     mark_review_handled,
@@ -98,6 +99,7 @@ class DecisionOutput(Input):
     stage: str
     outcome: str
     actor_id: str
+    actor_name: str
     actor_role: str
     decided_at: str
     reason: str | None
@@ -630,6 +632,7 @@ def output(
     assigned: bool | None = None,
 ) -> dict[str, Any]:
     rows = decisions(db, request.id)
+    actors = actor_display_names(db, (row.actor_id for row in rows))
     return {
         "id": request.id,
         "activity_id": request.activity_id,
@@ -655,6 +658,7 @@ def output(
                 "stage": row.stage,
                 "outcome": row.outcome,
                 "actor_id": row.actor_id,
+                "actor_name": actors.get(row.actor_id, "Utilisateur indisponible"),
                 "actor_role": row.actor_role,
                 "decided_at": row.decided_at.isoformat(),
                 "reason": row.reason,

@@ -120,6 +120,10 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
         "prevalidated",
         "approved",
     ]
+    assert all(
+        row["actor_name"] and row["actor_name"] != row["actor_id"]
+        for row in approved.json()["decisions"]
+    )
     assert approved.json()["allowed_actions"] == ["read"]
     assert (
         planning["agent"]

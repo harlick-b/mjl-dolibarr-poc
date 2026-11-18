@@ -18,6 +18,7 @@ from app.planning.core.models import (
     ZeroSpendingDeclaration,
 )
 from app.planning.core.service import CONTEXT, Cursor, locked_mutation, principal
+from app.planning.finance import actor_display_names
 from app.planning.finance.disbursement import (
     excluded_reviewers,
     verified_financial_basis,
@@ -86,6 +87,7 @@ class DecisionOutput(Input):
     stage: str
     outcome: str
     actor_id: str
+    actor_name: str
     actor_role: str
     decided_at: str
     reason: str | None
@@ -169,6 +171,7 @@ def output(
     db: Session, declaration: ZeroSpendingDeclaration, role: str, actor_id: str
 ) -> dict[str, Any]:
     rows = decisions(db, declaration.id)
+    actors = actor_display_names(db, (row.actor_id for row in rows))
     return {
         "id": declaration.id,
         "activity_id": declaration.activity_id,
@@ -183,6 +186,7 @@ def output(
                 "stage": row.stage,
                 "outcome": row.outcome,
                 "actor_id": row.actor_id,
+                "actor_name": actors.get(row.actor_id, "Utilisateur indisponible"),
                 "actor_role": row.actor_role,
                 "decided_at": row.decided_at.isoformat(),
                 "reason": row.reason,

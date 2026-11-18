@@ -1787,6 +1787,21 @@ function ActivityDetail({
   const { api } = useAPI()
   const client = useQueryClient()
   const search = useSearch({ strict: false })
+  const executionSummary = useQuery({
+    queryKey: ['execution', user.id, 'activity', item.id],
+    queryFn: async ({ signal }) => {
+      try {
+        return await api.request(`/api/v1/activities/${item.id}/execution`, {
+          signal,
+        })
+      } catch (error) {
+        if (error.status === 401) onDenied()
+        throw error
+      }
+    },
+    enabled: Boolean(item.approved_revision_id),
+    retry: false,
+  })
   const typeChoices = useQuery({
     ...planningQuery(
       api,
@@ -2095,6 +2110,14 @@ function ActivityDetail({
       item.allocation === null ||
       !(item.tasks || []).length)
   const executionContext = search.origin === 'execution'
+  const execution = executionSummary.data
+  const administrativeSituation = execution?.closure
+    ? executionStrings.closedLabel
+    : execution?.pause_reason === 'funding_required'
+      ? executionStrings.fundingStage
+      : execution?.works_completed && execution?.closure_blockers?.length
+        ? strings.pendingClosure
+        : ''
   return (
     <div className="grid gap-5">
       <nav
@@ -2139,11 +2162,63 @@ function ActivityDetail({
             {item.project_name} · {item.partner_name} · PTA{' '}
             {item.placement_year}
           </p>
-          <div>
-            <StatusBadge className={activityStatusClass(item.state)}>
-              {strings[item.state] || item.state}
-            </StatusBadge>
-          </div>
+          {!item.approved_revision_id && (
+            <div>
+              <StatusBadge className={activityStatusClass(item.state)}>
+                {strings[item.state] || item.state}
+              </StatusBadge>
+            </div>
+          )}
+          {item.approved_revision_id && execution && (
+            <dl className="grid grid-cols-[repeat(3,minmax(140px,max-content))] gap-x-8 gap-y-3 text-[0.8125rem] max-[760px]:grid-cols-2 max-[480px]:grid-cols-1">
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  {strings.programmingApproval}
+                </dt>
+                <dd className="mt-1 font-semibold">
+                  {strings.programmingApproved}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  {strings.physicalExecution}
+                </dt>
+                <dd className="mt-1 font-semibold">
+                  {executionStrings.realizationStates[
+                    execution.realization_status
+                  ] || execution.realization_status}
+                  {execution.progress !== null
+                    ? ` · ${String(execution.progress).replace('.', ',')} %`
+                    : ''}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  {strings.realizationValidation}
+                </dt>
+                <dd className="mt-1 font-semibold">
+                  {executionStrings.realizationValidationStates[
+                    execution.realization_status
+                  ] || strings.notSubmitted}
+                </dd>
+              </div>
+              {administrativeSituation && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">
+                    {strings.administrativeSituation}
+                  </dt>
+                  <dd className="mt-1 font-semibold">
+                    {administrativeSituation}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
+          {item.approved_revision_id && executionSummary.isError && (
+            <RetryableError onRetry={() => void executionSummary.refetch()}>
+              Le suivi de réalisation est temporairement indisponible.
+            </RetryableError>
+          )}
           <div className="grid gap-1 text-[0.8125rem]">
             <span className="text-xs text-muted-foreground">
               {strings.activityOwners}
@@ -2171,7 +2246,7 @@ function ActivityDetail({
               )}
             </span>
           </div>
-          <dl className="grid grid-cols-[repeat(3,minmax(100px,max-content))] gap-8 text-[0.8125rem] max-[480px]:grid-cols-2">
+          <dl className="grid grid-cols-[repeat(2,minmax(100px,max-content))] gap-8 text-[0.8125rem] max-[480px]:grid-cols-2">
             <div>
               <dt className="text-xs text-muted-foreground">
                 {strings.plannedStart}
@@ -2186,14 +2261,6 @@ function ActivityDetail({
               </dt>
               <dd className="mt-1 font-medium">
                 {item.planned_end ? formatDate(item.planned_end) : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                {strings.revision}
-              </dt>
-              <dd className="mt-1 font-medium">
-                {item.current_revision_number || 1}
               </dd>
             </div>
           </dl>
@@ -2379,21 +2446,26 @@ function ActivityDetail({
             {label}
           </Link>
         ))}
-        {item.approved_revision_id && (
-          <Link
-            className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === 'finance' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
-            to={Urls.activity}
-            params={{ activityId: item.id }}
-            search={(current) => ({
-              ...current,
-              tab: 'finance',
-              revision: undefined,
-              amendment: undefined,
-            })}
-          >
-            {strings.financeTab}
-          </Link>
-        )}
+        {item.approved_revision_id &&
+          [
+            ['realization', strings.realizationTab],
+            ['finance', strings.financeTab],
+          ].map(([tab, label]) => (
+            <Link
+              key={tab}
+              className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+              to={Urls.activity}
+              params={{ activityId: item.id }}
+              search={(current) => ({
+                ...current,
+                tab,
+                revision: undefined,
+                amendment: undefined,
+              })}
+            >
+              {label}
+            </Link>
+          ))}
         {[
           ['history', strings.historyTab],
           ['files', strings.filesTab],
@@ -2534,7 +2606,12 @@ function ActivityDetail({
             </div>
           )}
       </div>
-      {search.tab === 'finance' && <ExecutionView screen="detail" embedded />}
+      {search.tab === 'realization' && (
+        <ExecutionView screen="detail" embedded section="realization" />
+      )}
+      {search.tab === 'finance' && (
+        <ExecutionView screen="detail" embedded section="finance" />
+      )}
       {search.tab === 'files' && (
         <div>
           <ActivityDocuments

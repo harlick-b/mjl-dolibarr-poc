@@ -48,33 +48,29 @@ const administrativeStates = {
   cancelled: 'Annulée',
 }
 
-function currentAdministrativeRow(result) {
-  const current = result?.data?.find((row) => row.state !== 'cancelled')
-  return current || result?.data?.[0]
+const administrativeDecisionLabels = {
+  prevalidated: 'Prévalidée',
+  approved: 'Autorisée',
+  returned: 'Retournée',
+  cancelled: 'Annulée',
 }
 
-function administrativeStatus(result, fallback = 'À venir') {
-  const latest = currentAdministrativeRow(result)
-  return latest ? administrativeStates[latest.state] || fallback : fallback
+function latestAdministrativeDecision(request) {
+  return (request.decisions || []).reduce((latest, decision) => {
+    if (!latest) return decision
+    return new Date(decision.decided_at || 0) > new Date(latest.decided_at || 0)
+      ? decision
+      : latest
+  }, null)
 }
 
-function hasAdministrativeAction(result) {
-  const hasAction = (actions = []) =>
-    actions.some((action) => action !== 'read')
+function administrativeDecisionActor(decision) {
   return (
-    hasAction(result?.allowed_actions) ||
-    result?.data?.some((row) => hasAction(row.allowed_actions))
+    decision?.actor_name ||
+    decision?.actor_display_name ||
+    decision?.actor_email ||
+    (decision ? 'Utilisateur indisponible' : null)
   )
-}
-
-function hasUnresolvedAdministrativeStep(result) {
-  return result?.data?.some(
-    (row) => !['approved', 'cancelled'].includes(row.state),
-  )
-}
-
-function administrativeStepCompleted(result) {
-  return currentAdministrativeRow(result)?.state === 'approved'
 }
 
 function resolveCurrentVirement(detail, result, selected, historicalPage) {
@@ -88,6 +84,7 @@ function resolveCurrentVirement(detail, result, selected, historicalPage) {
 }
 
 function AdministrativeStep({
+  id,
   title,
   description,
   status,
@@ -98,6 +95,7 @@ function AdministrativeStep({
   const [isOpen, setIsOpen] = useState(defaultOpen)
   return (
     <details
+      id={id}
       className="group border-t border-border first:border-t-0"
       open={isOpen}
     >
@@ -156,7 +154,11 @@ function executionQuery(api, userId, key, path, onDenied) {
   }
 }
 
-export function ExecutionView({ screen, embedded = false }) {
+export function ExecutionView({
+  screen,
+  embedded = false,
+  section = 'combined',
+}) {
   const session = useSessionQuery()
   const params = useParams({ strict: false })
   if (session.isPending) return <ExecutionLoading screen={screen} />
@@ -167,13 +169,20 @@ export function ExecutionView({ screen, embedded = false }) {
       key={`${session.data.user.id}:${screen}:${params.activityId || params.ptaId || ''}`}
       screen={screen}
       embedded={embedded}
+      section={section}
       session={session.data}
       onDenied={() => {}}
     />
   )
 }
 
-function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
+function ExecutionWorkspace({
+  screen,
+  session,
+  onDenied,
+  embedded = false,
+  section = 'combined',
+}) {
   const { api } = useAPI()
   const client = useQueryClient()
   const params = useParams({ strict: false })
@@ -183,6 +192,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
   const [reversementFile, setReversementFile] = useState(null)
   const [reversementUploadError, setReversementUploadError] = useState(null)
   const [uploadPending, setUploadPending] = useState(false)
+  const financeSection = section !== 'realization'
   const uploadController = useRef(null)
   const generation = useRef(0)
   const controller = useRef(null)
@@ -209,7 +219,8 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       ),
       onDenied,
     ),
-    enabled: screen === 'detail' && Boolean(params.activityId),
+    enabled:
+      financeSection && screen === 'detail' && Boolean(params.activityId),
   })
   const finance = useQuery({
     ...executionQuery(
@@ -222,7 +233,8 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       ),
       onDenied,
     ),
-    enabled: screen === 'detail' && Boolean(params.activityId),
+    enabled:
+      financeSection && screen === 'detail' && Boolean(params.activityId),
   })
   const zeroSpending = useQuery({
     ...executionQuery(
@@ -236,6 +248,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       onDenied,
     ),
     enabled:
+      financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
       detail.data?.works_completed &&
@@ -250,6 +263,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       onDenied,
     ),
     enabled:
+      financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
       Boolean(search.financeRequest),
@@ -265,7 +279,8 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       ),
       onDenied,
     ),
-    enabled: screen === 'detail' && Boolean(params.activityId),
+    enabled:
+      financeSection && screen === 'detail' && Boolean(params.activityId),
   })
   const selectedVirement = useQuery({
     ...executionQuery(
@@ -276,6 +291,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       onDenied,
     ),
     enabled:
+      financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
       Boolean(virementRequestId),
@@ -297,6 +313,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       onDenied,
     ),
     enabled:
+      financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
       Boolean(virementRequestId) &&
@@ -319,6 +336,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
       onDenied,
     ),
     enabled:
+      financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
       Boolean(virementRequestId) &&
@@ -506,22 +524,24 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
   const relevant =
     screen === 'list'
       ? [list]
-      : [
-          detail,
-          finance,
-          funding,
-          ...(detail.data?.works_completed &&
-          detail.data?.spending_total === '0'
-            ? [zeroSpending]
-            : []),
-          virements,
-          ...(search.financeRequest ? [selectedFinance] : []),
-          ...(virementRequestId ? [selectedVirement] : []),
-          ...(selectedVirement.data?.state === 'approved'
-            ? [confirmationHistory]
-            : []),
-          ...(selectedVirement.data?.reversement ? [reversementHistory] : []),
-        ]
+      : financeSection
+        ? [
+            detail,
+            finance,
+            funding,
+            ...(detail.data?.works_completed &&
+            detail.data?.spending_total === '0'
+              ? [zeroSpending]
+              : []),
+            virements,
+            ...(search.financeRequest ? [selectedFinance] : []),
+            ...(virementRequestId ? [selectedVirement] : []),
+            ...(selectedVirement.data?.state === 'approved'
+              ? [confirmationHistory]
+              : []),
+            ...(selectedVirement.data?.reversement ? [reversementHistory] : []),
+          ]
+        : [detail]
   const failedQueries = relevant.filter((query) => query.isError)
   const retryFailed = () =>
     void Promise.all(failedQueries.map((query) => query.refetch()))
@@ -587,6 +607,7 @@ function ExecutionWorkspace({ screen, session, onDenied, embedded = false }) {
     <>
       {readError}
       <ExecutionDetail
+        section={section}
         detail={detail.data}
         sectionFallbacks={{
           funding: missingRead(funding),
@@ -883,7 +904,7 @@ export function ExecutionList({
                       className="block break-words font-medium text-primary"
                       to={Urls.activity}
                       params={{ activityId: row.id }}
-                      search={{ tab: 'finance', origin: 'execution' }}
+                      search={{ tab: 'realization', origin: 'execution' }}
                       title={row.name}
                     >
                       {row.name}
@@ -950,7 +971,7 @@ export function ExecutionList({
                       <Link
                         to={Urls.activity}
                         params={{ activityId: row.id }}
-                        search={{ tab: 'finance', origin: 'execution' }}
+                        search={{ tab: 'realization', origin: 'execution' }}
                       >
                         {strings.followUp}
                       </Link>
@@ -1003,6 +1024,7 @@ export function ExecutionList({
 }
 
 function ExecutionDetail({
+  section,
   sectionFallbacks,
   detail,
   finance,
@@ -1045,17 +1067,114 @@ function ExecutionDetail({
   }
   const [selectedTaskId, setSelectedTaskId] = useState(null)
   const [selectedSubtaskId, setSelectedSubtaskId] = useState(null)
+  const [selectedZeroSpendingId, setSelectedZeroSpendingId] = useState(null)
+  const [financialDrawer, setFinancialDrawer] = useState(
+    selectedFinance
+      ? 'disbursement'
+      : virementSelectedBySearch && selectedVirement
+        ? 'virement'
+        : null,
+  )
   const taskOpener = useRef(null)
+  const financialDrawerOpener = useRef(null)
   const selectedTask = tasks.find((task) => task.id === selectedTaskId)
   const selectedTarget = selectedSubtaskId
     ? selectedTask?.subtasks.find((child) => child.id === selectedSubtaskId)
     : selectedTask
+  const recordedTasks = tasks.filter(
+    (task) => task.actual_spent !== null,
+  ).length
+  const plannedAmount = BigInt(detail.approved_allocation)
+  const recordedAmount =
+    detail.spending_total === null ? null : BigInt(detail.spending_total)
+  const acceptedAmount =
+    detail.realization_status === 'validated' ? recordedAmount : null
+  const approvedDisbursement = finance?.data?.find(
+    (request) => request.state === 'approved',
+  )
+  const authorizedAmount =
+    approvedDisbursement?.amount ??
+    (detail.virement_context?.disbursement_request_id
+      ? detail.virement_context.amount
+      : null)
+  const authorizationPending = finance?.data?.some((request) =>
+    ['submitted', 'prevalidated'].includes(request.state),
+  )
+  const financialVariance =
+    recordedAmount !== null && recordedAmount > plannedAmount
+      ? recordedAmount - plannedAmount
+      : null
+  const unusedBalance =
+    acceptedAmount !== null && acceptedAmount <= plannedAmount
+      ? plannedAmount - acceptedAmount
+      : null
   const currentVirement = resolveCurrentVirement(
     detail,
     virements,
     selectedVirement,
     virementHistoryPage,
   )
+  const validationLabel =
+    strings.realizationValidationStates[detail.realization_status] ||
+    strings.realizationValidationStates.not_started
+  const incompleteTasks = tasks.filter((task) => !task.execution_completed)
+  const readinessGroups = [
+    {
+      kind: 'task',
+      tasks: incompleteTasks.filter((task) => !task.subtasks.length),
+    },
+    {
+      kind: 'subtask',
+      tasks: incompleteTasks.filter((task) => task.subtasks.length),
+    },
+  ].filter((group) => group.tasks.length)
+  const financialRequests = [
+    ...(finance?.data || []).map((request) => ({
+      ...request,
+      kind: 'Décaissement',
+      drawer: 'disbursement',
+    })),
+    ...(virements?.data || []).map((request) => ({
+      ...request,
+      kind: 'Virement',
+      drawer: 'virement',
+    })),
+    ...(funding?.data || []).map((request) => ({
+      ...request,
+      kind: 'Financement complémentaire',
+      drawer: 'funding',
+    })),
+    ...(zeroSpending?.data || []).map((request) => ({
+      ...request,
+      amount: '0',
+      kind: 'Déclaration sans dépense',
+      drawer: 'zero',
+    })),
+  ]
+  const newFinancialRequest =
+    role === 'AGENT_SAISIE' &&
+    detail.works_completed &&
+    detail.spending_total === '0' &&
+    !zeroSpending?.count
+      ? 'zero'
+      : role === 'AGENT_SAISIE' && detail.virement_context?.can_submit
+        ? 'virement'
+        : funding?.allowed_actions?.includes('submit')
+          ? 'funding'
+          : role === 'AGENT_SAISIE' &&
+              detail.works_completed &&
+              Number(detail.spending_total) > 0 &&
+              !finance?.data?.some(
+                (row) => !['returned', 'cancelled'].includes(row.state),
+              )
+            ? 'disbursement'
+            : null
+  const financialDrawerLabels = {
+    disbursement: 'Autorisation de décaissement',
+    virement: 'Autorisation de virement',
+    funding: 'Financement complémentaire',
+    zero: 'Déclaration sans dépense',
+  }
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
@@ -1102,139 +1221,433 @@ function ExecutionDetail({
             .
           </p>
         )}
-      <Panel
-        as="section"
-        className="overflow-hidden p-0 gap-0 [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-xl [&_dd]:font-semibold [&_dd]:text-navy"
-      >
-        <dl className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-8 px-6 py-7 max-[760px]:grid-cols-1">
-          <div>
-            <dt>{strings.currentBudget}</dt>
-            <dd>{formatXof(detail.approved_allocation)}</dd>
-          </div>
-          <div>
-            <dt>
-              {strings.spentAmount} ·{' '}
-              {detail.works_completed
-                ? strings.finalAmount
-                : strings.partialAmount}
-            </dt>
-            <dd>{formatXof(detail.spending_total)}</dd>
-            <small className="text-muted-foreground">
-              {taskDetail.completed_tasks} / {taskDetail.task_count}{' '}
-              {strings.tasksCount} terminées
-            </small>
-          </div>
-          <div>
-            <dt>{strings.amountToReturn}</dt>
-            <dd>{formatXof(detail.required_reversement)}</dd>
-          </div>
-        </dl>
-      </Panel>
-      <ExecutionTasks
-        key={detail.works_completed ? 'completed' : 'in-progress'}
-        detail={taskDetail}
-        onSelect={(taskId, subtaskId, opener) => {
-          taskOpener.current = opener
-          setSelectedTaskId(taskId)
-          setSelectedSubtaskId(subtaskId)
-        }}
-      />
-      <Modal
-        open={Boolean(selectedTarget)}
-        onClose={() => {
-          setSelectedTaskId(null)
-          setSelectedSubtaskId(null)
-        }}
-        label={selectedTarget?.name || 'Tâche'}
-        opener={taskOpener}
-        className="w-[min(640px,calc(100%-32px))]"
-      >
-        {selectedTask && selectedTarget && (
-          <TaskEditor
-            activity={detail}
-            task={selectedTask}
-            target={selectedTarget}
-            isSubtask={Boolean(selectedSubtaskId)}
-            pending={pending}
-            mutate={async (...args) => {
-              const result = await mutate(...args)
-              if (result !== false) {
-                setSelectedTaskId(null)
-                setSelectedSubtaskId(null)
-              }
-              return result
-            }}
-          />
-        )}
-      </Modal>
-      <section
-        aria-labelledby="administrative-title"
-        className="overflow-hidden rounded-panel border border-border bg-white"
-      >
-        <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <h2 id="administrative-title" className="font-semibold text-navy">
-            {strings.administrativeFollowUp}
-          </h2>
-          <StatusBadge className="bg-selected font-medium text-primary">
-            {executionStage(detail)}
-          </StatusBadge>
-        </header>
-        <div>
-          {detail.works_completed && detail.spending_total === '0' && (
-            <AdministrativeStep
-              key={`zero:${administrativeStatus(zeroSpending, 'À déclarer')}`}
-              title="Déclaration sans dépense"
-              description="Confirmer qu’aucune dépense n’a été engagée."
-              status={administrativeStatus(zeroSpending, 'À déclarer')}
-              completed={administrativeStepCompleted(zeroSpending)}
-              defaultOpen={
-                hasAdministrativeAction(zeroSpending) ||
-                hasUnresolvedAdministrativeStep(zeroSpending) ||
-                (role === 'AGENT_SAISIE' && !zeroSpending?.count)
-              }
-            >
-              <ZeroSpendingSection
-                fallback={sectionFallbacks.zeroSpending}
-                detail={detail}
-                result={zeroSpending}
-                role={role}
-                pending={pending}
-                mutate={mutateFinance}
-                onPage={onZeroSpendingPage}
-              />
-            </AdministrativeStep>
-          )}
-          {(!detail.works_completed ||
-            detail.spending_total !== '0' ||
-            finance?.count > 0) && (
-            <>
-              <AdministrativeStep
-                key={`disbursement:${administrativeStatus(finance, 'À demander')}`}
-                title="Autorisation de décaissement"
-                description={
-                  finance?.count
-                    ? 'Faire approuver le montant final à décaisser.'
-                    : strings.noRequest
-                }
-                status={administrativeStatus(
-                  finance,
-                  detail.works_completed ? 'À demander' : 'À venir',
+      {section !== 'finance' && (
+        <>
+          <Panel className="gap-0 overflow-hidden p-0">
+            <dl className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-6 px-6 py-5 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1">
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Avancement physique
+                </dt>
+                <dd className="mt-1 text-lg font-semibold text-navy">
+                  {detail.progress === null
+                    ? '—'
+                    : `${String(detail.progress).replace('.', ',')} %`}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Tâches terminées
+                </dt>
+                <dd className="mt-1 text-lg font-semibold text-navy">
+                  {taskDetail.completed_tasks} / {taskDetail.task_count}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Dépenses enregistrées
+                </dt>
+                <dd className="mt-1 text-lg font-semibold text-navy">
+                  {formatXof(detail.spending_total)}
+                </dd>
+                <small className="text-muted-foreground">
+                  {recordedTasks} / {taskDetail.task_count} tâches renseignées
+                </small>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Validation de la réalisation
+                </dt>
+                <dd className="mt-1 text-lg font-semibold text-navy">
+                  {validationLabel}
+                </dd>
+              </div>
+            </dl>
+            <ExecutionTasks
+              key={detail.works_completed ? 'completed' : 'in-progress'}
+              embedded
+              detail={taskDetail}
+              onSelect={(taskId, subtaskId, opener) => {
+                taskOpener.current = opener
+                setSelectedTaskId(taskId)
+                setSelectedSubtaskId(subtaskId)
+              }}
+            />
+            <section className="border-t border-border px-6 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <h2>Validation de la réalisation</h2>
+                <span className="text-sm text-muted-foreground">
+                  {validationLabel}
+                </span>
+              </div>
+              <div className="mt-4 divide-y divide-border text-sm">
+                {!detail.works_completed &&
+                  readinessGroups.map((group) => {
+                    const task = group.tasks[0]
+                    const subtask = task.subtasks.find(
+                      (child) => !child.execution_completed,
+                    )
+                    const target = group.kind === 'subtask' ? subtask : task
+                    const canRecord =
+                      target?.allowed_actions?.includes('record')
+                    const count = group.tasks.length
+                    return (
+                      <div
+                        key={group.kind}
+                        className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0"
+                      >
+                        <span>
+                          {count === 1
+                            ? `Terminez la tâche « ${task.name} ».`
+                            : `${count} tâches à terminer.`}
+                        </span>
+                        <button
+                          type="button"
+                          className="font-medium text-primary hover:underline"
+                          onClick={(event) => {
+                            taskOpener.current = event.currentTarget
+                            setSelectedTaskId(task.id)
+                            setSelectedSubtaskId(
+                              group.kind === 'subtask' ? subtask?.id : null,
+                            )
+                          }}
+                        >
+                          {canRecord
+                            ? group.kind === 'subtask'
+                              ? 'Renseigner les sous-tâches'
+                              : 'Renseigner la tâche'
+                            : 'Consulter'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                {detail.works_completed &&
+                  detail.realization_status !== 'validated' && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0">
+                      <span>
+                        Une autorisation de décaissement ou une déclaration sans
+                        dépense est requise.
+                      </span>
+                      <Link
+                        to={Urls.activity}
+                        params={{ activityId: detail.id }}
+                        search={(current) => ({ ...current, tab: 'finance' })}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Consulter la demande
+                      </Link>
+                    </div>
+                  )}
+                {detail.realization_status === 'validated' && (
+                  <p className="py-3 first:pt-0 text-muted-foreground">
+                    Les dépenses finales ont été acceptées par le parcours
+                    financier en vigueur.
+                  </p>
                 )}
-                completed={administrativeStepCompleted(finance)}
-                defaultOpen={
-                  (detail.works_completed &&
-                    hasAdministrativeAction(finance)) ||
-                  (detail.works_completed &&
-                    hasUnresolvedAdministrativeStep(finance)) ||
-                  (role === 'AGENT_SAISIE' &&
-                    detail.works_completed &&
-                    Number(detail.spending_total) > 0 &&
-                    !finance?.data?.some(
-                      (row) => !['returned', 'cancelled'].includes(row.state),
-                    ))
-                }
+              </div>
+            </section>
+          </Panel>
+          <Modal
+            open={Boolean(selectedTarget)}
+            onClose={() => {
+              setSelectedTaskId(null)
+              setSelectedSubtaskId(null)
+            }}
+            label={selectedTarget?.name || 'Tâche'}
+            opener={taskOpener}
+            className="w-[min(560px,calc(100%-32px))]"
+          >
+            {selectedTask && selectedTarget && (
+              <TaskEditor
+                activity={detail}
+                task={selectedTask}
+                target={selectedTarget}
+                isSubtask={Boolean(selectedSubtaskId)}
+                pending={pending}
+                mutate={async (...args) => {
+                  const result = await mutate(...args)
+                  if (result !== false) {
+                    setSelectedTaskId(null)
+                    setSelectedSubtaskId(null)
+                  }
+                  return result
+                }}
+              />
+            )}
+          </Modal>
+        </>
+      )}
+      {section !== 'realization' && (
+        <Panel
+          aria-labelledby="financial-situation-title"
+          className="gap-0 overflow-hidden p-0"
+        >
+          <h2
+            id="financial-situation-title"
+            className="border-b border-border px-6 py-5"
+          >
+            Situation financière
+          </h2>
+          <dl className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-6 px-6 py-5 max-[760px]:grid-cols-2 max-[480px]:grid-cols-1">
+            <div>
+              <dt className="text-xs text-muted-foreground">Montant prévu</dt>
+              <dd className="mt-1 font-semibold text-navy">
+                {formatXof(detail.approved_allocation)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                Montant autorisé
+              </dt>
+              <dd className="mt-1 font-semibold text-navy">
+                {authorizedAmount !== null
+                  ? formatXof(authorizedAmount)
+                  : authorizationPending
+                    ? 'Autorisation en cours'
+                    : 'Autorisation à obtenir'}
+              </dd>
+            </div>
+            {recordedAmount !== null && (
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Dépenses enregistrées
+                </dt>
+                <dd className="mt-1 font-semibold text-navy">
+                  {formatXof(String(recordedAmount))}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                Dépenses acceptées
+              </dt>
+              <dd className="mt-1 font-semibold text-navy">
+                {acceptedAmount === null
+                  ? 'En attente de validation'
+                  : formatXof(String(acceptedAmount))}
+              </dd>
+            </div>
+            {financialVariance !== null && financialVariance !== 0n && (
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Écart financier
+                </dt>
+                <dd className="mt-1 font-semibold text-navy">
+                  {formatXof(String(financialVariance))}
+                </dd>
+              </div>
+            )}
+            {unusedBalance !== null && (
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Solde non utilisé
+                </dt>
+                <dd className="mt-1 font-semibold text-navy">
+                  {formatXof(String(unusedBalance))}
+                </dd>
+              </div>
+            )}
+          </dl>
+          <details className="border-t border-border">
+            <summary className="cursor-pointer px-6 py-4 font-medium text-primary">
+              Dépenses par tâche
+            </summary>
+            <div className="overflow-x-auto px-6 pb-5">
+              <table className="w-full min-w-170 text-left text-[0.8125rem]">
+                <thead className="border-b border-border bg-background">
+                  <tr>
+                    <th className="p-3 font-medium">Tâche</th>
+                    <th className="p-3 text-right font-medium">
+                      Allocation prévue
+                    </th>
+                    <th className="p-3 text-right font-medium">Enregistrées</th>
+                    <th className="p-3 text-right font-medium">Acceptées</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasks.map((task) => (
+                    <tr key={task.id} className="border-b border-border">
+                      <td className="p-3 font-medium">{task.name}</td>
+                      <td className="p-3 text-right">
+                        {formatXof(task.approved_allocation)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {formatXof(task.actual_spent)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {acceptedAmount === null
+                          ? '—'
+                          : formatXof(task.actual_spent)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <div className="border-t border-border px-6 py-4">
+            <Button asChild variant="outline" size="sm">
+              <Link
+                to={Urls.activity}
+                params={{ activityId: detail.id }}
+                search={(current) => ({ ...current, tab: 'realization' })}
               >
-                {detail.works_completed ? (
+                Consulter la réalisation
+              </Link>
+            </Button>
+          </div>
+        </Panel>
+      )}
+      {section !== 'realization' && (
+        <>
+          <section
+            aria-labelledby="administrative-title"
+            className="overflow-hidden rounded-panel border border-border bg-white"
+          >
+            <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+              <h2 id="administrative-title" className="font-semibold text-navy">
+                Demandes financières
+              </h2>
+              {newFinancialRequest && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={(event) => {
+                    financialDrawerOpener.current = event.currentTarget
+                    setSelectedZeroSpendingId(null)
+                    setFinancialDrawer(newFinancialRequest)
+                  }}
+                >
+                  Nouvelle demande
+                </Button>
+              )}
+            </header>
+            {financialRequests.length > 0 ? (
+              <div className="overflow-x-auto border-t border-border px-3 py-2">
+                <table className="w-full min-w-180 text-left text-[0.8125rem]">
+                  <thead className="border-b border-border bg-background">
+                    <tr>
+                      <th className="p-3 font-medium">Demande / date</th>
+                      <th className="p-3 text-right font-medium">
+                        Montant total
+                      </th>
+                      <th className="p-3 font-medium">
+                        Statut / dernière décision
+                      </th>
+                      <th className="p-3 font-medium">
+                        <span className="sr-only">Action</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financialRequests.map((request) => {
+                      const actions = request.allowed_actions || []
+                      const actionLabel = actions.some((action) =>
+                        ['prevalidate', 'approve'].includes(action),
+                      )
+                        ? 'Examiner'
+                        : request.state === 'returned' &&
+                            role === 'AGENT_SAISIE'
+                          ? 'Reprendre'
+                          : 'Consulter'
+                      const latestDecision =
+                        latestAdministrativeDecision(request)
+                      const decisionActor =
+                        administrativeDecisionActor(latestDecision)
+                      return (
+                        <tr
+                          key={`${request.kind}:${request.id}`}
+                          className="border-b border-border last:border-0"
+                        >
+                          <td className="p-3">
+                            <strong className="block text-navy">
+                              {request.kind}
+                            </strong>
+                            <span className="text-xs text-muted-foreground">
+                              {request.submitted_at
+                                ? formatDateTime(request.submitted_at)
+                                : 'Date non renseignée'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-medium">
+                            {formatXof(request.amount)}
+                          </td>
+                          <td className="p-3">
+                            <strong className="block font-medium text-navy">
+                              {administrativeStates[request.state] ||
+                                request.state}
+                            </strong>
+                            {latestDecision && (
+                              <span className="mt-1 block text-xs text-muted-foreground">
+                                {administrativeDecisionLabels[
+                                  latestDecision.outcome
+                                ] || latestDecision.outcome}
+                                {decisionActor ? ` · ${decisionActor}` : ''}
+                                {latestDecision.decided_at
+                                  ? ` · ${formatDateTime(latestDecision.decided_at)}`
+                                  : ''}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={(event) => {
+                                financialDrawerOpener.current =
+                                  event.currentTarget
+                                if (request.drawer === 'disbursement')
+                                  onFinanceSelect(request.id)
+                                if (request.drawer === 'virement')
+                                  onVirementSelect(request.id)
+                                if (request.drawer === 'zero')
+                                  setSelectedZeroSpendingId(request.id)
+                                setFinancialDrawer(request.drawer)
+                              }}
+                            >
+                              {actionLabel}
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="border-t border-border px-6 py-5 text-sm text-muted-foreground">
+                Aucune demande financière.
+              </p>
+            )}
+          </section>
+          <Modal
+            open={Boolean(financialDrawer)}
+            onClose={() => {
+              setFinancialDrawer(null)
+              setSelectedZeroSpendingId(null)
+            }}
+            label={
+              financialDrawerLabels[financialDrawer] || 'Demande financière'
+            }
+            opener={financialDrawerOpener}
+            className="m-0 ml-auto h-dvh max-h-dvh w-[min(760px,100%)] rounded-none border-y-0 border-r-0"
+          >
+            <div className="p-6 [&>[data-ui='planning-card']]:shadow-none">
+              {financialDrawer === 'zero' && (
+                <ZeroSpendingSection
+                  fallback={sectionFallbacks.zeroSpending}
+                  detail={detail}
+                  result={zeroSpending}
+                  selectedId={selectedZeroSpendingId}
+                  role={role}
+                  pending={pending}
+                  mutate={mutateFinance}
+                  onPage={onZeroSpendingPage}
+                />
+              )}
+              {financialDrawer === 'disbursement' &&
+                (detail.works_completed ? (
                   <DisbursementSection
                     fallback={sectionFallbacks.finance}
                     detail={detail}
@@ -1249,136 +1662,113 @@ function ExecutionDetail({
                   />
                 ) : (
                   <p>{strings.previousStepsIncomplete}</p>
-                )}
-              </AdministrativeStep>
-              {(!detail.works_completed || detail.spending_total !== '0') && (
+                ))}
+              {financialDrawer === 'virement' &&
+                (detail.works_completed ? (
+                  <VirementSection
+                    fallback={sectionFallbacks.virements}
+                    detail={detail}
+                    result={virements}
+                    current={currentVirement}
+                    selectedBySearch={virementSelectedBySearch}
+                    role={role}
+                    historicalPage={virementHistoryPage}
+                    pending={pending}
+                    mutate={mutateFinance}
+                    onPage={onVirementPage}
+                    onSelect={onVirementSelect}
+                  />
+                ) : (
+                  <p>{strings.previousStepsIncomplete}</p>
+                ))}
+              {financialDrawer === 'funding' && (
+                <FundingSection
+                  fallback={sectionFallbacks.funding}
+                  detail={detail}
+                  result={funding}
+                  pending={pending}
+                  mutate={mutateFinance}
+                  onPage={onFundingPage}
+                />
+              )}
+            </div>
+          </Modal>
+        </>
+      )}
+      {section !== 'realization' && (
+        <section
+          aria-labelledby="administrative-closure-title"
+          className="overflow-hidden rounded-panel border border-border bg-white"
+        >
+          <header className="px-6 py-5">
+            <h2
+              id="administrative-closure-title"
+              className="font-semibold text-navy"
+            >
+              Suivi administratif et clôture
+            </h2>
+          </header>
+          <div>
+            {(!detail.works_completed || detail.spending_total !== '0') &&
+              (currentVirement?.state === 'approved' ? (
                 <>
-                  <AdministrativeStep
-                    key={`virement:${administrativeStatus(virements, 'À venir')}:${Boolean(detail.virement_context?.can_submit)}:${selectedVirement?.id || ''}`}
-                    title="Autorisation de virement"
-                    description={
-                      virements?.count
-                        ? 'Faire autoriser le virement du montant approuvé.'
-                        : strings.noRequest
-                    }
-                    status={administrativeStatus(virements, 'À venir')}
-                    completed={administrativeStepCompleted(virements)}
-                    defaultOpen={
-                      (detail.works_completed &&
-                        hasAdministrativeAction(virements)) ||
-                      (detail.works_completed &&
-                        hasUnresolvedAdministrativeStep(virements)) ||
-                      (role === 'AGENT_SAISIE' &&
-                        detail.virement_context?.can_submit)
-                    }
-                  >
-                    {detail.works_completed ? (
-                      <VirementSection
-                        fallback={sectionFallbacks.virements}
-                        detail={detail}
-                        result={virements}
-                        current={currentVirement}
-                        selectedBySearch={virementSelectedBySearch}
-                        role={role}
-                        historicalPage={virementHistoryPage}
-                        pending={pending}
-                        mutate={mutateFinance}
-                        onPage={onVirementPage}
-                        onSelect={onVirementSelect}
-                      />
-                    ) : (
-                      <p>{strings.previousStepsIncomplete}</p>
-                    )}
-                  </AdministrativeStep>
-                  {currentVirement?.state === 'approved' ? (
-                    <>
-                      <ExternalTransferStep
-                        current={currentVirement}
-                        history={confirmationHistory}
-                        pending={pending}
-                        mutate={mutateFinance}
-                        onPage={onConfirmationPage}
-                      />
-                      {currentVirement.reversement && (
-                        <ReversementStep
-                          detail={detail}
-                          current={currentVirement}
-                          history={reversementHistory}
-                          pending={pending}
-                          mutate={mutateFinance}
-                          uploadEvidence={uploadReversementEvidence}
-                          file={reversementFile}
-                          setFile={setReversementFile}
-                          uploadError={reversementUploadError}
-                          setUploadError={setReversementUploadError}
-                          onPage={onReversementPage}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <AdministrativeStep
-                      title={strings.externalTransfer}
-                      description={strings.notConfirmed}
-                      status="À venir"
-                    >
-                      <p>{strings.previousStepsIncomplete}</p>
-                    </AdministrativeStep>
+                  <ExternalTransferStep
+                    current={currentVirement}
+                    history={confirmationHistory}
+                    pending={pending}
+                    mutate={mutateFinance}
+                    onPage={onConfirmationPage}
+                  />
+                  {currentVirement.reversement && (
+                    <ReversementStep
+                      detail={detail}
+                      current={currentVirement}
+                      history={reversementHistory}
+                      pending={pending}
+                      mutate={mutateFinance}
+                      uploadEvidence={uploadReversementEvidence}
+                      file={reversementFile}
+                      setFile={setReversementFile}
+                      uploadError={reversementUploadError}
+                      setUploadError={setReversementUploadError}
+                      onPage={onReversementPage}
+                    />
                   )}
                 </>
-              )}
-            </>
-          )}
-          {(detail.pause_reason === 'funding_required' ||
-            funding?.count > 0 ||
-            funding?.pending?.length > 0) && (
+              ) : (
+                <AdministrativeStep
+                  title={strings.externalTransfer}
+                  description={strings.notConfirmed}
+                  status="À venir"
+                >
+                  <p>{strings.previousStepsIncomplete}</p>
+                </AdministrativeStep>
+              ))}
             <AdministrativeStep
-              key={`funding:${administrativeStatus(funding, 'À traiter')}`}
-              title="Financement complémentaire"
-              description="Traiter l’écart entre le budget et la dépense finale."
-              status={administrativeStatus(funding, 'À traiter')}
-              completed={administrativeStepCompleted(funding)}
-              defaultOpen={
-                detail.pause_reason === 'funding_required' ||
-                hasAdministrativeAction(funding) ||
-                hasUnresolvedAdministrativeStep(funding)
+              key={`closure:${Boolean(detail.closure)}:${detail.allowed_actions?.includes('close')}`}
+              title="Clôture de l’activité"
+              description={
+                detail.works_completed
+                  ? 'Confirmer que l’activité et son règlement sont terminés.'
+                  : strings.finishRealization
               }
+              status={detail.closure ? 'Terminée' : 'À venir'}
+              completed={Boolean(detail.closure)}
+              defaultOpen={detail.allowed_actions?.includes('close')}
             >
-              <FundingSection
-                fallback={sectionFallbacks.funding}
-                detail={detail}
-                result={funding}
-                pending={pending}
-                mutate={mutateFinance}
-                onPage={onFundingPage}
-              />
+              {detail.works_completed ? (
+                <ClosureSection
+                  detail={detail}
+                  pending={pending}
+                  mutate={mutateFinance}
+                />
+              ) : (
+                <p>{strings.finishRealization}</p>
+              )}
             </AdministrativeStep>
-          )}
-          <AdministrativeStep
-            key={`closure:${Boolean(detail.closure)}:${detail.allowed_actions?.includes('close')}`}
-            title="Clôture de l’activité"
-            description={
-              detail.works_completed
-                ? 'Confirmer que l’activité et son règlement sont terminés.'
-                : strings.finishRealization
-            }
-            status={detail.closure ? 'Terminée' : 'À venir'}
-            completed={Boolean(detail.closure)}
-            defaultOpen={detail.allowed_actions?.includes('close')}
-          >
-            {detail.works_completed ? (
-              <ClosureSection
-                detail={detail}
-                pending={pending}
-                mutate={mutateFinance}
-              />
-            ) : (
-              <Button type="button" disabled>
-                {strings.closeActivity}
-              </Button>
-            )}
-          </AdministrativeStep>
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
     </section>
   )
 }
@@ -1387,6 +1777,7 @@ function ZeroSpendingSection({
   fallback,
   detail,
   result,
+  selectedId,
   role,
   pending,
   mutate,
@@ -1394,7 +1785,11 @@ function ZeroSpendingSection({
 }) {
   if (!result) return fallback
   const declarations = result.data
-  const current = declarations.find((row) => row.state !== 'returned')
+  const selected = selectedId
+    ? declarations.find((row) => row.id === selectedId)
+    : null
+  const current =
+    selected || declarations.find((row) => row.state !== 'returned')
   const currentIsOnNewerPage =
     !current &&
     Boolean(result?.previous) &&

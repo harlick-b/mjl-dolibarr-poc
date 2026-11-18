@@ -3,8 +3,7 @@ import { CheckCircle2, ChevronDown, CircleDollarSign, Play } from 'lucide-react'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
-import { StatusBadge } from '@/shared/ui/StatusBadge'
-import { formatDateTime, formatXof } from '@/shared/lib/format'
+import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ExecutionView'
 
 function canRecord(item) {
@@ -17,79 +16,68 @@ function stateLabel(item) {
   return strings.notStartedLabel
 }
 
-export function ExecutionTasks({ detail, onSelect }) {
-  const [isOpen, setIsOpen] = useState(!detail.works_completed)
+export function ExecutionTasks({ detail, onSelect, embedded = false }) {
+  const [expanded, setExpanded] = useState(() => new Set())
+  const actionLabel = (item, compact = false) => {
+    if (!canRecord(item)) return strings.consult
+    if (item.execution_started_at || item.actual_spent !== null)
+      return compact ? 'Modifier' : 'Modifier la réalisation'
+    return strings.record
+  }
   return (
-    <details
-      className="group overflow-hidden rounded-panel border border-border bg-white"
-      open={isOpen}
+    <section
+      className={
+        embedded
+          ? 'overflow-hidden border-t border-border bg-white'
+          : 'overflow-hidden rounded-panel border border-border bg-white'
+      }
     >
-      <summary
-        className={`flex min-h-20 cursor-pointer list-none flex-wrap items-center gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden ${detail.works_completed ? 'bg-white' : 'bg-selected'}`}
-        onClick={(event) => {
-          event.preventDefault()
-          setIsOpen((current) => !current)
-        }}
-      >
-        <span className="grid size-6 shrink-0 place-items-center rounded-full border border-primary text-xs font-semibold text-primary">
-          {detail.works_completed ? '✓' : '•'}
-        </span>
-        <span className="min-w-0 flex-1">
-          <strong className="block font-semibold text-navy">
-            {strings.physicalProgress}
-          </strong>
-          <span className="text-sm text-muted-foreground">
-            {detail.progress === null
-              ? strings.progressUnavailable
-              : `${detail.progress} %`}
-          </span>
-          <span className="block text-sm text-muted-foreground">
-            {detail.tasks.filter((task) => task.actual_spent !== null).length} /{' '}
-            {detail.tasks.length}{' '}
-            {detail.tasks.length === 1
-              ? strings.expenseRecorded
-              : strings.expensesRecorded}
-          </span>
-          <span className="block text-sm text-muted-foreground">
-            {detail.completed_tasks} / {detail.task_count} tâches terminées
-          </span>
-        </span>
-        <StatusBadge className="bg-white text-primary">
-          {detail.works_completed ? strings.completedLabel : strings.toProcess}
-        </StatusBadge>
-        <ChevronDown
-          className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-          size={18}
-        />
-      </summary>
-      <div className="overflow-x-auto p-5">
-        <table className="w-full min-w-[680px] text-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-210 table-fixed text-[0.8125rem]">
+          <colgroup>
+            <col className="w-[34%]" />
+            <col className="w-[14%]" />
+            <col className="w-[17%]" />
+            <col className="w-[17%]" />
+            <col className="w-[18%]" />
+          </colgroup>
           <thead className="border-b border-border bg-background">
             <tr>
-              <th className="p-3 text-left font-medium">{strings.task}</th>
-              <th className="p-3 text-right font-medium">{strings.weight}</th>
+              <th className="p-3 text-left font-medium">Tâche / période</th>
+              <th className="p-3 text-left font-medium">Réalisation</th>
+              <th className="p-3 text-right font-medium">Prévu</th>
+              <th className="p-3 text-right font-medium">Enregistré</th>
               <th className="p-3 text-right font-medium">
-                {strings.authorized}
+                <span className="sr-only">Action</span>
               </th>
-              <th className="p-3 text-right font-medium">{strings.spent}</th>
-              <th className="p-3 text-left font-medium">
-                {strings.realization}
-              </th>
-              <th className="p-3" />
             </tr>
           </thead>
           <tbody>
             {detail.tasks.flatMap((task) => {
+              const isExpanded = expanded.has(task.id)
               const rows = [
                 <tr key={task.id} className="border-b border-border">
                   <td className="p-3 font-medium">
                     {task.name}
                     <small className="mt-1 block text-muted-foreground">
                       {task.type_label}
+                      {task.planned_start && task.planned_end
+                        ? ` · ${formatDate(task.planned_start)} → ${formatDate(task.planned_end)}`
+                        : ''}
+                      {task.subtasks.length
+                        ? ` · ${task.subtasks.length} sous-tâche(s)`
+                        : ''}
                     </small>
                   </td>
-                  <td className="p-3 text-right">
-                    {task.weight ? `${task.weight} %` : '—'}
+                  <td className="p-3">
+                    <strong>
+                      {task.progress === null
+                        ? '—'
+                        : `${String(task.progress).replace('.', ',')} %`}
+                    </strong>
+                    <small className="mt-1 block text-muted-foreground">
+                      {stateLabel(task)}
+                    </small>
                   </td>
                   <td className="p-3 text-right">
                     {formatXof(task.approved_allocation)}
@@ -97,52 +85,82 @@ export function ExecutionTasks({ detail, onSelect }) {
                   <td className="p-3 text-right">
                     {formatXof(task.actual_spent)}
                   </td>
-                  <td className="p-3">
-                    {task.progress ? `${task.progress} %` : stateLabel(task)}
-                  </td>
                   <td className="p-3 text-right">
-                    {!task.subtasks.length && (
+                    {task.subtasks.length ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        aria-label={`${canRecord(task) ? strings.record : strings.consult} ${task.name}`}
+                        aria-expanded={isExpanded}
+                        onClick={() =>
+                          setExpanded((current) => {
+                            const next = new Set(current)
+                            if (next.has(task.id)) next.delete(task.id)
+                            else next.add(task.id)
+                            return next
+                          })
+                        }
+                      >
+                        {isExpanded ? 'Masquer' : 'Afficher'}
+                        <ChevronDown
+                          className={isExpanded ? 'rotate-180' : ''}
+                          size={15}
+                          aria-hidden="true"
+                        />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-label={`${actionLabel(task)} ${task.name}`}
                         onClick={(event) =>
                           onSelect(task.id, null, event.currentTarget)
                         }
                       >
-                        {canRecord(task) ? strings.record : strings.consult}
+                        {actionLabel(task)}
                       </Button>
                     )}
                   </td>
                 </tr>,
               ]
+              if (!isExpanded) return rows
               for (const child of task.subtasks)
                 rows.push(
                   <tr
                     key={child.id}
                     className="border-b border-border bg-background/50 last:border-0"
                   >
-                    <td className="p-3 pl-8">↳ {child.name}</td>
-                    <td className="p-3 text-right">{child.weight} %</td>
+                    <td className="p-3 pl-8">
+                      <span aria-hidden="true">↳ </span>
+                      {child.name}
+                      <small className="mt-1 block text-muted-foreground">
+                        {formatDate(child.planned_start)} →{' '}
+                        {formatDate(child.planned_end)}
+                      </small>
+                    </td>
+                    <td className="p-3">
+                      <strong>
+                        {child.execution_completed ? 'Terminée' : 'À réaliser'}
+                      </strong>
+                    </td>
                     <td className="p-3 text-right">
                       {formatXof(child.approved_allocation)}
                     </td>
                     <td className="p-3 text-right">
                       {formatXof(child.actual_spent)}
                     </td>
-                    <td className="p-3">{stateLabel(child)}</td>
                     <td className="p-3 text-right">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        aria-label={`${canRecord(child) ? strings.record : strings.consult} ${child.name}`}
+                        aria-label={`${actionLabel(child, true)} ${child.name}`}
                         onClick={(event) =>
                           onSelect(task.id, child.id, event.currentTarget)
                         }
                       >
-                        {canRecord(child) ? strings.record : strings.consult}
+                        {actionLabel(child, true)}
                       </Button>
                     </td>
                   </tr>,
@@ -152,7 +170,7 @@ export function ExecutionTasks({ detail, onSelect }) {
           </tbody>
         </table>
       </div>
-    </details>
+    </section>
   )
 }
 
@@ -189,11 +207,25 @@ export function TaskEditor({
         )}
       </div>
       <div className="flex items-center justify-between gap-4 border-b border-border py-3 text-sm">
-        <span>{strings.authorizedAmountLabel}</span>
+        <span>Montant prévu</span>
         <strong className="font-semibold text-navy">
           {formatXof(target.approved_allocation)}
         </strong>
       </div>
+      <dl className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <dt className="text-muted-foreground">Début prévu</dt>
+          <dd className="mt-1 font-medium">
+            {target.planned_start ? formatDate(target.planned_start) : '—'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Fin prévue</dt>
+          <dd className="mt-1 font-medium">
+            {target.planned_end ? formatDate(target.planned_end) : '—'}
+          </dd>
+        </div>
+      </dl>
       {target.execution_started_at && (
         <p className="flex items-center gap-2 text-sm">
           <Play size={16} /> Démarrée le{' '}
@@ -273,13 +305,13 @@ export function TaskEditor({
             </label>
           )}
           <label>
-            {strings.actualSpent}
+            {strings.recordedExpense}
             <ExactNumberInput
               name="actual_spent"
               value={amount}
               onChange={setAmount}
               suffix="F CFA"
-              aria-label={strings.actualSpent}
+              aria-label={strings.recordedExpense}
             />
           </label>
           <p className="text-sm text-muted-foreground">

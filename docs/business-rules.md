@@ -322,7 +322,8 @@ receive the second-stage notice. Contributor and no-self-review exclusions come
 from the request's frozen review facts. A financial return notifies current
 assigned active Agents in-app and by one email attempt; final approval notifies
 them in-app only. The notification links to the Activity's current
-`Réalisation & finances` state and never grants review authority by itself.
+current **Réalisation** or **Finance** state and never grants review authority by
+itself.
 
 Whole-current-PTA metrics use approved baselines, independent of screen filters
 or pagination. Physical rate = closed Activities / approved planned Activities.

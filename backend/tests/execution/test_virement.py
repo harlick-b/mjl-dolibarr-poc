@@ -106,6 +106,10 @@ def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
         },
     )
     assert approved.status_code == 201, approved.text
+    assert all(
+        row["actor_name"] and row["actor_name"] != row["actor_id"]
+        for row in approved.json()["decisions"]
+    )
     return activity, source, approved.json()
 
 

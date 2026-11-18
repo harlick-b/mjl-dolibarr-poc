@@ -127,6 +127,10 @@ def authorize(clients, activity):
         response = decide(clients, activity, request, role, decision)
         assert response.status_code == 201, response.text
         request = response.json()
+    assert all(
+        row["actor_name"] and row["actor_name"] != row["actor_id"]
+        for row in request["decisions"]
+    )
     return request
 
 

@@ -5,6 +5,7 @@ export const strings = new LocalizedStrings({
     assignmentRequired:
       'Cette activité ne vous est plus affectée. Vous pouvez toujours la consulter.',
     actualSpent: 'Montant dépensé final (F CFA)',
+    recordedExpense: 'Dépense enregistrée (F CFA)',
     operationTypeLabel: 'Catégorie : {type}',
     authorizedAmountLabel: 'Montant autorisé',
     physicallyCompleted: 'Tâche physiquement terminée',
@@ -85,6 +86,12 @@ export const strings = new LocalizedStrings({
       not_started: 'Non démarrée',
       in_progress: 'En cours',
       completed_pending_validation: 'Terminée, en attente de validation',
+      validated: 'Validée',
+    },
+    realizationValidationStates: {
+      not_started: 'Non soumise',
+      in_progress: 'Non soumise',
+      completed_pending_validation: 'En attente de validation',
       validated: 'Validée',
     },
     consult: 'Consulter',

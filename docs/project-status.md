@@ -1767,3 +1767,35 @@ references. Independent re-review and the Draft-fiche conflict recorded in the
 Activity UX plan remained open at that point. The independent reviewer then
 cleared the component-standard and responsive implementation, with the Draft
 fiche as the sole blocking product conflict requiring a user decision.
+
+## Activity realization and finance detail alignment, 2026-11-18
+
+The approved Activity detail now has separate **Réalisation** and **Finance**
+tabs under one stable header. The header shows programming approval, physical
+progress and realization validation without exposing technical revision numbers.
+Réalisation combines the compact summary, Task table, collapsed Subtasks and
+actionable readiness rows in one card. Finance separates its financial situation,
+requests, and administrative closure into three cards and keeps the Task expense
+breakdown collapsed.
+
+Current business behavior is unchanged: only assigned Agents edit execution;
+financial requests retain their existing completion gates; final décaissement or
+approved zero spending establishes validated realization; reversement evidence
+remains optional and recorded external amounts remain immutable. The implementation
+uses the existing execution endpoints and preserves the shared REST-client
+contract.
+
+Independent review corrections separate physical and validation wording, derive
+the authorized amount only from approved décaissement data, group readiness
+requirements while respecting read-only access, add the compact financial-request
+list, hide blocked closure actions and surface execution-summary failure with
+retry. Financial request rows now expose their latest decision with actor/date;
+submission and review use the shared right-side modal instead of duplicate inline
+accordions. The finance decision API adds the reviewer's display name to its
+existing decision projection, and zero-spending rows open their selected
+declaration rather than whichever declaration is current. The focused
+execution/Planning run passes 94 tests. Targeted formatting
+and lint, the production build, and the canonical Activity Playwright flow pass;
+the build retains its known chunk-size warning. Browser coverage includes desktop
+and mobile Réalisation/Finance, Subtask disclosure, read-only readiness, all three
+authorization display states, financial request columns and header read failure.

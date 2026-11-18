@@ -198,6 +198,9 @@ implementation boundaries; [README](../README.md) owns setup.
 - Check Playwright discovery when renaming specs: testMatch also filters explicit
   CLI paths. Use role plus accessible name for custom comboboxes; option text can
   interfere with label queries. Await the condition under test rather than sleeps.
+- Keep browser fixtures within the real API response contract. A synthetic display
+  field can make the UI pass while production exposes an internal identifier; add
+  the authorized projection to the API and cover its real response shape.
 - Before launching an existing app, identify its configured database and runtime.
   Compose can override .env and a new project name selects another volume.
   Healthy endpoints alone do not prove that existing accounts are being served.

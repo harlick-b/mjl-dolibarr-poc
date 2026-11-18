@@ -120,7 +120,7 @@ function LegacyExecutionActivityRedirect() {
     <Navigate
       to={Urls.activity}
       params={{ activityId: params.activityId }}
-      search={{ ...search, tab: 'finance', origin: 'execution' }}
+      search={{ ...search, tab: 'realization', origin: 'execution' }}
       replace
     />
   )
@@ -594,7 +594,7 @@ export function makeRouter(history, componentOverrides = {}) {
           Number(search.month) <= 12
             ? Number(search.month)
             : undefined,
-        tab: ['finance', 'history', 'files'].includes(search.tab)
+        tab: ['realization', 'finance', 'history', 'files'].includes(search.tab)
           ? search.tab
           : 'programming',
         origin: search.origin === 'execution' ? 'execution' : 'planning',
