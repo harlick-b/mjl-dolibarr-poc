@@ -2553,10 +2553,7 @@ function ActivityDetail({
               <dl className="grid gap-6 p-5 text-sm">
                 <div>
                   <dt className="text-muted-foreground">
-                    {strings.formatString(
-                      strings.plannedAmountRevision,
-                      item.current_revision_number || 1,
-                    )}
+                    {strings.plannedAmountSummary}
                   </dt>
                   <dd className="mt-2 text-base font-semibold">
                     {formatXof(item.allocation)}

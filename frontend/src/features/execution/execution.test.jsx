@@ -30,6 +30,11 @@ async function openFinancialDrawer(user, action = 'Nouvelle demande') {
   return screen.findByRole('dialog')
 }
 
+async function openAdministrativeDrawer(user, action, label) {
+  await user.click(await screen.findByRole('button', { name: action }))
+  return screen.findByRole('dialog', { name: label })
+}
+
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '')
@@ -468,16 +473,15 @@ test('agent records tasks before the collapsed financial workflow', async () => 
 
   expect(await screen.findByText('Montant autorisé')).toBeVisible()
   expect(screen.getByText('Dépenses acceptées')).toBeVisible()
-  expect(screen.queryAllByText('Non renseigné')).toHaveLength(0)
+  expect(screen.getByText('Non renseigné')).toBeVisible()
   expect(
     within(screen.getByText('Dépenses acceptées').parentElement).getByText(
-      'En attente de validation',
+      'Réalisation à soumettre',
     ),
   ).toBeVisible()
   expect(
     screen.queryByText('Autorisations et montants confirmés'),
   ).not.toBeInTheDocument()
-  expect(screen.getByText('0 / 1 tâches renseignées')).toBeVisible()
   expect(
     screen.getByRole('button', { name: 'Renseigner Préparer la session' }),
   ).toBeVisible()
@@ -626,7 +630,7 @@ test('agent completes a subtask and keeps the draft after a failed save', async 
     />,
   )
 
-  await user.click(await screen.findByRole('button', { name: 'Afficher' }))
+  await user.click(await screen.findByRole('button', { name: 'Développer' }))
   await user.click(
     await screen.findByRole('button', { name: 'Renseigner Réserver la salle' }),
   )
@@ -1107,6 +1111,7 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
         version: 12,
         closure: {
           closed_by_id: 'agent',
+          closed_by_name: 'Agent de test',
           closed_at: '2026-10-30T15:00:00Z',
         },
         allowed_actions: ['read'],
@@ -1136,24 +1141,20 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
   const button = await screen.findByRole('button', {
     name: 'Clôturer l’activité',
   })
-  const confirmation = screen.getByLabelText(
+  const closureStep = button.closest('section')
+  expect(closureStep).toHaveAttribute('data-administrative-state', 'pending')
+  await user.click(button)
+  const dialog = screen.getByRole('dialog', { name: 'Clôture de l’activité' })
+  const confirmation = within(dialog).getByLabelText(
     /Je confirme que l’Activité est entièrement réalisée/,
   )
-  expect(
-    button
-      .closest('details')
-      .querySelector('[data-administrative-state="pending"]'),
-  ).toBeInTheDocument()
   expect(confirmation).not.toBeChecked()
   await user.click(confirmation)
-  await user.click(button)
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Clôturer l’activité' }),
+  )
   await waitFor(() =>
-    expect(
-      screen
-        .getAllByText('Clôture de l’activité', { exact: true })[0]
-        .closest('details')
-        .querySelector('[data-administrative-state="complete"]'),
-    ).toBeInTheDocument(),
+    expect(screen.getByRole('button', { name: 'Consulter' })).toBeVisible(),
   )
   expect(
     screen.queryByRole('button', { name: 'Clôturer l’activité' }),
@@ -1168,7 +1169,7 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
 })
 
 test.each([
-  ['submitted', 'À examiner'],
+  ['submitted', 'À prévalider'],
   ['returned', 'À corriger'],
 ])(
   'an older approved funding request does not mark a newer %s request as complete',
@@ -1380,7 +1381,7 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   ).toBeVisible()
   expect(
     within(screen.getByText('Dépenses acceptées').parentElement).getByText(
-      'En attente de validation',
+      'Réalisation à soumettre',
     ),
   ).toBeVisible()
   await user.type(
@@ -1555,7 +1556,7 @@ test.each([
         expect(
           within(
             screen.getByRole('region', { name: 'Demandes financières' }),
-          ).getByText('Terminée'),
+          ).getByText('Approuvée'),
         ).toBeVisible(),
       )
     } else {
@@ -1717,6 +1718,7 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
       version: 12,
       closure: {
         closed_by_id: 'agent',
+        closed_by_name: 'Agent de test',
         closed_at: '2026-10-30T15:00:00Z',
       },
       closure_blockers: [],
@@ -1790,15 +1792,196 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
         )}
       />,
     )
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Consulter' }))
+    const closureDialog = screen.getByRole('dialog', {
+      name: 'Clôture de l’activité',
+    })
+    expect(within(closureDialog).getByText('Agent de test')).toBeVisible()
     expect(
-      (await screen.findAllByText('Clôture de l’activité', { exact: true }))[0]
-        .closest('details')
-        .querySelector('[data-administrative-state="complete"]'),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('Activité clôturée')).not.toBeVisible()
+      within(closureDialog).getByRole('link', {
+        name: 'Ouvrir l’historique',
+      }),
+    ).toHaveAttribute('href', expect.stringContaining('tab=history'))
+    expect(
+      (
+        await screen.findAllByText('Clôture de l’activité', { exact: true })
+      )[0].closest('section'),
+    ).toHaveAttribute('data-administrative-state', 'complete')
+    expect(within(closureDialog).getByText('Activité clôturée')).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Clôturer l’activité' }),
     ).toBeNull()
+  },
+)
+
+test('completed work exposes the financial blocker in the closure drawer', async () => {
+  const user = userEvent.setup()
+  const current = {
+    ...detail({ started: true, completed: true }),
+    closure_blockers: ['zero_spending_not_approved'],
+  }
+  const emptyList = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            ...emptyList,
+            pending: [],
+            allowed_actions: [],
+            activity_version: current.version,
+            approved_revision_id: current.approved_revision_id,
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(current))
+      return new Response(JSON.stringify(emptyList))
+    }),
+  )
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  const closureRow = (
+    await screen.findByText('Clôture de l’activité', {
+      exact: true,
+      selector: 'strong',
+    })
+  ).closest('section')
+  expect(closureRow).toHaveTextContent(
+    'La déclaration sans dépense doit être validée.',
+  )
+  await user.click(
+    within(closureRow).getByRole('button', { name: 'Consulter' }),
+  )
+  expect(
+    within(
+      screen.getByRole('dialog', { name: 'Clôture de l’activité' }),
+    ).getByText('La déclaration sans dépense doit être validée.'),
+  ).toBeVisible()
+})
+
+test.each([
+  ['AGENT_VERIFICATEUR', 'submitted', 'Agent superviseur', 'prevalidate'],
+  ['VALIDATEUR_DEFINITIF', 'prevalidated', 'Validateur définitif', 'approve'],
+])(
+  '%s sees its pending closure request and can open it',
+  async (role, state, ownerLabel, action) => {
+    const user = userEvent.setup()
+    const current = {
+      ...detail({ started: true, completed: true }),
+      spending_total: '0',
+      closure_blockers: ['zero_spending_not_approved'],
+    }
+    const emptyList = {
+      object: 'list',
+      count: 0,
+      data: [],
+      next: null,
+      previous: null,
+    }
+    const declaration = {
+      id: 'zero-pending',
+      activity_id: current.id,
+      approved_revision_id: current.approved_revision_id,
+      snapshot: { total: '0', operations: [] },
+      reason: 'Les moyens propres ont suffi.',
+      state,
+      submitter_id: 'agent',
+      submitted_at: '2026-11-03T10:00:00Z',
+      decisions: [],
+      allowed_actions: [action, 'return'],
+      activity_version: current.version,
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const path = String(url)
+        if (path.includes('/auth/session'))
+          return new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: { id: 'reviewer', email: 'reviewer@example.test', role },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          )
+        if (path.includes('/funding-requests'))
+          return new Response(
+            JSON.stringify({
+              ...emptyList,
+              pending: [],
+              allowed_actions: [],
+              activity_version: current.version,
+              approved_revision_id: current.approved_revision_id,
+            }),
+          )
+        if (path.endsWith('/zero-spending-declarations'))
+          return new Response(
+            JSON.stringify({ ...emptyList, count: 1, data: [declaration] }),
+          )
+        if (path.endsWith('/activities/activity-1/execution'))
+          return new Response(JSON.stringify(current))
+        return new Response(JSON.stringify(emptyList))
+      }),
+    )
+    render(
+      <App
+        router={makeExecutionRouter(
+          createMemoryHistory({
+            initialEntries: ['/execution/activities/activity-1'],
+          }),
+        )}
+      />,
+    )
+
+    const closureRow = (
+      await screen.findByText('Clôture de l’activité', {
+        exact: true,
+        selector: 'strong',
+      })
+    ).closest('section')
+    expect(closureRow).toHaveTextContent(`Responsable : ${ownerLabel}.`)
+    await user.click(
+      within(closureRow).getByRole('button', {
+        name: 'Examiner la demande',
+      }),
+    )
+    const requestDialog = screen.getByRole('dialog', {
+      name: 'Déclaration sans dépense',
+    })
+    expect(
+      within(requestDialog).getByText('Motif : Les moyens propres ont suffi.'),
+    ).toBeVisible()
   },
 )
 
@@ -2226,7 +2409,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
     expect(
       within(
         screen.getByRole('region', { name: 'Demandes financières' }),
-      ).getByText('À examiner'),
+      ).getByText('À prévalider'),
     ).toBeVisible(),
   )
   expect(
@@ -2531,7 +2714,7 @@ test('Agent submits the locked disbursement amount for virement authorization', 
     expect(
       within(
         screen.getByRole('region', { name: 'Demandes financières' }),
-      ).getByText('À examiner'),
+      ).getByText('À prévalider'),
     ).toBeVisible(),
   )
   expect(fetch).toHaveBeenCalledWith(
@@ -2697,19 +2880,36 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       )}
     />,
   )
+  const virementDialog = within(
+    await openAdministrativeDrawer(
+      user,
+      'Enregistrer le virement',
+      'Virement externe',
+    ),
+  )
   expect(
-    await screen.findByText(/MJL enregistre la déclaration/i),
+    await virementDialog.findByText(/MJL enregistre la déclaration/i),
   ).toBeVisible()
   await user.click(
-    screen.getByRole('button', { name: /Date effective du virement/ }),
+    virementDialog.getByRole('button', {
+      name: /Date effective du virement/,
+    }),
   )
-  fireEvent.change(screen.getByLabelText('Date effective du virement'), {
-    target: { value: '2026-10-28' },
-  })
-  await user.type(screen.getByLabelText(/Référence ou commentaire/), 'TEST-001')
-  await user.click(screen.getByLabelText(/Je confirme que ce montant/))
+  fireEvent.change(
+    virementDialog.getByLabelText('Date effective du virement'),
+    {
+      target: { value: '2026-10-28' },
+    },
+  )
+  await user.type(
+    virementDialog.getByLabelText(/Référence ou commentaire/),
+    'TEST-001',
+  )
+  await user.click(virementDialog.getByLabelText(/Je confirme que ce montant/))
   await user.click(
-    screen.getByRole('button', { name: 'Enregistrer la déclaration' }),
+    virementDialog.getByRole('button', {
+      name: 'Enregistrer la déclaration',
+    }),
   )
   expect(fetch).toHaveBeenCalledWith(
     `/api/v1/activities/activity-1/virement-requests/${requestId}/confirmation`,
@@ -2722,10 +2922,16 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       }),
     }),
   )
-  await screen.findByRole('button', { name: 'Corriger la déclaration' })
   const virementPanel = within(
-    screen.getByText('Virement externe', { exact: true }).closest('details'),
+    await openAdministrativeDrawer(
+      user,
+      'Modifier le virement',
+      'Virement externe',
+    ),
   )
+  await virementPanel.findByRole('button', {
+    name: 'Corriger la déclaration',
+  })
   await user.click(
     virementPanel.getByRole('button', { name: /Date effective du virement/ }),
   )
@@ -2773,14 +2979,6 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       virementPanel.getByLabelText(/Référence ou commentaire/),
     ).toHaveValue('TEST-003'),
   )
-  await waitFor(() =>
-    expect(screen.getByText('Virement externe', { exact: true })).toBeVisible(),
-  )
-  const confirmationDetails = screen
-    .getByText('Virement externe', { exact: true })
-    .closest('details')
-  if (!confirmationDetails.open)
-    await user.click(screen.getByText('Virement externe', { exact: true }))
   await waitFor(() =>
     expect(
       virementPanel.getByText('Historique des déclarations (3)'),
@@ -3009,7 +3207,19 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     />,
   )
 
-  const title = await screen.findByRole('heading', {
+  const rowAction = await screen.findByRole('button', {
+    name: 'Enregistrer le reversement',
+  })
+  const reversementRow = rowAction.closest('section')
+  expect(reversementRow).toHaveTextContent('100 000 F CFA')
+  const reversementDialog = within(
+    await openAdministrativeDrawer(
+      user,
+      'Enregistrer le reversement',
+      'Reversement des fonds non utilisés',
+    ),
+  )
+  const title = await reversementDialog.findByRole('heading', {
     name: 'Reversement au Partenaire',
   })
   const panel = within(title.closest('section'))
@@ -3019,13 +3229,8 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       { exact: true },
     ),
   ).toBeVisible()
-  await user.click(
-    panel.getByRole('button', { name: 'Renseigner le reversement' }),
-  )
-  const dialog = within(
-    screen.getByRole('dialog', { name: 'Enregistrer le reversement' }),
-  )
-  expect(dialog.getByText('100 000 F CFA', { exact: true })).toBeVisible()
+  const dialog = reversementDialog
+  expect(dialog.getAllByText('100 000 F CFA', { exact: true })).toHaveLength(2)
   expect(dialog.queryByRole('textbox', { name: /montant/i })).toBeNull()
   await user.click(
     dialog.getByRole('button', {
@@ -3097,16 +3302,14 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     ),
   ).not.toBeInTheDocument()
   expect(reversementEvidence).toHaveLength(1)
-  await waitFor(() =>
-    expect(
-      screen.queryByRole('dialog', { name: 'Enregistrer le reversement' }),
-    ).not.toBeInTheDocument(),
-  )
+  await user.click(dialog.getByRole('button', { name: 'Fermer' }))
   await user.click(
-    await screen.findByRole('button', { name: 'Corriger le reversement' }),
+    await screen.findByRole('button', { name: 'Modifier le reversement' }),
   )
   const correctionDialog = within(
-    screen.getByRole('dialog', { name: 'Corriger le reversement' }),
+    screen.getByRole('dialog', {
+      name: 'Reversement des fonds non utilisés',
+    }),
   )
   await user.click(
     correctionDialog.getByRole('button', {
@@ -3131,21 +3334,18 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   await waitFor(() => expect(correctButton).toBeEnabled())
   await user.click(correctButton)
   await waitFor(() =>
-    expect(
-      screen.queryByRole('dialog', { name: 'Corriger le reversement' }),
-    ).not.toBeInTheDocument(),
-  )
-  expect(fetch).toHaveBeenCalledWith(
-    `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement/corrections`,
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({
-        expected_version: 9,
-        return_date: '2026-10-29',
-        note: 'REVERSEMENT-001',
-        reason: 'Date corrigée.',
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement/corrections`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 9,
+          return_date: '2026-10-29',
+          note: 'REVERSEMENT-001',
+          reason: 'Date corrigée.',
+        }),
       }),
-    }),
+    ),
   )
   await user.click(await screen.findByText('Historique des reversements (2)'))
   expect(screen.getByText('Reversement corrigé')).toBeVisible()
@@ -3245,12 +3445,13 @@ test('zero reversement displays settlement without a declaration form', async ()
     />,
   )
   const confirmationStep = (
-    await screen.findByText('Virement externe', { exact: true })
-  ).closest('details')
-  expect(
-    confirmationStep.querySelector('[data-administrative-state="complete"]'),
-  ).toBeInTheDocument()
-  expect(within(confirmationStep).getByText('Confirmé')).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Modifier le virement' })
+  ).closest('section')
+  expect(confirmationStep).toHaveAttribute(
+    'data-administrative-state',
+    'complete',
+  )
+  expect(confirmationStep).toHaveTextContent('100 000 F CFA')
   expect(
     screen.queryByRole('button', { name: 'Enregistrer le reversement' }),
   ).not.toBeInTheDocument()

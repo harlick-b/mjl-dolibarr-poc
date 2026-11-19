@@ -76,6 +76,7 @@ def test_agent_closes_complete_activity_atomically(planning):
     assert result["state"] == "closed"
     assert result["version"] == version + 1
     assert result["closure"]["closed_by_id"]
+    assert result["closure"]["closed_by_name"] == responsible_agent["full_name"]
     assert result["closure"]["closed_at"]
     assert result["closure_blockers"] == []
     assert result["allowed_actions"] == ["read"]

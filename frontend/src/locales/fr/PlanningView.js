@@ -292,7 +292,7 @@ export const strings = new LocalizedStrings({
     budget: 'Budget',
     approvedBudget: 'Budget approuvé',
     currentAuthorizedAmount: 'Montant autorisé courant',
-    plannedAmountRevision: 'Montant prévu · révision {0}',
+    plannedAmountSummary: 'Montant prévu',
     notProvided: 'Non renseigné',
     requester: 'Demandeur',
     notApproved: 'Non approuvé',

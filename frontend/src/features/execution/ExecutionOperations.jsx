@@ -65,7 +65,7 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                         ? ` · ${formatDate(task.planned_start)} → ${formatDate(task.planned_end)}`
                         : ''}
                       {task.subtasks.length
-                        ? ` · ${task.subtasks.length} sous-tâche(s)`
+                        ? ` · ${task.subtasks.length} ${task.subtasks.length === 1 ? 'sous-tâche' : 'sous-tâches'}`
                         : ''}
                     </small>
                   </td>
@@ -83,7 +83,9 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                     {formatXof(task.approved_allocation)}
                   </td>
                   <td className="p-3 text-right">
-                    {formatXof(task.actual_spent)}
+                    {task.actual_spent === null
+                      ? 'Non renseigné'
+                      : formatXof(task.actual_spent)}
                   </td>
                   <td className="p-3 text-right">
                     {task.subtasks.length ? (
@@ -101,7 +103,7 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                           })
                         }
                       >
-                        {isExpanded ? 'Masquer' : 'Afficher'}
+                        {isExpanded ? 'Masquer' : 'Développer'}
                         <ChevronDown
                           className={isExpanded ? 'rotate-180' : ''}
                           size={15}
@@ -148,7 +150,9 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                       {formatXof(child.approved_allocation)}
                     </td>
                     <td className="p-3 text-right">
-                      {formatXof(child.actual_spent)}
+                      {child.actual_spent === null
+                        ? 'Non renseigné'
+                        : formatXof(child.actual_spent)}
                     </td>
                     <td className="p-3 text-right">
                       <Button

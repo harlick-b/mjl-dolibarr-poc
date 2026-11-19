@@ -191,10 +191,9 @@ test('Activity realization and finance follow the approved detail composition', 
   await expect(
     page.getByRole('columnheader', { name: 'Tâche / période' }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Afficher' })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  )
+  await expect(
+    page.getByRole('button', { name: 'Développer' }),
+  ).toHaveAttribute('aria-expanded', 'false')
   await expect(
     page.getByRole('heading', { name: 'Validation de la réalisation' }),
   ).toBeVisible()
@@ -208,7 +207,7 @@ test('Activity realization and finance follow the approved detail composition', 
     fullPage: true,
   })
 
-  await page.getByRole('button', { name: 'Afficher' }).click()
+  await page.getByRole('button', { name: 'Développer' }).click()
   await expect(
     page.getByText('Préparation des supports communaux'),
   ).toBeVisible()
@@ -233,13 +232,34 @@ test('Activity realization and finance follow the approved detail composition', 
   ])
     await expect(page.getByRole('region', { name })).toBeVisible()
   await expect(page.getByText('Dépenses par tâche')).toBeVisible()
-  await expect(page.getByText('Écart financier')).toHaveCount(0)
   const financialSituation = page.getByRole('region', {
     name: 'Situation financière',
   })
   await expect(
+    financialSituation.getByRole('link', {
+      name: 'Réalisation : non soumise',
+    }),
+  ).toBeVisible()
+  await expect(
     financialSituation.getByText('Autorisation à obtenir'),
   ).toBeVisible()
+  await expect(
+    financialSituation.getByText('650 000 F CFA · partielles'),
+  ).toBeVisible()
+  await expect(
+    financialSituation.getByText('Réalisation à soumettre'),
+  ).toBeVisible()
+  await expect(financialSituation.getByText('Écart financier')).toBeVisible()
+  await expect(
+    financialSituation.getByText('Aucun dépassement enregistré'),
+  ).toBeVisible()
+  await expect(
+    financialSituation.getByRole('link', { name: 'Consulter la réalisation' }),
+  ).toHaveCount(0)
+  const administration = page.getByRole('region', {
+    name: 'Suivi administratif et clôture',
+  })
+  await expect(administration.locator('details')).toHaveCount(0)
   await page.screenshot({
     path: '/tmp/mjl-activity-finance.png',
     fullPage: true,
@@ -280,7 +300,7 @@ test('Activity realization and finance follow the approved detail composition', 
   await expect(
     page.getByRole('columnheader', { name: 'Demande / date' }),
   ).toBeVisible()
-  await expect(page.getByText(/Prévalidée · Clarisse AKPON/)).toBeVisible()
+  await expect(page.getByText(/Prévalidation · Clarisse AKPON/)).toBeVisible()
   await page.getByRole('button', { name: 'Consulter' }).click()
   await expect(
     page.getByRole('dialog', { name: 'Autorisation de décaissement' }),
@@ -298,6 +318,22 @@ test('Activity realization and finance follow the approved detail composition', 
       .locator('..')
       .getByText('650 000 F CFA', { exact: true }),
   ).toBeVisible()
+
+  await page.setViewportSize({ width: 1846, height: 970 })
+  await page.goto('/activities/activity-1?tab=programming&origin=execution')
+  await expect(
+    page.getByRole('heading', { name: 'Programmation' }),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Tâches' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Budget et validation' }),
+  ).toBeVisible()
+  await expect(page.getByText('Montant prévu', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Montant prévu · révision/i)).toHaveCount(0)
+  await page.screenshot({
+    path: '/tmp/mjl-activity-programming.png',
+    fullPage: true,
+  })
 
   executionFails = true
   await page.goto('/activities/activity-1?tab=programming&origin=execution')

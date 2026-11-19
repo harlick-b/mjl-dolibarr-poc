@@ -1147,10 +1147,10 @@ unavailable verification item.
 The populated Activity detail, Activity editor and dedicated Task editor were
 compared again with every applicable image in
 `docs/inspiration/activities/edit`. The detail header now carries the reference,
-context, state, responsible Agents, planned dates and revision in the approved
-order; its Programming and Task cards sit beside the Budget and validation card,
-with submission at the bottom of the workspace. Dates remain header-only under
-the user's settled exception.
+context, state, responsible Agents and planned dates in the approved order;
+its Programming and Task cards sit beside the Budget and validation card, with
+submission at the bottom of the workspace. Dates remain header-only under the
+user's settled exception, and technical revision numbers remain hidden.
 
 The Activity editor keeps the approved wide form plus 280 px Répartition card,
 uses the custom French attachment control and places its actions beneath both
@@ -1222,3 +1222,23 @@ flow covers desktop/mobile Réalisation, collapsed/expanded Subtasks, absent,
 pending and approved authorization amounts, read-only readiness, financial request
 columns and execution-summary failure. Fresh screenshots were inspected directly
 against the references.
+
+The final tab-level correction removes the remaining accordion treatment from
+external administration and closure. Those facts now use the approved flat rows;
+eligible actions open the existing right-side modal, including virement,
+reversement and closure forms. Finance shows partial spending, realization state
+and the no-overrun result in the approved summary hierarchy. Réalisation uses the
+approved Subtask disclosure and explicit **Non renseigné** spending value.
+Programmation keeps dates in the Activity header and removes the revision number
+from its budget label. The screenshot's technical financial-request codes are
+intentionally omitted under the user's explicit hidden-data decision; the API
+does not add those identifiers. Independent re-review also made financially
+blocked closure details reachable from the flat closure row. Closed Activities
+show the closer's resolved display name and link to the existing History tab;
+the execution projection adds only that display name and continues to keep the
+internal user ID out of the interface. A pending financial blocker names the
+responsible Agent, Supervisor or Validator and opens the existing request without
+duplicating its approval flow. The final affected frontend run passes 97 tests,
+ESLint, Prettier, the production build and the canonical Activity browser flow.
+Ruff and mypy pass for the additive backend projection. PostgreSQL integration
+could not run because `TEST_DATABASE_URL` is unavailable.

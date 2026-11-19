@@ -22,7 +22,6 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import {
   CheckCircle2,
-  ChevronDown,
   CircleDollarSign,
   ShieldCheck,
   XCircle,
@@ -41,18 +40,49 @@ function cursorPath(path, cursor) {
 }
 
 const administrativeStates = {
-  submitted: 'À examiner',
-  prevalidated: 'Décision attendue',
+  submitted: 'À prévalider',
+  prevalidated: 'À valider',
   returned: 'À corriger',
-  approved: 'Terminée',
+  approved: 'Approuvée',
   cancelled: 'Annulée',
 }
 
 const administrativeDecisionLabels = {
-  prevalidated: 'Prévalidée',
-  approved: 'Autorisée',
+  prevalidated: 'Prévalidation',
+  approved: 'Autorisation définitive',
   returned: 'Retournée',
   cancelled: 'Annulée',
+}
+
+const closureBlockerLabels = {
+  planning_not_approved:
+    'L’Activité doit être approuvée sans demande en cours.',
+  execution_ineligible: 'Les tâches approuvées ne peuvent pas être vérifiées.',
+  execution_incomplete:
+    'Toutes les tâches doivent être terminées et chiffrées.',
+  execution_history_unverified: 'L’historique de réalisation est incomplet.',
+  spending_ineligible: 'Le total final des dépenses ne peut pas être réglé.',
+  disbursement_not_settled: 'Le décaissement exact doit être approuvé.',
+  virement_not_settled: 'Le virement exact doit être approuvé.',
+  virement_confirmation_required: 'Le virement externe doit être confirmé.',
+  reversement_not_settled: 'Le reversement exact doit être enregistré.',
+  financial_insufficiency_unresolved:
+    'Les dépenses dépassent le montant approuvé.',
+  zero_spending_not_approved: 'La déclaration sans dépense doit être validée.',
+}
+
+function closureBlockerLabel(blocker) {
+  return (
+    closureBlockerLabels[blocker] ||
+    'Une étape administrative reste à terminer.'
+  )
+}
+
+function administrativeStateClass(state) {
+  if (state === 'approved') return 'bg-success-badge text-success'
+  if (state === 'returned' || state === 'cancelled')
+    return 'bg-warning-soft text-warning'
+  return 'bg-selected text-primary'
 }
 
 function latestAdministrativeDecision(request) {
@@ -87,32 +117,22 @@ function AdministrativeStep({
   id,
   title,
   description,
-  status,
   completed = false,
-  defaultOpen = false,
+  actionLabel = 'Consulter',
+  actionTo,
+  secondaryActionLabel,
+  onSecondaryAction,
   children,
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+  const [isOpen, setIsOpen] = useState(false)
+  const opener = useRef(null)
   return (
-    <details
+    <section
       id={id}
-      className="group border-t border-border first:border-t-0"
-      open={isOpen}
+      data-administrative-state={completed ? 'complete' : 'pending'}
+      className="border-t border-border first:border-t-0"
     >
-      <summary
-        className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden"
-        onClick={(event) => {
-          event.preventDefault()
-          setIsOpen((current) => !current)
-        }}
-      >
-        <span
-          className="grid size-6 shrink-0 place-items-center rounded-full border border-primary text-xs font-semibold text-primary"
-          data-administrative-state={completed ? 'complete' : 'pending'}
-          aria-hidden="true"
-        >
-          {completed ? '✓' : '•'}
-        </span>
+      <div className="flex min-h-20 flex-wrap items-center gap-4 px-5 py-4">
         <span className="min-w-0 flex-1">
           <strong className="block text-sm text-navy">{title}</strong>
           {description && (
@@ -121,19 +141,46 @@ function AdministrativeStep({
             </span>
           )}
         </span>
-        <span className="rounded-md bg-background px-2.5 py-1 text-xs text-navy">
-          {status}
-        </span>
-        <ChevronDown
-          className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-          size={18}
-          aria-hidden="true"
-        />
-      </summary>
-      <div className="border-t border-border bg-white px-5 pb-5 pt-1 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:pt-4 [&>[data-ui='planning-card']]:shadow-none">
-        {children}
+        {actionLabel &&
+          (actionTo ? (
+            <Button asChild variant="link" size="sm">
+              <Link
+                to={actionTo.to}
+                params={actionTo.params}
+                search={actionTo.search}
+              >
+                {actionLabel}
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              ref={opener}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsOpen(true)}
+            >
+              {actionLabel}
+            </Button>
+          ))}
+        {secondaryActionLabel && (
+          <Button type="button" size="sm" onClick={onSecondaryAction}>
+            {secondaryActionLabel}
+          </Button>
+        )}
       </div>
-    </details>
+      <Modal
+        open={isOpen && !actionTo}
+        onClose={() => setIsOpen(false)}
+        label={title}
+        opener={opener}
+        className="m-0 ml-auto h-dvh max-h-dvh w-[min(760px,100%)] rounded-none border-y-0 border-r-0"
+      >
+        <div className="grid gap-5 p-6 [&>[data-ui='planning-card']]:shadow-none">
+          {children}
+        </div>
+      </Modal>
+    </section>
   )
 }
 
@@ -1151,6 +1198,36 @@ function ExecutionDetail({
       drawer: 'zero',
     })),
   ]
+  const closureRequestDrawers = {
+    zero_spending_not_approved: 'zero',
+    disbursement_not_settled: 'disbursement',
+    virement_not_settled: 'virement',
+    financial_insufficiency_unresolved: 'funding',
+  }
+  const closureRequestDrawer = detail.closure_blockers
+    ?.map((blocker) => closureRequestDrawers[blocker])
+    .find(Boolean)
+  const closureRequest = closureRequestDrawer
+    ? financialRequests.find(
+        (request) =>
+          request.drawer === closureRequestDrawer &&
+          ['submitted', 'prevalidated', 'returned'].includes(request.state),
+      )
+    : null
+  const closureRequestOwner = closureRequest
+    ? {
+        submitted: 'Agent superviseur',
+        prevalidated: 'Validateur définitif',
+        returned: 'Agent de saisie',
+      }[closureRequest.state]
+    : null
+  const openFinancialRequest = (request, trigger) => {
+    financialDrawerOpener.current = trigger
+    if (request.drawer === 'disbursement') onFinanceSelect(request.id)
+    if (request.drawer === 'virement') onVirementSelect(request.id)
+    if (request.drawer === 'zero') setSelectedZeroSpendingId(request.id)
+    setFinancialDrawer(request.drawer)
+  }
   const newFinancialRequest =
     role === 'AGENT_SAISIE' &&
     detail.works_completed &&
@@ -1250,9 +1327,6 @@ function ExecutionDetail({
                 <dd className="mt-1 text-lg font-semibold text-navy">
                   {formatXof(detail.spending_total)}
                 </dd>
-                <small className="text-muted-foreground">
-                  {recordedTasks} / {taskDetail.task_count} tâches renseignées
-                </small>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
@@ -1382,12 +1456,17 @@ function ExecutionDetail({
           aria-labelledby="financial-situation-title"
           className="gap-0 overflow-hidden p-0"
         >
-          <h2
-            id="financial-situation-title"
-            className="border-b border-border px-6 py-5"
-          >
-            Situation financière
-          </h2>
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-5">
+            <h2 id="financial-situation-title">Situation financière</h2>
+            <Link
+              to={Urls.activity}
+              params={{ activityId: detail.id }}
+              search={(current) => ({ ...current, tab: 'realization' })}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Réalisation : {validationLabel.toLocaleLowerCase('fr')}
+            </Link>
+          </header>
           <dl className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-6 px-6 py-5 max-[760px]:grid-cols-2 max-[480px]:grid-cols-1">
             <div>
               <dt className="text-xs text-muted-foreground">Montant prévu</dt>
@@ -1414,6 +1493,7 @@ function ExecutionDetail({
                 </dt>
                 <dd className="mt-1 font-semibold text-navy">
                   {formatXof(String(recordedAmount))}
+                  {recordedTasks < taskDetail.task_count ? ' · partielles' : ''}
                 </dd>
               </div>
             )}
@@ -1423,20 +1503,16 @@ function ExecutionDetail({
               </dt>
               <dd className="mt-1 font-semibold text-navy">
                 {acceptedAmount === null
-                  ? 'En attente de validation'
+                  ? detail.realization_status === 'returned'
+                    ? 'Réalisation à corriger'
+                    : ['submitted', 'prevalidated'].includes(
+                          detail.realization_status,
+                        )
+                      ? 'En attente de validation'
+                      : 'Réalisation à soumettre'
                   : formatXof(String(acceptedAmount))}
               </dd>
             </div>
-            {financialVariance !== null && financialVariance !== 0n && (
-              <div>
-                <dt className="text-xs text-muted-foreground">
-                  Écart financier
-                </dt>
-                <dd className="mt-1 font-semibold text-navy">
-                  {formatXof(String(financialVariance))}
-                </dd>
-              </div>
-            )}
             {unusedBalance !== null && (
               <div>
                 <dt className="text-xs text-muted-foreground">
@@ -1448,6 +1524,16 @@ function ExecutionDetail({
               </div>
             )}
           </dl>
+          {recordedAmount !== null && (
+            <div className="mx-6 flex flex-wrap items-center gap-5 border-y border-border py-4 text-xs">
+              <span className="text-muted-foreground">Écart financier</span>
+              <strong className="font-semibold text-navy">
+                {financialVariance === null
+                  ? 'Aucun dépassement enregistré'
+                  : `Dépassement de ${formatXof(String(financialVariance))}`}
+              </strong>
+            </div>
+          )}
           <details className="border-t border-border">
             <summary className="cursor-pointer px-6 py-4 font-medium text-primary">
               Dépenses par tâche
@@ -1485,17 +1571,6 @@ function ExecutionDetail({
               </table>
             </div>
           </details>
-          <div className="border-t border-border px-6 py-4">
-            <Button asChild variant="outline" size="sm">
-              <Link
-                to={Urls.activity}
-                params={{ activityId: detail.id }}
-                search={(current) => ({ ...current, tab: 'realization' })}
-              >
-                Consulter la réalisation
-              </Link>
-            </Button>
-          </div>
         </Panel>
       )}
       {section !== 'realization' && (
@@ -1565,7 +1640,7 @@ function ExecutionDetail({
                             </strong>
                             <span className="text-xs text-muted-foreground">
                               {request.submitted_at
-                                ? formatDateTime(request.submitted_at)
+                                ? `${request.kind.toLocaleLowerCase('fr')} · ${formatDate(request.submitted_at)}`
                                 : 'Date non renseignée'}
                             </span>
                           </td>
@@ -1573,10 +1648,14 @@ function ExecutionDetail({
                             {formatXof(request.amount)}
                           </td>
                           <td className="p-3">
-                            <strong className="block font-medium text-navy">
+                            <StatusBadge
+                              className={administrativeStateClass(
+                                request.state,
+                              )}
+                            >
                               {administrativeStates[request.state] ||
                                 request.state}
-                            </strong>
+                            </StatusBadge>
                             {latestDecision && (
                               <span className="mt-1 block text-xs text-muted-foreground">
                                 {administrativeDecisionLabels[
@@ -1595,15 +1674,10 @@ function ExecutionDetail({
                               variant="outline"
                               size="sm"
                               onClick={(event) => {
-                                financialDrawerOpener.current =
-                                  event.currentTarget
-                                if (request.drawer === 'disbursement')
-                                  onFinanceSelect(request.id)
-                                if (request.drawer === 'virement')
-                                  onVirementSelect(request.id)
-                                if (request.drawer === 'zero')
-                                  setSelectedZeroSpendingId(request.id)
-                                setFinancialDrawer(request.drawer)
+                                openFinancialRequest(
+                                  request,
+                                  event.currentTarget,
+                                )
                               }}
                             >
                               {actionLabel}
@@ -1740,6 +1814,7 @@ function ExecutionDetail({
                   title={strings.externalTransfer}
                   description={strings.notConfirmed}
                   status="À venir"
+                  actionLabel={null}
                 >
                   <p>{strings.previousStepsIncomplete}</p>
                 </AdministrativeStep>
@@ -1748,13 +1823,54 @@ function ExecutionDetail({
               key={`closure:${Boolean(detail.closure)}:${detail.allowed_actions?.includes('close')}`}
               title="Clôture de l’activité"
               description={
-                detail.works_completed
+                detail.closure
                   ? 'Confirmer que l’activité et son règlement sont terminés.'
-                  : strings.finishRealization
+                  : detail.works_completed && detail.closure_blockers?.length
+                    ? `${closureBlockerLabel(detail.closure_blockers[0])}${
+                        closureRequestOwner
+                          ? ` Responsable : ${closureRequestOwner}.`
+                          : ''
+                      }`
+                    : detail.works_completed
+                      ? 'Confirmer que l’activité et son règlement sont terminés.'
+                      : strings.finishRealization
               }
               status={detail.closure ? 'Terminée' : 'À venir'}
               completed={Boolean(detail.closure)}
               defaultOpen={detail.allowed_actions?.includes('close')}
+              actionLabel={
+                detail.closure
+                  ? 'Consulter'
+                  : detail.allowed_actions?.includes('close')
+                    ? 'Clôturer l’activité'
+                    : !detail.works_completed
+                      ? 'Renseigner la réalisation'
+                      : 'Consulter'
+              }
+              actionTo={
+                !detail.closure && !detail.works_completed
+                  ? {
+                      to: Urls.activity,
+                      params: { activityId: detail.id },
+                      search: (current) => ({
+                        ...current,
+                        tab: 'realization',
+                      }),
+                    }
+                  : undefined
+              }
+              secondaryActionLabel={
+                closureRequest
+                  ? closureRequest.allowed_actions?.some((action) =>
+                      ['prevalidate', 'approve'].includes(action),
+                    )
+                    ? 'Examiner la demande'
+                    : 'Ouvrir la demande'
+                  : undefined
+              }
+              onSecondaryAction={(event) =>
+                openFinancialRequest(closureRequest, event.currentTarget)
+              }
             >
               {detail.works_completed ? (
                 <ClosureSection
@@ -1865,7 +1981,7 @@ function ZeroSpendingSection({
           </div>
           {current.allowed_actions.includes('return') && (
             <BusinessForm
-              className="[&_>_label]:w-full"
+              className="grid gap-5 [&_>_label]:w-full"
               onSubmit={(event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
@@ -1904,7 +2020,7 @@ function ZeroSpendingSection({
         detail.mutation_unavailable_reason !==
           'activity_assignment_required' ? (
         <BusinessForm
-          className="[&_>_label]:w-full"
+          className="grid gap-5 [&_>_label]:w-full"
           onSubmit={(event) => {
             event.preventDefault()
             const data = new FormData(event.currentTarget)
@@ -1966,24 +2082,6 @@ function ZeroSpendingSection({
 }
 
 function ClosureSection({ detail, pending, mutate }) {
-  const blockerLabels = {
-    planning_not_approved:
-      'L’Activité doit être approuvée sans demande en cours.',
-    execution_ineligible:
-      'Les tâches approuvées ne peuvent pas être vérifiées.',
-    execution_incomplete:
-      'Toutes les tâches doivent être terminées et chiffrées.',
-    execution_history_unverified: 'L’historique de réalisation est incomplet.',
-    spending_ineligible: 'Le total final des dépenses ne peut pas être réglé.',
-    disbursement_not_settled: 'Le décaissement exact doit être approuvé.',
-    virement_not_settled: 'Le virement exact doit être approuvé.',
-    virement_confirmation_required: 'Le virement externe doit être confirmé.',
-    reversement_not_settled: 'Le reversement exact doit être enregistré.',
-    financial_insufficiency_unresolved:
-      'Les dépenses dépassent le montant approuvé.',
-    zero_spending_not_approved:
-      'La déclaration sans dépense doit être validée.',
-  }
   const blockers = detail.closure_blockers || []
   return (
     <Panel aria-labelledby="closure-title">
@@ -2002,7 +2100,20 @@ function ClosureSection({ detail, pending, mutate }) {
                 </time>
               </dd>
             </div>
+            <div>
+              <dt>Clôturée par</dt>
+              <dd>{detail.closure.closed_by_name}</dd>
+            </div>
           </dl>
+          <Button asChild variant="link" className="w-fit px-0">
+            <Link
+              to={Urls.activity}
+              params={{ activityId: detail.id }}
+              search={(current) => ({ ...current, tab: 'history' })}
+            >
+              Ouvrir l’historique
+            </Link>
+          </Button>
         </>
       ) : (
         <>
@@ -2013,16 +2124,13 @@ function ClosureSection({ detail, pending, mutate }) {
           {blockers.length > 0 && (
             <ul>
               {blockers.map((blocker) => (
-                <li key={blocker}>
-                  {blockerLabels[blocker] ||
-                    'Une étape administrative reste à terminer.'}
-                </li>
+                <li key={blocker}>{closureBlockerLabel(blocker)}</li>
               ))}
             </ul>
           )}
           {detail.allowed_actions?.includes('close') && (
             <BusinessForm
-              className="[&_>_label]:w-full"
+              className="grid gap-5 [&_>_label]:w-full"
               onSubmit={(event) => {
                 event.preventDefault()
                 return mutate('/closure', { expected_version: detail.version })
@@ -2288,9 +2396,22 @@ function ExternalTransferStep({
     <AdministrativeStep
       key={`confirmation:${Boolean(current.current_confirmation)}`}
       title={strings.externalTransfer}
-      description="Enregistrer la date et la référence du virement effectué."
+      description={
+        current.current_confirmation
+          ? `${formatXof(current.current_confirmation.amount)} · ${formatDate(current.current_confirmation.transfer_date)}`
+          : 'Non enregistré'
+      }
       status={current.current_confirmation ? 'Confirmé' : 'À confirmer'}
       completed={Boolean(current.current_confirmation)}
+      actionLabel={
+        current.current_confirmation
+          ? current.allowed_actions.includes('correct_confirmation')
+            ? 'Modifier le virement'
+            : 'Consulter le virement'
+          : current.allowed_actions.includes('declare_confirmation')
+            ? 'Enregistrer le virement'
+            : null
+      }
       defaultOpen={
         !current.current_confirmation ||
         current.allowed_actions.some((action) =>
@@ -2331,7 +2452,7 @@ function ExternalTransferStep({
         current.allowed_actions.includes('correct_confirmation')) && (
         <BusinessForm
           key={current.current_confirmation?.revision || 'initial'}
-          className="[&_>_label]:w-full"
+          className="grid gap-5 [&_>_label]:w-full"
           onSubmit={(event) => {
             event.preventDefault()
             const data = new FormData(event.currentTarget)
@@ -2455,9 +2576,9 @@ function ReversementStep({
   setUploadError: setReversementUploadError,
   onPage: onReversementPage,
 }) {
-  const [reversementOpen, setReversementOpen] = useState(false)
-  const [reversementDate, setReversementDate] = useState('')
-  const reversementOpener = useRef(null)
+  const [reversementDate, setReversementDate] = useState(
+    current.reversement.current_declaration?.return_date || '',
+  )
   const version = current.activity_version
   return (
     <AdministrativeStep
@@ -2472,6 +2593,15 @@ function ReversementStep({
       completed={
         Boolean(current.reversement.current_declaration) ||
         current.reversement.status === 'not_required'
+      }
+      actionLabel={
+        current.reversement.current_declaration
+          ? current.reversement.allowed_actions.includes('correct')
+            ? 'Modifier le reversement'
+            : 'Consulter le reversement'
+          : current.reversement.allowed_actions.includes('declare')
+            ? 'Enregistrer le reversement'
+            : null
       }
       defaultOpen={current.reversement.allowed_actions.some((action) =>
         ['declare', 'correct'].includes(action),
@@ -2497,7 +2627,6 @@ function ReversementStep({
                   await uploadReversementEvidence(reversementFile)
                   setReversementUploadError(null)
                   setReversementFile(null)
-                  setReversementOpen(false)
                   toast.success('Pièce justificative ajoutée.')
                 } catch (error) {
                   if (error.name === 'AbortError') return
@@ -2565,157 +2694,103 @@ function ReversementStep({
       )}
       {(current.reversement.allowed_actions.includes('declare') ||
         current.reversement.allowed_actions.includes('correct')) && (
-        <>
-          <Button
-            ref={reversementOpener}
-            type="button"
-            onClick={() => {
-              setReversementDate(
-                current.reversement.current_declaration?.return_date || '',
-              )
-              setReversementOpen(true)
-            }}
-          >
-            {current.reversement.current_declaration
-              ? 'Corriger le reversement'
-              : strings.recordReversement}
-          </Button>
-          <Modal
-            open={reversementOpen}
-            onClose={() => setReversementOpen(false)}
-            label={
-              current.reversement.current_declaration
-                ? 'Corriger le reversement'
-                : 'Enregistrer le reversement'
+        <BusinessForm
+          key={current.reversement.current_declaration?.revision || 'initial'}
+          className="grid gap-5 [&_>_label]:w-full"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            const correcting = Boolean(current.reversement.current_declaration)
+            const saved = await mutate(
+              `/virement-requests/${current.id}/reversement${
+                correcting ? '/corrections' : ''
+              }`,
+              {
+                expected_version: version,
+                return_date: String(data.get('return_date') || ''),
+                note: String(data.get('reversement_note') || ''),
+                ...(correcting
+                  ? {
+                      reason: String(data.get('reversement_reason') || ''),
+                    }
+                  : {}),
+              },
+            )
+            if (!saved) {
+              return
             }
-            opener={reversementOpener}
-          >
-            <BusinessForm
-              key={
-                current.reversement.current_declaration?.revision || 'initial'
+            if (reversementFile) {
+              try {
+                await uploadReversementEvidence(reversementFile)
+                toast.success('Reversement et pièce justificative enregistrés.')
+                setReversementFile(null)
+              } catch (error) {
+                if (error.name === 'AbortError') return
+                setReversementUploadError(
+                  error.kind === 'uncertain_upload'
+                    ? 'uncertain'
+                    : [403, 409].includes(error.status)
+                      ? 'forbidden'
+                      : 'retry',
+                )
+                return
               }
-              className="[&_>_label]:w-full"
-              onSubmit={async (event) => {
-                event.preventDefault()
-                const data = new FormData(event.currentTarget)
-                const correcting = Boolean(
-                  current.reversement.current_declaration,
-                )
-                setReversementOpen(false)
-                const saved = await mutate(
-                  `/virement-requests/${current.id}/reversement${
-                    correcting ? '/corrections' : ''
-                  }`,
-                  {
-                    expected_version: version,
-                    return_date: String(data.get('return_date') || ''),
-                    note: String(data.get('reversement_note') || ''),
-                    ...(correcting
-                      ? {
-                          reason: String(data.get('reversement_reason') || ''),
-                        }
-                      : {}),
-                  },
-                )
-                if (!saved) {
-                  setReversementOpen(true)
-                  return
-                }
-                if (reversementFile) {
-                  try {
-                    await uploadReversementEvidence(reversementFile)
-                    toast.success(
-                      'Reversement et pièce justificative enregistrés.',
-                    )
-                    setReversementFile(null)
-                  } catch (error) {
-                    if (error.name === 'AbortError') return
-                    setReversementUploadError(
-                      error.kind === 'uncertain_upload'
-                        ? 'uncertain'
-                        : [403, 409].includes(error.status)
-                          ? 'forbidden'
-                          : 'retry',
-                    )
-                    return
-                  }
-                }
+            }
+          }}
+        >
+          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
+            {strings.exactReversement} :{' '}
+            <strong>{formatXof(current.reversement.required_amount)}</strong>
+          </p>
+          <div className="grid gap-[6px] text-[0.8125rem] font-medium">
+            <span>Date effective du reversement *</span>
+            <DatePicker
+              label="Date effective du reversement"
+              value={reversementDate}
+              onChange={setReversementDate}
+            />
+            <input type="hidden" name="return_date" value={reversementDate} />
+          </div>
+          <label>
+            Référence ou commentaire du reversement
+            <textarea
+              name="reversement_note"
+              maxLength="4000"
+              defaultValue={current.reversement.current_declaration?.note || ''}
+            />
+          </label>
+          {current.reversement.current_declaration && (
+            <label>
+              Motif de la correction du reversement *
+              <textarea name="reversement_reason" required maxLength="4000" />
+            </label>
+          )}
+          <label>
+            Pièce justificative du reversement
+            <input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png"
+              onChange={(event) => {
+                setReversementFile(event.target.files?.[0] || null)
+                setReversementUploadError(null)
               }}
+            />
+          </label>
+          <label>
+            <input type="checkbox" required /> Je confirme que ce montant exact
+            a été reversé au Partenaire. *
+          </label>
+          <div data-ui="modal-actions">
+            <Button
+              type="submit"
+              disabled={!reversementDate || pending || !navigator.onLine}
             >
-              <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-                {strings.exactReversement} :{' '}
-                <strong>
-                  {formatXof(current.reversement.required_amount)}
-                </strong>
-              </p>
-              <div className="grid gap-[6px] text-[0.8125rem] font-medium">
-                <span>Date effective du reversement *</span>
-                <DatePicker
-                  label="Date effective du reversement"
-                  value={reversementDate}
-                  onChange={setReversementDate}
-                />
-                <input
-                  type="hidden"
-                  name="return_date"
-                  value={reversementDate}
-                />
-              </div>
-              <label>
-                Référence ou commentaire du reversement
-                <textarea
-                  name="reversement_note"
-                  maxLength="4000"
-                  defaultValue={
-                    current.reversement.current_declaration?.note || ''
-                  }
-                />
-              </label>
-              {current.reversement.current_declaration && (
-                <label>
-                  Motif de la correction du reversement *
-                  <textarea
-                    name="reversement_reason"
-                    required
-                    maxLength="4000"
-                  />
-                </label>
-              )}
-              <label>
-                Pièce justificative du reversement (facultative)
-                <input
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  onChange={(event) => {
-                    setReversementFile(event.target.files?.[0] || null)
-                    setReversementUploadError(null)
-                  }}
-                />
-              </label>
-              <label>
-                <input type="checkbox" required /> Je confirme que ce montant
-                exact a été reversé au Partenaire. *
-              </label>
-              <div data-ui="modal-actions">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setReversementOpen(false)}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!reversementDate || pending || !navigator.onLine}
-                >
-                  {current.reversement.current_declaration
-                    ? 'Corriger le reversement'
-                    : 'Enregistrer le reversement'}
-                </Button>
-              </div>
-            </BusinessForm>
-          </Modal>
-        </>
+              {current.reversement.current_declaration
+                ? 'Corriger le reversement'
+                : 'Enregistrer le reversement'}
+            </Button>
+          </div>
+        </BusinessForm>
       )}
       {reversementHistory?.data?.length > 0 && (
         <details>

@@ -1799,3 +1799,21 @@ and lint, the production build, and the canonical Activity Playwright flow pass;
 the build retains its known chunk-size warning. Browser coverage includes desktop
 and mobile Réalisation/Finance, Subtask disclosure, read-only readiness, all three
 authorization display states, financial request columns and header read failure.
+
+The final visual correction replaces the remaining Finance administration
+accordions with flat rows and moves their forms into the shared right-side modal.
+The financial summary now shows partial spending, realization submission state
+and the no-overrun result directly; the obsolete realization footer action is
+removed. Réalisation uses the approved **Développer** disclosure and explicit
+**Non renseigné** value. Programmation retains the approved two-column cards while
+removing the technical revision number from its budget label. Technical financial
+request identifiers remain hidden and no API field was added, following the
+user's explicit decision. The closure row now opens its exact financial blockers
+after physical work is complete. Closed Activities show the authorized closer
+display name and provide a direct link to the existing History tab; this uses one
+additive execution-response display field and does not expose the internal closer
+identifier. Pending financial blockers name the responsible role and open the
+existing request directly. The final affected frontend run passes 97 tests,
+ESLint, Prettier, the production build and the canonical Activity browser flow.
+Backend Ruff and mypy pass; the focused PostgreSQL closure test remains
+unavailable because `TEST_DATABASE_URL` is not configured.

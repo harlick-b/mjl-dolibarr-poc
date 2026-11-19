@@ -116,6 +116,7 @@ class ClosureInput(Input):
 
 class ClosureOutput(Input):
     closed_by_id: str
+    closed_by_name: str
     closed_at: str
 
 
@@ -661,14 +662,18 @@ def execution_detail(
         required_reversement = int(frozen_allocation) - approved_disbursement.amount
         if required_reversement < 0:
             raise AuthError(409, "financial_insufficiency_unresolved")
-    closure = (
-        {
+    closure = None
+    if item.closed_by_id and item.closed_at:
+        closer = db.get(User, item.closed_by_id)
+        closure = {
             "closed_by_id": item.closed_by_id,
+            "closed_by_name": (
+                closer.full_name
+                if closer and closer.full_name
+                else "Utilisateur indisponible"
+            ),
             "closed_at": item.closed_at.isoformat(),
         }
-        if item.closed_by_id and item.closed_at
-        else None
-    )
     actions = ["read"]
     if can_work and item.state == "approved" and not blockers:
         actions.append("close")
