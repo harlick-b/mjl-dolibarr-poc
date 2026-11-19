@@ -48,15 +48,13 @@ export function ApplicationSidebar({ user }) {
         }
         className="flex h-24 shrink-0 items-center px-6"
       >
-        <span
-          aria-hidden="true"
-          className="grid size-10 place-items-center rounded-control bg-navy text-xl font-bold text-white"
-        >
-          M
-        </span>
-        <span className="ml-3 text-xl font-semibold tracking-wide text-navy">
-          MJL
-        </span>
+        <img
+          src="/logo-192.png"
+          alt=""
+          width="40"
+          height="40"
+          className="rounded-control"
+        />
       </Link>
       {policy.can('partner') && (
         <p className="px-6 pb-4 text-xs text-muted-foreground">
