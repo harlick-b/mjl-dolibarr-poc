@@ -483,6 +483,7 @@ class ActivityListItem(Input):
     reference: str
     name: str
     allocation: str | None
+    review_action: Literal["prevalidate", "approve"] | None
 
 
 class AgentOutput(Input):
@@ -1984,7 +1985,7 @@ def activities(
         return {
             "object": "list",
             "count": total,
-            "data": activity_rows(db, rows),
+            "data": activity_rows(db, rows, actor_id=actor.id, actor_role=actor.role),
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

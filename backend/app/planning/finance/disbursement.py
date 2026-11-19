@@ -579,23 +579,6 @@ def verified_financial_basis(
         or child_carried != persisted_children
     ):
         raise AuthError(409, "execution_history_unverified")
-    for row, fact in approved:
-        approved_amount = int(cast(str, fact["allocation"]))
-        child_facts = [
-            cast(dict[str, Any], child)
-            for child in fact.get("subtasks", [])
-            if isinstance(child, dict)
-        ]
-        if child_facts:
-            for child_fact in child_facts:
-                child_state = child_carried[str(child_fact["id"])]
-                if (
-                    child_state["actual_spent"] != child_fact["allocation"]
-                    and not child_state["execution_observation"]
-                ):
-                    raise AuthError(409, "variance_observation_required")
-        elif row.actual_spent != approved_amount and not row.execution_observation:
-            raise AuthError(409, "variance_observation_required")
     return total, operations, authors
 
 

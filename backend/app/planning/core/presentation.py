@@ -10,7 +10,9 @@ from app.auth.models import User
 from app.planning.core.models import (
     Activity,
     ActivityAssignment,
+    ActivityContributor,
     ActivityRevision,
+    ActivityRevisionDecision,
     Operation,
 )
 from app.planning.core.service import CONTEXT, visible_activity_condition
@@ -93,7 +95,35 @@ def planning_summary(
     }
 
 
-def activity_rows(db: Session, rows: list[Activity]) -> list[dict[str, Any]]:
+def activity_review_action(
+    *,
+    role: str,
+    state: str,
+    activity_id: str,
+    revision_id: str | None,
+    contributor_ids: set[str],
+    prevalidated_revision_ids: set[str],
+) -> str | None:
+    if activity_id in contributor_ids:
+        return None
+    if role == "AGENT_VERIFICATEUR" and state == "submitted":
+        return "prevalidate"
+    if (
+        role == "VALIDATEUR_DEFINITIF"
+        and state == "prevalidated"
+        and revision_id not in prevalidated_revision_ids
+    ):
+        return "approve"
+    return None
+
+
+def activity_rows(
+    db: Session,
+    rows: list[Activity],
+    *,
+    actor_id: str,
+    actor_role: str,
+) -> list[dict[str, Any]]:
     ids = [row.id for row in rows]
     operations = dict(
         db.execute(
@@ -122,6 +152,27 @@ def activity_rows(db: Session, rows: list[Activity]) -> list[dict[str, Any]]:
             )
         ).all()
     )
+    contributor_ids = set(
+        db.scalars(
+            select(ActivityContributor.activity_id).where(
+                ActivityContributor.activity_id.in_(ids),
+                ActivityContributor.user_id == actor_id,
+                ActivityContributor.kind == "content",
+            )
+        )
+    )
+    prevalidated_revision_ids = set(
+        db.scalars(
+            select(ActivityRevisionDecision.revision_id).where(
+                ActivityRevisionDecision.revision_id.in_(
+                    [row.current_revision_id for row in rows if row.current_revision_id]
+                ),
+                ActivityRevisionDecision.stage == "supervisor",
+                ActivityRevisionDecision.outcome == "prevalidated",
+                ActivityRevisionDecision.actor_id == actor_id,
+            )
+        )
+    )
     return [
         {
             "id": row.id,
@@ -136,6 +187,14 @@ def activity_rows(db: Session, rows: list[Activity]) -> list[dict[str, Any]]:
             "operation_count": operations.get(row.id, 0),
             "agents": names.get(row.id, []),
             "revision_number": revisions.get(row.current_revision_id or ""),
+            "review_action": activity_review_action(
+                role=actor_role,
+                state=row.state,
+                activity_id=row.id,
+                revision_id=row.current_revision_id,
+                contributor_ids=contributor_ids,
+                prevalidated_revision_ids=prevalidated_revision_ids,
+            ),
         }
         for row in rows
     ]

@@ -30,6 +30,7 @@ export const strings = new LocalizedStrings({
     partialSpending: 'Dépenses partielles',
     authorizedAmount: 'sur {amount} autorisés',
     completedLabel: 'Terminée',
+    notProvided: 'Non renseigné',
     notStartedLabel: 'Non commencée',
     ongoingLabel: 'En cours',
     closedLabel: 'Clôturée',

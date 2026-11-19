@@ -13,6 +13,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { toast } from 'sonner'
 import { App, makeRouter } from '@/app/router'
 import { ActivityForm } from './PlanningView'
+import { physicalExecutionLabel } from '../lib/physical-execution'
 import {
   addThreeMonths,
   formatExactPercentage,
@@ -42,6 +43,23 @@ test('formats annual rates without capping and preserves zero denominators', () 
   expect(formatPercentage('11', '10')).toBe('110 %')
   expect(formatPercentage('1', '3')).toBe('33,3 %')
   expect(formatPercentage('0', '0')).toBe('Non calculable')
+})
+
+test.each([
+  [null, '—'],
+  [{ realization_status: 'not_started', progress: null }, 'Non démarrée'],
+  [{ realization_status: 'in_progress', progress: '0.00' }, 'En cours'],
+  [{ realization_status: 'in_progress', progress: '37.50' }, '37,5 %'],
+  [
+    {
+      realization_status: 'completed_pending_validation',
+      progress: '100.00',
+    },
+    'Terminée',
+  ],
+  [{ realization_status: 'validated', progress: '100.00' }, 'Terminée'],
+])('formats physical execution as one meaningful value', (execution, label) => {
+  expect(physicalExecutionLabel(execution)).toBe(label)
 })
 
 test('formats stored progress without API trailing zeros', () => {
@@ -268,6 +286,85 @@ test('a Supervisor starts with the full Activity list and two review shortcuts',
       }),
     ).toBe(true),
   )
+})
+
+test('the PTA list names the pending decision and exposes the matching review action', async () => {
+  const baseFetch = annualPageFetch(vi.fn(), 'VALIDATEUR_DEFINITIF')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options) => {
+      if (String(url).includes('/ptas/pta-1/activities'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 1,
+              data: [
+                {
+                  id: 'activity-review',
+                  name: 'Formation des relais',
+                  reference: 'ACT-2027-004',
+                  planned_start: '2027-02-01',
+                  planned_end: '2027-02-28',
+                  allocation: '250000',
+                  operation_count: 2,
+                  agents: ['Aïcha Agent'],
+                  state: 'prevalidated',
+                  review_action: 'approve',
+                },
+              ],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      return baseFetch(url, options)
+    }),
+  )
+  renderAnnualPage()
+
+  expect(await screen.findByText('Décision finale attendue')).toBeVisible()
+  expect(screen.getByRole('link', { name: 'Valider' })).toBeVisible()
+})
+
+test('the PTA list keeps an ineligible prevalidated Activity read-only', async () => {
+  const baseFetch = annualPageFetch(vi.fn(), 'AGENT_SAISIE')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options) => {
+      if (String(url).includes('/ptas/pta-1/activities'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 1,
+              data: [
+                {
+                  id: 'activity-read-only',
+                  name: 'Formation des relais',
+                  reference: 'ACT-2027-004',
+                  planned_start: '2027-02-01',
+                  planned_end: '2027-02-28',
+                  allocation: '250000',
+                  operation_count: 2,
+                  agents: ['Aïcha Agent'],
+                  state: 'prevalidated',
+                  review_action: null,
+                },
+              ],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      return baseFetch(url, options)
+    }),
+  )
+  renderAnnualPage()
+
+  expect(await screen.findByText('Décision finale attendue')).toBeVisible()
+  expect(screen.getByRole('link', { name: 'Consulter' })).toBeVisible()
+  expect(screen.queryByRole('link', { name: 'Valider' })).toBeNull()
 })
 
 test('an Agent filter from the URL resolves its label beside Filters', async () => {
@@ -1060,13 +1157,25 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     await router.navigate({
       to: '/activities/$activityId',
       params: { activityId: 'activity-1' },
-      search: (previous) => ({ ...previous, documentCursor: undefined }),
+      search: (previous) => ({
+        ...previous,
+        tab: 'programming',
+        documentCursor: undefined,
+      }),
     })
   })
-  await screen.findByText('preuve.png')
-  await user.click(
-    await screen.findByRole('button', { name: 'Demander une modification' }),
-  )
+  const amendmentButton = await screen.findByRole('button', {
+    name: 'Demander une modification',
+  })
+  const activityHeader = screen
+    .getByRole('heading', { name: 'Atelier approuvé' })
+    .closest('[data-ui="activity-header"]')
+  expect(
+    within(activityHeader).queryByRole('button', {
+      name: 'Demander une modification',
+    }),
+  ).not.toBeInTheDocument()
+  await user.click(amendmentButton)
   await user.type(
     screen.getByLabelText('Motif de la modification *'),
     'Adapter.',
@@ -1268,6 +1377,8 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       }),
     ),
   )
+  await user.click(screen.getByRole('link', { name: 'Pièces justificatives' }))
+  await screen.findByText('preuve.png')
   previewStatus = 403
   await user.click(
     within(screen.getByText('preuve.png').closest('li')).getByRole('button', {
@@ -1853,12 +1964,9 @@ test('assignment edits retain their base version and can discard a stale draft',
   ).toBeDisabled()
 })
 
-test.each([
-  ['absent after verification', false, 2],
-  ['present after a lost response', true, 1],
-])(
-  'a decision attachment %s never resends the decision',
-  async (_case, recovered, expectedUploadCalls) => {
+test.each([['is unavailable', false]])(
+  'a decision attachment %s in the prevalidation modal',
+  async (_case, recovered) => {
     const user = userEvent.setup()
     HTMLDialogElement.prototype.showModal = function () {
       this.open = true
@@ -2034,10 +2142,9 @@ test.each([
       screen.getByLabelText('Observation'),
       'Programmation vérifiée.',
     )
-    await user.upload(
-      screen.getByLabelText('Pièce justificative'),
-      new File(['evidence'], 'note.pdf', { type: 'application/pdf' }),
-    )
+    expect(
+      screen.queryByLabelText('Pièce justificative'),
+    ).not.toBeInTheDocument()
     await user.click(
       screen.getByRole('button', { name: 'Prévalider et transmettre' }),
     )
@@ -2054,16 +2161,7 @@ test.each([
           ?.isInvalidated,
       ).toBe(true),
     )
-    await waitFor(() => expect(uploadCalls).toBe(1))
-    if (!recovered) {
-      expect(
-        await screen.findByText(/La décision est enregistrée/),
-      ).toBeVisible()
-      await user.click(
-        screen.getByRole('button', { name: 'Réessayer l’envoi' }),
-      )
-    }
-    await waitFor(() => expect(uploadCalls).toBe(expectedUploadCalls))
+    expect(uploadCalls).toBe(0)
     expect(decisionCalls).toBe(1)
     expect(await screen.findByText('À valider définitivement')).toBeVisible()
   },

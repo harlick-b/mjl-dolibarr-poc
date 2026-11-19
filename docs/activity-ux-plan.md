@@ -238,6 +238,7 @@ the user's ongoing desktop/mobile visual review. Both independent review axes
 cleared their concrete code findings; review is not user acceptance or production
 readiness. After final review removed an unapproved end-year restriction, the
 affected Planning frontend rerun passed 47 tests and the two-role reviewer-brief
+
 PostgreSQL rerun passed 2 tests; cross-year ends retain ordered-date validation.
 
 ## Follow-up — review work, Activity History and notifications
@@ -1359,3 +1360,31 @@ optional-description submission test was collected but could not run because no
 disposable `TEST_DATABASE_URL` was configured. Independent re-review found no
 remaining blocking Activity-specific issue. The build retains the known
 large-chunk warning.
+
+### Activity detail and finance visual correction — 2026-11-19
+
+The current correction aligns the Activity identity header with the approved
+compact composition, keeps only **Affectations** and **Fiche récapitulative** in
+that header, and moves amendment, withdrawal and PTA-transfer actions into the
+Programming tab's **Budget et validation** card. Planning decisions no longer
+offer a decision attachment; Activity documents remain managed in the existing
+documents tab. Financial request creation and review use the shared centered
+dialog, with a first-step request chooser, and review controls are explicit
+non-submit buttons so opening or deciding a request cannot submit a surrounding
+form. Task/Subtask execution always shows an optional Observation field.
+
+The updated realization list uses the supplied task-completion wording rather
+than repeating the percentage below its physical state, and displays **Non
+renseigné** when no expenditure has been recorded. Activity detail displays a
+sentence for the not-started and completed states, or one percentage while work
+is in progress. It never combines the two. The PTA list identifies the pending
+review below its status and exposes the stage-specific **Valider** action while
+retaining the settled rule that technical revision numbers remain hidden.
+
+Execution observations are optional for Tasks and Subtasks, including when the
+recorded expenditure differs from the planned amount. The disbursement integrity
+check applies the same rule so a completed realization with an empty observation
+can proceed through the existing financial workflow. Financial dialogs use the
+shared centered modal at its standard width, keep return observations visible
+with the decision actions, and preserve the Activity programming fact when the
+separate execution summary is temporarily unavailable.

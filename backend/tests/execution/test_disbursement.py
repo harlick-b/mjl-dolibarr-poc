@@ -133,6 +133,36 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     )
 
 
+def test_agent_can_submit_disbursement_with_optional_execution_observation(planning):
+    activity = approved_execution_activity(planning, allocations=[100_000])
+    task = activity["tasks"][0]
+    recorded = patch(
+        planning["agent"],
+        execution_path(activity, task),
+        {
+            "action": "record",
+            "expected_version": activity["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "actual_spent": "90000",
+            "progress": "100.00",
+            "execution_completed": True,
+            "execution_observation": "",
+        },
+    )
+    assert recorded.status_code == 200, recorded.text
+
+    submitted = post(
+        planning["agent"],
+        collection(recorded.json()),
+        {
+            "expected_version": recorded.json()["version"],
+            "expected_approved_revision_id": recorded.json()["approved_revision_id"],
+        },
+    )
+    assert submitted.status_code == 201, submitted.text
+    assert submitted.json()["amount"] == "90000"
+
+
 @pytest.mark.parametrize("release", ["cancel", "supervisor", "validator"])
 def test_cancellation_or_return_releases_execution_for_fresh_request(planning, release):
     activity = finish_activity(planning)

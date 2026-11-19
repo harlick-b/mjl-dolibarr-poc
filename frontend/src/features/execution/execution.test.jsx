@@ -20,13 +20,41 @@ function makeExecutionRouter(history) {
   })
 }
 
-async function openFinancialDrawer(user, action = 'Nouvelle demande') {
+async function openFinancialDrawer(
+  user,
+  action = 'Nouvelle demande',
+  expectedAuthorized = null,
+) {
   const requests = await screen.findByRole('region', {
     name: 'Demandes financières',
   })
   await user.click(
     await within(requests).findByRole('button', { name: action }),
   )
+  const dialog = await screen.findByRole('dialog')
+  if (action === 'Nouvelle demande') {
+    expect(dialog).toHaveAccessibleName('Nouvelle demande')
+    expect(dialog).not.toHaveClass('h-dvh')
+    expect(
+      within(dialog).getByText('Autorisation de décaissement'),
+    ).toBeVisible()
+    expect(within(dialog).getByText('Autorisation de virement')).toBeVisible()
+    if (expectedAuthorized)
+      expect(
+        within(dialog).getByText(
+          `Total actuellement autorisé : ${expectedAuthorized}`,
+        ),
+      ).toBeVisible()
+  }
+  const create = within(dialog)
+    .queryAllByRole('button', { name: 'Créer' })
+    .find((button) => !button.disabled)
+  if (create) {
+    await user.click(create)
+    await waitFor(() =>
+      expect(dialog).not.toHaveAccessibleName('Nouvelle demande'),
+    )
+  }
   return screen.findByRole('dialog')
 }
 
@@ -137,6 +165,7 @@ test('a spending correction preserves completion for a legacy unweighted Task', 
     />,
   )
   expect(screen.getByLabelText('Tâche physiquement terminée')).toBeChecked()
+  expect(screen.getByLabelText('Observation')).not.toBeRequired()
   const amount = screen.getByLabelText('Dépense enregistrée (F CFA)')
   await user.clear(amount)
   await user.type(amount, '90000')
@@ -419,6 +448,9 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     { name: 'Former les équipes' },
     { timeout: 5000 },
   )
+  const activityHeader = header.closest('[data-ui="activity-header"]')
+  expect(await within(activityHeader).findByText('Terminée')).toBeVisible()
+  expect(within(activityHeader).queryByText('100 %')).toBeNull()
   expect(
     within(
       screen.getByRole('navigation', { name: 'Espace de travail' }),
@@ -870,7 +902,7 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(
     screen.getByRole('columnheader', { name: 'Suivi administratif' }),
   ).toBeVisible()
-  expect(screen.getByText('100 %')).toBeVisible()
+  expect(screen.getByText('1 / 1 tâche terminée')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
   expect(screen.queryByText(/Révision 1/)).not.toBeInTheDocument()
   expect(
@@ -1033,7 +1065,7 @@ test('an execution correction keeps its version across refresh and closing resto
   const administration = within(
     screen.getByRole('region', { name: 'Demandes financières' }),
   )
-  await openFinancialDrawer(user)
+  await openFinancialDrawer(user, 'Nouvelle demande', 'Non renseigné')
   expect(
     screen.getAllByRole('heading', {
       name: 'Autorisation de décaissement',
@@ -2612,18 +2644,17 @@ test('a successful disbursement return closes the return form', async () => {
   )
 
   await openFinancialDrawer(user, 'Examiner')
-  await user.click(
-    screen.getByRole('button', { name: 'Retourner en correction' }),
-  )
   await user.type(
     screen.getByLabelText('Observation / motif du retour *'),
     'Préciser les dépenses.',
   )
-  await user.click(screen.getByRole('button', { name: 'Confirmer le retour' }))
+  await user.click(
+    screen.getByRole('button', { name: 'Retourner en correction' }),
+  )
 
   await waitFor(() =>
     expect(
-      screen.queryByRole('button', { name: 'Confirmer le retour' }),
+      screen.queryByRole('button', { name: 'Retourner en correction' }),
     ).not.toBeInTheDocument(),
   )
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -2762,6 +2793,73 @@ test.each([
     window.dispatchEvent(new Event('online'))
   },
 )
+
+test('virement detail names a missing authorization amount', async () => {
+  const execution = detail({ started: true, completed: true })
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(execution))
+      if (path.endsWith('/virement-requests/virement-missing'))
+        return new Response(
+          JSON.stringify({
+            id: 'virement-missing',
+            activity_version: execution.version,
+            amount: null,
+            state: 'submitted',
+            decisions: [],
+            allowed_actions: ['read'],
+          }),
+        )
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/execution/activities/activity-1?virementRequest=virement-missing',
+          ],
+        }),
+      )}
+    />,
+  )
+
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Autorisation de virement',
+  })
+  expect(
+    within(
+      within(dialog).getByText('Total actuellement autorisé').parentElement,
+    ).getByText('Non renseigné'),
+  ).toBeVisible()
+})
 
 test('Agent submits the locked disbursement amount for virement authorization', async () => {
   const user = userEvent.setup()

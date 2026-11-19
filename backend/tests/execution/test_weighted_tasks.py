@@ -300,7 +300,7 @@ def test_weighted_subtasks_roll_up_progress_and_spending_once(
             "expected_approved_revision_id": detail["approved_revision_id"],
             "actual_spent": "400000",
             "execution_completed": True,
-            "execution_observation": "Sous-tâche achevée avec économie.",
+            "execution_observation": "",
         },
     )
     assert recorded.status_code == 200, recorded.text

@@ -181,11 +181,24 @@ export function PlanningActivities({
                     <StatusBadge className={activityStatusClass(row.state)}>
                       {strings[row.state] || '—'}
                     </StatusBadge>
+                    {['submitted', 'prevalidated', 'returned'].includes(
+                      row.state,
+                    ) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {row.state === 'submitted'
+                          ? strings.prevalidationExpected
+                          : row.state === 'prevalidated'
+                            ? strings.finalDecisionExpected
+                            : strings.correctionExpected}
+                      </p>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
                       <Link to={Urls.activity} params={{ activityId: row.id }}>
-                        {strings.consult}
+                        {row.review_action === 'approve'
+                          ? strings.validate
+                          : strings.consult}
                       </Link>
                     </Button>
                   </td>

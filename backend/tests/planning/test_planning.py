@@ -2170,6 +2170,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
         "state",
         "revision_number",
         "agents",
+        "review_action",
     }
     admin = planning["admin"]
     read_paths = [

@@ -40,12 +40,7 @@ import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import {
-  formatDate,
-  formatDateTime,
-  formatExactPercentage,
-  formatXof,
-} from '@/shared/lib/format'
+import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
 import { FileSelection } from '@/shared/ui/FileSelection'
@@ -59,6 +54,7 @@ import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
 import { ActivityForm } from '../components/ActivityForm'
+import { physicalExecutionLabel } from '../lib/physical-execution'
 
 export { ActivityForm } from '../components/ActivityForm'
 
@@ -1783,8 +1779,6 @@ function ActivityDetail({
 }) {
   const [editing, setEditing] = useState(false)
   const [workflowAction, setWorkflowAction] = useState('')
-  const [decisionFile, setDecisionFile] = useState(null)
-  const [decisionUpload, setDecisionUpload] = useState(null)
   const [transferTargetYear, setTransferTargetYear] = useState(
     item.transfer?.target_year || '',
   )
@@ -1805,7 +1799,6 @@ function ActivityDetail({
     ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
     item.allowed_actions.includes('assign_agents')
   const { api } = useAPI()
-  const client = useQueryClient()
   const search = useSearch({ strict: false })
   const executionSummary = useQuery({
     queryKey: ['execution', user.id, 'activity', item.id],
@@ -1835,87 +1828,11 @@ function ActivityDetail({
   const types = typeChoices.data?.data || []
   const typeResult = typeChoices.data
   const closeDecision = () => {
-    setDecisionUpload(null)
-    setDecisionFile(null)
     setTransferStart('')
     setTransferEnd('')
     setTransferTasks([])
     setRequestedAmount('')
     setWorkflowAction('')
-  }
-  const refreshDecisionEvidence = async () => {
-    await Promise.all([
-      client.invalidateQueries({
-        queryKey: ['planning', user.id, 'documents', item.id],
-      }),
-      client.invalidateQueries({
-        queryKey: ['planning', user.id, 'activity-history', item.id],
-      }),
-      client.invalidateQueries({ queryKey: ['audit-history'] }),
-    ])
-  }
-  const reconcileDecisionFile = async (attempt) => {
-    try {
-      setDecisionUpload({ ...attempt, status: 'checking' })
-      const result = await api.request(
-        `/api/v1/activities/${item.id}/documents?limit=60`,
-      )
-      const found = (result.data || []).some(
-        (document) =>
-          !attempt.baselineIds.includes(document.id) &&
-          document.name === attempt.file.name &&
-          document.size === attempt.file.size &&
-          document.uploaded_by_id === user.id,
-      )
-      if (found) {
-        await refreshDecisionEvidence()
-        toast.success(strings.decisionAndAttachmentSaved)
-        closeDecision()
-        return
-      }
-      setDecisionUpload({ ...attempt, status: 'retry' })
-    } catch (error) {
-      if (error.status === 401) onDenied()
-      else setDecisionUpload({ ...attempt, status: 'uncertain' })
-    }
-  }
-  const uploadDecisionFile = async (file) => {
-    let attempt
-    try {
-      const before = await api.request(
-        `/api/v1/activities/${item.id}/documents?limit=60`,
-      )
-      attempt = {
-        file,
-        baselineIds: (before.data || []).map((document) => document.id),
-      }
-      setDecisionUpload({ ...attempt, status: 'uploading' })
-      await api.request(`/api/v1/activities/${item.id}/documents`, {
-        method: 'POST',
-        csrf,
-        rawBody: file,
-        headers: { 'Content-Type': file.type, 'X-File-Name': file.name },
-      })
-      await refreshDecisionEvidence()
-      toast.success(strings.decisionAndAttachmentSaved)
-      closeDecision()
-    } catch (error) {
-      if (error.status === 401) {
-        onDenied()
-        return
-      }
-      if (
-        attempt &&
-        (['network', 'malformed'].includes(error.kind) || error.status >= 500)
-      ) {
-        await reconcileDecisionFile(attempt)
-        return
-      }
-      setDecisionUpload({
-        ...(attempt || { file, baselineIds: [] }),
-        status: 'retry',
-      })
-    }
   }
   const submitWorkflow = async (event) => {
     event.preventDefault()
@@ -1927,10 +1844,6 @@ function ActivityDetail({
     const withdrawalCancellation = workflowAction === 'cancel_withdrawal'
     const transfer = workflowAction === 'request_transfer'
     const transferCancellation = workflowAction === 'cancel_transfer'
-    const hasDecisionFile =
-      ['prevalidate', 'approve'].includes(workflowAction) &&
-      typeof decisionFile?.size === 'number' &&
-      decisionFile.size > 0
     await mutation.mutateAsync({
       path: opening
         ? `/activities/${item.id}/amendments`
@@ -1948,7 +1861,6 @@ function ActivityDetail({
                     ? `/activities/${item.id}/submissions`
                     : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
       method: 'POST',
-      silentSuccess: hasDecisionFile,
       body:
         opening ||
         cancellation ||
@@ -2001,10 +1913,6 @@ function ActivityDetail({
                   : {}),
               },
     })
-    if (hasDecisionFile) {
-      await uploadDecisionFile(decisionFile)
-      return
-    }
     closeDecision()
   }
   const transferDatesValid = transferTasks.every((task) => {
@@ -2156,6 +2064,20 @@ function ActivityDetail({
       : execution?.works_completed && execution?.closure_blockers?.length
         ? strings.pendingClosure
         : ''
+  const administrativeActions = [
+    ['open_amendment', strings.openAmendment],
+    ['cancel_amendment', strings.cancelAmendment],
+    [
+      'request_withdrawal',
+      item.withdrawal ? strings.correctWithdrawal : strings.requestWithdrawal,
+    ],
+    ['cancel_withdrawal', strings.cancelWithdrawal],
+    [
+      'request_transfer',
+      item.transfer ? strings.correctTransfer : strings.requestTransfer,
+    ],
+    ['cancel_transfer', strings.cancelTransfer],
+  ]
   return (
     <div className="grid gap-6">
       <nav
@@ -2190,13 +2112,18 @@ function ActivityDetail({
         )}
         <span>{item.reference}</span>
       </nav>
-      <div className="flex flex-wrap items-end justify-between gap-8 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
-        <div className="grid min-w-0 gap-4">
-          <p className="text-xs text-muted-foreground">{item.reference}</p>
-          <h1 className="max-w-5xl break-words text-[1.75rem] font-semibold leading-9 text-navy">
+      <div
+        data-ui="activity-header"
+        className="flex flex-wrap items-end justify-between gap-8 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3"
+      >
+        <div className="min-w-0">
+          <p className="text-[0.6875rem] text-muted-foreground">
+            {item.reference}
+          </p>
+          <h1 className="mt-1 max-w-5xl break-words text-[1.5625rem] font-semibold leading-[1.35] text-navy">
             {item.name}
           </h1>
-          <p className="break-words text-[0.8125rem] text-muted-foreground">
+          <p className="mb-4 mt-2 break-words text-xs leading-5 text-muted-foreground">
             {item.project_name} · {item.partner_name} · PTA{' '}
             {item.placement_year}
           </p>
@@ -2211,45 +2138,42 @@ function ActivityDetail({
               </StatusBadge>
             </div>
           )}
-          {item.approved_revision_id && execution && (
-            <dl className="grid grid-cols-[repeat(3,minmax(140px,max-content))] gap-x-8 gap-y-3 text-[0.8125rem] max-[760px]:grid-cols-2 max-[480px]:grid-cols-1">
+          {item.approved_revision_id && (
+            <dl className="grid grid-cols-[repeat(4,minmax(140px,max-content))] gap-x-8 gap-y-3 text-xs max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
               <div>
-                <dt className="text-xs text-muted-foreground">
+                <dt className="text-[0.6875rem] text-muted-foreground">
                   {strings.programmingApproval}
                 </dt>
-                <dd className="mt-1 font-semibold">
+                <dd className="mt-1 font-medium">
                   {strings.programmingApproved}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">
+                <dt className="text-[0.6875rem] text-muted-foreground">
                   {strings.physicalExecution}
                 </dt>
-                <dd className="mt-1 font-semibold">
-                  {executionStrings.realizationStates[
-                    execution.realization_status
-                  ] || execution.realization_status}
-                  {execution.progress !== null
-                    ? ` · ${formatExactPercentage(execution.progress)}`
-                    : ''}
+                <dd className="mt-1 font-medium">
+                  {physicalExecutionLabel(execution)}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">
+                <dt className="text-[0.6875rem] text-muted-foreground">
                   {strings.realizationValidation}
                 </dt>
-                <dd className="mt-1 font-semibold">
-                  {executionStrings.realizationValidationStates[
-                    execution.realization_status
-                  ] || strings.notSubmitted}
+                <dd className="mt-1 font-medium">
+                  {execution
+                    ? executionStrings.realizationValidationStates[
+                        execution.realization_status
+                      ] || strings.notSubmitted
+                    : '—'}
                 </dd>
               </div>
               {administrativeSituation && (
                 <div>
-                  <dt className="text-xs text-muted-foreground">
+                  <dt className="text-[0.6875rem] text-muted-foreground">
                     {strings.administrativeSituation}
                   </dt>
-                  <dd className="mt-1 font-semibold">
+                  <dd className="mt-1 font-medium">
                     {administrativeSituation}
                   </dd>
                 </div>
@@ -2261,12 +2185,12 @@ function ActivityDetail({
               Le suivi de réalisation est temporairement indisponible.
             </RetryableError>
           )}
-          <div className="grid gap-1 text-[0.8125rem]">
-            <span className="text-xs text-muted-foreground">
+          <div className="mt-[1.125rem] grid gap-1 text-[0.8125rem]">
+            <span className="text-[0.6875rem] text-muted-foreground">
               {strings.activityOwners}
             </span>
             <span className="flex flex-wrap items-center gap-3">
-              <strong className="font-semibold">
+              <strong className="font-medium">
                 {(item.agents || [])
                   .map((agent) => agent.full_name || agent.email)
                   .join(', ') || '—'}
@@ -2285,9 +2209,9 @@ function ActivityDetail({
               )}
             </span>
           </div>
-          <dl className="grid grid-cols-[repeat(2,minmax(100px,max-content))] gap-8 text-[0.8125rem] max-[480px]:grid-cols-2">
+          <dl className="mt-4 grid grid-cols-[repeat(2,minmax(100px,max-content))] gap-7 text-xs max-[480px]:grid-cols-2">
             <div>
-              <dt className="text-xs text-muted-foreground">
+              <dt className="text-[0.6875rem] text-muted-foreground">
                 {strings.plannedStart}
               </dt>
               <dd className="mt-1 font-medium">
@@ -2295,7 +2219,7 @@ function ActivityDetail({
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">
+              <dt className="text-[0.6875rem] text-muted-foreground">
                 {strings.plannedEnd}
               </dt>
               <dd className="mt-1 font-medium">
@@ -2313,85 +2237,6 @@ function ActivityDetail({
               <Download aria-hidden="true" />
               {strings.downloadActivityFiche}
             </ProtectedDownload>
-          )}
-          {!executionContext && search.tab !== 'finance' && (
-            <>
-              {item.allowed_actions.includes('open_amendment') && (
-                <Button
-                  disabled={mutationBlocked}
-                  onClick={(event) => {
-                    workflowOpener.current = event.currentTarget
-                    setWorkflowAction('open_amendment')
-                  }}
-                >
-                  {strings.openAmendment}
-                </Button>
-              )}
-              {item.allowed_actions.includes('cancel_amendment') && (
-                <Button
-                  disabled={mutationBlocked}
-                  variant="outline"
-                  onClick={(event) => {
-                    workflowOpener.current = event.currentTarget
-                    setWorkflowAction('cancel_amendment')
-                  }}
-                >
-                  {strings.cancelAmendment}
-                </Button>
-              )}
-              {item.allowed_actions.includes('request_withdrawal') && (
-                <Button
-                  disabled={mutationBlocked}
-                  variant="outline"
-                  onClick={(event) => {
-                    workflowOpener.current = event.currentTarget
-                    setWorkflowAction('request_withdrawal')
-                  }}
-                >
-                  {item.withdrawal
-                    ? strings.correctWithdrawal
-                    : strings.requestWithdrawal}
-                </Button>
-              )}
-              {item.allowed_actions.includes('cancel_withdrawal') && (
-                <Button
-                  disabled={mutationBlocked}
-                  variant="outline"
-                  onClick={(event) => {
-                    workflowOpener.current = event.currentTarget
-                    setWorkflowAction('cancel_withdrawal')
-                  }}
-                >
-                  {strings.cancelWithdrawal}
-                </Button>
-              )}
-              {item.allowed_actions.includes('request_transfer') && (
-                <Button
-                  disabled={mutationBlocked}
-                  variant="outline"
-                  onClick={(event) => {
-                    workflowOpener.current = event.currentTarget
-                    setWorkflowAction('request_transfer')
-                  }}
-                >
-                  {item.transfer
-                    ? strings.correctTransfer
-                    : strings.requestTransfer}
-                </Button>
-              )}
-              {item.allowed_actions.includes('cancel_transfer') && (
-                <Button
-                  disabled={mutationBlocked}
-                  variant="outline"
-                  onClick={(event) => {
-                    workflowOpener.current = event.currentTarget
-                    setWorkflowAction('cancel_transfer')
-                  }}
-                >
-                  {strings.cancelTransfer}
-                </Button>
-              )}
-            </>
           )}
         </div>
       </div>
@@ -2651,6 +2496,29 @@ function ActivityDetail({
                 )}
               </div>
             )}
+            {!executionContext &&
+              administrativeActions.some(([action]) =>
+                item.allowed_actions.includes(action),
+              ) && (
+                <div className="grid gap-3 border-t border-border p-5">
+                  {administrativeActions.map(([action, label]) =>
+                    item.allowed_actions.includes(action) ? (
+                      <Button
+                        type="button"
+                        key={action}
+                        variant="outline"
+                        disabled={mutationBlocked}
+                        onClick={(event) => {
+                          workflowOpener.current = event.currentTarget
+                          setWorkflowAction(action)
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    ) : null,
+                  )}
+                </div>
+              )}
           </Panel>
         </div>
         {!executionContext &&
@@ -2739,10 +2607,7 @@ function ActivityDetail({
       <Modal
         open={Boolean(workflowAction)}
         className="[&>header]:sticky [&>header]:top-0 [&>header]:z-10 [&>header]:bg-white"
-        onClose={() => {
-          if (['uploading', 'checking'].includes(decisionUpload?.status)) return
-          closeDecision()
-        }}
+        onClose={closeDecision}
         label={
           workflowAction === 'prevalidate'
             ? strings.prevalidationConfirmation
@@ -2770,37 +2635,9 @@ function ActivityDetail({
               </div>
               <label>
                 {strings.observation}
-                <textarea
-                  name="reason"
-                  maxLength="4000"
-                  disabled={Boolean(decisionUpload)}
-                  autoFocus
-                />
+                <textarea name="reason" maxLength="4000" autoFocus />
               </label>
-              <FileSelection
-                label={strings.decisionAttachment}
-                chooseLabel={strings.chooseFile}
-                emptyLabel={strings.noFileSelected}
-                file={decisionFile}
-                id="decision-attachment"
-                name="attachment"
-                accept="application/pdf,image/jpeg,image/png"
-                disabled={Boolean(decisionUpload)}
-                onChange={(event) =>
-                  setDecisionFile(event.target.files?.[0] || null)
-                }
-              />
             </>
-          )}
-          {decisionUpload?.status === 'retry' && (
-            <p role="alert" className="text-danger">
-              {strings.decisionSavedUploadFailed}
-            </p>
-          )}
-          {decisionUpload?.status === 'uncertain' && (
-            <p role="alert" className="text-danger">
-              {strings.decisionUploadUncertain}
-            </p>
           )}
           {[
             'return',
@@ -2957,52 +2794,26 @@ function ActivityDetail({
             </>
           )}
           <footer data-ui="modal-actions">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={['uploading', 'checking'].includes(
-                decisionUpload?.status,
-              )}
-              onClick={closeDecision}
-            >
+            <Button type="button" variant="outline" onClick={closeDecision}>
               {strings.cancel}
             </Button>
-            {decisionUpload ? (
-              <Button
-                type="button"
-                loading={['uploading', 'checking'].includes(
-                  decisionUpload.status,
-                )}
-                disabled={decisionUpload.status === 'uploading'}
-                onClick={() =>
-                  decisionUpload.status === 'retry'
-                    ? uploadDecisionFile(decisionUpload.file)
-                    : reconcileDecisionFile(decisionUpload)
-                }
-              >
-                {decisionUpload.status === 'retry'
-                  ? strings.retryAttachment
-                  : strings.verifyAttachments}
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={
-                  mutationBlocked ||
-                  (workflowAction === 'request_transfer' &&
-                    (!transferStart ||
-                      !transferEnd ||
-                      transferEnd < transferStart ||
-                      !transferDatesValid))
-                }
-              >
-                {workflowAction === 'prevalidate'
-                  ? strings.prevalidateAndSend
-                  : workflowAction === 'approve'
-                    ? strings.approveActivity
-                    : strings.confirm}
-              </Button>
-            )}
+            <Button
+              type="submit"
+              disabled={
+                mutationBlocked ||
+                (workflowAction === 'request_transfer' &&
+                  (!transferStart ||
+                    !transferEnd ||
+                    transferEnd < transferStart ||
+                    !transferDatesValid))
+              }
+            >
+              {workflowAction === 'prevalidate'
+                ? strings.prevalidateAndSend
+                : workflowAction === 'approve'
+                  ? strings.approveActivity
+                  : strings.confirm}
+            </Button>
           </footer>
         </BusinessForm>
       </Modal>

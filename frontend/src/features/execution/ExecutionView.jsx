@@ -990,16 +990,18 @@ export function ExecutionList({
                         : strings.ongoingLabel}
                     </strong>
                     <small className="block mt-1 text-muted-foreground">
-                      {row.progress === null
-                        ? strings.progressUnavailable
-                        : formatExactPercentage(
-                            row.progress ??
-                              (row.works_completed ? '100.00' : '0.00'),
-                          )}
+                      {row.completed_tasks ?? 0} / {row.task_count ?? 0}{' '}
+                      {(row.task_count ?? 0) > 1
+                        ? 'tâches terminées'
+                        : 'tâche terminée'}
                     </small>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <strong>{formatXof(row.spending_total)}</strong>
+                    <strong>
+                      {row.spending_total === null
+                        ? strings.notProvided
+                        : formatXof(row.spending_total)}
+                    </strong>
                     <small className="block mt-1 text-muted-foreground">
                       {strings.formatString(strings.authorizedAmount, {
                         amount: formatXof(row.approved_allocation),
@@ -1574,7 +1576,7 @@ function ExecutionDetail({
                     financialDrawerOpener.current = event.currentTarget
                     setSelectedZeroSpendingId(null)
                     setFinancialModalMode('new')
-                    setFinancialDrawer(newFinancialRequest)
+                    setFinancialDrawer('chooser')
                   }}
                 >
                   Nouvelle demande
@@ -1590,9 +1592,7 @@ function ExecutionDetail({
                       <th className="p-3 text-right font-medium">
                         Montant total
                       </th>
-                      <th className="p-3 font-medium">
-                        Statut / dernière décision
-                      </th>
+                      <th className="p-3 font-medium">Statut</th>
                       <th className="p-3 font-medium">
                         <span className="sr-only">Action</span>
                       </th>
@@ -1691,14 +1691,64 @@ function ExecutionDetail({
                 : financialDrawerLabels[financialDrawer] || 'Demande financière'
             }
             opener={financialDrawerOpener}
-            variant={financialModalMode === 'request' ? 'drawer' : 'dialog'}
-            className={
-              financialModalMode === 'request'
-                ? 'w-[min(640px,100%)]'
-                : 'w-[min(560px,calc(100%-32px))]'
-            }
+            variant="dialog"
           >
             <div className="p-6 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:shadow-none">
+              {financialDrawer === 'chooser' && (
+                <div className="grid gap-0">
+                  {[
+                    {
+                      key: 'disbursement',
+                      label: 'Autorisation de décaissement',
+                      detail: `Total actuellement autorisé : ${authorizedAmount === null ? strings.notProvided : formatXof(authorizedAmount)}`,
+                    },
+                    {
+                      key: 'virement',
+                      label: 'Autorisation de virement',
+                    },
+                    {
+                      key: 'funding',
+                      label: 'Financement complémentaire',
+                      hidden: newFinancialRequest !== 'funding',
+                    },
+                    {
+                      key: 'zero',
+                      label: 'Déclaration sans dépense',
+                      hidden: newFinancialRequest !== 'zero',
+                    },
+                  ].map((option) =>
+                    option.hidden ? null : (
+                      <div
+                        key={option.key}
+                        className="flex min-h-16 items-center justify-between gap-5 border-b border-border py-4 last:border-b-0"
+                      >
+                        <div>
+                          <strong className="text-sm font-semibold">
+                            {option.label}
+                          </strong>
+                          {option.detail && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {option.detail}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={newFinancialRequest !== option.key}
+                          onClick={() => {
+                            setFinancialModalMode('request')
+                            setFinancialDrawer(option.key)
+                          }}
+                        >
+                          Créer
+                        </Button>
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
               {financialDrawer === 'zero' && (
                 <ZeroSpendingSection
                   fallback={sectionFallbacks.zeroSpending}
@@ -2180,7 +2230,6 @@ function DisbursementSection({
   onSelect,
   onCancel,
 }) {
-  const [returning, setReturning] = useState(false)
   if (!result) return fallback
   const requests = result.data
   const active = requests.find(
@@ -2211,14 +2260,11 @@ function DisbursementSection({
       aria-label="Autorisation de décaissement"
       className="flex min-h-0 flex-1 flex-col"
     >
-      {!current && (
-        <h2 id="disbursement-title">Autorisation de décaissement</h2>
-      )}
+      <p className="text-sm text-muted-foreground">
+        {detail.name} · {detail.reference}
+      </p>
       {current ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            {detail.name} · {detail.reference}
-          </p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <StatusBadge className={administrativeStateClass(current.state)}>
               {administrativeStates[current.state] || current.state}
@@ -2273,56 +2319,45 @@ function DisbursementSection({
               <p className="text-sm text-muted-foreground">Aucune décision.</p>
             )}
           </section>
-          {returning ? (
-            <BusinessForm
-              className="order-last grid gap-5"
-              onSubmit={async (event) => {
-                event.preventDefault()
-                const data = new FormData(event.currentTarget)
-                const result = await mutate(
-                  `/disbursement-requests/${current.id}/decisions`,
-                  {
-                    expected_version: version,
-                    decision: 'return',
-                    reason: String(data.get('reason') || ''),
-                  },
-                )
-                if (result !== false) {
-                  setReturning(false)
-                  onCancel()
-                }
-                return result
-              }}
-            >
+          <BusinessForm
+            className="order-last grid gap-5"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const data = new FormData(event.currentTarget)
+              const result = await mutate(
+                `/disbursement-requests/${current.id}/decisions`,
+                {
+                  expected_version: version,
+                  decision: 'return',
+                  reason: String(data.get('reason') || ''),
+                },
+              )
+              if (result !== false) onCancel()
+              return result
+            }}
+          >
+            {current.allowed_actions.includes('return') && (
               <label>
                 Observation / motif du retour *
                 <textarea name="reason" required maxLength="4000" />
               </label>
-              <div data-ui="modal-actions">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setReturning(false)}
-                >
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={pending || !navigator.onLine}>
-                  Confirmer le retour
-                </Button>
-              </div>
-            </BusinessForm>
-          ) : (
+            )}
             <div data-ui="modal-actions" className="order-last">
               <Button type="button" variant="outline" onClick={onCancel}>
                 Annuler
               </Button>
               {current.allowed_actions.includes('return') && (
-                <Button variant="outline" onClick={() => setReturning(true)}>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={pending || !navigator.onLine}
+                >
                   Retourner en correction
                 </Button>
               )}
               {current.allowed_actions.includes('prevalidate') && (
                 <Button
+                  type="button"
                   disabled={pending || !navigator.onLine}
                   onClick={() =>
                     mutate(`/disbursement-requests/${current.id}/decisions`, {
@@ -2336,6 +2371,7 @@ function DisbursementSection({
               )}
               {current.allowed_actions.includes('approve') && (
                 <Button
+                  type="button"
                   disabled={pending || !navigator.onLine}
                   onClick={() =>
                     mutate(`/disbursement-requests/${current.id}/decisions`, {
@@ -2348,7 +2384,7 @@ function DisbursementSection({
                 </Button>
               )}
             </div>
-          )}
+          </BusinessForm>
           {current.allowed_actions.includes('cancel') && (
             <BusinessForm
               className="order-last [&_>_label]:w-full"
@@ -2377,6 +2413,24 @@ function DisbursementSection({
           )}
         </>
       ) : null}
+      {!current && (
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-border pb-5 text-sm max-[520px]:grid-cols-1">
+          <div>
+            <dt className="text-xs text-muted-foreground">Budget prévu</dt>
+            <dd className="mt-1 text-base font-medium">
+              {formatXof(detail.approved_allocation)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">
+              Dépenses enregistrées
+            </dt>
+            <dd className="mt-1 text-base font-medium">
+              {formatXof(detail.spending_total)}
+            </dd>
+          </div>
+        </dl>
+      )}
       {(!current || ['returned', 'cancelled'].includes(current.state)) &&
         (role === 'AGENT_SAISIE' &&
         !historicalPage &&
@@ -2386,6 +2440,7 @@ function DisbursementSection({
               Annuler
             </Button>
             <Button
+              type="button"
               disabled={!canSubmit || pending || !navigator.onLine}
               onClick={() =>
                 mutate('/disbursement-requests', {
@@ -2994,16 +3049,34 @@ function VirementSection({
   const version = current?.activity_version || detail.version
   return (
     <Panel
-      aria-labelledby="virement-title"
+      aria-label="Autorisation de virement"
       className="flex min-h-0 flex-1 flex-col"
     >
-      <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <div>
-          <h2 id="virement-title">Autorisation de virement</h2>
-        </div>
+      <p className="text-sm text-muted-foreground">
+        {detail.name} · {detail.reference}
+      </p>
+      <div className="flex justify-end items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         {current && <strong>{stateLabels[current.state]}</strong>}
       </div>
-      <p>
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-border pb-5 text-sm max-[520px]:grid-cols-1">
+        <div>
+          <dt className="text-xs text-muted-foreground">Budget prévu</dt>
+          <dd className="mt-1 text-base font-medium">
+            {formatXof(detail.approved_allocation)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">
+            Total actuellement autorisé
+          </dt>
+          <dd className="mt-1 text-base font-medium">
+            {(current?.amount ?? context.amount)
+              ? formatXof(current?.amount ?? context.amount)
+              : strings.notProvided}
+          </dd>
+        </div>
+      </dl>
+      <p className="text-sm text-muted-foreground">
         Cette autorisation porte sur le montant de décaissement déjà approuvé.
         Elle ne confirme pas qu’un virement externe a été effectué.
       </p>
@@ -3043,6 +3116,7 @@ function VirementSection({
             </Button>
             {current.allowed_actions.includes('prevalidate') && (
               <Button
+                type="button"
                 disabled={pending || !navigator.onLine}
                 onClick={() =>
                   mutate(`/virement-requests/${current.id}/decisions`, {
@@ -3056,6 +3130,7 @@ function VirementSection({
             )}
             {current.allowed_actions.includes('approve') && (
               <Button
+                type="button"
                 disabled={pending || !navigator.onLine}
                 onClick={() =>
                   mutate(`/virement-requests/${current.id}/decisions`, {
@@ -3129,6 +3204,7 @@ function VirementSection({
               Annuler
             </Button>
             <Button
+              type="button"
               disabled={!context.can_submit || pending || !navigator.onLine}
               onClick={() =>
                 mutate('/virement-requests', {

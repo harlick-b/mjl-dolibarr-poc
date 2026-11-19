@@ -1234,14 +1234,6 @@ def change_execution(
         actual = int(body.actual_spent) if body.actual_spent is not None else None
         if actual is not None and actual > MAX_XOF:
             raise AuthError(422, "input_invalid")
-        approved_allocation = int(cast(str, approved_fact["allocation"]))
-        if (
-            completed
-            and actual is not None
-            and actual != approved_allocation
-            and not body.execution_observation
-        ):
-            raise AuthError(422, "variance_observation_required")
         changed_existing = had_existing_execution and (
             actual != operation.actual_spent
             or body.execution_observation != operation.execution_observation
@@ -1385,14 +1377,6 @@ def change_subtask_execution(
         actual = int(body.actual_spent) if body.actual_spent is not None else None
         if actual is not None and actual > MAX_XOF:
             raise AuthError(422, "input_invalid")
-        allocation = int(cast(str, child_fact["allocation"]))
-        if (
-            body.execution_completed
-            and actual is not None
-            and actual != allocation
-            and not body.execution_observation
-        ):
-            raise AuthError(422, "variance_observation_required")
         changed_existing = had_existing_execution and (
             actual != child.actual_spent
             or body.execution_observation != child.execution_observation

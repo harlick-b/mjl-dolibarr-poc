@@ -595,10 +595,10 @@ def test_execution_mutation_rejects_parent_state_and_request_forgery(planning):
     )
 
 
-def test_zero_overspend_and_variance_observation_rules(planning):
+def test_zero_overspend_and_optional_observation_rules(planning):
     activity = approved_execution_activity(planning)
     operation = activity["tasks"][0]
-    missing_observation = patch(
+    zero = patch(
         planning["agent"],
         execution_path(activity, operation),
         {
@@ -608,19 +608,6 @@ def test_zero_overspend_and_variance_observation_rules(planning):
             "actual_spent": "0",
             "execution_completed": True,
             "execution_observation": "",
-        },
-    )
-    assert missing_observation.status_code == 422
-    zero = patch(
-        planning["agent2"],
-        execution_path(activity, operation),
-        {
-            "action": "record",
-            "expected_version": activity["version"],
-            "expected_approved_revision_id": activity["approved_revision_id"],
-            "actual_spent": "0",
-            "execution_completed": True,
-            "execution_observation": "Aucune dépense nécessaire.",
         },
     )
     assert zero.status_code == 200, zero.text

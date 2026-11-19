@@ -218,11 +218,6 @@ export function TaskEditor({
       completed !== target.execution_completed ||
       observation.trim() !== (target.execution_observation ?? '').trim())
   const completesExecution = weightedTask ? Number(progress) === 100 : completed
-  const varianceObservationRequired =
-    completesExecution &&
-    /^\d+$/.test(String(amount)) &&
-    /^\d+$/.test(String(target.approved_allocation)) &&
-    BigInt(amount) !== BigInt(target.approved_allocation)
   const period =
     target.planned_start && target.planned_end
       ? target.planned_start === target.planned_end
@@ -263,9 +258,6 @@ export function TaskEditor({
             event.preventDefault()
             const data = new FormData(event.currentTarget)
             const executionCompleted = completesExecution
-            const submittedObservation = varianceObservationRequired
-              ? observation
-              : target.execution_observation || ''
             if (!amount && !executionCompleted && !progress) {
               setSubmissionError(strings.progressRequired)
               return false
@@ -277,7 +269,7 @@ export function TaskEditor({
                 draftBasis.current?.revision ?? activity.approved_revision_id,
               actual_spent: amount || null,
               execution_completed: executionCompleted,
-              execution_observation: submittedObservation,
+              execution_observation: observation.trim(),
               ...(weightedTask ? { progress: progress || '0.00' } : {}),
             }
             const reason = String(data.get('correction_reason') || '')
@@ -326,18 +318,15 @@ export function TaskEditor({
               aria-label={strings.recordedExpense}
             />
           </label>
-          {varianceObservationRequired && (
-            <label className="col-span-full">
-              Observation
-              <textarea
-                name="execution_observation"
-                required
-                maxLength="4000"
-                value={observation}
-                onChange={(event) => setObservation(event.target.value)}
-              />
-            </label>
-          )}
+          <label className="col-span-full">
+            Observation
+            <textarea
+              name="execution_observation"
+              maxLength="4000"
+              value={observation}
+              onChange={(event) => setObservation(event.target.value)}
+            />
+          </label>
           {changedExisting && (
             <label className="col-span-full">
               Motif de la correction *
