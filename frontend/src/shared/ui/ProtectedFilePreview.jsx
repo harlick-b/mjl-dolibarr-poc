@@ -6,24 +6,30 @@ import { Button } from './button'
 import { Modal } from './BusinessModal'
 import { LoadingPlaceholder } from './PageLoading'
 import { RetryableError } from './RetryableError'
+import { ProtectedDownload } from './ProtectedDownload'
 
-export function ProtectedPdfPreview({
+export function ProtectedFilePreview({
   path,
   title,
   children,
   className,
   size,
+  kind = 'image',
   onDenied,
   scope,
+  download = true,
+  downloadPath,
+  errorMessage = common.dataUnavailable,
+  ...buttonProps
 }) {
   const { api } = useAPI()
   const controller = useRef(null)
   const opener = useRef(null)
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(null)
+  const scopeSignal = scope?.signal || scope?.current?.signal
 
   useEffect(() => () => controller.current?.abort(), [])
-  const scopeSignal = scope?.signal || scope?.current?.signal
   useEffect(() => {
     const abort = () => {
       controller.current?.abort()
@@ -45,7 +51,6 @@ export function ProtectedPdfPreview({
     retry: false,
     networkMode: 'always',
     mutationFn: async () => {
-      const scopeSignal = scope?.signal || scope?.current?.signal
       controller.current = new AbortController()
       const current = controller.current
       const abort = () => current.abort()
@@ -55,21 +60,27 @@ export function ProtectedPdfPreview({
         const result = await api.download(path, { signal: current.signal })
         if (current.signal.aborted)
           throw new DOMException('Cancelled preview', 'AbortError')
-        return { ...result, scopeSignal }
+        return result
       } finally {
         scopeSignal?.removeEventListener('abort', abort)
       }
     },
     onError: (error) => {
-      if ([403, 404].includes(error.status)) onDenied?.(error.status)
+      if ([401, 403, 404].includes(error.status)) onDenied?.(error.status)
     },
-    onSuccess: ({ blob, filename, scopeSignal }) => {
+    onSuccess: ({ blob, filename }) => {
       if (controller.current?.signal.aborted || scopeSignal?.aborted) return
       setPreview({ href: URL.createObjectURL(blob), filename })
     },
   })
 
-  const download = () => {
+  const close = () => {
+    controller.current?.abort()
+    request.reset()
+    setPreview(null)
+    setOpen(false)
+  }
+  const save = () => {
     const anchor = document.createElement('a')
     anchor.href = preview.href
     anchor.download = preview.filename
@@ -78,19 +89,13 @@ export function ProtectedPdfPreview({
     anchor.remove()
   }
 
-  const close = () => {
-    controller.current?.abort()
-    request.reset()
-    setPreview(null)
-    setOpen(false)
-  }
-
   return (
     <>
       <Button
+        {...buttonProps}
         ref={opener}
         className={className}
-        disabled={request.isPending}
+        loading={request.isPending}
         onClick={() => {
           setOpen(true)
           request.mutate()
@@ -104,20 +109,32 @@ export function ProtectedPdfPreview({
       <Modal
         open={open}
         onClose={close}
-        label={title}
+        label={kind === 'image' ? `${common.preview} — ${title}` : title}
         opener={opener}
         className="w-[min(960px,calc(100%-32px))]"
       >
         <div className="grid gap-5 p-6">
           {request.isPending && (
-            <LoadingPlaceholder label={common.previewLoading} />
+            <LoadingPlaceholder
+              label={common.previewLoading}
+              variant="preview"
+            />
           )}
-          {request.isError && (
+          {request.isError && request.error?.name !== 'AbortError' && (
             <RetryableError onRetry={() => request.mutate()}>
-              {common.dataUnavailable}
+              {typeof errorMessage === 'function'
+                ? errorMessage(request.error)
+                : errorMessage}
             </RetryableError>
           )}
-          {preview && (
+          {preview && kind === 'image' && (
+            <img
+              src={preview.href}
+              alt={`${common.preview} de ${title}`}
+              className="max-h-[65dvh] w-full rounded-control border border-border bg-background object-contain"
+            />
+          )}
+          {preview && kind === 'pdf' && (
             <iframe
               title={`${title} — ${common.preview}`}
               src={preview.href}
@@ -128,8 +145,17 @@ export function ProtectedPdfPreview({
             <Button type="button" variant="outline" onClick={close}>
               {common.dismiss}
             </Button>
-            {preview && (
-              <Button type="button" onClick={download}>
+            {preview && downloadPath && (
+              <ProtectedDownload
+                path={downloadPath}
+                onDenied={onDenied}
+                scope={scope}
+              >
+                {common.download}
+              </ProtectedDownload>
+            )}
+            {preview && download && !downloadPath && (
+              <Button type="button" onClick={save}>
                 {common.download}
               </Button>
             )}

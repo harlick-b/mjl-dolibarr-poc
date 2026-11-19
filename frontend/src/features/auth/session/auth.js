@@ -2,8 +2,6 @@ import { api } from '@/shared/api/rest-client'
 
 export const sessionKey = ['auth', 'session']
 
-export const apiRequest = (path, options) => api.request(path, options)
-
 export const sessionQuery = {
   queryKey: sessionKey,
   queryFn: () => api.verifyAccess({ manual: true }),
@@ -15,8 +13,4 @@ export const sessionQuery = {
   refetchOnMount: false,
   refetchOnReconnect: false,
   refetchOnWindowFocus: false,
-}
-
-export function authRequest(path, options) {
-  return api.auth(path, options)
 }

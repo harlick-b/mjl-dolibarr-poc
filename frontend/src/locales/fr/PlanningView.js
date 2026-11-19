@@ -7,7 +7,6 @@ export const strings = new LocalizedStrings({
     assignmentRequired:
       'Cette activité ne vous est plus affectée. Vos droits d’accès ont été actualisés.',
     plannedAmount: 'Montant prévu de l’activité (F CFA)',
-    budgetDifference: 'Écart à répartir',
     activityBudgetSummary: 'Budget de l’activité',
     budgetRemaining: 'Budget restant',
     compactPlannedAmount: 'Montant prévu',
@@ -240,7 +239,6 @@ export const strings = new LocalizedStrings({
       'Complétez les champs de cette tâche ou retirez-la avant d’enregistrer.',
     submissionMissing: 'Pour soumettre, complétez :',
     submissionTitleMissing: 'l’intitulé',
-    submissionDescriptionMissing: 'la description',
     submissionDatesMissing: 'les dates de début et de fin',
     submissionOperationsMissing: 'au moins une tâche complète',
     submissionTaskStructureMissing:
@@ -305,7 +303,6 @@ export const strings = new LocalizedStrings({
     cancelAssignmentChanges: 'Annuler les modifications d’affectation',
     modify: 'Modifier',
     reviseProgramming: 'Réviser la programmation',
-    revision: 'Révision',
     editProgramming: 'Modifier la programmation',
     organizeTasks: 'Organiser les tâches',
     completeProgramming: 'Compléter la programmation',
@@ -372,27 +369,14 @@ export const strings = new LocalizedStrings({
     workflowExactRevision:
       'Cette décision concerne les informations soumises affichées.',
     observation: 'Observation',
-    decisionAttachment: 'Pièce justificative',
-    decisionSavedUploadFailed:
-      'La décision est enregistrée, mais la pièce n’a pas été envoyée. Réessayez uniquement l’envoi du fichier.',
-    decisionUploadUncertain:
-      'La décision est enregistrée. La réception de la pièce reste à vérifier avant tout nouvel envoi.',
-    decisionAndAttachmentSaved: 'Décision et pièce enregistrées.',
-    retryAttachment: 'Réessayer l’envoi',
     authorize: 'Autoriser',
-    confirmDecision: 'Confirmer la décision',
     prevalidationConfirmation: 'Prévalider',
-    prevalidationExplanation:
-      'Vous confirmez avoir examiné « {0} ». L’activité sera transmise pour approbation définitive.',
     prevalidateAndSend: 'Prévalider et transmettre',
     approvalConfirmation: 'Valider définitivement',
-    approvalExplanation:
-      'Vous confirmez l’approbation définitive de « {0} ». Sa réalisation pourra commencer selon les dates prévues.',
     approveActivity: 'Approuver l’activité',
     confirm: 'Confirmer',
     reason: 'Motif de correction',
     requestedAmount: 'Montant indicatif demandé',
-    reviewProgress: 'Progression de la validation',
     revisionHistory: 'Historique de l’activité',
     submittedInformation: 'Informations soumises',
     submittedOn: 'Soumise le',

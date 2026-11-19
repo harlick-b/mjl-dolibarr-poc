@@ -18,7 +18,7 @@ import { PartnerDocuments } from './PartnerDocuments'
 import { useProtectedCleanup } from '@/features/auth/session/access-verification'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
-import { ProtectedPdfPreview } from '@/shared/ui/ProtectedPdfPreview'
+import { ProtectedFilePreview } from '@/shared/ui/ProtectedFilePreview'
 
 const emptyList = { data: [] }
 
@@ -660,10 +660,11 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   <h2 id="partner-detail">{detail.data.name}</h2>
                   <p>{detail.data.description}</p>
                 </div>
-                <ProtectedPdfPreview
+                <ProtectedFilePreview
                   key={detail.data.id}
                   path={`/api/v1/partner-portal/activities/${detail.data.id}/fiche.pdf`}
                   title="Fiche de suivi de l’activité"
+                  kind="pdf"
                   onDenied={(status) =>
                     deny(status, [
                       'partner-portal',
@@ -675,7 +676,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   scope={ficheScope}
                 >
                   Consulter la fiche PDF
-                </ProtectedPdfPreview>
+                </ProtectedFilePreview>
               </div>
               <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                 <div>

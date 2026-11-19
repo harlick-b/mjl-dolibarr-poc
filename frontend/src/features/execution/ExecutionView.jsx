@@ -1291,7 +1291,6 @@ function ExecutionDetail({
     reviewer_read_only: 'votre rôle permet uniquement la consultation',
     activity_assignment_required: strings.assignmentRequired,
     before_planned_start: 'la date de début planifiée n’est pas atteinte',
-    disbursement_frozen: 'une autorisation de décaissement est en cours',
     zero_spending_frozen: 'une déclaration sans dépense est en cours',
   }
   return (
@@ -1301,20 +1300,23 @@ function ExecutionDetail({
           {error}
         </p>
       )}
-      {detail.execution_paused && (
-        <p
-          role="status"
-          className="border-l-4 border-l-primary bg-background py-3 px-4"
-        >
-          La réalisation est suspendue :{' '}
-          {unavailableLabels[detail.pause_reason] ||
-            'une action préalable reste nécessaire'}
-          .
-        </p>
-      )}
+      {detail.execution_paused &&
+        detail.pause_reason !== 'disbursement_frozen' && (
+          <p
+            role="status"
+            className="border-l-4 border-l-primary bg-background py-3 px-4"
+          >
+            La réalisation est suspendue :{' '}
+            {unavailableLabels[detail.pause_reason] ||
+              'une action préalable reste nécessaire'}
+            .
+          </p>
+        )}
       {!detail.execution_paused &&
         detail.mutation_unavailable_reason &&
-        detail.mutation_unavailable_reason !== 'reviewer_read_only' && (
+        !['reviewer_read_only', 'disbursement_frozen'].includes(
+          detail.mutation_unavailable_reason,
+        ) && (
           <p
             role="status"
             className="border-l-4 border-l-primary bg-background py-3 px-4"

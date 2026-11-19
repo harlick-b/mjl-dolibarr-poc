@@ -1970,7 +1970,7 @@ function ActivityDetail({
             {item.reference}
           </Link>
           <span aria-hidden="true">/</span>
-          <span>{strings.revision}</span>
+          <span>{strings.modify}</span>
         </nav>
         <header className="flex flex-wrap items-start justify-between gap-6">
           <div>
