@@ -1802,8 +1802,9 @@ authorization display states, financial request columns and header read failure.
 
 The final visual correction replaces the remaining Finance administration
 accordions with flat rows and moves their forms into the shared right-side modal.
-The financial summary now shows partial spending, realization submission state
-and the no-overrun result directly; the obsolete realization footer action is
+The financial summary now shows partial spending and realization submission
+state directly, and hides the variance row when there is no discrepancy; the
+obsolete realization footer action is
 removed. Réalisation uses the approved **Développer** disclosure and explicit
 **Non renseigné** value. Programmation retains the approved two-column cards while
 removing the technical revision number from its budget label. Technical financial
@@ -1817,3 +1818,59 @@ existing request directly. The final affected frontend run passes 97 tests,
 ESLint, Prettier, the production build and the canonical Activity browser flow.
 Backend Ruff and mypy pass; the focused PostgreSQL closure test remains
 unavailable because `TEST_DATABASE_URL` is not configured.
+
+### Activity modal and final visual standard pass — 2026-11-19
+
+Activity dialogs now inherit one shared field, label and footer treatment from
+`BusinessModal`, including forms nested in Activity execution and financial
+content. The Task/Subtask execution modal is the approved compact centered form;
+variance observations and audit correction reasons appear only when required by
+the existing integrity rules. Activity and Task progress display human-readable
+percentages without stored decimal padding, and the execution sidebar matches the
+approved MJL mark and **Relances** wording.
+
+Financial request creation uses the centered dialog and request review uses the
+approved right drawer. Décaissement review shows the available Activity context,
+request totals and decisions without exposing revision numbers or inventing the
+hidden request reference. External virement, reversement and closure retain their
+current workflow rules and use centered confirmation dialogs.
+
+The focused frontend evidence is 41 passing Execution tests, 57 passing Planning
+tests, 12 passing app tests, targeted ESLint, a production build and the passing
+canonical Activity Playwright flow with desktop/mobile captures. The production
+build retains its known bundle-size warning. Independent review and human visual
+acceptance are still separate gates.
+
+Independent review of that candidate identified two state defects and three
+remaining visual inconsistencies, all corrected in the same slice. Observation-
+only Task/Subtask corrections now include the required audit reason; successful
+financial returns close the return form; percentages omit API padding; request
+drawers use a fixed shell with scrolling content; and confirmation checkboxes use
+the established inline layout. All 45 Execution tests and the focused Planning
+rerun pass, as do targeted ESLint, `git diff --check`, the production build and
+the canonical Activity Playwright flow. In the combined affected run, 112 of 113
+tests passed and the single timed-out Planning submission test passed immediately
+when rerun alone. Equivalent numeric formatting and surrounding observation
+whitespace are normalized before correction detection, matching the API and
+avoiding false correction reasons.
+
+The Activity UI correction on 2026-11-19 keeps saved Task and budget facts visible
+in incomplete Draft details, aligns all compact planning tables and percentage
+display, fixes 390 px navigation containment, and centralizes drawers, business
+field styles and file selection. Required submission fields are visibly marked
+without changing incomplete Draft persistence. The Activity fiche remains
+approved-only, and the shared REST client/API contract is unchanged.
+
+The final findings correction removes the repeated realization status from
+Finance, pins shared drawer actions to the viewport bottom, stacks the mobile
+closure action, and preserves the standard budget card for incomplete Drafts.
+Activity document and reversement uploads use the shared file selector; link
+actions, Finance cards, percentage totals and revision dates use their
+centralized UI and formatting seams. The combined affected unit run passes 102
+of 104 tests, and its two order-sensitive reversement scenarios pass on their
+immediate focused rerun. Targeted ESLint and `git diff --check` pass, the
+production build passes with the known chunk warning, and the five relevant
+Activity Playwright journeys pass. The broader Planning Playwright invocation
+also ran four older scenarios that still fail on unrelated dialog/focus
+expectations; those failures are kept separate from the passing affected
+evidence.

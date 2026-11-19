@@ -13,6 +13,7 @@ export const buttonVariants = cva(
         outline:
           'border border-strong-border bg-white text-navy hover:bg-selected disabled:opacity-50',
         ghost: 'bg-transparent text-navy hover:bg-selected disabled:opacity-50',
+        link: 'min-h-0 rounded-none bg-transparent px-0 py-0 text-primary hover:underline disabled:opacity-50 pointer-coarse:min-h-11',
         auth: 'min-h-11 w-full bg-primary py-3 leading-5 text-white hover:enabled:opacity-90 disabled:bg-disabled disabled:text-muted-foreground',
       },
     },

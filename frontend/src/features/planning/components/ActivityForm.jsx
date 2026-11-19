@@ -9,8 +9,9 @@ import { Button } from '@/shared/ui/button'
 import { Panel } from '@/shared/ui/layout'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
+import { FileSelection } from '@/shared/ui/FileSelection'
 import {
-  formatDate,
+  formatExactPercentage,
   formatXof,
   localDateInput,
   addThreeMonths,
@@ -18,6 +19,7 @@ import {
 import { strings } from '@/locales/fr/PlanningView'
 import { CategoryCreator } from './CategoryCreator'
 import { cursorFrom } from '@/shared/lib/pagination'
+import { CompactAllocationTable } from './CompactAllocationTable'
 
 const positiveAmount = (value) => /^[1-9]\d*$/.test(String(value || ''))
 const percentagePattern = /^(?:100(?:\.0{1,2})?|(?:[1-9]?\d)(?:\.\d{1,2})?)$/
@@ -197,15 +199,15 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
       open
       onClose={onClose}
       opener={opener}
+      variant="drawer"
       label={
         index === null ? strings.addSubtaskTitle : strings.editSubtaskTitle
       }
       subtitle={task.name}
-      className="m-0 ml-auto h-dvh max-h-dvh w-[min(560px,100%)] overflow-hidden rounded-none sm:rounded-l-panel"
     >
       <Panel
         as={BusinessForm}
-        className="h-[calc(100dvh-105px)] min-h-0 grid-rows-[minmax(0,1fr)_auto] rounded-none border-0"
+        className="min-h-0 grid-rows-[minmax(0,1fr)_auto] rounded-none border-0"
         onSubmit={(event) => {
           event.stopPropagation()
           if (!valid) return
@@ -214,8 +216,9 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
       >
         <div className="grid content-start gap-5 overflow-y-auto">
           <label>
-            {strings.title}
+            {strings.title} *
             <input
+              aria-label={strings.title}
               autoFocus
               maxLength={200}
               value={draft.name}
@@ -241,7 +244,7 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
               />
             </label>
             <label>
-              {strings.subtaskWeightPercent}
+              {strings.subtaskWeightPercent} *
               <ExactNumberInput
                 scale={2}
                 min="0"
@@ -255,7 +258,7 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
-              {strings.subtaskStartDate}
+              {strings.subtaskStartDate} *
               <DatePicker
                 label={strings.subtaskStartDate}
                 value={draft.planned_start || ''}
@@ -266,7 +269,7 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
               />
             </label>
             <label>
-              {strings.subtaskEndDate}
+              {strings.subtaskEndDate} *
               <DatePicker
                 label={strings.subtaskEndDate}
                 value={draft.planned_end || ''}
@@ -388,9 +391,6 @@ function TaskEditor({
             : strings.addOperation}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {task.id || task.name ? strings.editTask : strings.newTask}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
           {activity.name} · PTA {activity.year}
         </p>
       </header>
@@ -400,8 +400,9 @@ function TaskEditor({
         </h2>
         <div className="grid gap-5 p-6">
           <label>
-            {strings.title}
+            {strings.title} *
             <input
+              aria-label={strings.title}
               autoFocus
               maxLength={200}
               value={draft.name}
@@ -419,8 +420,9 @@ function TaskEditor({
           </label>
           <div className="grid max-w-[360px] gap-2">
             <label>
-              {strings.activityOperationType}
+              {strings.activityOperationType} *
               <Select
+                aria-label={strings.activityOperationType}
                 ref={categorySelect}
                 value={draft.type_id || ''}
                 disabled={categoriesUnavailable}
@@ -462,7 +464,7 @@ function TaskEditor({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
-              {strings.plannedStart}
+              {strings.plannedStart} *
               <DatePicker
                 label={strings.plannedStart}
                 value={draft.planned_start || ''}
@@ -473,7 +475,7 @@ function TaskEditor({
               />
             </label>
             <label>
-              {strings.plannedEnd}
+              {strings.plannedEnd} *
               <DatePicker
                 label={strings.plannedEnd}
                 value={draft.planned_end || ''}
@@ -492,7 +494,7 @@ function TaskEditor({
         </h2>
         <div className="grid gap-4 p-6 sm:grid-cols-2">
           <label>
-            {strings.operationAmount}
+            {strings.operationAmount} *
             <ExactNumberInput
               aria-label={strings.taskPlannedAmount}
               value={draft.allocation}
@@ -500,7 +502,7 @@ function TaskEditor({
             />
           </label>
           <label>
-            {strings.taskWeightPercent}
+            {strings.taskWeightPercent} *
             <ExactNumberInput
               scale={2}
               min="0"
@@ -534,90 +536,57 @@ function TaskEditor({
         </div>
         <div className="p-6">
           {draft.subtasks.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-190 table-fixed text-left text-[0.8125rem] leading-5">
-                <colgroup>
-                  <col />
-                  <col className="w-40" />
-                  <col className="w-32" />
-                  <col className="w-44" />
-                </colgroup>
-                <thead className="border-b border-border bg-background">
-                  <tr>
-                    <th className="px-3 py-3 font-medium">{strings.subtask}</th>
-                    <th className="px-3 py-3 font-medium">
-                      {strings.operationAmount}
-                    </th>
-                    <th className="px-3 py-3 font-medium">{strings.weight}</th>
-                    <th className="px-3 py-3 font-medium">{strings.actions}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.subtasks.map((child, index) => (
-                    <tr
-                      key={child.id || child._key}
-                      className="border-b border-border"
+            <div>
+              <CompactAllocationTable
+                rows={draft.subtasks}
+                nameHeader={strings.subtask}
+                amountHeader={strings.compactPlannedAmount}
+                weightHeader={strings.weight}
+                actionsHeader={strings.actions}
+                datesToComplete={strings.datesToComplete}
+                renderActions={(child, index) => (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDrawerIndex(index)}
                     >
-                      <td className="px-3 py-3 align-top">
-                        <strong>{child.name}</strong>
-                        <small className="block text-muted-foreground">
-                          {child.planned_start && child.planned_end
-                            ? `${formatDate(child.planned_start)} – ${formatDate(child.planned_end)}`
-                            : strings.datesToComplete}
-                        </small>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        {formatXof(child.allocation)}
-                      </td>
-                      <td className="px-3 py-3 align-top text-muted-foreground">
-                        {child.weight
-                          ? `${String(child.weight).replace('.', ',')} %`
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setDrawerIndex(index)}
-                          >
-                            {strings.modify}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={(event) =>
-                              setRemoval({
-                                index,
-                                opener: { current: event.currentTarget },
-                                label: strings.removeSubtask,
-                                message: strings.formatString(
-                                  strings.removeNamed,
-                                  child.name,
-                                ),
-                              })
-                            }
-                          >
-                            {strings.remove}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
+                      {strings.modify}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={(event) =>
+                        setRemoval({
+                          index,
+                          opener: { current: event.currentTarget },
+                          label: strings.removeSubtask,
+                          message: strings.formatString(
+                            strings.removeNamed,
+                            child.name,
+                          ),
+                        })
+                      }
+                    >
+                      {strings.remove}
+                    </Button>
+                  </div>
+                )}
+                footer={
                   <tr className="font-semibold">
                     <td className="px-3 pt-4">{strings.subtaskTotal}</td>
                     <td className="px-3 pt-4">
                       {formatXof(amountTotal)} / {formatXof(draft.allocation)}
                     </td>
-                    <td className="px-3 pt-4">{weightTotal / 100} / 100 %</td>
+                    <td className="px-3 pt-4">
+                      {formatExactPercentage(weightTotal / 100)} / 100 %
+                    </td>
                     <td />
                   </tr>
-                </tfoot>
-              </table>
+                }
+              />
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">{strings.noSubtask}</p>
@@ -786,8 +755,9 @@ export function ActivityForm({
           </h2>
           <div className="grid gap-5 p-5">
             <label>
-              {strings.activityName}
+              {strings.activityName} *
               <input
+                aria-label={strings.activityName}
                 required
                 maxLength={200}
                 value={name}
@@ -795,8 +765,9 @@ export function ActivityForm({
               />
             </label>
             <label>
-              {strings.description}
+              {strings.description} *
               <textarea
+                aria-label={strings.description}
                 maxLength={4000}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -810,7 +781,7 @@ export function ActivityForm({
           </h2>
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <label>
-              {strings.startDate}
+              {strings.startDate} *
               <DatePicker
                 label={strings.startDate}
                 value={start}
@@ -821,7 +792,7 @@ export function ActivityForm({
               />
             </label>
             <label>
-              {strings.endDate}
+              {strings.endDate} *
               <DatePicker
                 label={strings.endDate}
                 value={end}
@@ -850,7 +821,7 @@ export function ActivityForm({
           </div>
           <div className="grid gap-5 p-5">
             <label className="max-w-80">
-              {strings.plannedAmount}
+              {strings.plannedAmount} *
               <ExactNumberInput
                 aria-label={strings.plannedAmount}
                 value={amount}
@@ -858,106 +829,62 @@ export function ActivityForm({
               />
             </label>
             {tasks.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-190 table-fixed text-left text-[0.8125rem] leading-5">
-                  <colgroup>
-                    <col />
-                    <col className="w-40" />
-                    <col className="w-32" />
-                    <col className="w-44" />
-                  </colgroup>
-                  <thead className="border-b border-border bg-background">
-                    <tr>
-                      <th className="px-3 py-3 font-medium">
-                        {strings.operation}
-                      </th>
-                      <th className="px-3 py-3 font-medium">
-                        {strings.operationAmount}
-                      </th>
-                      <th className="px-3 py-3 font-medium">
-                        {strings.weight}
-                      </th>
-                      <th className="px-3 py-3 font-medium">
-                        {strings.actions}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tasks.map((task, index) => (
-                      <tr
-                        key={task.id || task._key}
-                        className="border-b border-border last:border-b-0"
-                      >
-                        <td className="px-3 py-3 align-top">
-                          <strong className="text-[0.8125rem] font-semibold">
-                            {task.name}
-                          </strong>
-                          <small className="block text-muted-foreground">
-                            {task.type_label ||
-                              types.find((type) => type.id === task.type_id)
-                                ?.label ||
-                              strings.categoryToComplete}
-                          </small>
-                          <small className="block text-muted-foreground">
-                            {task.planned_start && task.planned_end
-                              ? `${formatDate(task.planned_start)} – ${formatDate(task.planned_end)}`
-                              : strings.datesToComplete}
-                            {task.subtasks?.length
-                              ? ` · ${subtaskCountLabel(task.subtasks.length)}`
-                              : ''}
-                          </small>
-                        </td>
-                        <td className="px-3 py-3 align-top font-medium">
-                          {formatXof(task.allocation)}
-                        </td>
-                        <td className="px-3 py-3 align-top text-muted-foreground">
-                          {task.weight
-                            ? `${String(task.weight).replace('.', ',')} %`
-                            : '—'}
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setTaskEditor({
-                                  index,
-                                  task: {
-                                    ...task,
-                                    subtasks: [...(task.subtasks || [])],
-                                  },
-                                })
-                              }}
-                            >
-                              {strings.modify}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={(event) =>
-                                setRemoval({
-                                  index,
-                                  opener: { current: event.currentTarget },
-                                  label: strings.removeTask,
-                                  message: strings.formatString(
-                                    strings.removeNamed,
-                                    task.name,
-                                  ),
-                                })
-                              }
-                            >
-                              {strings.remove}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CompactAllocationTable
+                rows={tasks}
+                nameHeader={strings.operation}
+                amountHeader={strings.compactPlannedAmount}
+                weightHeader={strings.weight}
+                actionsHeader={strings.actions}
+                datesToComplete={strings.datesToComplete}
+                categoryFor={(task) =>
+                  task.type_label ||
+                  types.find((type) => type.id === task.type_id)?.label ||
+                  strings.categoryToComplete
+                }
+                detailFor={(task) =>
+                  task.subtasks?.length
+                    ? ` · ${subtaskCountLabel(task.subtasks.length)}`
+                    : ''
+                }
+                renderActions={(task, index) => (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setTaskEditor({
+                          index,
+                          task: {
+                            ...task,
+                            subtasks: [...(task.subtasks || [])],
+                          },
+                        })
+                      }}
+                    >
+                      {strings.modify}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={(event) =>
+                        setRemoval({
+                          index,
+                          opener: { current: event.currentTarget },
+                          label: strings.removeTask,
+                          message: strings.formatString(
+                            strings.removeNamed,
+                            task.name,
+                          ),
+                        })
+                      }
+                    >
+                      {strings.remove}
+                    </Button>
+                  </div>
+                )}
+              />
             ) : (
               <p className="text-sm text-muted-foreground">{strings.noTask}</p>
             )}
@@ -968,30 +895,14 @@ export function ActivityForm({
             {strings.attachments}
           </h2>
           <div className="p-5">
-            <label className="grid gap-[6px]">
-              {strings.optionalFile}
-              <span className="flex min-h-14 min-w-0 items-center gap-3 rounded-control border border-strong-border bg-white px-3 py-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary">
-                <Button
-                  asChild
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 cursor-pointer"
-                >
-                  <span>{strings.chooseFile}</span>
-                </Button>
-                <span className="min-w-0 truncate text-sm font-normal text-muted-foreground">
-                  {file?.name || strings.noFileSelected}
-                </span>
-              </span>
-              <input
-                className="sr-only"
-                aria-label={strings.optionalFile}
-                type="file"
-                accept="application/pdf,image/jpeg,image/png"
-                onChange={(event) => setFile(event.target.files?.[0] || null)}
-              />
-            </label>
+            <FileSelection
+              label={strings.optionalFile}
+              chooseLabel={strings.chooseFile}
+              emptyLabel={strings.noFileSelected}
+              file={file}
+              accept="application/pdf,image/jpeg,image/png"
+              onChange={(event) => setFile(event.target.files?.[0] || null)}
+            />
           </div>
         </Panel>
         {attemptedSubmission && problems.length > 0 && (
@@ -1017,7 +928,9 @@ export function ActivityForm({
         </h2>
         <dl className="grid gap-5 p-5 text-sm">
           <div>
-            <dt className="text-muted-foreground">{strings.plannedAmount}</dt>
+            <dt className="text-muted-foreground">
+              {strings.activityBudgetSummary}
+            </dt>
             <dd className="mt-1 font-semibold">{formatXof(amount)}</dd>
           </div>
           <div>
@@ -1025,9 +938,7 @@ export function ActivityForm({
             <dd className="mt-1 font-semibold">{formatXof(total)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">
-              {strings.budgetDifference}
-            </dt>
+            <dt className="text-muted-foreground">{strings.budgetRemaining}</dt>
             <dd className="mt-1 font-semibold">
               {positiveAmount(amount) ? formatXof(BigInt(amount) - total) : '—'}
             </dd>
@@ -1035,7 +946,7 @@ export function ActivityForm({
           <div>
             <dt className="text-muted-foreground">{strings.taskWeightTotal}</dt>
             <dd className="mt-1 font-semibold">
-              {taskWeightTotal / 100} / 100 %
+              {formatExactPercentage(taskWeightTotal / 100)} / 100 %
             </dd>
           </div>
         </dl>

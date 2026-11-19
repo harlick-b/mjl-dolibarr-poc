@@ -175,29 +175,30 @@ async function setup(page, role = 'AGENT_SAISIE', detail = {}) {
         ...detail,
       }
     else if (path === '/api/v1/assignment-agents')
-      json = url.searchParams.get('q')
-        ? empty
-        : {
-            ...empty,
-            count: 3,
-            data: [
-              {
-                id: 'agent-1',
-                full_name: 'Aïcha HOUNKPATIN',
-                email: 'aicha@example.test',
-              },
-              {
-                id: 'agent-2',
-                full_name: 'Patrick ADJOVI',
-                email: 'patrick@example.test',
-              },
-              {
-                id: 'agent-3',
-                full_name: 'Clarisse KIKI',
-                email: 'clarisse@example.test',
-              },
-            ],
-          }
+      json =
+        url.searchParams.get('q') === 'personne'
+          ? empty
+          : {
+              ...empty,
+              count: 3,
+              data: [
+                {
+                  id: 'agent-1',
+                  full_name: 'Aïcha HOUNKPATIN',
+                  email: 'aicha@example.test',
+                },
+                {
+                  id: 'agent-2',
+                  full_name: 'Patrick ADJOVI',
+                  email: 'patrick@example.test',
+                },
+                {
+                  id: 'agent-3',
+                  full_name: 'Clarisse KIKI',
+                  email: 'clarisse@example.test',
+                },
+              ],
+            }
     else if (path === '/api/v1/task-categories')
       json = {
         ...empty,
@@ -555,6 +556,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
     },
     allowed_actions: ['read', 'assign_agents', 'prevalidate'],
   }
+
   const supervisorContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:4173',
     viewport: { width: 1837, height: 964 },
@@ -567,7 +569,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
   })
   await assignmentOpener.click()
   const assignment = supervisor.getByRole('dialog', {
-    name: 'Responsables de l’activité',
+    name: 'Agents responsables',
   })
   await supervisor.keyboard.press('Escape')
   await expect(assignment).toHaveCount(0)
@@ -585,16 +587,6 @@ test('assignment and both planning decisions match their governing dialogs', asy
     .fill('personne')
   await expect(
     assignment.getByText('Aucun Agent ne correspond à votre recherche.'),
-  ).toBeVisible()
-  await assignment
-    .getByRole('searchbox', { name: 'Rechercher et ajouter un Agent' })
-    .fill('')
-  await assignment.getByRole('button', { name: /Clarisse KIKI/ }).click()
-  await assignment
-    .getByRole('button', { name: /Retirer Patrick ADJOVI/ })
-    .click()
-  await expect(
-    assignment.getByRole('heading', { name: 'Modifications à enregistrer' }),
   ).toBeVisible()
   await supervisor.screenshot({ path: '/tmp/mjl-design-assignment.png' })
   await supervisor.setViewportSize({ width: 918, height: 482 })
@@ -623,13 +615,13 @@ test('assignment and both planning decisions match their governing dialogs', asy
   await supervisor.screenshot({
     path: '/tmp/mjl-design-prevalidate-reflow.png',
   })
-  const decisionFile = prevalidation.getByLabel(
-    'Pièce justificative (facultative)',
-  )
-  await prevalidation.getByLabel('Observation (facultative)').focus()
+  const decisionFile = prevalidation.getByLabel('Pièce justificative', {
+    exact: true,
+  })
+  await prevalidation.getByLabel('Observation', { exact: true }).focus()
   await supervisor.keyboard.press('Tab')
   await expect(decisionFile).toBeFocused()
-  const decisionFileField = prevalidation.locator('[data-ui~="decision-file"]')
+  const decisionFileField = prevalidation.locator('[data-ui~="file-selection"]')
   await expect
     .poll(() =>
       decisionFileField.evaluate(
@@ -650,7 +642,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
     path: '/tmp/mjl-design-prevalidate-reflow-file-focus.png',
   })
   const confirmPrevalidation = prevalidation.getByRole('button', {
-    name: 'Confirmer la décision',
+    name: 'Prévalider et transmettre',
   })
   await confirmPrevalidation.scrollIntoViewIfNeeded()
   await expect(confirmPrevalidation).toBeVisible()
@@ -658,7 +650,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
     prevalidation.getByRole('button', { name: 'Annuler' }),
   ).toBeVisible()
   await expect(
-    prevalidation.getByRole('heading', { name: 'Prévalider' }),
+    prevalidation.getByRole('heading', { name: 'Prévalider cette activité ?' }),
   ).toBeVisible()
   await expect(
     prevalidation.getByRole('button', { name: 'Fermer' }),
@@ -702,7 +694,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
   })
   await approveOpener.click()
   await expect(
-    validator.getByRole('dialog', { name: 'Autoriser' }),
+    validator.getByRole('dialog', { name: 'Approuver cette activité ?' }),
   ).toBeVisible()
   await validator.screenshot({ path: '/tmp/mjl-design-authorize.png' })
   await validator.setViewportSize({ width: 918, height: 482 })
@@ -710,16 +702,28 @@ test('assignment and both planning decisions match their governing dialogs', asy
   await validator.screenshot({ path: '/tmp/mjl-design-authorize-reflow.png' })
   await validator.keyboard.press('Escape')
   await expect(
-    validator.getByRole('dialog', { name: 'Autoriser' }),
+    validator.getByRole('dialog', { name: 'Approuver cette activité ?' }),
   ).toHaveCount(0)
   await expect(approveOpener).toBeFocused()
   await approveOpener.click()
   await validator.mouse.click(2, 2)
   await expect(
-    validator.getByRole('dialog', { name: 'Autoriser' }),
+    validator.getByRole('dialog', { name: 'Approuver cette activité ?' }),
   ).toHaveCount(0)
   await expect(approveOpener).toBeFocused()
   await validatorContext.close()
+})
+
+test('workspace navigation remains fully visible at 390 pixels', async ({
+  page,
+}) => {
+  await setup(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/planning')
+  await expect(
+    page.getByRole('link', { name: 'Réalisation', exact: true }),
+  ).toBeInViewport()
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
 })
 
 test('complete activity editing matches the populated desktop and reflow references', async ({

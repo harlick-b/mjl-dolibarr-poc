@@ -180,6 +180,13 @@ test('Activity realization and finance follow the approved detail composition', 
         : route.fulfill({ json: execution })
     if (path === '/api/v1/activities/activity-1/disbursement-requests')
       return route.fulfill({ json: financeRequests })
+    if (path.startsWith('/api/v1/activities/activity-1/disbursement-requests/'))
+      return route.fulfill({
+        json:
+          financeRequests.data.find((request) =>
+            path.endsWith(`/${request.id}`),
+          ) || {},
+      })
     return route.fulfill({ json: empty })
   })
 
@@ -206,6 +213,30 @@ test('Activity realization and finance follow the approved detail composition', 
     path: '/tmp/mjl-activity-realization.png',
     fullPage: true,
   })
+
+  await page
+    .getByRole('button', {
+      name: 'Modifier la réalisation Atelier et missions de terrain',
+    })
+    .click()
+  const taskDialog = page.getByRole('dialog', {
+    name: 'Atelier et missions de terrain',
+  })
+  await expect(taskDialog).toBeVisible()
+  await expect(taskDialog.getByText('Montant prévu')).toBeVisible()
+  await expect(taskDialog.getByText('Période prévue')).toBeVisible()
+  await expect(
+    taskDialog.getByRole('button', { name: 'Annuler' }),
+  ).toBeVisible()
+  const taskDialogBox = await taskDialog.boundingBox()
+  expect(taskDialogBox.width).toBeLessThanOrEqual(570)
+  expect(taskDialogBox.x).toBeGreaterThan(500)
+  await page.screenshot({
+    path: '/tmp/mjl-activity-task-modal.png',
+    fullPage: true,
+  })
+  await taskDialog.getByRole('button', { name: 'Annuler' }).click()
+  await expect(taskDialog).toBeHidden()
 
   await page.getByRole('button', { name: 'Développer' }).click()
   await expect(
@@ -235,11 +266,7 @@ test('Activity realization and finance follow the approved detail composition', 
   const financialSituation = page.getByRole('region', {
     name: 'Situation financière',
   })
-  await expect(
-    financialSituation.getByRole('link', {
-      name: 'Réalisation : non soumise',
-    }),
-  ).toBeVisible()
+  await expect(financialSituation.getByText(/^Réalisation\s*:/)).toHaveCount(0)
   await expect(
     financialSituation.getByText('Autorisation à obtenir'),
   ).toBeVisible()
@@ -249,10 +276,7 @@ test('Activity realization and finance follow the approved detail composition', 
   await expect(
     financialSituation.getByText('Réalisation à soumettre'),
   ).toBeVisible()
-  await expect(financialSituation.getByText('Écart financier')).toBeVisible()
-  await expect(
-    financialSituation.getByText('Aucun dépassement enregistré'),
-  ).toBeVisible()
+  await expect(financialSituation.getByText('Écart financier')).toHaveCount(0)
   await expect(
     financialSituation.getByRole('link', { name: 'Consulter la réalisation' }),
   ).toHaveCount(0)
@@ -272,6 +296,7 @@ test('Activity realization and finance follow the approved detail composition', 
     fullPage: true,
   })
 
+  execution.works_completed = true
   financeRequests = {
     ...empty,
     count: 1,
@@ -293,6 +318,7 @@ test('Activity realization and finance follow the approved detail composition', 
       },
     ],
   }
+  await page.setViewportSize({ width: 1846, height: 970 })
   await page.reload()
   await expect(
     financialSituation.getByText('Autorisation en cours'),
@@ -301,11 +327,30 @@ test('Activity realization and finance follow the approved detail composition', 
     page.getByRole('columnheader', { name: 'Demande / date' }),
   ).toBeVisible()
   await expect(page.getByText(/Prévalidation · Clarisse AKPON/)).toBeVisible()
-  await page.getByRole('button', { name: 'Consulter' }).click()
-  await expect(
-    page.getByRole('dialog', { name: 'Autorisation de décaissement' }),
-  ).toBeVisible()
-  await page.getByRole('button', { name: 'Fermer' }).click()
+  await page
+    .getByRole('region', { name: 'Demandes financières' })
+    .getByRole('button', { name: 'Consulter' })
+    .click()
+  const requestDialog = page.getByRole('dialog', {
+    name: 'Autorisation de décaissement',
+  })
+  await expect(requestDialog).toBeVisible()
+  const requestDialogBox = await requestDialog.boundingBox()
+  expect(requestDialogBox.width).toBeLessThanOrEqual(650)
+  expect(requestDialogBox.x + requestDialogBox.width).toBeGreaterThanOrEqual(
+    1845,
+  )
+  const requestActionBox = await requestDialog
+    .getByRole('button', { name: 'Annuler' })
+    .boundingBox()
+  expect(requestActionBox.y + requestActionBox.height).toBeGreaterThanOrEqual(
+    requestDialogBox.y + requestDialogBox.height - 48,
+  )
+  await page.screenshot({
+    path: '/tmp/mjl-activity-request-drawer.png',
+    fullPage: true,
+  })
+  await page.getByRole('button', { name: 'Fermer', exact: true }).click()
 
   financeRequests = {
     ...financeRequests,
@@ -328,7 +373,12 @@ test('Activity realization and finance follow the approved detail composition', 
   await expect(
     page.getByRole('heading', { name: 'Budget et validation' }),
   ).toBeVisible()
-  await expect(page.getByText('Montant prévu', { exact: true })).toBeVisible()
+  await expect(
+    page
+      .getByRole('heading', { name: 'Budget et validation' })
+      .locator('..')
+      .getByText('Montant prévu', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByText(/Montant prévu · révision/i)).toHaveCount(0)
   await page.screenshot({
     path: '/tmp/mjl-activity-programming.png',

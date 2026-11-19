@@ -1,13 +1,25 @@
 import { useRef, useState } from 'react'
-import { CheckCircle2, ChevronDown, CircleDollarSign, Play } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
-import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
+import {
+  formatDate,
+  formatExactPercentage,
+  formatXof,
+} from '@/shared/lib/format'
 import { strings } from '@/locales/fr/ExecutionView'
 
 function canRecord(item) {
   return item.allowed_actions.includes('record')
+}
+
+function normalizeNumericValue(value, scale = 0) {
+  const source = String(value ?? '').trim()
+  const match = /^(\d+)(?:\.(\d*))?$/.exec(source)
+  if (!match || match[2]?.length > scale) return source
+  const fraction = (match[2] || '').padEnd(scale, '0')
+  return `${BigInt(match[1]) * 10n ** BigInt(scale) + BigInt(fraction || '0')}`
 }
 
 function stateLabel(item) {
@@ -73,7 +85,7 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                     <strong>
                       {task.progress === null
                         ? '—'
-                        : `${String(task.progress).replace('.', ',')} %`}
+                        : formatExactPercentage(task.progress)}
                     </strong>
                     <small className="mt-1 block text-muted-foreground">
                       {stateLabel(task)}
@@ -185,66 +197,61 @@ export function TaskEditor({
   isSubtask,
   pending,
   mutate,
+  onCancel,
 }) {
   const draftBasis = useRef(null)
-  const formRef = useRef(null)
   const [submissionError, setSubmissionError] = useState('')
   const [amount, setAmount] = useState(target.actual_spent ?? '')
   const [progress, setProgress] = useState(target.progress ?? '')
+  const [completed, setCompleted] = useState(target.execution_completed)
+  const [observation, setObservation] = useState(
+    target.execution_observation ?? '',
+  )
   const correction = Boolean(target.execution_started_at)
   const weightedTask = !isSubtask && target.weight != null
+  const changedExisting =
+    correction &&
+    (normalizeNumericValue(amount) !==
+      normalizeNumericValue(target.actual_spent) ||
+      normalizeNumericValue(progress, 2) !==
+        normalizeNumericValue(target.progress, 2) ||
+      completed !== target.execution_completed ||
+      observation.trim() !== (target.execution_observation ?? '').trim())
+  const completesExecution = weightedTask ? Number(progress) === 100 : completed
+  const varianceObservationRequired =
+    completesExecution &&
+    /^\d+$/.test(String(amount)) &&
+    /^\d+$/.test(String(target.approved_allocation)) &&
+    BigInt(amount) !== BigInt(target.approved_allocation)
+  const period =
+    target.planned_start && target.planned_end
+      ? target.planned_start === target.planned_end
+        ? formatDate(target.planned_start)
+        : `${formatDate(target.planned_start)} → ${formatDate(target.planned_end)}`
+      : '—'
   return (
     <div className="grid gap-6 p-6">
-      <div className="grid gap-2">
-        <p className="text-sm text-muted-foreground">
-          {activity.reference} · {activity.name}
-        </p>
-        {isSubtask && (
-          <p className="text-sm">
-            {strings.parentTask} : {task.name}
-          </p>
-        )}
-        {task.type_label && (
-          <p className="text-sm text-muted-foreground">
-            Catégorie : {task.type_label}
-          </p>
-        )}
-      </div>
-      <div className="flex items-center justify-between gap-4 border-b border-border py-3 text-sm">
-        <span>Montant prévu</span>
-        <strong className="font-semibold text-navy">
-          {formatXof(target.approved_allocation)}
-        </strong>
-      </div>
-      <dl className="grid grid-cols-2 gap-4 text-sm">
+      <p className="text-sm text-muted-foreground">
+        {activity.name}
+        {isSubtask ? ` · ${task.name}` : ''}
+      </p>
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm max-[520px]:grid-cols-1">
         <div>
-          <dt className="text-muted-foreground">Début prévu</dt>
-          <dd className="mt-1 font-medium">
-            {target.planned_start ? formatDate(target.planned_start) : '—'}
+          <dt className="text-xs text-muted-foreground">Montant prévu</dt>
+          <dd className="mt-1 text-base font-medium text-foreground">
+            {formatXof(target.approved_allocation)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Fin prévue</dt>
-          <dd className="mt-1 font-medium">
-            {target.planned_end ? formatDate(target.planned_end) : '—'}
+          <dt className="text-xs text-muted-foreground">Période prévue</dt>
+          <dd className="mt-1 whitespace-nowrap text-sm font-medium text-foreground">
+            {period}
           </dd>
         </div>
       </dl>
-      {target.execution_started_at && (
-        <p className="flex items-center gap-2 text-sm">
-          <Play size={16} /> Démarrée le{' '}
-          {formatDateTime(target.execution_started_at)}
-        </p>
-      )}
       {canRecord(target) && (
         <BusinessForm
-          formRef={formRef}
-          onReset={() => {
-            draftBasis.current = null
-            setAmount(target.actual_spent ?? '')
-            setProgress(target.progress ?? '')
-          }}
-          className="grid gap-5 [&_>_label]:w-full"
+          className="grid grid-cols-2 gap-x-4 gap-y-5 max-[520px]:grid-cols-1 [&_>_label]:w-full"
           onChangeCapture={() => {
             setSubmissionError('')
             draftBasis.current ??= {
@@ -255,11 +262,11 @@ export function TaskEditor({
           onSubmit={async (event) => {
             event.preventDefault()
             const data = new FormData(event.currentTarget)
-            const completed = !weightedTask
-              ? data.get('execution_completed') === 'on'
-              : Number(progress) === 100
-            const observation = String(data.get('execution_observation') || '')
-            if (!amount && !completed && !progress && !observation.trim()) {
+            const executionCompleted = completesExecution
+            const submittedObservation = varianceObservationRequired
+              ? observation
+              : target.execution_observation || ''
+            if (!amount && !executionCompleted && !progress) {
               setSubmissionError(strings.progressRequired)
               return false
             }
@@ -269,8 +276,8 @@ export function TaskEditor({
               expected_approved_revision_id:
                 draftBasis.current?.revision ?? activity.approved_revision_id,
               actual_spent: amount || null,
-              execution_completed: completed,
-              execution_observation: observation,
+              execution_completed: executionCompleted,
+              execution_observation: submittedObservation,
               ...(weightedTask ? { progress: progress || '0.00' } : {}),
             }
             const reason = String(data.get('correction_reason') || '')
@@ -286,7 +293,7 @@ export function TaskEditor({
         >
           {weightedTask && (
             <label>
-              {strings.physicalProgress} *
+              {strings.physicalProgress}
               <ExactNumberInput
                 value={progress}
                 onChange={setProgress}
@@ -297,11 +304,12 @@ export function TaskEditor({
             </label>
           )}
           {!weightedTask && (
-            <label className="grid-cols-[auto_1fr] items-center min-h-11 [&_input]:size-5">
+            <label className="grid grid-cols-[auto_1fr] items-center self-end min-h-10 [&_input]:size-5">
               <input
                 name="execution_completed"
                 type="checkbox"
-                defaultChecked={target.execution_completed}
+                checked={completed}
+                onChange={(event) => setCompleted(event.target.checked)}
               />
               {isSubtask
                 ? strings.subtaskCompleted
@@ -318,38 +326,39 @@ export function TaskEditor({
               aria-label={strings.recordedExpense}
             />
           </label>
-          <p className="text-sm text-muted-foreground">
-            {strings.progressIndependent}
-          </p>
-          <label>
-            Observation
-            <textarea
-              name="execution_observation"
-              maxLength="4000"
-              defaultValue={target.execution_observation}
-            />
-          </label>
-          {correction && (
-            <label>
+          {varianceObservationRequired && (
+            <label className="col-span-full">
+              Observation
+              <textarea
+                name="execution_observation"
+                required
+                maxLength="4000"
+                value={observation}
+                onChange={(event) => setObservation(event.target.value)}
+              />
+            </label>
+          )}
+          {changedExisting && (
+            <label className="col-span-full">
               Motif de la correction *
               <textarea name="correction_reason" required maxLength="4000" />
             </label>
           )}
           {submissionError && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="col-span-full text-sm text-destructive">
               {submissionError}
             </p>
           )}
-          <div data-ui="modal-actions">
-            <Button type="reset" variant="outline" disabled={pending}>
+          <div data-ui="modal-actions" className="col-span-full">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={onCancel}
+            >
               {strings.cancelEntry}
             </Button>
             <Button type="submit" disabled={pending || !navigator.onLine}>
-              {target.execution_completed ? (
-                <CheckCircle2 size={16} />
-              ) : (
-                <CircleDollarSign size={16} />
-              )}
               Enregistrer
             </Button>
           </div>

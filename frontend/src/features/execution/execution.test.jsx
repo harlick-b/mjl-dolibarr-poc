@@ -157,6 +157,89 @@ test('a spending correction preserves completion for a legacy unweighted Task', 
   expect(mutate.mock.calls[0][2]).not.toHaveProperty('progress')
 })
 
+test.each([
+  ['Task', false],
+  ['Subtask', true],
+])(
+  'an observation-only %s correction requires and submits its reason',
+  async (_, isSubtask) => {
+    const user = userEvent.setup()
+    const mutate = vi.fn().mockResolvedValue({})
+    const activity = detail({ started: true, completed: true })
+    const task = {
+      ...activity.tasks[0],
+      actual_spent: '90000',
+      execution_observation: 'Justification initiale.',
+    }
+    const target = isSubtask
+      ? {
+          ...task,
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Réserver la salle',
+          weight: '100.00',
+        }
+      : task
+
+    render(
+      <TaskEditor
+        activity={activity}
+        task={task}
+        target={target}
+        isSubtask={isSubtask}
+        pending={false}
+        mutate={mutate}
+        onCancel={() => {}}
+      />,
+    )
+
+    expect(
+      screen.queryByLabelText('Motif de la correction *'),
+    ).not.toBeInTheDocument()
+    const observation = screen.getByLabelText('Observation')
+    await user.clear(observation)
+    await user.type(observation, 'Justification corrigée.')
+    await user.type(
+      screen.getByLabelText('Motif de la correction *'),
+      'Préciser la justification.',
+    )
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    expect(mutate).toHaveBeenCalledWith(
+      task.id,
+      isSubtask ? target.id : null,
+      expect.objectContaining({
+        execution_observation: 'Justification corrigée.',
+        correction_reason: 'Préciser la justification.',
+      }),
+    )
+  },
+)
+
+test('equivalent progress formatting does not require a correction reason', async () => {
+  const user = userEvent.setup()
+  const activity = detail({ started: true })
+  const task = activity.tasks[0]
+  render(
+    <TaskEditor
+      activity={activity}
+      task={task}
+      target={task}
+      isSubtask={false}
+      pending={false}
+      mutate={vi.fn()}
+      onCancel={() => {}}
+    />,
+  )
+
+  const progress = screen.getByLabelText('Avancement physique (%)')
+  await user.clear(progress)
+  await user.type(progress, '0')
+
+  expect(
+    screen.queryByLabelText('Motif de la correction *'),
+  ).not.toBeInTheDocument()
+})
+
 test('legacy execution detail URLs enter the canonical activity shell', async () => {
   vi.stubGlobal(
     'fetch',
@@ -635,7 +718,7 @@ test('agent completes a subtask and keeps the draft after a failed save', async 
     await screen.findByRole('button', { name: 'Renseigner Réserver la salle' }),
   )
   const dialog = screen.getByRole('dialog', { name: 'Réserver la salle' })
-  expect(dialog).toHaveTextContent('Tâche parente : Préparer la session')
+  expect(dialog).toHaveTextContent('Former les équipes · Préparer la session')
   await user.click(
     within(dialog).getByLabelText('Sous-tâche physiquement terminée'),
   )
@@ -665,7 +748,7 @@ test('agent completes a subtask and keeps the draft after a failed save', async 
     ).not.toBeInTheDocument(),
   )
   const parentRow = screen.getAllByText('Préparer la session')[0].closest('tr')
-  expect(within(parentRow).getByText('50,00 %')).toBeVisible()
+  expect(within(parentRow).getByText('50 %')).toBeVisible()
 })
 
 test('execution detail stays in page loading until all first-view reads are ready', async () => {
@@ -787,7 +870,7 @@ test('execution explorer searches assigned Agents and shows readable active filt
   expect(
     screen.getByRole('columnheader', { name: 'Suivi administratif' }),
   ).toBeVisible()
-  expect(screen.getByText('100.00 %')).toBeVisible()
+  expect(screen.getByText('100 %')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
   expect(screen.queryByText(/Révision 1/)).not.toBeInTheDocument()
   expect(
@@ -872,7 +955,7 @@ test('execution explorer keeps the selected activity period in its API request',
   ).toBe(true)
 })
 
-test('an observation draft keeps its version across refresh and can be explicitly reset', async () => {
+test('an execution correction keeps its version across refresh and closing restores server values', async () => {
   const user = userEvent.setup()
   let current = detail({ started: true, completed: true })
   const writes = []
@@ -975,32 +1058,25 @@ test('an observation draft keeps its version across refresh and can be explicitl
   )
   expect(
     screen.getByRole('dialog', { name: 'Préparer la session' }),
-  ).toHaveTextContent('ACT-000001 · Former les équipes')
-  expect(
-    screen.getByRole('dialog', { name: 'Préparer la session' }),
-  ).toHaveTextContent('Catégorie : Formation')
+  ).toHaveTextContent('Former les équipes')
   expect(
     screen.getByRole('dialog', { name: 'Préparer la session' }),
   ).toHaveTextContent('Montant prévu')
   expect(screen.getByLabelText('Dépense enregistrée (F CFA)')).toBeVisible()
-  expect(screen.getByLabelText('Réalisation physique')).toBeVisible()
-  expect(
-    screen.getByText(
-      'La progression physique et la dépense sont enregistrées séparément.',
-    ),
-  ).toBeVisible()
+  expect(screen.getByLabelText('Avancement physique (%)')).toBeVisible()
   expect(
     within(
       screen.getByRole('dialog', { name: 'Préparer la session' }),
     ).queryByText('Pièces justificatives'),
   ).not.toBeInTheDocument()
+  await user.clear(screen.getByLabelText('Dépense enregistrée (F CFA)'))
   await user.type(
-    await screen.findByLabelText('Observation'),
-    ' Précision locale.',
+    screen.getByLabelText('Dépense enregistrée (F CFA)'),
+    '115000',
   )
   await user.type(
-    screen.getByLabelText('Motif de la correction *'),
-    'Préciser le compte rendu.',
+    await screen.findByLabelText('Motif de la correction *'),
+    'Corriger la dépense.',
   )
   current = {
     ...current,
@@ -1028,33 +1104,42 @@ test('an observation draft keeps its version across refresh and can be explicitl
     expect(writes[0]).toEqual(
       expect.objectContaining({
         expected_version: 7,
-        execution_observation: 'Session terminée. Précision locale.',
+        actual_spent: '115000',
       }),
     ),
   )
+  const editor = screen.getByRole('dialog', { name: 'Préparer la session' })
   await waitFor(() =>
     expect(
-      screen.getByRole('button', { name: 'Annuler la saisie' }),
+      within(editor).getByRole('button', { name: 'Annuler' }),
     ).toBeEnabled(),
   )
-  await user.click(screen.getByRole('button', { name: 'Annuler la saisie' }))
-  expect(screen.getByLabelText('Observation')).toHaveValue(
-    'Correction distante.',
+  await user.click(within(editor).getByRole('button', { name: 'Annuler' }))
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Modifier la réalisation Préparer la session',
+    }),
   )
   expect(screen.getByLabelText('Dépense enregistrée (F CFA)')).toHaveValue(
     '110 000',
   )
-  expect(screen.getByLabelText('Réalisation physique')).toHaveValue('0,00')
-  await user.type(screen.getByLabelText('Observation'), ' Complément.')
+  expect(screen.getByLabelText('Avancement physique (%)')).toHaveValue('0,00')
+  await user.clear(screen.getByLabelText('Dépense enregistrée (F CFA)'))
   await user.type(
-    screen.getByLabelText('Motif de la correction *'),
+    screen.getByLabelText('Dépense enregistrée (F CFA)'),
+    '120000',
+  )
+  await user.type(
+    await screen.findByLabelText('Motif de la correction *'),
     'Compléter.',
   )
   await user.click(
     screen.getByRole('button', { name: 'Enregistrer', exact: true }),
   )
   await waitFor(() =>
-    expect(writes[1]).toEqual(expect.objectContaining({ expected_version: 8 })),
+    expect(writes[1]).toEqual(
+      expect.objectContaining({ expected_version: 8, actual_spent: '120000' }),
+    ),
   )
 })
 
@@ -1151,7 +1236,7 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
   expect(confirmation).not.toBeChecked()
   await user.click(confirmation)
   await user.click(
-    within(dialog).getByRole('button', { name: 'Clôturer l’activité' }),
+    within(dialog).getByRole('button', { name: 'Confirmer la clôture' }),
   )
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Consulter' })).toBeVisible(),
@@ -1379,6 +1464,8 @@ test('Agent submits a zero-spending declaration without financial requests', asy
   expect(
     screen.getByRole('heading', { name: 'Situation financière' }),
   ).toBeVisible()
+  expect(screen.queryByText(/^Réalisation\s*:/)).not.toBeInTheDocument()
+  expect(screen.queryByText('Écart financier')).not.toBeInTheDocument()
   expect(
     within(screen.getByText('Dépenses acceptées').parentElement).getByText(
       'Réalisation à soumettre',
@@ -2082,7 +2169,7 @@ test('Agent records an Operation and its start in one submission', async () => {
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
   expect(
     screen.getByText(
-      'Renseignez un montant ou une observation avant d’enregistrer.',
+      'Renseignez l’avancement ou la dépense avant d’enregistrer.',
     ),
   ).toBeVisible()
   expect(
@@ -2092,9 +2179,8 @@ test('Agent records an Operation and its start in one submission', async () => {
     screen.getByLabelText('Dépense enregistrée (F CFA)'),
     '100000',
   )
-  await user.type(screen.getByLabelText('Observation'), 'Session terminée.')
-  await user.clear(screen.getByLabelText('Réalisation physique'))
-  await user.type(screen.getByLabelText('Réalisation physique'), '100')
+  await user.clear(screen.getByLabelText('Avancement physique (%)'))
+  await user.type(screen.getByLabelText('Avancement physique (%)'), '100')
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
   await waitFor(() =>
     expect(fetch).toHaveBeenCalledWith(
@@ -2107,7 +2193,7 @@ test('Agent records an Operation and its start in one submission', async () => {
           expected_approved_revision_id: '11111111-1111-4111-8111-111111111111',
           actual_spent: '100000',
           execution_completed: true,
-          execution_observation: 'Session terminée.',
+          execution_observation: '',
           progress: '100',
         }),
       }),
@@ -2264,7 +2350,7 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
     }
     await user.click(
       screen.getByRole('button', {
-        name: kind === 'virement' ? /Demander le virement de/ : /Soumettre 100/,
+        name: 'Soumettre la demande',
       }),
     )
     await waitFor(() => expect(writes).toHaveLength(1))
@@ -2402,7 +2488,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   await openFinancialDrawer(user)
   await user.click(
     await screen.findByRole('button', {
-      name: /Soumettre 100.*000 F CFA/,
+      name: 'Soumettre la demande',
     }),
   )
   await waitFor(() =>
@@ -2412,9 +2498,6 @@ test('Agent submits finalized spending for disbursement authorization', async ()
       ).getByText('À prévalider'),
     ).toBeVisible(),
   )
-  expect(
-    screen.getByText(/ne signifie pas que le paiement a été effectué/i),
-  ).toBeVisible()
   await waitFor(() =>
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/activities/activity-1/disbursement-requests',
@@ -2441,13 +2524,114 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   await user.type(screen.getByLabelText('Motif *'), 'Corriger les montants.')
   await user.click(screen.getByRole('button', { name: 'Annuler la demande' }))
   expect(
-    await screen.findByRole('button', { name: /Soumettre 100.*000 F CFA/ }),
+    await screen.findByRole('button', { name: 'Soumettre la demande' }),
   ).toBeVisible()
 })
 
+test('a successful disbursement return closes the return form', async () => {
+  const user = userEvent.setup()
+  let request = {
+    id: '33333333-3333-4333-8333-333333333333',
+    activity_id: 'activity-1',
+    amount: '100000',
+    state: 'submitted',
+    submitted_at: '2026-10-29T09:00:00Z',
+    activity_version: 7,
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read', 'prevalidate', 'return'],
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'supervisor',
+              email: 'supervisor@example.test',
+              role: 'AGENT_VERIFICATEUR',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (
+        path.endsWith(`/disbursement-requests/${request.id}/decisions`) &&
+        options.method === 'POST'
+      ) {
+        request = {
+          ...request,
+          state: 'returned',
+          activity_version: 8,
+          allowed_actions: ['read'],
+          decisions: [
+            {
+              id: 'decision-1',
+              stage: 'supervisor',
+              outcome: 'returned',
+              actor_name: 'Superviseur',
+              decided_at: '2026-10-30T09:00:00Z',
+              reason: 'Préciser les dépenses.',
+            },
+          ],
+        }
+        return new Response(JSON.stringify(request))
+      }
+      if (path.endsWith(`/disbursement-requests/${request.id}`))
+        return new Response(JSON.stringify(request))
+      if (path.endsWith('/disbursement-requests'))
+        return new Response(
+          JSON.stringify({ ...empty, count: 1, data: [request] }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(
+          JSON.stringify(detail({ started: true, completed: true })),
+        )
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  await openFinancialDrawer(user, 'Examiner')
+  await user.click(
+    screen.getByRole('button', { name: 'Retourner en correction' }),
+  )
+  await user.type(
+    screen.getByLabelText('Observation / motif du retour *'),
+    'Préciser les dépenses.',
+  )
+  await user.click(screen.getByRole('button', { name: 'Confirmer le retour' }))
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'Confirmer le retour' }),
+    ).not.toBeInTheDocument(),
+  )
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
 test.each([
-  ['décaissement', '/disbursement-requests', /Soumettre 100.*000 F CFA/],
-  ['virement', '/virement-requests', /Demander le virement de 100.*000 F CFA/],
+  ['décaissement', '/disbursement-requests', 'Soumettre la demande'],
+  ['virement', '/virement-requests', 'Soumettre la demande'],
 ])(
   'offline invalidation aborts and clears a pending %s mutation',
   async (_label, mutationPath, buttonName) => {
@@ -2707,7 +2891,7 @@ test('Agent submits the locked disbursement amount for virement authorization', 
   ).toBeVisible()
   await user.click(
     await screen.findByRole('button', {
-      name: /Demander le virement de 100.*000 F CFA/,
+      name: 'Soumettre la demande',
     }),
   )
   await waitFor(() =>
@@ -2908,7 +3092,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   await user.click(virementDialog.getByLabelText(/Je confirme que ce montant/))
   await user.click(
     virementDialog.getByRole('button', {
-      name: 'Enregistrer la déclaration',
+      name: 'Confirmer la déclaration',
     }),
   )
   expect(fetch).toHaveBeenCalledWith(
@@ -3541,7 +3725,7 @@ test('an uncertain virement submission stays blocked until reconciliation succee
   )
   await openFinancialDrawer(user)
   const submit = await screen.findByRole('button', {
-    name: /Demander le virement de 100.*000 F CFA/,
+    name: 'Soumettre la demande',
   })
   await user.click(submit)
   await waitFor(() => expect(finishReconciliation).toBeDefined())
@@ -3897,6 +4081,11 @@ test.each([503, 403, 404])(
         { name: 'Modifier la réalisation Préparer la session' },
         { timeout: 3000 },
       ),
+    )
+    await user.clear(screen.getByLabelText('Dépense enregistrée (F CFA)'))
+    await user.type(
+      screen.getByLabelText('Dépense enregistrée (F CFA)'),
+      '110000',
     )
     await user.type(
       await screen.findByLabelText('Observation'),

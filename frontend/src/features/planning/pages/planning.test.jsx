@@ -15,8 +15,8 @@ import { App, makeRouter } from '@/app/router'
 import { ActivityForm } from './PlanningView'
 import {
   addThreeMonths,
+  formatExactPercentage,
   formatPercentage,
-  formatXof,
 } from '@/shared/lib/format'
 
 afterEach(() => {
@@ -38,15 +38,16 @@ test.each([
   },
 )
 
-test('formats an exact integer amount in F CFA', () => {
-  expect(formatXof('1250000')).toContain('1')
-  expect(formatXof('1250000')).toContain('F CFA')
-})
-
 test('formats annual rates without capping and preserves zero denominators', () => {
   expect(formatPercentage('11', '10')).toBe('110 %')
   expect(formatPercentage('1', '3')).toBe('33,3 %')
   expect(formatPercentage('0', '0')).toBe('Non calculable')
+})
+
+test('formats stored progress without API trailing zeros', () => {
+  expect(formatExactPercentage('20.00')).toBe('20 %')
+  expect(formatExactPercentage('20.50')).toBe('20,5 %')
+  expect(formatExactPercentage('invalid')).toBe('—')
 })
 
 function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
@@ -423,6 +424,7 @@ test('a denied annual export does not invalidate the session', async () => {
 
 test('an eligible Agent confirms submission of the current Activity version', async () => {
   const user = userEvent.setup()
+  let submittedActivityReads = 0
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true
   }
@@ -470,11 +472,17 @@ test('an eligible Agent confirms submission of the current Activity version', as
         ],
       },
     ],
-    agent_ids: [],
+    agent_ids: ['agent'],
     allowed_actions: ['read', 'edit', 'submit'],
   }
+  const revision = {
+    id: 'revision-1',
+    revision_number: 1,
+    activity_version: 2,
+  }
   const fetch = vi.fn((url, options = {}) => {
-    if (url.includes('/auth/session'))
+    const method = options.method || 'GET'
+    if (url === '/api/v1/auth/session' && method === 'GET')
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -489,42 +497,32 @@ test('an eligible Agent confirms submission of the current Activity version', as
           }),
         ),
       )
-    if (options.method === 'POST')
+    if (
+      url === '/api/v1/activities/activity-1/submissions' &&
+      method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'submitted',
+        version: 2,
+        current_revision_id: revision.id,
+        current_revision_number: 1,
+        current_submitter: {
+          id: 'agent',
+          email: 'user@example.test',
+          full_name: 'Agent de test',
+        },
+        allowed_actions: ['read'],
+      }
       return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            id: 'revision-1',
-            revision_number: 1,
-            activity_version: 2,
-          }),
-          { status: 201 },
-        ),
+        new Response(JSON.stringify(revision), { status: 201 }),
       )
-    if (url.endsWith('/activities/activity-1'))
+    }
+    if (url === '/api/v1/activities/activity-1' && method === 'GET') {
+      if (activity.state === 'submitted') submittedActivityReads += 1
       return Promise.resolve(new Response(JSON.stringify(activity)))
-    if (url.includes('/activities/activity-1/revisions'))
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            object: 'list',
-            count: 0,
-            data: [],
-            next: null,
-            previous: null,
-          }),
-        ),
-      )
-    return Promise.resolve(
-      new Response(
-        JSON.stringify({
-          object: 'list',
-          count: 0,
-          data: [],
-          next: null,
-          previous: null,
-        }),
-      ),
-    )
+    }
+    throw new Error(`Unexpected request in submission flow: ${url}`)
   })
   vi.stubGlobal('fetch', fetch)
   const router = makeRouter(
@@ -546,6 +544,13 @@ test('an eligible Agent confirms submission of the current Activity version', as
       }),
     ),
   )
+  expect(
+    (await screen.findAllByText('Soumise pour prévalidation'))[0],
+  ).toBeVisible()
+  expect(submittedActivityReads).toBeGreaterThanOrEqual(1)
+  expect(
+    screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
+  ).not.toBeInTheDocument()
 })
 
 test('an Agent opens and cancels an amendment while the approved version stays visible', async () => {
@@ -938,6 +943,11 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   fireEvent.submit(
     screen.getByRole('dialog').querySelector('button[type="submit"]').form,
   )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Ajouter une pièce' }),
+    ).not.toBeInTheDocument(),
+  )
   const imageRow = (await screen.findByText('preuve.png')).closest('li')
   expect(
     within(imageRow).getByRole('button', { name: 'Télécharger' }),
@@ -1083,7 +1093,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     expect(
       within(region).queryByText('Réserver la salle'),
     ).not.toBeInTheDocument()
-    expect(within(region).getByText('100,00 %')).toBeVisible()
+    expect(within(region).getByText('100 %')).toBeVisible()
     expect(
       within(region).getByText('10 janvier 2027 – 10 avril 2027'),
     ).toBeVisible()
@@ -1706,7 +1716,17 @@ test('assignment edits retain their base version and can discard a stale draft',
     planned_start: '2027-01-01',
     planned_end: null,
     allocation: '100',
-    tasks: [],
+    tasks: [
+      {
+        id: 'task-1',
+        name: 'Préparation saisie',
+        allocation: '100',
+        weight: null,
+        planned_start: null,
+        planned_end: null,
+        subtasks: [],
+      },
+    ],
     agent_ids: [],
     agents: [],
     creator: {
@@ -1764,11 +1784,13 @@ test('assignment edits retain their base version and can discard a stale draft',
   render(<App router={router} />)
   await screen.findByRole('heading', { name: 'Coordination' })
   expect(screen.getByText(/Tâches et budget à compléter\./)).toBeVisible()
-  expect(screen.getByText(/Brief créé par Sali Superviseure\./)).toBeVisible()
   expect(
-    screen.queryByRole('heading', { name: 'Tâches' }),
+    screen.queryByText(/Brief créé par Sali Superviseure\./),
   ).not.toBeInTheDocument()
-  expect(screen.queryByText('Budget approuvé')).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Tâches' })).toBeVisible()
+  expect(screen.getByText('Préparation saisie')).toBeVisible()
+  expect(screen.getAllByText('Montant prévu')).not.toHaveLength(0)
+  expect(screen.getAllByText('100 F CFA')).not.toHaveLength(0)
   activity = { ...activity, planned_end: '2027-04-01' }
   await act(async () => {
     await router.options.context.queryClient.invalidateQueries({

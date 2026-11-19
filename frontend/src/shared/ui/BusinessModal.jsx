@@ -5,6 +5,7 @@ import { Button } from './button'
 import { strings } from '@/locales/fr/Navigation'
 
 import { outsideDialog } from './dialog-events'
+import { businessFieldStyles } from './field-styles'
 
 export function Modal({
   open,
@@ -15,6 +16,7 @@ export function Modal({
   opener,
   className,
   closeDisabled = false,
+  variant = 'dialog',
 }) {
   const ref = useRef(null)
   const outside = useRef(false)
@@ -47,11 +49,18 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      hidden={!open}
       aria-label={label}
       className={cn(
-        'm-auto w-[min(560px,calc(100%-32px))] max-h-[calc(100dvh-32px)] overflow-auto rounded-panel border border-border bg-white p-0 text-foreground backdrop:bg-overlay backdrop:backdrop-blur-sm',
-        '[&>form]:grid [&>form]:min-w-0 [&>form]:gap-6 [&>form]:p-6',
-        "[&_[data-ui~='modal-actions']]:-mx-6 [&_[data-ui~='modal-actions']]:-mb-6 [&_[data-ui~='modal-actions']]:mt-2 [&_[data-ui~='modal-actions']]:border-t [&_[data-ui~='modal-actions']]:border-border [&_[data-ui~='modal-actions']]:px-6 [&_[data-ui~='modal-actions']]:py-4 [&_[data-ui~='modal-actions']]:flex [&_[data-ui~='modal-actions']]:flex-wrap [&_[data-ui~='modal-actions']]:justify-end [&_[data-ui~='modal-actions']]:gap-3",
+        variant === 'drawer'
+          ? "m-0 ml-auto h-dvh max-h-dvh w-[min(560px,100%)] overflow-hidden rounded-none border border-y-0 border-r-0 border-border bg-white p-0 text-foreground backdrop:bg-overlay backdrop:backdrop-blur-sm open:flex open:flex-col sm:rounded-l-panel [&>header]:shrink-0 [&>form]:min-h-0 [&>form]:flex-1 [&>form]:flex-col [&>div]:flex [&>div]:min-h-0 [&>div]:flex-1 [&>div]:flex-col [&>div]:overflow-y-auto [&>div>[data-ui~='planning-card']]:flex-1 [&_[data-ui~='modal-actions']]:sticky [&_[data-ui~='modal-actions']]:bottom-0 [&_[data-ui~='modal-actions']]:z-20 [&_[data-ui~='modal-actions']]:bg-white"
+          : 'm-auto w-[min(560px,calc(100%-32px))] max-h-[calc(100dvh-32px)] overflow-auto rounded-panel border border-border bg-white p-0 text-foreground backdrop:bg-overlay backdrop:backdrop-blur-sm',
+        '[&_form]:grid [&_form]:min-w-0 [&_form]:gap-6 [&>form]:p-6',
+        businessFieldStyles,
+        variant === 'drawer'
+          ? "[&_[data-ui~='modal-actions']]:mt-auto"
+          : "[&_[data-ui~='modal-actions']]:mt-2",
+        "[&_[data-ui~='modal-actions']]:-mx-6 [&_[data-ui~='modal-actions']]:-mb-6 [&_[data-ui~='modal-actions']]:border-t [&_[data-ui~='modal-actions']]:border-border [&_[data-ui~='modal-actions']]:px-6 [&_[data-ui~='modal-actions']]:py-4 [&_[data-ui~='modal-actions']]:flex [&_[data-ui~='modal-actions']]:flex-wrap [&_[data-ui~='modal-actions']]:justify-end [&_[data-ui~='modal-actions']]:gap-3",
         className,
       )}
       onPointerDown={(event) => {

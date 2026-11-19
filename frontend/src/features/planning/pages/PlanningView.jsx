@@ -40,9 +40,16 @@ import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
 import { useAPI } from '@/shared/api/RestClientProvider'
-import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
+import {
+  formatDate,
+  formatDateTime,
+  formatExactPercentage,
+  formatXof,
+} from '@/shared/lib/format'
 import { Button } from '@/shared/ui/button'
 import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
+import { FileSelection } from '@/shared/ui/FileSelection'
+import { CompactAllocationTable } from '../components/CompactAllocationTable'
 import { strings as executionStrings } from '@/locales/fr/ExecutionView'
 import { ExecutionView } from '@/features/execution/ExecutionView'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
@@ -1390,62 +1397,16 @@ function Pager({ result, cursorKey, navigate }) {
   )
 }
 
-function formatWeight(value) {
-  return value ? `${String(value).replace('.', ',')} %` : '—'
-}
-
 function TaskHierarchy({ tasks }) {
   return (
-    <div className="overflow-x-auto" data-ui="planning-list">
-      <table className="w-full min-w-150 table-fixed text-left text-[0.8125rem] leading-5">
-        <colgroup>
-          <col />
-          <col className="w-44" />
-          <col className="w-32" />
-        </colgroup>
-        <thead className="border-b border-border bg-background">
-          <tr>
-            <th className="px-3 py-3 font-medium">{strings.operation}</th>
-            <th className="px-3 py-3 text-right font-medium">
-              {strings.operationAmount}
-            </th>
-            <th className="px-3 py-3 text-right font-medium">
-              {strings.weight}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {(tasks || []).map((task) => (
-            <tr
-              key={task.id}
-              className="border-b border-border last:border-b-0"
-            >
-              <td className="px-3 py-3 align-top">
-                <strong className="text-[0.8125rem] font-semibold">
-                  {task.name}
-                </strong>
-                {task.type_label && (
-                  <p className="text-xs text-muted-foreground">
-                    {task.type_label}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {task.planned_start && task.planned_end
-                    ? `${formatDate(task.planned_start)} – ${formatDate(task.planned_end)}`
-                    : strings.datesToComplete}
-                </p>
-              </td>
-              <td className="px-3 py-3 text-right align-top font-medium">
-                {formatXof(task.allocation)}
-              </td>
-              <td className="px-3 py-3 text-right align-top text-muted-foreground">
-                {formatWeight(task.weight)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <CompactAllocationTable
+      rows={tasks || []}
+      nameHeader={strings.operation}
+      amountHeader={strings.compactPlannedAmount}
+      weightHeader={strings.weight}
+      datesToComplete={strings.datesToComplete}
+      categoryFor={(task) => task.type_label}
+    />
   )
 }
 
@@ -1464,7 +1425,9 @@ function PlanningVersion({ title, value }) {
         <div>
           <dt>{strings.period}</dt>
           <dd>
-            {value.planned_start} au {value.planned_end}
+            {value.planned_start && value.planned_end
+              ? `${formatDate(value.planned_start)} au ${formatDate(value.planned_end)}`
+              : '—'}
           </dd>
         </div>
         <div>
@@ -2188,7 +2151,7 @@ function ActivityDetail({
                     execution.realization_status
                   ] || execution.realization_status}
                   {execution.progress !== null
-                    ? ` · ${String(execution.progress).replace('.', ',')} %`
+                    ? ` · ${formatExactPercentage(execution.progress)}`
                     : ''}
                 </dd>
               </div>
@@ -2519,7 +2482,7 @@ function ActivityDetail({
                 )}
               </div>
             </Panel>
-            {!programmingIncomplete && (
+            {item.tasks?.length > 0 && (
               <Panel className="gap-0 overflow-hidden p-0">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
                   <h2>{strings.operations}</h2>
@@ -2543,48 +2506,40 @@ function ActivityDetail({
           </div>
           <Panel as="aside" className="gap-0 overflow-hidden p-0">
             <h2 className="border-b border-border px-5 py-4">
-              {programmingIncomplete ? strings.draft : strings.budgetValidation}
+              {strings.budgetValidation}
             </h2>
-            {programmingIncomplete ? (
-              <p className="p-5 text-sm text-muted-foreground">
-                {strings.createdBy} {creatorName}.
-              </p>
-            ) : (
-              <dl className="grid gap-6 p-5 text-sm">
-                <div>
-                  <dt className="text-muted-foreground">
-                    {strings.plannedAmountSummary}
-                  </dt>
-                  <dd className="mt-2 text-base font-semibold">
-                    {formatXof(item.allocation)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">
-                    {strings.currentAuthorizedAmount}
-                  </dt>
-                  <dd className="mt-2 font-semibold">
-                    {item.approved_allocation
-                      ? formatXof(item.approved_allocation)
-                      : strings.notProvided}
-                  </dd>
-                </div>
-                <div className="border-t border-border pt-5">
-                  <dt className="text-muted-foreground">
-                    {strings.validation}
-                  </dt>
-                  <dd className="mt-2 font-semibold">
-                    {strings[item.state] || item.state}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="sr-only">{strings.requester}</dt>
-                  <dd className="text-muted-foreground">
-                    {strings.requester} : {creatorName}
-                  </dd>
-                </div>
-              </dl>
-            )}
+            <dl className="grid gap-6 p-5 text-sm">
+              <div>
+                <dt className="text-muted-foreground">
+                  {strings.plannedAmountSummary}
+                </dt>
+                <dd className="mt-2 text-base font-semibold">
+                  {formatXof(item.allocation)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">
+                  {strings.currentAuthorizedAmount}
+                </dt>
+                <dd className="mt-2 font-semibold">
+                  {item.approved_allocation
+                    ? formatXof(item.approved_allocation)
+                    : strings.notProvided}
+                </dd>
+              </div>
+              <div className="border-t border-border pt-5">
+                <dt className="text-muted-foreground">{strings.validation}</dt>
+                <dd className="mt-2 font-semibold">
+                  {strings[item.state] || item.state}
+                </dd>
+              </div>
+              <div>
+                <dt className="sr-only">{strings.requester}</dt>
+                <dd className="text-muted-foreground">
+                  {strings.requester} : {creatorName}
+                </dd>
+              </div>
+            </dl>
           </Panel>
         </div>
         {!executionContext &&
@@ -2715,39 +2670,19 @@ function ActivityDetail({
                   autoFocus
                 />
               </label>
-              <div className="grid gap-[6px] text-[0.8125rem] font-medium">
-                <span>{strings.decisionAttachment}</span>
-                <div
-                  data-ui="decision-file"
-                  className="flex min-h-10 min-w-0 items-center gap-3 rounded-control border border-strong-border bg-white px-[11px] py-[6px] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary"
-                >
-                  <label
-                    htmlFor="decision-attachment"
-                    className={`inline-flex min-h-8 shrink-0 items-center rounded-control border border-strong-border px-3 py-1.5 text-sm font-medium text-navy ${
-                      decisionUpload
-                        ? 'cursor-not-allowed opacity-50'
-                        : 'cursor-pointer hover:bg-selected'
-                    }`}
-                  >
-                    {strings.chooseFile}
-                  </label>
-                  <span className="min-w-0 truncate text-sm font-normal text-muted-foreground">
-                    {decisionFile?.name || strings.noFileSelected}
-                  </span>
-                  <input
-                    id="decision-attachment"
-                    className="sr-only"
-                    aria-label={strings.decisionAttachment}
-                    name="attachment"
-                    type="file"
-                    accept="application/pdf,image/jpeg,image/png"
-                    disabled={Boolean(decisionUpload)}
-                    onChange={(event) =>
-                      setDecisionFile(event.target.files?.[0] || null)
-                    }
-                  />
-                </div>
-              </div>
+              <FileSelection
+                label={strings.decisionAttachment}
+                chooseLabel={strings.chooseFile}
+                emptyLabel={strings.noFileSelected}
+                file={decisionFile}
+                id="decision-attachment"
+                name="attachment"
+                accept="application/pdf,image/jpeg,image/png"
+                disabled={Boolean(decisionUpload)}
+                onChange={(event) =>
+                  setDecisionFile(event.target.files?.[0] || null)
+                }
+              />
             </>
           )}
           {decisionUpload?.status === 'retry' && (
@@ -2981,6 +2916,7 @@ export function ActivityDocuments({
   const { api } = useAPI()
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [uploadFile, setUploadFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [deniedDocuments, setDeniedDocuments] = useState([])
   const [uploadUncertain, setUploadUncertain] = useState(false)
@@ -3080,6 +3016,7 @@ export function ActivityDocuments({
         client.invalidateQueries({ queryKey: ['audit-history'] }),
       ])
       setOpen(false)
+      setUploadFile(null)
       toast.success(strings.saved)
     },
     onError: async (error) => {
@@ -3291,6 +3228,7 @@ export function ActivityDocuments({
                   search: (current) => ({ ...current, documentCursor: '' }),
                 })
               setUploadUncertain(false)
+              setUploadFile(null)
               setOpen(true)
             }}
           >
@@ -3416,41 +3354,45 @@ export function ActivityDocuments({
       />
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false)
+          setUploadFile(null)
+        }}
         label={strings.addAttachment}
         opener={opener}
       >
         <BusinessForm
           onSubmit={(event) => {
             event.preventDefault()
-            const file =
-              event.currentTarget.querySelector('input[type="file"]')
-                ?.files?.[0]
             if (
-              file?.size > 0 &&
+              uploadFile?.size > 0 &&
               !uploadUncertain &&
               !documents.isFetching &&
               !documents.isError
             )
-              return upload.mutateAsync({ file })
+              return upload.mutateAsync({ file: uploadFile })
             return false
           }}
         >
           {uploadNotice}
-          <label>
-            {strings.chooseAttachment} *
-            <input
-              name="attachment"
-              type="file"
-              accept="application/pdf,image/jpeg,image/png"
-              required
-            />
-          </label>
+          <FileSelection
+            label={`${strings.chooseAttachment} *`}
+            chooseLabel={strings.chooseFile}
+            emptyLabel={strings.noFileSelected}
+            file={uploadFile}
+            name="attachment"
+            accept="application/pdf,image/jpeg,image/png"
+            required
+            onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
+          />
           <div data-ui="modal-actions">
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false)
+                setUploadFile(null)
+              }}
             >
               {strings.cancel}
             </Button>

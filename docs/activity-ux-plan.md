@@ -1226,8 +1226,9 @@ against the references.
 The final tab-level correction removes the remaining accordion treatment from
 external administration and closure. Those facts now use the approved flat rows;
 eligible actions open the existing right-side modal, including virement,
-reversement and closure forms. Finance shows partial spending, realization state
-and the no-overrun result in the approved summary hierarchy. Réalisation uses the
+reversement and closure forms. Finance shows partial spending and realization
+state in the approved summary hierarchy; it omits the variance row when there is
+no discrepancy. Réalisation uses the
 approved Subtask disclosure and explicit **Non renseigné** spending value.
 Programmation keeps dates in the Activity header and removes the revision number
 from its budget label. The screenshot's technical financial-request codes are
@@ -1242,3 +1243,89 @@ duplicating its approval flow. The final affected frontend run passes 97 tests,
 ESLint, Prettier, the production build and the canonical Activity browser flow.
 Ruff and mypy pass for the additive backend projection. PostgreSQL integration
 could not run because `TEST_DATABASE_URL` is unavailable.
+
+### Shared modal and remaining visual correction — 2026-11-19
+
+The remaining Activity mismatch came from forms nested inside the shared modal:
+those forms did not receive the established field borders, labels and control
+spacing. `BusinessModal` now applies the existing field treatment to nested forms,
+so Task, Subtask, financial, virement, reversement and closure dialogs use the
+same visual standard without a new component.
+
+The compact Task/Subtask execution dialog now matches the approved centered
+composition: Activity context, planned amount and period, execution inputs and a
+bordered **Annuler / Enregistrer** footer. The optional execution observation and
+the required audit correction reason appear only when the entered values make
+them necessary; this keeps the normal modal compact while preserving the server's
+variance and correction rules. Progress values omit API-only trailing zeros in
+the header and Task table.
+
+Financial request creation remains a centered dialog while review is a 640 px
+right-side drawer. The décaissement review drawer now presents Activity context,
+status/date, requested budget facts and decisions in the approved hierarchy. The
+return reason appears only after **Retourner en correction**. Technical revision
+numbers and synthetic request references remain hidden. Closure and external
+record forms use centered confirmation dialogs and retain their existing business
+permissions and workflows.
+
+Focused verification covers the 41 Execution tests, 57 Planning tests, 12 app
+tests, targeted ESLint, production build and the canonical desktop/mobile
+Activity browser flow. Fresh Task-dialog, request-drawer and Activity captures
+were compared with the authoritative references. The build retains the known
+large-chunk warning. Independent review remains the final implementation gate;
+human visual review remains acceptance.
+
+The independent review then found and corrected the last modal-state and layout
+gaps. Task and Subtask observation-only corrections now request the audit reason
+required by the API. A successful financial return closes its form, preventing
+another submission against a terminal request. Execution-list percentages use
+the shared human-readable formatter. Review drawers keep their header and action
+footer visible while the content scrolls, and confirmation checkboxes stay beside
+their labels in closure, virement and reversement dialogs.
+
+The corrected candidate passes all 45 Execution tests, including the new Task,
+Subtask and financial-return regressions. The combined affected run passed 112 of
+113 tests; the lone Planning submission timeout passed on its immediate focused
+rerun. Targeted ESLint, `git diff --check`, the production build and the canonical
+Activity Playwright flow pass. The build retains the known large-chunk warning.
+Correction detection now compares the same normalized business values as the API,
+so equivalent numeric formatting and surrounding observation whitespace do not
+create a false audit correction.
+
+### Activity Draft visibility and shared UI correction — 2026-11-19
+
+Incomplete Activity programming no longer hides facts already saved in the Draft.
+Existing Tasks and entered amounts remain visible while the readiness message
+continues to identify missing submission information. The Activity fiche remains
+available only after approval.
+
+Activity detail, Activity editing and Task editing now share one compact allocation
+table with white headers, divided rows, the **Montant prévu** heading and the shared
+exact-percentage formatter. The edit summary uses **Budget de l’activité** and
+**Budget restant**. Required-before-submission fields show `*`; Draft saving still
+accepts the missing category, dates and weights allowed by the business rules.
+
+The existing business modal owns the common right-drawer shell and Finance and
+Subtask flows consume that variant. Shared field styles now serve both `Panel` and
+`Modal`, and Activity/decision attachments use one shared file selector. Mobile
+workspace navigation uses contained vertical links rather than horizontal overflow.
+No API or RestClient contract changed in this correction.
+
+The follow-up findings correction keeps **Situation financière** focused on
+financial facts: it no longer repeats realization status in the card heading or
+shows an empty variance. The shared drawer now owns full-height content and
+bottom-action behavior, while the administrative closure row stacks its action
+below the description at 390 px. Incomplete Drafts retain the standard **Budget
+et validation** card without a duplicate creator block.
+
+Activity document and reversement evidence forms consume the shared file
+selector. Link actions use the shared Button recipe, Finance cards consume
+`Panel`, percentage totals use the exact French formatter and revision periods
+use the shared human-readable date formatter. The combined affected unit run
+passes 102 of 104 tests; the two order-sensitive reversement scenarios both pass
+on their immediate focused rerun. Targeted ESLint, `git diff --check`, the
+production build and five relevant Activity browser journeys pass. The build
+retains the known large-chunk warning. Four older scenarios in the broader
+Planning browser file remain outside this correction and failed on existing
+dialog/focus expectations; they are not reported as passing evidence for this
+candidate.

@@ -55,7 +55,7 @@ export const strings = new LocalizedStrings({
     financeTab: 'Réalisation & finances',
     historyTab: 'Historique',
     filesTab: 'Pièces justificatives',
-    physicalProgress: 'Réalisation physique',
+    physicalProgress: 'Avancement physique (%)',
     progressUnavailable:
       'Progression à définir lors de la prochaine modification',
     progressIndependent:
@@ -97,7 +97,7 @@ export const strings = new LocalizedStrings({
     consult: 'Consulter',
     record: 'Renseigner',
     progressRequired:
-      'Renseignez un montant ou une observation avant d’enregistrer.',
+      'Renseignez l’avancement ou la dépense avant d’enregistrer.',
     noRequest: 'Aucune demande',
     previousStepsIncomplete: 'Étapes précédentes non terminées.',
     externalTransfer: 'Virement externe',
@@ -145,7 +145,9 @@ export const strings = new LocalizedStrings({
     fundingPrevalidatedDecision: 'prévalidation',
     fundingRequired:
       'la modification du budget et son financement complémentaire doivent être approuvés',
-    cancelEntry: 'Annuler la saisie',
+    cancelEntry: 'Annuler',
+    chooseFile: 'Choisir un fichier',
+    noFileSelected: 'Aucun fichier sélectionné',
     disbursementReturned:
       'Ce retour vous permet de corriger les informations sans annuler la demande. Toute nouvelle demande devra obtenir les deux validations.',
     financialCancelled:

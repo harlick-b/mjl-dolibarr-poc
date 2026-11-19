@@ -212,3 +212,7 @@ implementation boundaries; [README](../README.md) owns setup.
 - Activity headers belong to the page context, not the selected tab. When fixing
   tab consistency, verify first visits to History and Documents as well as finance:
   a secondary query in the whole-page loading gate can silently remount the header.
+- Before declaring an Activity visual slice complete, compare every supplied
+  desktop and 390 px state and audit each repeated control against `shared/ui`.
+  A passing page-level flow can still hide duplicated file controls, formatters,
+  card shells or a drawer footer that is not anchored to the viewport.

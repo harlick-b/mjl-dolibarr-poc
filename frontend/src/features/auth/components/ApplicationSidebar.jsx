@@ -48,13 +48,15 @@ export function ApplicationSidebar({ user }) {
         }
         className="flex h-24 shrink-0 items-center px-6"
       >
-        <img
-          src="/logo-192.png"
-          alt=""
-          width="40"
-          height="40"
-          className="rounded-control"
-        />
+        <span
+          aria-hidden="true"
+          className="grid size-10 place-items-center rounded-control bg-navy text-xl font-bold text-white"
+        >
+          M
+        </span>
+        <span className="ml-3 text-xl font-semibold tracking-wide text-navy">
+          MJL
+        </span>
       </Link>
       {policy.can('partner') && (
         <p className="px-6 pb-4 text-xs text-muted-foreground">
@@ -69,7 +71,7 @@ export function ApplicationSidebar({ user }) {
               ? strings.partnerSpace
               : strings.workspace
         }
-        className="grid gap-2 overflow-y-auto px-4 py-3 max-[761px]:flex max-[761px]:overflow-x-auto"
+        className="grid gap-2 overflow-y-auto px-4 py-3 max-[761px]:overflow-visible"
       >
         {policy.navigation.map((page) => {
           const Icon = icons[page.icon]
@@ -82,7 +84,7 @@ export function ApplicationSidebar({ user }) {
                 'aria-current': active === page.id ? 'page' : undefined,
               }}
               aria-current={active === page.id ? 'page' : undefined}
-              className="flex min-h-11 shrink-0 items-center gap-3 rounded-card px-3 py-2 text-sm text-navy hover:bg-background aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:text-primary"
+              className="flex min-h-11 min-w-0 items-center gap-3 rounded-card px-3 py-2 text-sm text-navy hover:bg-background aria-[current=page]:bg-selected aria-[current=page]:font-semibold aria-[current=page]:text-primary"
             >
               <Icon size={18} aria-hidden="true" />
               {page.label}

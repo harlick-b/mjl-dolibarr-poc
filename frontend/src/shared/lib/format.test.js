@@ -18,10 +18,11 @@ test('timestamps use Benin time even when UTC falls on the previous day', () => 
   expect(formatDateTime(null)).toBe('—')
 })
 
-test('unknown XOF amounts remain distinct from a genuine zero', () => {
+test('XOF formatting preserves exact amounts and distinguishes unknown from zero', () => {
   for (const missing of [null, undefined, ''])
     expect(formatXof(missing)).toBe('—')
   expect(formatXof('0')).toBe('0 F CFA')
+  expect(formatXof('1250000').replaceAll('\u202f', ' ')).toBe('1 250 000 F CFA')
   expect(formatXof('9007199254740993').replaceAll('\u202f', ' ')).toBe(
     '9 007 199 254 740 993 F CFA',
   )
