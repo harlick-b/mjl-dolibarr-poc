@@ -1874,3 +1874,23 @@ Activity Playwright journeys pass. The broader Planning Playwright invocation
 also ran four older scenarios that still fail on unrelated dialog/focus
 expectations; those failures are kept separate from the passing affected
 evidence.
+
+## Activity administrative reminder and PTA identity, 2026-11-19
+
+Eligible approved Activities now show a read-only **Relance administrative**
+card in Programming with their approved deadline, current assigned Agents and
+the reminder date 21 days before the deadline. The card follows the existing
+reminder window and excludes past-end, closed, withdrawn and unapproved
+Activities. It does not add a delivery claim, notification mutation or new API
+contract.
+
+The PTA detail heading now identifies the Project, with the PTA year and
+description retained as supporting context. Activity detail dates appear only in
+the identity header, and technical revision numbers remain hidden. The explicitly
+excluded Réalisation filters/status presentation, PTA workflow labels and sidebar
+brand were not changed.
+
+Verification passed 73 focused frontend tests, targeted ESLint and Prettier, and
+the production build with its existing large-chunk warning. Independent review
+found no implementation defect; its documentation finding was corrected here and
+in the existing Activity UX plan.

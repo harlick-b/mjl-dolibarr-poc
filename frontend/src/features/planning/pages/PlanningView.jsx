@@ -55,6 +55,7 @@ import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
 import { ActivityForm } from '../components/ActivityForm'
 import { physicalExecutionLabel } from '../lib/physical-execution'
+import { administrativeReminderSchedule } from '../lib/administrative-reminder'
 
 export { ActivityForm } from '../components/ActivityForm'
 
@@ -1205,7 +1206,7 @@ function PTA({
             {ptaStrings.breadcrumb}
           </Link>
           <h1 className="mt-3 text-2xl font-semibold text-navy">
-            {context.pta?.name || `PTA ${context.year}`}
+            {context.project.name}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             PTA {context.year}
@@ -2049,6 +2050,7 @@ function ActivityDetail({
     )
   const creatorName =
     item.creator?.full_name || item.creator?.email || strings.unknownActor
+  const administrativeReminder = administrativeReminderSchedule(item)
   const programmingIncomplete =
     item.state === 'draft' &&
     (!item.planned_start ||
@@ -2374,26 +2376,6 @@ function ActivityDetail({
                   </p>
                   <p className="mt-1">{item.description || '—'}</p>
                 </div>
-                <dl className="grid grid-cols-2 gap-8 text-sm max-[480px]:grid-cols-1">
-                  <div>
-                    <dt className="text-muted-foreground">
-                      {strings.plannedStart}
-                    </dt>
-                    <dd className="mt-2 font-medium">
-                      {item.planned_start
-                        ? formatDate(item.planned_start)
-                        : '—'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">
-                      {strings.plannedEnd}
-                    </dt>
-                    <dd className="mt-2 font-medium">
-                      {item.planned_end ? formatDate(item.planned_end) : '—'}
-                    </dd>
-                  </div>
-                </dl>
                 {programmingIncomplete && (
                   <p className="text-sm text-muted-foreground">
                     {strings.programmingToComplete}
@@ -2423,90 +2405,70 @@ function ActivityDetail({
               </Panel>
             )}
           </div>
-          <Panel as="aside" className="gap-0 overflow-hidden p-0">
-            <h2 className="border-b border-border px-5 py-4">
-              {strings.budgetValidation}
-            </h2>
-            <dl className="grid gap-6 p-5 text-sm">
-              <div>
-                <dt className="text-muted-foreground">
-                  {strings.plannedAmountSummary}
-                </dt>
-                <dd className="mt-2 text-base font-semibold">
-                  {formatXof(item.allocation)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">
-                  {strings.currentAuthorizedAmount}
-                </dt>
-                <dd className="mt-2 font-semibold">
-                  {item.approved_allocation
-                    ? formatXof(item.approved_allocation)
-                    : strings.notProvided}
-                </dd>
-              </div>
-              <div className="border-t border-border pt-5">
-                <dt className="text-muted-foreground">{strings.validation}</dt>
-                <dd className="mt-2 font-semibold">
-                  {strings[item.state] || item.state}
-                </dd>
-              </div>
-              <div>
-                <dt className="sr-only">{strings.requester}</dt>
-                <dd className="text-muted-foreground">
-                  {strings.requester} : {creatorName}
-                </dd>
-              </div>
-            </dl>
-            {['return', 'prevalidate', 'approve'].some((action) =>
-              item.allowed_actions.includes(action),
-            ) && (
-              <div className="grid gap-3 border-t border-border p-5">
-                {item.allowed_actions.includes('return') && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={mutationBlocked}
-                    onClick={(event) => {
-                      workflowOpener.current = event.currentTarget
-                      setWorkflowAction('return')
-                    }}
-                  >
-                    {strings.returnCorrection}
-                  </Button>
-                )}
-                {[
-                  ['prevalidate', strings.prevalidate],
-                  ['approve', strings.approve],
-                ].map(([action, label]) =>
-                  item.allowed_actions.includes(action) ? (
-                    <Button
-                      type="button"
-                      key={action}
-                      disabled={mutationBlocked}
-                      onClick={(event) => {
-                        workflowOpener.current = event.currentTarget
-                        setWorkflowAction(action)
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ) : null,
-                )}
-              </div>
-            )}
-            {!executionContext &&
-              administrativeActions.some(([action]) =>
+          <div className="grid gap-6">
+            <Panel as="aside" className="gap-0 overflow-hidden p-0">
+              <h2 className="border-b border-border px-5 py-4">
+                {strings.budgetValidation}
+              </h2>
+              <dl className="grid gap-6 p-5 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">
+                    {strings.plannedAmountSummary}
+                  </dt>
+                  <dd className="mt-2 text-base font-semibold">
+                    {formatXof(item.allocation)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
+                    {strings.currentAuthorizedAmount}
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {item.approved_allocation
+                      ? formatXof(item.approved_allocation)
+                      : strings.notProvided}
+                  </dd>
+                </div>
+                <div className="border-t border-border pt-5">
+                  <dt className="text-muted-foreground">
+                    {strings.validation}
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {strings[item.state] || item.state}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="sr-only">{strings.requester}</dt>
+                  <dd className="text-muted-foreground">
+                    {strings.requester} : {creatorName}
+                  </dd>
+                </div>
+              </dl>
+              {['return', 'prevalidate', 'approve'].some((action) =>
                 item.allowed_actions.includes(action),
               ) && (
                 <div className="grid gap-3 border-t border-border p-5">
-                  {administrativeActions.map(([action, label]) =>
+                  {item.allowed_actions.includes('return') && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={mutationBlocked}
+                      onClick={(event) => {
+                        workflowOpener.current = event.currentTarget
+                        setWorkflowAction('return')
+                      }}
+                    >
+                      {strings.returnCorrection}
+                    </Button>
+                  )}
+                  {[
+                    ['prevalidate', strings.prevalidate],
+                    ['approve', strings.approve],
+                  ].map(([action, label]) =>
                     item.allowed_actions.includes(action) ? (
                       <Button
                         type="button"
                         key={action}
-                        variant="outline"
                         disabled={mutationBlocked}
                         onClick={(event) => {
                           workflowOpener.current = event.currentTarget
@@ -2519,7 +2481,65 @@ function ActivityDetail({
                   )}
                 </div>
               )}
-          </Panel>
+              {!executionContext &&
+                administrativeActions.some(([action]) =>
+                  item.allowed_actions.includes(action),
+                ) && (
+                  <div className="grid gap-3 border-t border-border p-5">
+                    {administrativeActions.map(([action, label]) =>
+                      item.allowed_actions.includes(action) ? (
+                        <Button
+                          type="button"
+                          key={action}
+                          variant="outline"
+                          disabled={mutationBlocked}
+                          onClick={(event) => {
+                            workflowOpener.current = event.currentTarget
+                            setWorkflowAction(action)
+                          }}
+                        >
+                          {label}
+                        </Button>
+                      ) : null,
+                    )}
+                  </div>
+                )}
+            </Panel>
+            {administrativeReminder && (
+              <Panel as="aside" className="gap-0 overflow-hidden p-0">
+                <h2 className="border-b border-border px-5 py-4">
+                  {strings.administrativeReminder}
+                </h2>
+                <div className="grid gap-5 p-5 text-sm">
+                  <dl className="grid gap-5">
+                    <div>
+                      <dt className="text-muted-foreground">
+                        {strings.deadline}
+                      </dt>
+                      <dd className="mt-2 font-semibold">
+                        {formatDate(administrativeReminder.plannedEnd)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">
+                        {strings.concernedAgents}
+                      </dt>
+                      <dd className="mt-2 font-medium">
+                        {(item.agents || [])
+                          .map((agent) => agent.full_name || agent.email)
+                          .join(', ') || strings.noAssignedAgent}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-muted-foreground">
+                    {strings.formatString(strings.reminderPlanned, {
+                      date: formatDate(administrativeReminder.dueOn),
+                    })}
+                  </p>
+                </div>
+              </Panel>
+            )}
+          </div>
         </div>
         {!executionContext &&
           item.allowed_actions.includes('submit') &&

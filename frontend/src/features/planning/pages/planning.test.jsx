@@ -16,8 +16,10 @@ import { ActivityForm } from './PlanningView'
 import { physicalExecutionLabel } from '../lib/physical-execution'
 import {
   addThreeMonths,
+  formatDate,
   formatExactPercentage,
   formatPercentage,
+  localDateInput,
 } from '@/shared/lib/format'
 
 afterEach(() => {
@@ -68,6 +70,120 @@ test('formats stored progress without API trailing zeros', () => {
   expect(formatExactPercentage('invalid')).toBe('—')
 })
 
+test('an approved Activity shows its due administrative reminder without repeating dates in Programming', async () => {
+  const end = new Date()
+  end.setDate(end.getDate() + 10)
+  const plannedEnd = localDateInput(end)
+  const start = new Date(end)
+  start.setDate(start.getDate() - 30)
+  const plannedStart = localDateInput(start)
+  const activity = {
+    id: 'reminder-activity',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    project_name: 'Projet enfance',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    placement_year: end.getFullYear(),
+    reference: 'ACT-REMINDER',
+    name: 'Formation des relais',
+    description: 'Former les relais communautaires.',
+    planned_start: plannedStart,
+    planned_end: plannedEnd,
+    allocation: '1000000',
+    state: 'approved',
+    version: 4,
+    current_revision_id: 'revision-1',
+    approved_revision_id: 'revision-1',
+    approved_allocation: '1000000',
+    approved: { planned_start: plannedStart, planned_end: plannedEnd },
+    candidate: null,
+    amendment: null,
+    withdrawal: null,
+    transfer: null,
+    closure: null,
+    execution_paused: false,
+    tasks: [],
+    correction: null,
+    agent_ids: ['agent'],
+    agents: [
+      {
+        id: 'agent',
+        email: 'aicha@example.test',
+        full_name: 'Aïcha Agent',
+      },
+    ],
+    creator: {
+      id: 'supervisor',
+      email: 'supervisor@example.test',
+      full_name: 'Sali Superviseure',
+    },
+    allowed_actions: ['read'],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'aicha@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/reminder-activity'))
+        return new Response(JSON.stringify(activity))
+      if (path.endsWith('/activities/reminder-activity/execution'))
+        return new Response(
+          JSON.stringify({
+            realization_status: 'not_started',
+            progress: null,
+            closure: null,
+          }),
+        )
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/activities/reminder-activity'],
+        }),
+      )}
+    />,
+  )
+
+  const reminder = await screen.findByRole('heading', {
+    name: 'Relance administrative',
+  })
+  const reminderCard = reminder.closest('aside')
+  expect(within(reminderCard).getByText('Échéance')).toBeVisible()
+  expect(within(reminderCard).getByText(formatDate(plannedEnd))).toBeVisible()
+  expect(within(reminderCard).getByText('Aïcha Agent')).toBeVisible()
+  expect(within(reminderCard).getByText(/Relance prévue le/)).toBeVisible()
+
+  const programmingCard = screen
+    .getByRole('heading', { name: 'Programmation' })
+    .closest('section')
+  expect(within(programmingCard).queryByText('Début prévu')).toBeNull()
+  expect(within(programmingCard).queryByText('Fin prévue')).toBeNull()
+})
+
 function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
   return vi.fn((url, options = {}) => {
     const path = String(url)
@@ -97,7 +213,11 @@ function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
               allowed_actions: ['read'],
             },
             year: 2027,
-            pta: { id: 'pta-1' },
+            pta: {
+              id: 'pta-1',
+              name: 'PTA Justice 2027',
+              description: 'Programme annuel de protection',
+            },
             allowed_actions: ['read', 'create_activity'],
             approved_plan: { activity_count: 5, allocation: '9200000' },
             summary: {
@@ -187,7 +307,7 @@ test('the annual plan stays in page loading until its Activity list is ready', a
       name: 'Chargement : Planification des activités sur l’année',
     }),
   ).toBeVisible()
-  expect(screen.queryByRole('heading', { name: 'PTA 2027' })).toBeNull()
+  expect(screen.queryByRole('heading', { name: 'Projet métriques' })).toBeNull()
 
   resolveActivities(
     new Response(
@@ -200,7 +320,12 @@ test('the annual plan stays in page loading until its Activity list is ready', a
       }),
     ),
   )
-  expect(await screen.findByRole('heading', { name: 'PTA 2027' })).toBeVisible()
+  expect(
+    await screen.findByRole('heading', { name: 'Projet métriques' }),
+  ).toBeVisible()
+  expect(
+    screen.getByText('PTA 2027 · Programme annuel de protection'),
+  ).toBeVisible()
 })
 
 test('the annual plan shows whole-PTA planning counts and approved budget', async () => {

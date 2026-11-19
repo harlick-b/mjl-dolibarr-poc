@@ -1388,3 +1388,24 @@ can proceed through the existing financial workflow. Financial dialogs use the
 shared centered modal at its standard width, keep return observations visible
 with the decision actions, and preserve the Activity programming fact when the
 separate execution summary is temporarily unavailable.
+
+### Activity reminder and PTA identity refinement — 2026-11-19
+
+The approved Activity Programming view now shows the standard **Relance
+administrative** card during the existing 21-day eligibility window. It presents
+the approved deadline, current assigned Agents and planned reminder date, and is
+absent before that window, after the deadline, after closure or withdrawal, and
+without an approved revision. This read-only card does not claim that an email
+was delivered and does not create another reminder workflow.
+
+The PTA page now uses the Project name as its main title while retaining `PTA
+{year} · description` beneath it. Activity dates remain in the detail header and
+are no longer repeated in Programming. Technical revision numbers stay hidden.
+The Réalisation quick filters and badge-only administrative status, PTA review
+wording, and sidebar branding were intentionally unchanged following the user's
+decisions.
+
+The focused Planning and reminder run passed 73 tests. Targeted ESLint and
+Prettier checks and the production build passed; the build retains the known
+large-chunk warning. Independent review found no implementation defect after the
+required plan/status record was identified for correction.
