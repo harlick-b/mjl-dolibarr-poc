@@ -262,7 +262,7 @@ test('Activity realization and finance follow the approved detail composition', 
     'Suivi administratif et clôture',
   ])
     await expect(page.getByRole('region', { name })).toBeVisible()
-  await expect(page.getByText('Dépenses par tâche')).toBeVisible()
+  await expect(page.getByText('Dépenses par tâche')).toHaveCount(0)
   const financialSituation = page.getByRole('region', {
     name: 'Situation financière',
   })

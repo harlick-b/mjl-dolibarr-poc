@@ -565,7 +565,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
   await setup(supervisor, 'AGENT_VERIFICATEUR', reviewActivity)
   await supervisor.goto('/activities/activity-1')
   const assignmentOpener = supervisor.getByRole('button', {
-    name: 'Modifier les responsables',
+    name: 'Affectations',
   })
   await assignmentOpener.click()
   const assignment = supervisor.getByRole('dialog', {
@@ -650,7 +650,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
     prevalidation.getByRole('button', { name: 'Annuler' }),
   ).toBeVisible()
   await expect(
-    prevalidation.getByRole('heading', { name: 'Prévalider cette activité ?' }),
+    prevalidation.getByRole('heading', { name: 'Prévalider' }),
   ).toBeVisible()
   await expect(
     prevalidation.getByRole('button', { name: 'Fermer' }),
@@ -694,7 +694,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
   })
   await approveOpener.click()
   await expect(
-    validator.getByRole('dialog', { name: 'Approuver cette activité ?' }),
+    validator.getByRole('dialog', { name: 'Valider définitivement' }),
   ).toBeVisible()
   await validator.screenshot({ path: '/tmp/mjl-design-authorize.png' })
   await validator.setViewportSize({ width: 918, height: 482 })
@@ -702,13 +702,13 @@ test('assignment and both planning decisions match their governing dialogs', asy
   await validator.screenshot({ path: '/tmp/mjl-design-authorize-reflow.png' })
   await validator.keyboard.press('Escape')
   await expect(
-    validator.getByRole('dialog', { name: 'Approuver cette activité ?' }),
+    validator.getByRole('dialog', { name: 'Valider définitivement' }),
   ).toHaveCount(0)
   await expect(approveOpener).toBeFocused()
   await approveOpener.click()
   await validator.mouse.click(2, 2)
   await expect(
-    validator.getByRole('dialog', { name: 'Approuver cette activité ?' }),
+    validator.getByRole('dialog', { name: 'Valider définitivement' }),
   ).toHaveCount(0)
   await expect(approveOpener).toBeFocused()
   await validatorContext.close()

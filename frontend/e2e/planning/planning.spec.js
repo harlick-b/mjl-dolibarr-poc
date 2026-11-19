@@ -380,7 +380,7 @@ e.dispose()`,
     .getByRole('button', { name: 'Enregistrer les affectations' })
     .click()
   await expect(
-    supervisor.getByText('Modifications enregistrées.'),
+    supervisor.getByText('Affectations de l’activité enregistrées.'),
   ).toBeVisible()
   // The four synthetic identities share loopback. Clear only that test-only
   // shared-IP bucket before the final direct verification.

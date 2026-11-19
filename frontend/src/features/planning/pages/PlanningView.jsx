@@ -32,7 +32,7 @@ import {
   Download,
   Eye,
   Folder,
-  Pencil,
+  LoaderCircle,
   Plus,
   X,
 } from 'lucide-react'
@@ -151,6 +151,36 @@ function workflowActivityId(path) {
   )?.[1]
 }
 
+function planningSuccessMessage({ path, method = 'POST', body }) {
+  if (path === '/partners') return strings.partnerCreated
+  if (/^\/partners\/[^/]+$/.test(path)) return strings.partnerUpdated
+  if (path === '/projects') return strings.projectCreated
+  if (/^\/projects\/[^/]+$/.test(path))
+    return body?.action === 'close'
+      ? strings.projectClosed
+      : strings.projectUpdated
+  if (/\/ptas\/\d+\/activities$/.test(path)) return strings.activityDraftCreated
+  if (/^\/activities\/[^/]+$/.test(path) && method === 'PATCH')
+    return strings.activityDraftUpdated
+  if (/\/submissions$/.test(path)) return strings.activitySubmitted
+  if (/\/assignments$/.test(path)) return strings.activityAssignmentsUpdated
+  if (/\/amendments\/[^/]+\/cancellation$/.test(path))
+    return strings.amendmentCancelled
+  if (/\/amendments$/.test(path)) return strings.amendmentOpened
+  if (/\/withdrawals\/[^/]+\/cancellation$/.test(path))
+    return strings.withdrawalCancelled
+  if (/\/withdrawals$/.test(path)) return strings.withdrawalRequested
+  if (/\/transfers\/[^/]+\/cancellation$/.test(path))
+    return strings.transferCancelled
+  if (/\/transfers$/.test(path)) return strings.transferRequested
+  if (/\/decisions$/.test(path)) {
+    if (body?.decision === 'prevalidate') return strings.activityPrevalidated
+    if (body?.decision === 'approve') return strings.activityApproved
+    if (body?.decision === 'return') return strings.activityReturned
+  }
+  return strings.saved
+}
+
 function Workspace({ screen, session, onDenied }) {
   const { api } = useAPI()
   const client = useQueryClient()
@@ -238,7 +268,8 @@ function Workspace({ screen, session, onDenied }) {
           ? [client.invalidateQueries({ queryKey: ['access'] })]
           : []),
       ])
-      if (!variables.silentSuccess) toast.success(strings.saved)
+      if (!variables.silentSuccess)
+        toast.success(planningSuccessMessage(variables))
     },
   })
   const annualExport = useMutation({
@@ -604,7 +635,25 @@ function Workspace({ screen, session, onDenied }) {
         />
       )}
       {screen === 'activityNew' && (
-        <div className="grid gap-6 [&:has(.activity-task-editor)>header]:hidden">
+        <div className="grid gap-6 [&:has(.activity-task-editor)>header]:hidden [&:has(.activity-task-editor)>nav]:hidden">
+          <nav
+            aria-label={strings.breadcrumb}
+            className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
+          >
+            <Link to={Urls.planning} className="text-primary">
+              {strings.planningIndex}
+            </Link>
+            <span aria-hidden="true">/</span>
+            <Link
+              to={Urls.pta}
+              params={{ projectId, year: String(year) }}
+              className="text-primary"
+            >
+              PTA {year}
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span>{strings.newActivity}</span>
+          </nav>
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-navy">
@@ -622,6 +671,7 @@ function Workspace({ screen, session, onDenied }) {
           </header>
           <ActivityForm
             year={context.data?.year}
+            projectId={projectId}
             onCreateType={(body) =>
               mutation.mutateAsync({
                 path: '/task-categories',
@@ -1588,10 +1638,17 @@ function AssignmentModal({
               footer={
                 <>
                   {choices.isPending && (
-                    <LoadingPlaceholder
-                      label={strings.coordinatedAgents}
-                      variant="form"
-                    />
+                    <div
+                      className="grid min-h-24 place-items-center rounded-panel border border-border bg-white"
+                      role="status"
+                      aria-label={strings.coordinatedAgents}
+                      aria-busy="true"
+                    >
+                      <LoaderCircle
+                        className="size-5 animate-spin text-primary"
+                        aria-hidden="true"
+                      />
+                    </div>
                   )}
                   {choices.isError && (
                     <RetryableError onRetry={() => void choices.refetch()}>
@@ -1979,10 +2036,29 @@ function ActivityDetail({
       >
         <nav
           aria-label={strings.breadcrumb}
-          className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+          className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
         >
           <Link to={Urls.planning} className="text-primary">
             {strings.planningIndex}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            to={Urls.pta}
+            params={{
+              projectId: item.project_id,
+              year: String(item.placement_year),
+            }}
+            className="text-primary"
+          >
+            {item.pta_name}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            to={Urls.activity}
+            params={{ activityId: item.id }}
+            className="text-primary"
+          >
+            {item.reference}
           </Link>
           <span aria-hidden="true">/</span>
           <span>{strings.revision}</span>
@@ -2067,8 +2143,7 @@ function ActivityDetail({
     item.creator?.full_name || item.creator?.email || strings.unknownActor
   const programmingIncomplete =
     item.state === 'draft' &&
-    (!item.description?.trim() ||
-      !item.planned_start ||
+    (!item.planned_start ||
       !item.planned_end ||
       item.allocation === null ||
       !(item.tasks || []).length)
@@ -2082,7 +2157,7 @@ function ActivityDetail({
         ? strings.pendingClosure
         : ''
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6">
       <nav
         aria-label={strings.breadcrumb}
         className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
@@ -2115,10 +2190,10 @@ function ActivityDetail({
         )}
         <span>{item.reference}</span>
       </nav>
-      <div className="flex flex-wrap items-end justify-between gap-6 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
-        <div className="grid min-w-0 gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-8 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3">
+        <div className="grid min-w-0 gap-4">
           <p className="text-xs text-muted-foreground">{item.reference}</p>
-          <h1 className="max-w-5xl break-words text-2xl font-semibold leading-8 text-navy">
+          <h1 className="max-w-5xl break-words text-[1.75rem] font-semibold leading-9 text-navy">
             {item.name}
           </h1>
           <p className="break-words text-[0.8125rem] text-muted-foreground">
@@ -2128,7 +2203,11 @@ function ActivityDetail({
           {!item.approved_revision_id && (
             <div>
               <StatusBadge className={activityStatusClass(item.state)}>
-                {strings[item.state] || item.state}
+                {item.state === 'submitted'
+                  ? strings.detailSubmitted
+                  : item.state === 'prevalidated'
+                    ? strings.detailPrevalidated
+                    : strings[item.state] || item.state}
               </StatusBadge>
             </div>
           )}
@@ -2196,15 +2275,12 @@ function ActivityDetail({
                 <Button
                   type="button"
                   variant="outline"
-                  className="size-8 min-h-8 p-0"
-                  aria-label={strings.changeOwners}
-                  title={strings.changeOwners}
                   onClick={(event) => {
                     assignmentOpener.current = event.currentTarget
                     setAssignmentOpen(true)
                   }}
                 >
-                  <Pencil size={15} aria-hidden="true" />
+                  {strings.assignments}
                 </Button>
               )}
             </span>
@@ -2232,7 +2308,6 @@ function ActivityDetail({
           {item.approved_revision_id && (
             <ProtectedDownload
               path={`/api/v1/activities/${item.id}/fiche.pdf`}
-              size="sm"
               onDenied={onDenied}
             >
               <Download aria-hidden="true" />
@@ -2315,27 +2390,6 @@ function ActivityDetail({
                 >
                   {strings.cancelTransfer}
                 </Button>
-              )}
-              {[
-                ['prevalidate', strings.prevalidate],
-                ['approve', strings.approve],
-                ['return', strings.returnCorrection],
-              ].map(
-                ([action, label]) =>
-                  item.allowed_actions.includes(action) &&
-                  !(action === 'submit' && programmingIncomplete) && (
-                    <Button
-                      key={action}
-                      disabled={mutationBlocked}
-                      variant={action === 'return' ? 'outline' : 'default'}
-                      onClick={(event) => {
-                        workflowOpener.current = event.currentTarget
-                        setWorkflowAction(action)
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ),
               )}
             </>
           )}
@@ -2475,6 +2529,26 @@ function ActivityDetail({
                   </p>
                   <p className="mt-1">{item.description || '—'}</p>
                 </div>
+                <dl className="grid grid-cols-2 gap-8 text-sm max-[480px]:grid-cols-1">
+                  <div>
+                    <dt className="text-muted-foreground">
+                      {strings.plannedStart}
+                    </dt>
+                    <dd className="mt-2 font-medium">
+                      {item.planned_start
+                        ? formatDate(item.planned_start)
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">
+                      {strings.plannedEnd}
+                    </dt>
+                    <dd className="mt-2 font-medium">
+                      {item.planned_end ? formatDate(item.planned_end) : '—'}
+                    </dd>
+                  </div>
+                </dl>
                 {programmingIncomplete && (
                   <p className="text-sm text-muted-foreground">
                     {strings.programmingToComplete}
@@ -2540,6 +2614,43 @@ function ActivityDetail({
                 </dd>
               </div>
             </dl>
+            {['return', 'prevalidate', 'approve'].some((action) =>
+              item.allowed_actions.includes(action),
+            ) && (
+              <div className="grid gap-3 border-t border-border p-5">
+                {item.allowed_actions.includes('return') && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={mutationBlocked}
+                    onClick={(event) => {
+                      workflowOpener.current = event.currentTarget
+                      setWorkflowAction('return')
+                    }}
+                  >
+                    {strings.returnCorrection}
+                  </Button>
+                )}
+                {[
+                  ['prevalidate', strings.prevalidate],
+                  ['approve', strings.approve],
+                ].map(([action, label]) =>
+                  item.allowed_actions.includes(action) ? (
+                    <Button
+                      type="button"
+                      key={action}
+                      disabled={mutationBlocked}
+                      onClick={(event) => {
+                        workflowOpener.current = event.currentTarget
+                        setWorkflowAction(action)
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ) : null,
+                )}
+              </div>
+            )}
           </Panel>
         </div>
         {!executionContext &&
@@ -2650,17 +2761,13 @@ function ActivityDetail({
           )}
           {['prevalidate', 'approve'].includes(workflowAction) && (
             <>
-              <p>
-                {strings.formatString(
-                  workflowAction === 'prevalidate'
-                    ? strings.prevalidationExplanation
-                    : strings.approvalExplanation,
-                  item.name,
-                )}
-              </p>
-              <p className="border-b border-border pb-4 text-sm">
+              <p className="font-medium">{item.name}</p>
+              <div className="flex items-center justify-between gap-6 border-b border-border pb-4 text-sm">
+                <span className="text-muted-foreground">
+                  {strings.plannedAmountSummary}
+                </span>
                 <strong>{formatXof(item.allocation)}</strong>
-              </p>
+              </div>
               <label>
                 {strings.observation}
                 <textarea
@@ -3017,7 +3124,7 @@ export function ActivityDocuments({
       ])
       setOpen(false)
       setUploadFile(null)
-      toast.success(strings.saved)
+      toast.success(strings.documentAdded)
     },
     onError: async (error) => {
       if (!active.current) return
@@ -3065,7 +3172,7 @@ export function ActivityDocuments({
       ])
       setWithdrawing(null)
       setReplacementCursor('')
-      toast.success(strings.saved)
+      toast.success(strings.documentWithdrawn)
     },
     onError: async (error) => {
       if (error.code === 'activity_assignment_required') {
@@ -3099,7 +3206,7 @@ export function ActivityDocuments({
         },
       )
     },
-    onSuccess: async () => {
+    onSuccess: async (_result, document) => {
       await Promise.all([
         client.invalidateQueries({
           queryKey: ['planning', user.id, 'documents', activityId],
@@ -3109,7 +3216,11 @@ export function ActivityDocuments({
         }),
         client.invalidateQueries({ queryKey: ['audit-history'] }),
       ])
-      toast.success(strings.saved)
+      toast.success(
+        document.partner_shared
+          ? strings.documentSharingStopped
+          : strings.documentShared,
+      )
     },
     onError: async (error) => {
       if (error.status === 401) onDenied()

@@ -99,7 +99,7 @@ export function AccountMenu({ user }) {
           )}
           <Link
             to={Urls.logout}
-            className="mt-1 flex items-center border-t border-border text-danger"
+            className="mt-1 flex items-center border-t border-border !text-danger hover:!bg-danger/10"
             role="menuitem"
             onClick={() => {
               setOpen(false)

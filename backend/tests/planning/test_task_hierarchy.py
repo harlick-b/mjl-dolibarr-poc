@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from app.auth.service import AuthError
+from app.planning.core.service import validate_draft
 from app.planning.core.task_hierarchy import (
     activity_progress,
     manual_task_progress,
@@ -118,7 +119,7 @@ def test_submission_requires_balanced_positive_subtasks_inside_parent_dates():
     assert sum(row["weight_basis_points"] for row in normalized[0]["subtasks"]) == 10000
 
 
-def test_draft_keeps_manual_subtask_totals_even_when_they_do_not_match():
+def test_draft_rejects_subtask_amounts_above_the_parent_task():
     rows = [
         task(
             "Formation",
@@ -128,11 +129,63 @@ def test_draft_keeps_manual_subtask_totals_even_when_they_do_not_match():
         )
     ]
 
-    normalized = normalize_tasks(
-        rows,
-        activity_start=None,
-        activity_end=None,
-        submitting=False,
-    )
-    assert normalized[0]["allocation"] == 100
-    assert normalized[0]["subtasks"][0]["allocation"] == 120
+    with pytest.raises(AuthError) as problem:
+        normalize_tasks(
+            rows,
+            activity_start=None,
+            activity_end=None,
+            submitting=False,
+        )
+    assert problem.value.code == "subtask_allocation_exceeded"
+
+
+def test_draft_rejects_task_weights_above_100_percent():
+    rows = [
+        task("Préparation", "50", "60"),
+        task("Formation", "50", "50"),
+    ]
+
+    with pytest.raises(AuthError) as problem:
+        normalize_tasks(
+            rows,
+            activity_start=None,
+            activity_end=None,
+            submitting=False,
+        )
+    assert problem.value.code == "task_weights_exceeded"
+
+
+def test_draft_rejects_subtask_weights_above_100_percent():
+    rows = [
+        task(
+            "Formation",
+            "100",
+            "",
+            subtasks=[
+                subtask("Salle", "50", "60"),
+                subtask("Supports", "50", "50"),
+            ],
+        )
+    ]
+
+    with pytest.raises(AuthError) as problem:
+        normalize_tasks(
+            rows,
+            activity_start=None,
+            activity_end=None,
+            submitting=False,
+        )
+    assert problem.value.code == "subtask_weights_exceeded"
+
+
+def test_draft_rejects_task_amounts_above_the_activity_budget():
+    payload = {
+        "name": "Formation",
+        "description": "",
+        "allocation": "100",
+        "tasks": [task("Préparation", "120", "")],
+    }
+
+    with pytest.raises(AuthError) as problem:
+        validate_draft(payload, 2027)
+    assert problem.value.code == "allocation_exceeded"

@@ -350,7 +350,11 @@ export function makeRouter(history, componentOverrides = {}) {
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
         if (!mutation.options.meta?.localError && error?.name !== 'AbortError')
-          toast.error(error?.message || 'Une action a échoué.')
+          toast.error(
+            mutation.options.meta?.errorMessage ||
+              error?.message ||
+              'L’action demandée n’a pas pu être enregistrée.',
+          )
       },
     }),
     defaultOptions: {
@@ -741,7 +745,20 @@ export function App({ router }) {
             <LogoutProvider>
               <SessionProvider>
                 <RouterProvider router={router} />
-                <Toaster position="top-right" richColors />
+                <Toaster
+                  position="bottom-center"
+                  toastOptions={{
+                    classNames: {
+                      toast:
+                        '!rounded-card !border-navy !bg-navy !text-white !shadow-lg',
+                      description: '!text-white/80',
+                      success: '!border-navy !bg-navy !text-white',
+                      error: '!border-danger !bg-danger !text-white',
+                      warning: '!border-warning !bg-warning !text-white',
+                      info: '!border-primary !bg-primary !text-white',
+                    },
+                  }}
+                />
               </SessionProvider>
             </LogoutProvider>
           </AccessProvider>

@@ -1024,10 +1024,13 @@ def validate_plan(
     allocation = xof(payload.get("allocation", ""))
     if allocation != total:
         raise AuthError(422, "allocation_mismatch")
+    description = str(payload.get("description") or "").strip()
+    if len(description) > 4000:
+        raise AuthError(422, "input_invalid")
     try:
         return {
             "name": clean(payload["name"], 200),
-            "description": clean(payload["description"], 4000),
+            "description": description,
             "planned_start": start,
             "planned_end": end,
             "allocation": allocation,
@@ -1057,6 +1060,9 @@ def validate_draft(
     )
     raw_allocation = payload.get("allocation")
     allocation = xof(raw_allocation) if raw_allocation else None
+    task_allocation = sum(row["allocation"] for row in normalized)
+    if allocation is not None and task_allocation > allocation:
+        raise AuthError(422, "allocation_exceeded")
     try:
         return {
             "name": clean(payload["name"], 200),

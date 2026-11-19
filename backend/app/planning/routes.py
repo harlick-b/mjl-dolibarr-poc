@@ -191,7 +191,7 @@ class TaskInput(Input):
 
 class PlanningInput(Input):
     name: str = Field(min_length=1, max_length=200)
-    description: str = Field(min_length=1, max_length=4000)
+    description: str = Field(default="", max_length=4000)
     planned_start: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     planned_end: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     allocation: str = Field(min_length=1, max_length=19, pattern=r"^[1-9][0-9]*$")

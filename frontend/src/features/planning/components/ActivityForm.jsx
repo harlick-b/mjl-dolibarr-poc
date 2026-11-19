@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Plus } from 'lucide-react'
+import { Urls } from '@/app/urls'
 import { toast } from 'sonner'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
@@ -11,7 +12,7 @@ import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { FileSelection } from '@/shared/ui/FileSelection'
 import {
-  formatExactPercentage,
+  formatExactNumber,
   formatXof,
   localDateInput,
   addThreeMonths,
@@ -91,10 +92,9 @@ function persistedTasks(tasks) {
   }))
 }
 
-function submissionProblems({ name, description, start, end, amount, tasks }) {
+function submissionProblems({ name, start, end, amount, tasks }) {
   const problems = []
   if (!name.trim()) problems.push(strings.submissionActivityName)
-  if (!description.trim()) problems.push(strings.submissionActivityDescription)
   if (!start || !end || end < start)
     problems.push(strings.submissionActivityPeriod)
   if (!positiveAmount(amount)) problems.push(strings.submissionActivityAmount)
@@ -155,6 +155,74 @@ function submissionProblems({ name, description, start, end, amount, tasks }) {
         (task.planned_start && child.planned_start < task.planned_start) ||
         (task.planned_end && child.planned_end > task.planned_end) ||
         child.planned_end < child.planned_start
+      )
+        problems.push(`${childLabel} : ${strings.submissionSubtaskDates}`)
+    })
+  })
+  return problems
+}
+
+function draftProblems({ start, end, amount, tasks }) {
+  const problems = []
+  if (start && end && end < start) problems.push(strings.draftActivityPeriod)
+  if (positiveAmount(amount) && sumAmounts(tasks) > BigInt(amount))
+    problems.push(strings.draftTaskAmountExceeded)
+  if (
+    tasks.reduce((sum, task) => sum + percentagePoints(task.weight), 0) > 10000
+  )
+    problems.push(strings.draftTaskWeightExceeded)
+  tasks.forEach((task, taskIndex) => {
+    const label = strings.formatString(
+      strings.submissionTaskLabel,
+      taskIndex + 1,
+      task.name || strings.submissionUntitled,
+    )
+    const children = task.subtasks || []
+    if (
+      String(task.weight || '') &&
+      !percentagePattern.test(String(task.weight))
+    )
+      problems.push(`${label} : ${strings.draftTaskWeightInvalid}`)
+    if (
+      (start && task.planned_start && task.planned_start < start) ||
+      (end && task.planned_end && task.planned_end > end) ||
+      (task.planned_start &&
+        task.planned_end &&
+        task.planned_end < task.planned_start)
+    )
+      problems.push(`${label} : ${strings.submissionTaskDates}`)
+    if (
+      positiveAmount(task.allocation) &&
+      sumAmounts(children) > BigInt(task.allocation)
+    )
+      problems.push(`${label} : ${strings.draftSubtaskAmountExceeded}`)
+    if (
+      children.reduce((sum, child) => sum + percentagePoints(child.weight), 0) >
+      10000
+    )
+      problems.push(`${label} : ${strings.draftSubtaskWeightExceeded}`)
+    children.forEach((child, childIndex) => {
+      const childLabel = strings.formatString(
+        strings.submissionSubtaskLabel,
+        label,
+        childIndex + 1,
+        child.name || strings.submissionUntitled,
+      )
+      if (
+        String(child.weight || '') &&
+        !percentagePattern.test(String(child.weight))
+      )
+        problems.push(`${childLabel} : ${strings.draftSubtaskWeightInvalid}`)
+      if (
+        (task.planned_start &&
+          child.planned_start &&
+          child.planned_start < task.planned_start) ||
+        (task.planned_end &&
+          child.planned_end &&
+          child.planned_end > task.planned_end) ||
+        (child.planned_start &&
+          child.planned_end &&
+          child.planned_end < child.planned_start)
       )
         problems.push(`${childLabel} : ${strings.submissionSubtaskDates}`)
     })
@@ -336,6 +404,7 @@ function TaskEditor({
   categoriesUnavailable,
   typeResult,
   navigate,
+  onReturnToActivity,
   onCreateType,
   onCancel,
   onSave,
@@ -365,6 +434,17 @@ function TaskEditor({
       label: draft.type_label || strings.existingCategory,
     })
   const canSave = draft.name.trim() && positiveAmount(draft.allocation)
+  const goTo = (event, to, params) => {
+    if (!navigate) return
+    event.preventDefault()
+    navigate({ to, params })
+  }
+  const ptaHref = activity.projectId
+    ? `/projects/${encodeURIComponent(activity.projectId)}/ptas/${encodeURIComponent(activity.year)}`
+    : ''
+  const activityHref = activity.id
+    ? `/activities/${encodeURIComponent(activity.id)}`
+    : ''
   return (
     <Panel
       as={BusinessForm}
@@ -377,12 +457,46 @@ function TaskEditor({
       }}
     >
       <nav
-        className="text-sm text-muted-foreground"
+        className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
         aria-label={strings.breadcrumb}
       >
-        {strings.planningIndex} / PTA {activity.year} /{' '}
-        {strings.activitySingular} /{' '}
-        {task.id || task.name ? strings.editTask : strings.newTask}
+        <a
+          href={Urls.planning}
+          className="text-primary"
+          onClick={(event) => goTo(event, Urls.planning)}
+        >
+          {strings.planningIndex}
+        </a>
+        <span aria-hidden="true">/</span>
+        {activity.projectId ? (
+          <a
+            href={ptaHref}
+            className="text-primary"
+            onClick={(event) =>
+              goTo(event, Urls.pta, {
+                projectId: activity.projectId,
+                year: String(activity.year),
+              })
+            }
+          >
+            PTA {activity.year}
+          </a>
+        ) : (
+          <span>PTA {activity.year}</span>
+        )}
+        <span aria-hidden="true">/</span>
+        <a
+          href={activityHref || '#activity-editor'}
+          className="text-primary"
+          onClick={(event) => {
+            event.preventDefault()
+            onReturnToActivity()
+          }}
+        >
+          {strings.activitySingular}
+        </a>
+        <span aria-hidden="true">/</span>
+        <span>{task.id || task.name ? strings.editTask : strings.newTask}</span>
       </nav>
       <header>
         <h1 className="text-2xl font-semibold text-navy">
@@ -441,7 +555,9 @@ function TaskEditor({
                   </option>
                 ))}
                 {onCreateType && (
-                  <option value="__create__">{strings.createCategory}…</option>
+                  <option value="__create__" data-cta>
+                    {strings.createCategory}
+                  </option>
                 )}
               </Select>
             </label>
@@ -581,7 +697,7 @@ function TaskEditor({
                       {formatXof(amountTotal)} / {formatXof(draft.allocation)}
                     </td>
                     <td className="px-3 pt-4">
-                      {formatExactPercentage(weightTotal / 100)} / 100 %
+                      {formatExactNumber(weightTotal / 100)} / 100 %
                     </td>
                     <td />
                   </tr>
@@ -637,6 +753,7 @@ function TaskEditor({
 
 export function ActivityForm({
   year,
+  projectId,
   onCreateType,
   types = [],
   typeResult,
@@ -674,6 +791,7 @@ export function ActivityForm({
   const [removal, setRemoval] = useState(null)
   const [file, setFile] = useState(null)
   const [attemptedSubmission, setAttemptedSubmission] = useState(false)
+  const [attemptedDraft, setAttemptedDraft] = useState(false)
   const requestKey = useRef(initial ? null : crypto.randomUUID())
   const total = sumAmounts(tasks)
   const taskWeightTotal = tasks.reduce(
@@ -682,12 +800,17 @@ export function ActivityForm({
   )
   const problems = submissionProblems({
     name,
-    description,
     start,
     end,
     amount,
     tasks,
   })
+  const incompleteDraftProblems = draftProblems({ start, end, amount, tasks })
+  const visibleProblems = attemptedSubmission
+    ? problems
+    : attemptedDraft
+      ? incompleteDraftProblems
+      : []
   const restoreActivityEditorFocus = () =>
     setTimeout(() => taskSectionHeading.current?.focus(), 0)
 
@@ -695,12 +818,23 @@ export function ActivityForm({
     return (
       <TaskEditor
         task={taskEditor.task}
-        activity={{ name, start, end, year }}
+        activity={{
+          id: initial?.id,
+          projectId: projectId || initial?.project_id,
+          name,
+          start,
+          end,
+          year,
+        }}
         types={types}
         pending={pending}
         categoriesUnavailable={optionsUnavailable}
         typeResult={typeResult}
         navigate={navigate}
+        onReturnToActivity={() => {
+          setTaskEditor(null)
+          restoreActivityEditorFocus()
+        }}
         onCreateType={onCreateType}
         onCancel={() => {
           setTaskEditor(null)
@@ -732,6 +866,12 @@ export function ActivityForm({
         if (intent === 'submit' && optionsUnavailable) return false
         if (intent === 'submit' && problems.length) {
           setAttemptedSubmission(true)
+          setAttemptedDraft(false)
+          return false
+        }
+        if (intent === 'draft' && incompleteDraftProblems.length) {
+          setAttemptedDraft(true)
+          setAttemptedSubmission(false)
           return false
         }
         const body = {
@@ -748,6 +888,19 @@ export function ActivityForm({
         return file ? onSubmit(body, intent, file) : onSubmit(body, intent)
       }}
     >
+      {visibleProblems.length > 0 && (
+        <section
+          role="alert"
+          className="rounded-panel border border-warning bg-warning-soft p-5 text-warning lg:col-span-2"
+        >
+          <h2 className="font-semibold">{strings.submissionCorrections}</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5">
+            {visibleProblems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="grid min-w-0 gap-6">
         <Panel className="gap-0 overflow-hidden p-0">
           <h2 className="border-b border-border px-5 py-4">
@@ -765,7 +918,7 @@ export function ActivityForm({
               />
             </label>
             <label>
-              {strings.description} *
+              {strings.description}
               <textarea
                 aria-label={strings.description}
                 maxLength={4000}
@@ -905,19 +1058,6 @@ export function ActivityForm({
             />
           </div>
         </Panel>
-        {attemptedSubmission && problems.length > 0 && (
-          <section
-            role="alert"
-            className="rounded-panel border border-destructive bg-white p-5"
-          >
-            <h2 className="font-semibold">{strings.submissionCorrections}</h2>
-            <ul className="mt-3 list-disc space-y-2 pl-5">
-              {problems.map((problem) => (
-                <li key={problem}>{problem}</li>
-              ))}
-            </ul>
-          </section>
-        )}
       </div>
       <Panel
         as="aside"
@@ -946,7 +1086,7 @@ export function ActivityForm({
           <div>
             <dt className="text-muted-foreground">{strings.taskWeightTotal}</dt>
             <dd className="mt-1 font-semibold">
-              {formatExactPercentage(taskWeightTotal / 100)} / 100 %
+              {formatExactNumber(taskWeightTotal / 100)} / 100 %
             </dd>
           </div>
         </dl>

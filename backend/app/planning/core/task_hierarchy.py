@@ -175,8 +175,12 @@ def normalize_tasks(
                     "position": sub_position,
                 }
             )
+        if subtask_weight_total > PERCENT_TOTAL:
+            raise AuthError(422, "subtask_weights_exceeded")
         if subtasks and submitting and subtask_weight_total != PERCENT_TOTAL:
             raise AuthError(422, "subtask_weights_mismatch")
+        if subtasks and not submitting and subtask_amount_total > allocation:
+            raise AuthError(422, "subtask_allocation_exceeded")
         if subtasks and submitting and subtask_amount_total != allocation:
             raise AuthError(422, "subtask_allocation_mismatch")
         normalized.append(
@@ -193,6 +197,8 @@ def normalize_tasks(
                 "subtasks": subtasks,
             }
         )
+    if task_weight_total > PERCENT_TOTAL:
+        raise AuthError(422, "task_weights_exceeded")
     if submitting and task_weight_total != PERCENT_TOTAL:
         raise AuthError(422, "task_weights_mismatch")
     return normalized

@@ -60,12 +60,17 @@ export function formatPercentage(numerator, denominator) {
   return `${whole}${decimal ? `,${decimal}` : ''} %`
 }
 
-export function formatExactPercentage(value) {
+export function formatExactNumber(value) {
   if (value === null || value === undefined || value === '') return '—'
   const match = /^(-?\d+)(?:\.(\d{1,2}))?$/.exec(String(value))
   if (!match) return '—'
   const decimals = (match[2] || '').replace(/0+$/, '')
-  return `${match[1]}${decimals ? `,${decimals}` : ''} %`
+  return `${match[1]}${decimals ? `,${decimals}` : ''}`
+}
+
+export function formatExactPercentage(value) {
+  const formatted = formatExactNumber(value)
+  return formatted === '—' ? formatted : `${formatted} %`
 }
 
 export function formatDateTime(value) {

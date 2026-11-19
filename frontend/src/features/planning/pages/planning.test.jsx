@@ -544,9 +544,7 @@ test('an eligible Agent confirms submission of the current Activity version', as
       }),
     ),
   )
-  expect(
-    (await screen.findAllByText('Soumise pour prévalidation'))[0],
-  ).toBeVisible()
+  expect((await screen.findAllByText('À prévalider'))[0]).toBeVisible()
   expect(submittedActivityReads).toBeGreaterThanOrEqual(1)
   expect(
     screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
@@ -1797,9 +1795,11 @@ test('assignment edits retain their base version and can discard a stale draft',
       queryKey: ['planning', 'supervisor', 'activity', 'assignment-1'],
     })
   })
-  expect(
-    await screen.findByText(/Tâches et budget à compléter\./),
-  ).toBeVisible()
+  await waitFor(() =>
+    expect(
+      screen.queryByText(/Tâches et budget à compléter\./),
+    ).not.toBeInTheDocument(),
+  )
   expect(
     fetch.mock.calls.some(([url]) => String(url).includes('/history')),
   ).toBe(false)
@@ -1810,10 +1810,9 @@ test('assignment edits retain their base version and can discard a stale draft',
     fetch.mock.calls.some(([url]) => String(url).includes('/revisions/')),
   ).toBe(false)
   const editOwners = await screen.findByRole('button', {
-    name: 'Modifier les responsables',
+    name: 'Affectations',
   })
-  expect(editOwners.querySelector('svg')).toBeInTheDocument()
-  expect(editOwners).toHaveTextContent('')
+  expect(editOwners).toHaveTextContent('Affectations')
   await user.click(editOwners)
   await user.click(
     screen.getByRole('button', { name: 'Rechercher et ajouter un Agent' }),
@@ -1845,9 +1844,7 @@ test('assignment edits retain their base version and can discard a stale draft',
   expect(
     screen.queryByRole('dialog', { name: 'Responsables de l’activité' }),
   ).not.toBeInTheDocument()
-  await user.click(
-    screen.getByRole('button', { name: 'Modifier les responsables' }),
-  )
+  await user.click(screen.getByRole('button', { name: 'Affectations' }))
   expect(
     screen.queryByRole('button', { name: 'Retirer agent@example.test' }),
   ).not.toBeInTheDocument()
@@ -2017,6 +2014,7 @@ test.each([
     const prevalidate = await screen.findByRole('button', {
       name: 'Prévalider',
     })
+    expect(screen.getByText('À prévalider')).toBeVisible()
     const purpose = screen.getByText('Objet de l’activité').parentElement
     expect(purpose).toBeVisible()
     expect(within(purpose).getByText('Préparation')).toBeVisible()
@@ -2067,6 +2065,7 @@ test.each([
     }
     await waitFor(() => expect(uploadCalls).toBe(expectedUploadCalls))
     expect(decisionCalls).toBe(1)
+    expect(await screen.findByText('À valider définitivement')).toBeVisible()
   },
 )
 
@@ -2097,6 +2096,112 @@ test('a new Activity keeps its request key across a lost-response retry', async 
   )
 })
 
+test.each([
+  ['new', undefined],
+  [
+    'existing',
+    {
+      id: 'activity-1',
+      version: 1,
+      name: 'Activité existante',
+      description: '',
+      planned_start: null,
+      planned_end: null,
+      allocation: null,
+      tasks: [],
+    },
+  ],
+])(
+  'the %s Activity Task breadcrumb returns to its Activity Draft',
+  async (_case, initial) => {
+    const user = userEvent.setup()
+    render(
+      <ActivityForm
+        year={2027}
+        projectId="project-1"
+        initial={initial}
+        types={[]}
+        pending={false}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Ajouter une tâche' }))
+    await user.click(screen.getByRole('link', { name: /activité/i }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Informations générales' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('heading', { name: 'Ajouter une tâche' }),
+    ).not.toBeInTheDocument()
+  },
+)
+
+test('Draft validation reports entered Task and Subtask bounds before saving', async () => {
+  const submit = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      year={2027}
+      types={[{ id: 'category-1', label: 'Formation' }]}
+      initial={{
+        id: 'activity-1',
+        version: 1,
+        name: 'Activité bornée',
+        description: '',
+        planned_start: '2027-02-01',
+        planned_end: '2027-02-28',
+        allocation: '100',
+        tasks: [
+          {
+            id: 'task-1',
+            type_id: 'category-1',
+            name: 'Préparation',
+            description: '',
+            allocation: '100',
+            weight: '101',
+            planned_start: '2027-01-31',
+            planned_end: '2027-02-28',
+            subtasks: [
+              {
+                id: 'subtask-1',
+                name: 'Supports',
+                description: '',
+                allocation: '100',
+                weight: '101',
+                planned_start: '2027-02-01',
+                planned_end: '2027-03-01',
+              },
+            ],
+          },
+        ],
+      }}
+      pending={false}
+      onSubmit={submit}
+    />,
+  )
+
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer le brouillon' }),
+  )
+
+  const alert = screen.getByRole('alert')
+  expect(alert).toHaveTextContent(
+    'Tâche 1 « Préparation » : la pondération saisie doit être comprise entre 0 et 100 %',
+  )
+  expect(alert).toHaveTextContent(
+    'Tâche 1 « Préparation » : les dates doivent rester dans la période de l’activité.',
+  )
+  expect(alert).toHaveTextContent(
+    'sous-tâche 1 « Supports » : la pondération saisie doit être comprise entre 0 et 100 %',
+  )
+  expect(alert).toHaveTextContent(
+    'sous-tâche 1 « Supports » : les dates doivent rester dans la période de la tâche.',
+  )
+  expect(submit).not.toHaveBeenCalled()
+})
+
 test('a Task creates and selects a Category from the Category control', async () => {
   const createType = vi
     .fn()
@@ -2112,7 +2217,7 @@ test('a Task creates and selects a Category from the Category control', async ()
     />,
   )
   await user.click(screen.getByRole('button', { name: 'Ajouter une tâche' }))
-  await selectOption(screen.getByLabelText('Catégorie'), 'Créer une catégorie…')
+  await selectOption(screen.getByLabelText('Catégorie'), 'Créer une catégorie')
   const dialog = screen.getByRole('dialog', { name: 'Créer une catégorie' })
   await user.type(within(dialog).getByLabelText('Nom *'), 'Logistique')
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
@@ -2139,7 +2244,7 @@ test('reopening Category creation from a Task clears a previous request error', 
     />,
   )
   await user.click(screen.getByRole('button', { name: 'Ajouter une tâche' }))
-  await selectOption(screen.getByLabelText('Catégorie'), 'Créer une catégorie…')
+  await selectOption(screen.getByLabelText('Catégorie'), 'Créer une catégorie')
   let dialog = screen.getByRole('dialog', { name: 'Créer une catégorie' })
   await user.type(within(dialog).getByLabelText('Nom *'), 'Logistique')
   await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
@@ -2147,7 +2252,7 @@ test('reopening Category creation from a Task clears a previous request error', 
     'Service indisponible',
   )
   await user.click(within(dialog).getByRole('button', { name: 'Fermer' }))
-  await selectOption(screen.getByLabelText('Catégorie'), 'Créer une catégorie…')
+  await selectOption(screen.getByLabelText('Catégorie'), 'Créer une catégorie')
   dialog = screen.getByRole('dialog', { name: 'Créer une catégorie' })
   expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
 })
@@ -2783,9 +2888,7 @@ test.each(['success', 'failure'])(
     expect(activityReads).toBeGreaterThanOrEqual(2)
     expect(submissionCalls).toBe(1)
     if (refetchOutcome === 'success') {
-      expect(
-        (await screen.findAllByText('Soumise pour prévalidation'))[0],
-      ).toBeVisible()
+      expect((await screen.findAllByText('À prévalider'))[0]).toBeVisible()
       expect(
         screen.queryByRole('button', { name: 'Soumettre pour prévalidation' }),
       ).not.toBeInTheDocument()

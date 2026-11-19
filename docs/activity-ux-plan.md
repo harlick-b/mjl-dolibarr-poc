@@ -1329,3 +1329,33 @@ retains the known large-chunk warning. Four older scenarios in the broader
 Planning browser file remain outside this correction and failed on existing
 dialog/focus expectations; they are not reported as passing evidence for this
 candidate.
+
+### Activity detail and validation refinement — 2026-11-19
+
+The Activity detail header, programming review states, decision dialogs and edit
+forms now follow the latest approved references. The header uses the full
+**Affectations** action, detail-only review labels read **À prévalider** and **À
+valider définitivement**, and technical revision data stays hidden. The Finance
+tab no longer displays **Dépenses par tâche**. Task weighting totals use the
+human-readable `0 / 100 %` form.
+
+Activity, Task and Subtask Drafts retain incomplete categories, dates and
+weights, while entered values may not exceed their parent amount or 100 %, or
+leave their parent date period. These constraints are enforced in the form and
+API. Submission still requires complete dates, categories, exact amount totals
+and exact 100 % weight totals. Activity description is optional. The top warning
+lists the affected Task or Subtask and preserves entered data.
+
+Task breadcrumbs return to the preserved Activity Draft for new and existing
+Activities. Task and Subtask dates continue to use the shared calendar with
+their Activity or parent Task bounds. Drawers use the shared internal-scroll
+layout; Category creation, file selection, loading feedback, toasts and logout
+consume the shared UI contracts.
+
+Focused verification passed 75 frontend tests, 10 pure backend hierarchy tests,
+targeted ESLint, Ruff, Prettier, the production build and the Activity detail,
+decision-dialog and complete-editing browser scenarios. The database-backed
+optional-description submission test was collected but could not run because no
+disposable `TEST_DATABASE_URL` was configured. Independent re-review found no
+remaining blocking Activity-specific issue. The build retains the known
+large-chunk warning.

@@ -1554,43 +1554,6 @@ function ExecutionDetail({
               </strong>
             </div>
           )}
-          <details className="border-t border-border">
-            <summary className="cursor-pointer px-6 py-4 font-medium text-primary">
-              Dépenses par tâche
-            </summary>
-            <div className="overflow-x-auto px-6 pb-5">
-              <table className="w-full min-w-170 text-left text-[0.8125rem]">
-                <thead className="border-b border-border bg-background">
-                  <tr>
-                    <th className="p-3 font-medium">Tâche</th>
-                    <th className="p-3 text-right font-medium">
-                      Allocation prévue
-                    </th>
-                    <th className="p-3 text-right font-medium">Enregistrées</th>
-                    <th className="p-3 text-right font-medium">Acceptées</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.map((task) => (
-                    <tr key={task.id} className="border-b border-border">
-                      <td className="p-3 font-medium">{task.name}</td>
-                      <td className="p-3 text-right">
-                        {formatXof(task.approved_allocation)}
-                      </td>
-                      <td className="p-3 text-right">
-                        {formatXof(task.actual_spent)}
-                      </td>
-                      <td className="p-3 text-right">
-                        {acceptedAmount === null
-                          ? '—'
-                          : formatXof(task.actual_spent)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
         </Panel>
       )}
       {section !== 'realization' && (

@@ -1,5 +1,17 @@
 import { expect, test } from 'vitest'
-import { formatDate, formatDateTime, formatXof } from './format'
+import {
+  formatDate,
+  formatDateTime,
+  formatExactNumber,
+  formatExactPercentage,
+  formatXof,
+} from './format'
+
+test('exact decimal formatting can be reused with or without a percent suffix', () => {
+  expect(formatExactNumber('0.00')).toBe('0')
+  expect(formatExactNumber('99.50')).toBe('99,5')
+  expect(formatExactPercentage('99.50')).toBe('99,5 %')
+})
 
 test('date-only values keep their calendar day and invalid dates stay unknown', () => {
   expect(formatDate('2026-11-12')).toBe('12 novembre 2026')
