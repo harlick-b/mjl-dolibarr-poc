@@ -24,6 +24,8 @@ async function openFinancialDrawer(
   user,
   action = 'Nouvelle demande',
   expectedAuthorized = null,
+  virementAvailable = null,
+  requestType = null,
 ) {
   const requests = await screen.findByRole('region', {
     name: 'Demandes financières',
@@ -35,10 +37,30 @@ async function openFinancialDrawer(
   if (action === 'Nouvelle demande') {
     expect(dialog).toHaveAccessibleName('Nouvelle demande')
     expect(dialog).not.toHaveClass('h-dvh')
-    expect(
-      within(dialog).getByText('Autorisation de décaissement'),
-    ).toBeVisible()
-    expect(within(dialog).getByText('Autorisation de virement')).toBeVisible()
+    if (virementAvailable === true) {
+      expect(
+        within(dialog).getByText('Autorisation de décaissement'),
+      ).toBeVisible()
+      expect(within(dialog).getByText('Autorisation de virement')).toBeVisible()
+      expect(
+        within(dialog).getByRole('button', {
+          name: 'Créer — Autorisation de décaissement',
+        }),
+      ).toBeEnabled()
+      expect(
+        within(dialog).getByRole('button', {
+          name: 'Créer — Autorisation de virement',
+        }),
+      ).toBeEnabled()
+    }
+    if (virementAvailable === false) {
+      expect(
+        within(dialog).getByText('Autorisation de décaissement'),
+      ).toBeVisible()
+      expect(
+        within(dialog).queryByText('Autorisation de virement'),
+      ).not.toBeInTheDocument()
+    }
     if (expectedAuthorized && expectedAuthorized !== 'Non renseigné')
       expect(
         within(dialog).getByText(
@@ -46,9 +68,16 @@ async function openFinancialDrawer(
         ),
       ).toBeVisible()
   }
-  const create = within(dialog)
-    .queryAllByRole('button', { name: 'Créer' })
-    .find((button) => !button.disabled)
+  const create = requestType
+    ? within(dialog).queryByRole('button', {
+        name: `Créer — ${requestType}`,
+      })
+    : within(dialog).queryByRole('button', {
+        name: 'Créer — Autorisation de virement',
+      }) ||
+      within(dialog)
+        .queryAllByRole('button', { name: /^Créer/ })
+        .find((button) => !button.disabled)
   if (create) {
     await user.click(create)
     await waitFor(() =>
@@ -1174,6 +1203,7 @@ test('an execution correction keeps its version across refresh and closing resto
     user,
     'Nouvelle demande',
     'Non renseigné',
+    false,
   )
   expect(financialDialog).toHaveAccessibleName('Demande de décaissement')
   expect(
@@ -2752,6 +2782,7 @@ test('financial review drawer sends an optional observation without editable amo
   expect(dialog).toHaveClass('w-[min(640px,100%)]')
   expect(within(dialog).queryByLabelText(/montant/i)).toBeNull()
   expect(within(dialog).queryByLabelText(/pièce|fichier/i)).toBeNull()
+  expect(within(dialog).queryByText('Pièces justificatives')).toBeNull()
   await user.type(
     within(dialog).getByLabelText('Observation / motif du retour'),
     'Dossier vérifié.',
@@ -3198,12 +3229,22 @@ test('Agent enters a virement amount within the approved disbursement', async ()
       )}
     />,
   )
-  const requestDialog = await openFinancialDrawer(user)
+  const requestDialog = await openFinancialDrawer(
+    user,
+    'Nouvelle demande',
+    null,
+    true,
+    'Autorisation de virement',
+  )
   expect(within(requestDialog).getByText('Budget prévu')).toBeVisible()
   expect(
     within(requestDialog).getByText('Total actuellement autorisé'),
   ).toBeVisible()
-  expect(within(requestDialog).getByLabelText(/montant/i)).toHaveValue(100000)
+  expect(
+    within(requestDialog).getByRole('textbox', {
+      name: 'Montant total demandé (F CFA)',
+    }),
+  ).toHaveValue('100\u202f000')
   await user.click(
     await screen.findByRole('button', {
       name: 'Faire la demande',

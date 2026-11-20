@@ -24,21 +24,15 @@ import { cursorFrom } from '@/shared/lib/pagination'
 import { CompactAllocationTable } from './CompactAllocationTable'
 import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
 import { missingRequiredFieldProps } from '@/shared/ui/required-field-feedback'
-
-const positiveAmount = (value) => /^[1-9]\d*$/.test(String(value || ''))
-const percentagePattern = /^(?:100(?:\.0{1,2})?|(?:[1-9]?\d)(?:\.\d{1,2})?)$/
-const positivePercentage = (value) =>
-  percentagePattern.test(String(value || '')) && Number(value) > 0
-const percentagePoints = (value) =>
-  positivePercentage(value) ? Math.round(Number(value) * 100) : 0
-
-function sumAmounts(rows) {
-  return rows.reduce(
-    (sum, row) =>
-      sum + (positiveAmount(row.allocation) ? BigInt(row.allocation) : 0n),
-    0n,
-  )
-}
+import { RequiredFieldError } from '@/shared/ui/RequiredFieldError'
+import {
+  activitySubmissionProblems,
+  percentagePattern,
+  percentagePoints,
+  positiveAmount,
+  positivePercentage,
+  sumAmounts,
+} from '../lib/activity-submission-validation'
 
 function subtaskCountLabel(count) {
   return strings.formatString(
@@ -93,76 +87,6 @@ function persistedTasks(tasks) {
       planned_end: child.planned_end || null,
     })),
   }))
-}
-
-function submissionProblems({ name, start, end, amount, tasks }) {
-  const problems = []
-  if (!name.trim()) problems.push(strings.submissionActivityName)
-  if (!start || !end || end < start)
-    problems.push(strings.submissionActivityPeriod)
-  if (!positiveAmount(amount)) problems.push(strings.submissionActivityAmount)
-  if (!tasks.length) problems.push(strings.submissionTaskRequired)
-  if (positiveAmount(amount) && sumAmounts(tasks) !== BigInt(amount))
-    problems.push(
-      strings.formatString(
-        strings.submissionTaskAmountMismatch,
-        formatXof(sumAmounts(tasks)),
-        formatXof(amount),
-      ),
-    )
-  if (
-    tasks.reduce((sum, task) => sum + percentagePoints(task.weight), 0) !==
-    10000
-  )
-    problems.push(strings.submissionTaskWeightTotal)
-  tasks.forEach((task, taskIndex) => {
-    const label = strings.formatString(
-      strings.submissionTaskLabel,
-      taskIndex + 1,
-      task.name || strings.submissionUntitled,
-    )
-    if (!task.type_id) problems.push(`${label} : ${strings.submissionCategory}`)
-    if (!positivePercentage(task.weight))
-      problems.push(`${label} : ${strings.submissionPositiveWeight}`)
-    if (!task.planned_start || !task.planned_end)
-      problems.push(`${label} : ${strings.submissionPlannedDates}`)
-    else if (
-      (start && task.planned_start < start) ||
-      (end && task.planned_end > end) ||
-      task.planned_end < task.planned_start
-    )
-      problems.push(`${label} : ${strings.submissionTaskDates}`)
-    const children = task.subtasks || []
-    if (!children.length) return
-    if (sumAmounts(children) !== BigInt(task.allocation))
-      problems.push(`${label} : ${strings.submissionSubtaskAmount}`)
-    if (
-      children.reduce(
-        (sum, child) => sum + percentagePoints(child.weight),
-        0,
-      ) !== 10000
-    )
-      problems.push(`${label} : ${strings.submissionSubtaskWeightTotal}`)
-    children.forEach((child, childIndex) => {
-      const childLabel = strings.formatString(
-        strings.submissionSubtaskLabel,
-        label,
-        childIndex + 1,
-        child.name,
-      )
-      if (!positivePercentage(child.weight))
-        problems.push(`${childLabel} : ${strings.submissionPositiveWeight}`)
-      if (!child.planned_start || !child.planned_end)
-        problems.push(`${childLabel} : ${strings.submissionPlannedDates}`)
-      else if (
-        (task.planned_start && child.planned_start < task.planned_start) ||
-        (task.planned_end && child.planned_end > task.planned_end) ||
-        child.planned_end < child.planned_start
-      )
-        problems.push(`${childLabel} : ${strings.submissionSubtaskDates}`)
-    })
-  })
-  return problems
 }
 
 function draftProblems({ name, start, end, amount, tasks }) {
@@ -263,6 +187,11 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
   const update = (changes) =>
     setDraft((current) => ({ ...current, ...changes }))
   const valid = draft.name.trim() && positiveAmount(draft.allocation)
+  const missingName = attemptedSave && !draft.name.trim()
+  const missingAmount = attemptedSave && !positiveAmount(draft.allocation)
+  const missingWeight = submissionAttempted && !positivePercentage(draft.weight)
+  const missingStart = submissionAttempted && !draft.planned_start
+  const missingEnd = submissionAttempted && !draft.planned_end
   return createPortal(
     <Modal
       open
@@ -290,14 +219,13 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
             <input
               aria-label={strings.title}
               aria-required="true"
-              {...missingRequiredFieldProps(
-                attemptedSave && !draft.name.trim(),
-              )}
+              {...missingRequiredFieldProps(missingName, 'subtask-name-error')}
               autoFocus
               maxLength={200}
               value={draft.name}
               onChange={(event) => update({ name: event.target.value })}
             />
+            <RequiredFieldError id="subtask-name-error" show={missingName} />
           </label>
           <label>
             {strings.description}
@@ -315,10 +243,15 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
                 aria-label={strings.subtaskPlannedAmount}
                 aria-required="true"
                 {...missingRequiredFieldProps(
-                  attemptedSave && !positiveAmount(draft.allocation),
+                  missingAmount,
+                  'subtask-amount-error',
                 )}
                 value={draft.allocation}
                 onChange={(allocation) => update({ allocation })}
+              />
+              <RequiredFieldError
+                id="subtask-amount-error"
+                show={missingAmount}
               />
             </label>
             <label>
@@ -331,10 +264,15 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
                 aria-label={strings.subtaskWeightPercent}
                 aria-required="true"
                 {...missingRequiredFieldProps(
-                  submissionAttempted && !positivePercentage(draft.weight),
+                  missingWeight,
+                  'subtask-weight-error',
                 )}
                 value={draft.weight || ''}
                 onChange={(weight) => update({ weight })}
+              />
+              <RequiredFieldError
+                id="subtask-weight-error"
+                show={missingWeight}
               />
             </label>
           </div>
@@ -345,7 +283,8 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
                 label={strings.subtaskStartDate}
                 aria-required="true"
                 {...missingRequiredFieldProps(
-                  submissionAttempted && !draft.planned_start,
+                  missingStart,
+                  'subtask-start-error',
                 )}
                 value={draft.planned_start || ''}
                 min={task.planned_start || undefined}
@@ -353,21 +292,24 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
                 optional
                 onChange={(planned_start) => update({ planned_start })}
               />
+              <RequiredFieldError
+                id="subtask-start-error"
+                show={missingStart}
+              />
             </label>
             <label>
               {strings.subtaskEndDate} *
               <DatePicker
                 label={strings.subtaskEndDate}
                 aria-required="true"
-                {...missingRequiredFieldProps(
-                  submissionAttempted && !draft.planned_end,
-                )}
+                {...missingRequiredFieldProps(missingEnd, 'subtask-end-error')}
                 value={draft.planned_end || ''}
                 min={draft.planned_start || task.planned_start || undefined}
                 max={task.planned_end || undefined}
                 optional
                 onChange={(planned_end) => update({ planned_end })}
               />
+              <RequiredFieldError id="subtask-end-error" show={missingEnd} />
             </label>
           </div>
         </div>
@@ -445,6 +387,12 @@ function TaskEditor({
       label: draft.type_label || strings.existingCategory,
     })
   const canSave = draft.name.trim() && positiveAmount(draft.allocation)
+  const missingName = attemptedSave && !draft.name.trim()
+  const missingCategory = submissionAttempted && !draft.type_id
+  const missingStart = submissionAttempted && !draft.planned_start
+  const missingEnd = submissionAttempted && !draft.planned_end
+  const missingAmount = attemptedSave && !positiveAmount(draft.allocation)
+  const missingWeight = submissionAttempted && !positivePercentage(draft.weight)
   return (
     <Panel
       as={BusinessForm}
@@ -508,14 +456,13 @@ function TaskEditor({
             <input
               aria-label={strings.title}
               aria-required="true"
-              {...missingRequiredFieldProps(
-                attemptedSave && !draft.name.trim(),
-              )}
+              {...missingRequiredFieldProps(missingName, 'task-name-error')}
               autoFocus
               maxLength={200}
               value={draft.name}
               onChange={(event) => update({ name: event.target.value })}
             />
+            <RequiredFieldError id="task-name-error" show={missingName} />
           </label>
           <label>
             {strings.description}
@@ -533,7 +480,8 @@ function TaskEditor({
                 aria-label={strings.activityOperationType}
                 aria-required="true"
                 {...missingRequiredFieldProps(
-                  submissionAttempted && !draft.type_id,
+                  missingCategory,
+                  'task-category-error',
                 )}
                 ref={categorySelect}
                 value={draft.type_id || ''}
@@ -558,6 +506,10 @@ function TaskEditor({
                   </option>
                 )}
               </Select>
+              <RequiredFieldError
+                id="task-category-error"
+                show={missingCategory}
+              />
             </label>
             {onCreateType && categoryCreatorOpen && (
               <CategoryCreator
@@ -582,30 +534,28 @@ function TaskEditor({
               <DatePicker
                 label={strings.plannedStart}
                 aria-required="true"
-                {...missingRequiredFieldProps(
-                  submissionAttempted && !draft.planned_start,
-                )}
+                {...missingRequiredFieldProps(missingStart, 'task-start-error')}
                 value={draft.planned_start || ''}
                 min={activity.start || undefined}
                 max={draft.planned_end || activity.end || undefined}
                 optional
                 onChange={(planned_start) => update({ planned_start })}
               />
+              <RequiredFieldError id="task-start-error" show={missingStart} />
             </label>
             <label>
               {strings.plannedEnd} *
               <DatePicker
                 label={strings.plannedEnd}
                 aria-required="true"
-                {...missingRequiredFieldProps(
-                  submissionAttempted && !draft.planned_end,
-                )}
+                {...missingRequiredFieldProps(missingEnd, 'task-end-error')}
                 value={draft.planned_end || ''}
                 min={draft.planned_start || activity.start || undefined}
                 max={activity.end || undefined}
                 optional
                 onChange={(planned_end) => update({ planned_end })}
               />
+              <RequiredFieldError id="task-end-error" show={missingEnd} />
             </label>
           </div>
         </div>
@@ -620,12 +570,11 @@ function TaskEditor({
             <ExactNumberInput
               aria-label={strings.taskPlannedAmount}
               aria-required="true"
-              {...missingRequiredFieldProps(
-                attemptedSave && !positiveAmount(draft.allocation),
-              )}
+              {...missingRequiredFieldProps(missingAmount, 'task-amount-error')}
               value={draft.allocation}
               onChange={(allocation) => update({ allocation })}
             />
+            <RequiredFieldError id="task-amount-error" show={missingAmount} />
           </label>
           <label>
             {strings.taskWeightPercent} *
@@ -636,12 +585,11 @@ function TaskEditor({
               step="0.01"
               aria-label={strings.taskWeightPercent}
               aria-required="true"
-              {...missingRequiredFieldProps(
-                submissionAttempted && !positivePercentage(draft.weight),
-              )}
+              {...missingRequiredFieldProps(missingWeight, 'task-weight-error')}
               value={draft.weight || ''}
               onChange={(weight) => update({ weight })}
             />
+            <RequiredFieldError id="task-weight-error" show={missingWeight} />
           </label>
         </div>
       </Panel>
@@ -813,7 +761,7 @@ export function ActivityForm({
     (sum, task) => sum + percentagePoints(task.weight),
     0,
   )
-  const problems = submissionProblems({
+  const problems = activitySubmissionProblems({
     name,
     start,
     end,
@@ -832,6 +780,10 @@ export function ActivityForm({
     : attemptedDraft
       ? incompleteDraftProblems
       : []
+  const missingName = (attemptedSubmission || attemptedDraft) && !name.trim()
+  const missingStart = attemptedSubmission && !start
+  const missingEnd = attemptedSubmission && !end
+  const missingAmount = attemptedSubmission && !positiveAmount(amount)
   const restoreActivityEditorFocus = () =>
     setTimeout(() => taskSectionHeading.current?.focus(), 0)
 
@@ -935,12 +887,14 @@ export function ActivityForm({
                 aria-label={strings.activityName}
                 aria-required="true"
                 {...missingRequiredFieldProps(
-                  (attemptedSubmission || attemptedDraft) && !name.trim(),
+                  missingName,
+                  'activity-name-error',
                 )}
                 maxLength={200}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
+              <RequiredFieldError id="activity-name-error" show={missingName} />
             </label>
             <label>
               {strings.description}
@@ -963,12 +917,19 @@ export function ActivityForm({
               <DatePicker
                 label={strings.startDate}
                 aria-required="true"
-                {...missingRequiredFieldProps(attemptedSubmission && !start)}
+                {...missingRequiredFieldProps(
+                  missingStart,
+                  'activity-start-error',
+                )}
                 value={start}
                 min={year ? `${year}-01-01` : undefined}
                 max={year ? `${year}-12-31` : undefined}
                 optional
                 onChange={setStart}
+              />
+              <RequiredFieldError
+                id="activity-start-error"
+                show={missingStart}
               />
             </label>
             <label>
@@ -976,12 +937,13 @@ export function ActivityForm({
               <DatePicker
                 label={strings.endDate}
                 aria-required="true"
-                {...missingRequiredFieldProps(attemptedSubmission && !end)}
+                {...missingRequiredFieldProps(missingEnd, 'activity-end-error')}
                 value={end}
                 min={start || undefined}
                 optional
                 onChange={setEnd}
               />
+              <RequiredFieldError id="activity-end-error" show={missingEnd} />
             </label>
           </div>
         </Panel>
@@ -1008,10 +970,15 @@ export function ActivityForm({
                 aria-label={strings.plannedAmount}
                 aria-required="true"
                 {...missingRequiredFieldProps(
-                  attemptedSubmission && !positiveAmount(amount),
+                  missingAmount,
+                  'activity-amount-error',
                 )}
                 value={amount}
                 onChange={setAmount}
+              />
+              <RequiredFieldError
+                id="activity-amount-error"
+                show={missingAmount}
               />
             </label>
             {tasks.length ? (

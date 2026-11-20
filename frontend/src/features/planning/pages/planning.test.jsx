@@ -321,13 +321,12 @@ test('the annual plan stays in page loading until its Activity list is ready', a
     ),
   )
   const heading = await screen.findByRole('heading', {
-    name: 'PTA Justice 2027',
+    name: 'Projet métriques',
   })
   expect(heading).toBeVisible()
   const header = heading.closest('header')
-  expect(header).toHaveTextContent('Projet métriques')
-  expect(header).toHaveTextContent('PTA 2027')
-  expect(header).toHaveTextContent('Programme annuel de protection')
+  expect(header).toHaveTextContent('PTA 2027 · Programme annuel de protection')
+  expect(screen.queryByRole('heading', { name: 'PTA Justice 2027' })).toBeNull()
 })
 
 test('the annual plan shows whole-PTA planning counts and approved budget', async () => {
@@ -2040,11 +2039,7 @@ test('assignment edits retain their base version and can discard a stale draft',
       queryKey: ['planning', 'supervisor', 'activity', 'assignment-1'],
     })
   })
-  await waitFor(() =>
-    expect(
-      screen.queryByText(/Tâches et budget à compléter\./),
-    ).not.toBeInTheDocument(),
-  )
+  expect(screen.getByText(/Tâches et budget à compléter\./)).toBeVisible()
   expect(
     fetch.mock.calls.some(([url]) => String(url).includes('/history')),
   ).toBe(false)
@@ -3002,7 +2997,11 @@ test.each(['success', 'failure'])(
           type_id: 'type-1',
           name: 'Préparer',
           allocation: '100000',
+          weight: '100',
+          planned_start: '2027-01-10',
+          planned_end: '2027-04-10',
           position: 1,
+          subtasks: [],
         },
       ],
       agent_ids: [],
@@ -3536,9 +3535,11 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
   await user.click(
     screen.getByRole('button', { name: 'Soumettre pour prévalidation' }),
   )
-  expect(screen.getByRole('alert')).toHaveTextContent(
-    'Renseignez une période valide pour l’activité',
-  )
+  expect(
+    screen
+      .getByRole('heading', { name: 'À corriger avant soumission' })
+      .closest('[role="alert"]'),
+  ).toHaveTextContent('Renseignez une période valide pour l’activité')
   expect(screen.getByRole('button', { name: /^Date de fin/ })).toHaveAttribute(
     'data-value-missing',
     'true',

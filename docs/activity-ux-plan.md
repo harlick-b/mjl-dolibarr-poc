@@ -1479,9 +1479,10 @@ positive and no greater than the approved décaissement still available.
 Submission stores the amount, observation and attachment atomically before the
 existing Supervisor/Validator notification starts. Review remains the wide
 drawer from `activity-task-prevalidation-and-validation-modal.png`: the amount
-is read-only, the applicant's observation and attachment are consultable, and
-the reviewer enters an optional observation or the required return reason.
-Decision attachments remain excluded. Partial authorized amounts do not change
+is read-only, the applicant's observation is visible, and the reviewer enters an
+optional observation or the required return reason. The optional creation
+attachment is not repeated in this review drawer. Decision attachments remain
+excluded. Partial authorized amounts do not change
 recorded spending: reversement continues to use allocation minus actual spending,
 while each external transfer confirmation must equal its approved virement amount.
 After a partial approval, the creation form exposes only the remaining balance;
@@ -1519,3 +1520,28 @@ Activity's total recorded spending. The focused disposable-PostgreSQL rerun pass
 the cumulative-request, shared-reversement, unsettled-reversement and schema-drift
 scenarios (4 tests); the focused Activity-form and financial frontend run passed
 118 tests.
+
+### Activity submission and visual consistency follow-up — 2026-11-20
+
+Activity editing and Activity details now call one submission validator for the
+required Activity, Task and Subtask fields, date boundaries, amount equality and
+weight totals. An invalid Draft remains visible on the detail page with the same
+specific corrections as the editor, and its submission action stays unavailable.
+Draft over-allocation behavior is unchanged pending the user's final métier
+choice; server submission enforcement remains authoritative.
+
+The PTA page identifies the Project first, the Activity header uses the approved
+24 px title and 12 px metadata scale, and the five-value financial summary stays
+on one desktop row before reflowing to three-plus-two and then smaller responsive
+layouts. The new-demand chooser hides virement until the approved décaissement
+step makes it available. Financial request creation uses the shared exact XOF
+input; review drawers omit the creation attachment block.
+
+Required-field feedback now uses real DOM messages connected to each invalid
+control. Activity, Task and Subtask manual validation uses the same shared message
+component, while native required fields receive the same linked message from the
+shared form handlers. The focused Planning, Execution and shared-UI run passed 123
+tests, targeted ESLint and the production build passed, and the same independent
+reviewer cleared the corrected candidate. The responsive four/five-value financial
+composition was verified from its breakpoint classes; no rendered browser
+screenshot pass was run.

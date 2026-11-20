@@ -54,6 +54,7 @@ import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
 import { ActivityForm } from '../components/ActivityForm'
 import { physicalExecutionLabel } from '../lib/physical-execution'
 import { administrativeReminderSchedule } from '../lib/administrative-reminder'
+import { activitySubmissionProblems } from '../lib/activity-submission-validation'
 import { Pagination } from '@/shared/ui/Pagination'
 import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
 import { ProtectedFilePreview } from '@/shared/ui/ProtectedFilePreview'
@@ -1201,10 +1202,10 @@ function PTA({
             {ptaStrings.breadcrumb}
           </Link>
           <h1 className="mt-3 text-2xl font-semibold text-navy">
-            {context.pta?.name ?? context.project.name}
+            {context.project.name}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {context.pta ? `${context.project.name} · ` : ''}PTA {context.year}
+            PTA {context.year}
             {context.pta?.description ? ` · ${context.pta.description}` : ''}
           </p>
         </div>
@@ -2012,12 +2013,17 @@ function ActivityDetail({
   const creatorName =
     item.creator?.full_name || item.creator?.email || strings.unknownActor
   const administrativeReminder = administrativeReminderSchedule(item)
-  const programmingIncomplete =
-    item.state === 'draft' &&
-    (!item.planned_start ||
-      !item.planned_end ||
-      item.allocation === null ||
-      !(item.tasks || []).length)
+  const programmingProblems =
+    item.state === 'draft'
+      ? activitySubmissionProblems({
+          name: item.name,
+          start: item.planned_start,
+          end: item.planned_end,
+          amount: item.allocation,
+          tasks: item.tasks || [],
+        })
+      : []
+  const programmingIncomplete = programmingProblems.length > 0
   const executionContext = search.origin === 'execution'
   const execution = executionSummary.data
   const administrativeSituation = execution?.closure
@@ -2070,10 +2076,8 @@ function ActivityDetail({
         className="flex flex-wrap items-end justify-between gap-8 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3"
       >
         <div className="min-w-0">
-          <p className="text-[0.6875rem] text-muted-foreground">
-            {item.reference}
-          </p>
-          <h1 className="mt-1 max-w-5xl break-words text-[1.5625rem] font-semibold leading-[1.35] text-navy">
+          <p className="text-xs text-muted-foreground">{item.reference}</p>
+          <h1 className="mt-1 max-w-5xl break-words text-2xl font-semibold leading-8 text-navy">
             {item.name}
           </h1>
           <p className="mb-4 mt-2 break-words text-xs leading-5 text-muted-foreground">
@@ -2094,7 +2098,7 @@ function ActivityDetail({
           {item.approved_revision_id && (
             <dl className="grid grid-cols-[repeat(4,minmax(140px,max-content))] gap-x-8 gap-y-3 text-xs max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
               <div>
-                <dt className="text-[0.6875rem] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   {strings.programmingApproval}
                 </dt>
                 <dd className="mt-1 font-medium">
@@ -2102,7 +2106,7 @@ function ActivityDetail({
                 </dd>
               </div>
               <div>
-                <dt className="text-[0.6875rem] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   {strings.physicalExecution}
                 </dt>
                 <dd className="mt-1 font-medium">
@@ -2110,7 +2114,7 @@ function ActivityDetail({
                 </dd>
               </div>
               <div>
-                <dt className="text-[0.6875rem] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   {strings.realizationValidation}
                 </dt>
                 <dd className="mt-1 font-medium">
@@ -2123,7 +2127,7 @@ function ActivityDetail({
               </div>
               {administrativeSituation && (
                 <div>
-                  <dt className="text-[0.6875rem] text-muted-foreground">
+                  <dt className="text-xs text-muted-foreground">
                     {strings.administrativeSituation}
                   </dt>
                   <dd className="mt-1 font-medium">
@@ -2139,7 +2143,7 @@ function ActivityDetail({
             </RetryableError>
           )}
           <div className="mt-[1.125rem] grid gap-1 text-[0.8125rem]">
-            <span className="text-[0.6875rem] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {strings.activityOwners}
             </span>
             <span className="flex flex-wrap items-center gap-3">
@@ -2164,7 +2168,7 @@ function ActivityDetail({
           </div>
           <dl className="mt-4 grid grid-cols-[repeat(2,minmax(100px,max-content))] gap-7 text-xs max-[480px]:grid-cols-2">
             <div>
-              <dt className="text-[0.6875rem] text-muted-foreground">
+              <dt className="text-xs text-muted-foreground">
                 {strings.plannedStart}
               </dt>
               <dd className="mt-1 font-medium">
@@ -2172,7 +2176,7 @@ function ActivityDetail({
               </dd>
             </div>
             <div>
-              <dt className="text-[0.6875rem] text-muted-foreground">
+              <dt className="text-xs text-muted-foreground">
                 {strings.plannedEnd}
               </dt>
               <dd className="mt-1 font-medium">
@@ -2329,9 +2333,17 @@ function ActivityDetail({
                   <p className="mt-1">{item.description || '—'}</p>
                 </div>
                 {programmingIncomplete && (
-                  <p className="text-sm text-muted-foreground">
-                    {strings.programmingToComplete}
-                  </p>
+                  <section
+                    role="alert"
+                    className="rounded-card border border-warning bg-warning-soft p-4 text-sm text-warning"
+                  >
+                    <strong>{strings.programmingToComplete}</strong>
+                    <ul className="mt-2 list-disc space-y-1 pl-5">
+                      {programmingProblems.map((problem) => (
+                        <li key={problem}>{problem}</li>
+                      ))}
+                    </ul>
+                  </section>
                 )}
               </div>
             </Panel>

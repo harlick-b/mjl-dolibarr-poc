@@ -1,10 +1,10 @@
-import { Paperclip, XCircle } from 'lucide-react'
+import { XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatDateTime, formatXof } from '@/shared/lib/format'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { FileSelection } from '@/shared/ui/FileSelection'
-import { ProtectedDownload } from '@/shared/ui/ProtectedDownload'
+import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
 
 export function FinancialRequestSummary({
   requested,
@@ -84,11 +84,7 @@ export function FinancialDecisionHistory({ decisions, stateLabels }) {
   )
 }
 
-export function FinancialRequestApplicantDetails({
-  request,
-  activityId,
-  kind,
-}) {
+export function FinancialRequestApplicantDetails({ request }) {
   return (
     <section className="grid gap-3 border-b border-border pb-5 text-sm">
       {request.observation && (
@@ -100,23 +96,6 @@ export function FinancialRequestApplicantDetails({
       <p className="text-muted-foreground">
         {request.submitter_name || 'Utilisateur indisponible'}
       </p>
-      <div>
-        <h3 className="font-semibold">Pièces justificatives</h3>
-        {request.attachment ? (
-          <ProtectedDownload
-            className="mt-2"
-            size="sm"
-            path={`/api/v1/activities/${activityId}/${kind}-requests/${request.id}/attachment`}
-          >
-            <Paperclip size={15} aria-hidden="true" />
-            {request.attachment.name}
-          </ProtectedDownload>
-        ) : (
-          <p className="mt-2 text-muted-foreground">
-            Aucune pièce jointe à cette demande.
-          </p>
-        )}
-      </div>
     </section>
   )
 }
@@ -128,6 +107,7 @@ export function FinancialRequestCreateForm({
   onSubmit,
 }) {
   const [file, setFile] = useState(null)
+  const [amount, setAmount] = useState(String(maximumAmount || ''))
   const [amountError, setAmountError] = useState('')
   return (
     <BusinessForm
@@ -136,12 +116,12 @@ export function FinancialRequestCreateForm({
       onSubmit={(event) => {
         event.preventDefault()
         const data = new FormData(event.currentTarget)
-        const amount = String(data.get('amount') || '')
-        if (!/^[1-9][0-9]*$/.test(amount)) {
+        const submittedAmount = String(data.get('amount') || '')
+        if (!/^[1-9][0-9]*$/.test(submittedAmount)) {
           setAmountError('Saisissez un montant positif en francs CFA.')
           return false
         }
-        if (BigInt(amount) > BigInt(maximumAmount)) {
+        if (BigInt(submittedAmount) > BigInt(maximumAmount)) {
           setAmountError(
             `Le montant ne peut pas dépasser ${formatXof(maximumAmount)}.`,
           )
@@ -150,7 +130,7 @@ export function FinancialRequestCreateForm({
         setAmountError('')
         return onSubmit(
           {
-            amount,
+            amount: submittedAmount,
             observation: String(data.get('observation') || ''),
           },
           file,
@@ -159,19 +139,19 @@ export function FinancialRequestCreateForm({
     >
       <label>
         Montant total demandé (F CFA) *
-        <input
+        <ExactNumberInput
           name="amount"
-          type="number"
-          min="1"
-          max={maximumAmount}
-          step="1"
+          aria-label="Montant total demandé (F CFA)"
+          value={amount}
+          onChange={(value) => {
+            setAmount(value)
+            setAmountError('')
+          }}
           required
-          defaultValue={maximumAmount}
           aria-invalid={Boolean(amountError)}
           aria-describedby={
             amountError ? 'financial-request-amount-error' : undefined
           }
-          onChange={() => setAmountError('')}
           onInvalid={() =>
             setAmountError('Saisissez un montant positif en francs CFA.')
           }

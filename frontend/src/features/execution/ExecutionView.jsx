@@ -1586,7 +1586,13 @@ function ExecutionDetail({
           <header className="border-b border-border px-6 py-5">
             <h2 id="financial-situation-title">Situation financière</h2>
           </header>
-          <dl className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-6 px-6 py-5 max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
+          <dl
+            className={`grid gap-6 px-6 py-5 max-[760px]:grid-cols-2 max-[480px]:grid-cols-1 ${
+              unusedBalance === null
+                ? 'grid-cols-4 max-[1000px]:grid-cols-2'
+                : 'grid-cols-[repeat(5,minmax(0,1fr))] max-[1100px]:grid-cols-3'
+            }`}
+          >
             <div>
               <dt className="text-xs text-muted-foreground">Montant prévu</dt>
               <dd className="mt-1 font-semibold text-navy">
@@ -1795,6 +1801,11 @@ function ExecutionDetail({
                     {
                       key: 'disbursement',
                       label: strings.disbursementAuthorization,
+                      hidden:
+                        !detail.disbursement_can_submit ||
+                        !['disbursement', 'virement'].includes(
+                          newFinancialRequest,
+                        ),
                       detail:
                         authorizedAmount === null
                           ? null
@@ -1803,6 +1814,7 @@ function ExecutionDetail({
                     {
                       key: 'virement',
                       label: strings.virementAuthorization,
+                      hidden: !detail.virement_context?.can_submit,
                     },
                     {
                       key: 'funding',
@@ -1834,7 +1846,7 @@ function ExecutionDetail({
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={newFinancialRequest !== option.key}
+                          aria-label={`Créer — ${option.label}`}
                           onClick={() => {
                             setFinancialModalMode('create')
                             setFinancialDrawer(option.key)
@@ -2333,11 +2345,7 @@ function DisbursementSection({
             authorizedLabel={strings.currentAuthorizedTotal}
             unavailableLabel={strings.notProvided}
           />
-          <FinancialRequestApplicantDetails
-            request={current}
-            activityId={detail.id}
-            kind="disbursement"
-          />
+          <FinancialRequestApplicantDetails request={current} />
           <FinancialDecisionHistory
             decisions={current.decisions}
             stateLabels={stateLabels}
@@ -2980,11 +2988,7 @@ function VirementSection({
       {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
       {current ? (
         <>
-          <FinancialRequestApplicantDetails
-            request={current}
-            activityId={detail.id}
-            kind="virement"
-          />
+          <FinancialRequestApplicantDetails request={current} />
           <FinancialDecisionHistory
             decisions={current.decisions}
             stateLabels={stateLabels}

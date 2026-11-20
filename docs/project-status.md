@@ -6,6 +6,23 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## Activity submission and visual consistency — 2026-11-20
+
+Activity edit and detail submission checks now share one frontend validator for
+required fields, date boundaries, Task/Subtask amount equality and weight totals.
+Financial request creation uses the shared exact XOF input, virement stays hidden
+until its décaissement prerequisite is complete, and review drawers no longer
+repeat the optional creation attachment. Required-field errors are real linked
+elements for both native and manually validated controls.
+
+The PTA page now leads with the Project identity. Activity header typography uses
+the approved title and metadata tokens, while the five financial facts use one
+desktop row and responsive reflow. Draft over-allocation behavior remains unchanged
+pending a final métier choice. The focused final frontend run passed 123 tests,
+targeted ESLint and the production build passed, and independent re-review cleared
+the candidate. Responsive financial breakpoints were inspected in code; no rendered
+browser screenshot pass was run.
+
 ## Application-update browser reconciliation — 2026-11-20
 
 The controlled application-update journey again reaches the real unsaved Activity
