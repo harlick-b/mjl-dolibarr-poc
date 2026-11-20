@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/button'
 import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { strings } from '@/locales/fr/ProfileView'
+import { requiredFieldFeedbackHandlers } from '@/shared/ui/required-field-feedback'
 
 export function ProfileView() {
   const access = useAccess()
@@ -159,7 +160,11 @@ function ProfileForm({ profile, onReload }) {
       </div>
       <Panel className="p-0 gap-0">
         <h2 className="border-b border-border p-5">{strings.personal}</h2>
-        <form className="grid gap-6 p-5" onSubmit={save}>
+        <form
+          {...requiredFieldFeedbackHandlers}
+          className="grid gap-6 p-5"
+          onSubmit={save}
+        >
           <div className="grid gap-6 sm:grid-cols-2">
             {[
               ['first_name', strings.firstName, 'given-name'],

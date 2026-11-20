@@ -28,6 +28,8 @@ import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { useAccess } from '@/features/auth/session/access-verification'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { toast } from 'sonner'
+import { Pagination as SharedPagination } from '@/shared/ui/Pagination'
+import { requiredFieldFeedbackHandlers } from '@/shared/ui/required-field-feedback'
 
 const states = {
   pending: 'En attente',
@@ -379,36 +381,39 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             {(search.q || search.role) && (
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 text-[0.8125rem]">
                 {search.q && (
-                  <button
+                  <Button
                     type="button"
-                    className="inline-flex min-h-8 items-center gap-2 rounded-card border border-border bg-white px-3"
+                    variant="outline"
+                    size="sm"
                     onClick={() => void changeSearch({ q: '', page: 1 })}
                   >
                     {strings.formatString(strings.searchCriterion, {
                       query: search.q,
                     })}
                     <X size={14} aria-hidden="true" />
-                  </button>
+                  </Button>
                 )}
                 {search.role && (
-                  <button
+                  <Button
                     type="button"
-                    className="inline-flex min-h-8 items-center gap-2 rounded-card border border-border bg-white px-3"
+                    variant="outline"
+                    size="sm"
                     onClick={() => void changeSearch({ role: '', page: 1 })}
                   >
                     {roleLabels[search.role]}
                     <X size={14} aria-hidden="true" />
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   type="button"
-                  className="min-h-8 text-primary"
+                  variant="ghost"
+                  size="sm"
                   onClick={() =>
                     void changeSearch({ q: '', role: '', page: 1 })
                   }
                 >
                   {strings.resetFilters}
-                </button>
+                </Button>
               </div>
             )}
             {!users.isError && users.data && (
@@ -432,8 +437,8 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                 search.q || search.role ? (
                   <EmptyState
                     action={
-                      <button
-                        className="min-h-10 border border-border rounded-control py-2 px-4 bg-white text-navy font-medium"
+                      <Button
+                        variant="outline"
                         onClick={() =>
                           void changeSearch({
                             q: '',
@@ -444,7 +449,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                         type="button"
                       >
                         Effacer les filtres
-                      </button>
+                      </Button>
                     }
                   >
                     <p>{strings.noMatches}</p>
@@ -666,26 +671,19 @@ function Pagination({ query, page, change, label }) {
   if (!query.data || query.isError || (page === 1 && query.data.total <= 20))
     return null
   return (
-    <nav
-      className="[&_button]:min-h-11 [&_button]:text-primary [&_button]:underline flex justify-end flex-wrap items-center gap-4 mt-3 mr-0 mb-10 ml-0 text-[0.8125rem]"
-      aria-label={`Pagination ${label}`}
-    >
-      <button
-        disabled={page <= 1 || query.isFetching}
-        onClick={() => change(page - 1)}
-      >
-        Précédent
-      </button>
+    <div className="flex justify-end flex-wrap items-center gap-4 mt-3 mr-0 mb-10 ml-0 text-[0.8125rem]">
       <span>
         Page {page} · {query.data.total} résultat(s)
       </span>
-      <button
-        disabled={page * 20 >= query.data.total || query.isFetching}
-        onClick={() => change(page + 1)}
-      >
-        Suivant
-      </button>
-    </nav>
+      <SharedPagination
+        label={`Pagination ${label}`}
+        canPrevious={page > 1}
+        canNext={page * 20 < query.data.total}
+        busy={query.isFetching}
+        onPrevious={() => change(page - 1)}
+        onNext={() => change(page + 1)}
+      />
+    </div>
   )
 }
 function AccessDialog({ dialog, pending, close, submit }) {
@@ -730,9 +728,10 @@ function AccessDialog({ dialog, pending, close, submit }) {
       onClose={close}
       label={title}
       closeDisabled={pending}
-      className="[&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem] [&_input]:min-h-11 [&_input]:max-w-full [&_input]:rounded-control [&_input]:border [&_input]:border-border [&_input]:bg-white [&_input]:px-3 [&_input]:py-2 [&_select]:min-h-11 [&_select]:max-w-full [&_select]:rounded-control [&_select]:border [&_select]:border-border [&_select]:bg-white [&_select]:px-3 [&_select]:py-2 [&_button:disabled]:cursor-not-allowed"
+      className="[&_input]:max-w-full [&_select]:max-w-full"
     >
       <form
+        {...requiredFieldFeedbackHandlers}
         onSubmit={(event) => {
           if (optionsBlocked) event.preventDefault()
           else submit(event)

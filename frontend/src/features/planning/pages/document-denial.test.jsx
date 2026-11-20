@@ -114,6 +114,53 @@ test.each([
   },
 )
 
+test('a 401 Activity document download uses the workspace denial path', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path) =>
+      path.endsWith('/download')
+        ? new Response('{}', { status: 401 })
+        : new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 'document',
+                  name: 'preuve.pdf',
+                  media_type: 'application/pdf',
+                },
+              ],
+              count: 1,
+              next: null,
+              previous: null,
+            }),
+          ),
+    ),
+  )
+  const onDenied = vi.fn()
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <RestClientProvider client={new RestClient()}>
+        <ActivityDocuments
+          activityId="activity"
+          user={{ id: 'agent', role: 'AGENT_SAISIE' }}
+          csrf="csrf"
+          cursor=""
+          navigate={vi.fn()}
+          onDenied={onDenied}
+        />
+      </RestClientProvider>
+    </QueryClientProvider>,
+  )
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Télécharger' }),
+  )
+  await waitFor(() => expect(onDenied).toHaveBeenCalledOnce())
+  expect(screen.getByText('preuve.pdf')).toBeVisible()
+})
+
 test('assignment loss closes an upload and refreshes retained document permissions', async () => {
   let reads = 0
   HTMLDialogElement.prototype.showModal = function () {

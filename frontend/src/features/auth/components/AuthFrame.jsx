@@ -3,7 +3,7 @@ import { LoaderCircle } from 'lucide-react'
 import { ApplicationSidebar } from './ApplicationSidebar'
 import { AuthCard } from './AuthCard'
 import { PageLoading } from '@/shared/ui/PageLoading'
-import { buttonVariants } from '@/shared/ui/button-variants'
+import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/utils'
 import { strings } from '@/locales/fr/AuthView'
 import { strings as common } from '@/locales/fr/common'
@@ -113,14 +113,14 @@ export function AccessVerificationState({
               : strings.verificationMessage}
         </p>
         {failed && (
-          <button
-            className={buttonVariants({ variant: 'auth' })}
+          <Button
+            variant="auth"
             data-ui="auth-primary"
             onClick={onRetry}
             type="button"
           >
             {common.retry}
-          </button>
+          </Button>
         )}
       </div>
     </AuthFrame>

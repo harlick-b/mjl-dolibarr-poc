@@ -20,12 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import {
-  CheckCircle2,
-  CircleDollarSign,
-  ShieldCheck,
-  XCircle,
-} from 'lucide-react'
+import { CheckCircle2, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import {
@@ -40,9 +35,49 @@ import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { AgentNames } from '@/shared/ui/AgentNames'
 import { FileSelection } from '@/shared/ui/FileSelection'
+import { Pagination } from '@/shared/ui/Pagination'
+import {
+  FinancialCancellationForm,
+  FinancialDecisionHistory,
+  FinancialRequestApplicantDetails,
+  FinancialRequestCreationContext,
+  FinancialRequestCreateForm,
+  FinancialRequestSummary,
+} from './FinancialRequestDetails'
 
 function cursorPath(path, cursor) {
   return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path
+}
+
+function submitFinancialRequest(mutate, path, body, file) {
+  if (!file) return mutate(path, body)
+  const metadata = new TextEncoder().encode(
+    JSON.stringify({
+      name: file.name,
+      observation: body.observation || null,
+    }),
+  )
+  const headers = {
+    'Content-Type': file.type,
+    'X-Request-Metadata-Length': String(metadata.byteLength),
+    'X-Expected-Version': String(body.expected_version),
+    'X-Request-Amount': String(body.amount),
+    ...(body.expected_approved_revision_id
+      ? {
+          'X-Expected-Approved-Revision-Id': body.expected_approved_revision_id,
+        }
+      : {}),
+    ...(body.expected_disbursement_request_id
+      ? {
+          'X-Expected-Disbursement-Request-Id':
+            body.expected_disbursement_request_id,
+        }
+      : {}),
+  }
+  return mutate(`${path}/with-attachment`, undefined, {
+    rawBody: new Blob([metadata, file], { type: file.type }),
+    headers,
+  })
 }
 
 const administrativeStates = {
@@ -68,8 +103,8 @@ const closureBlockerLabels = {
     'Toutes les tâches doivent être terminées et chiffrées.',
   execution_history_unverified: 'L’historique de réalisation est incomplet.',
   spending_ineligible: 'Le total final des dépenses ne peut pas être réglé.',
-  disbursement_not_settled: 'Le décaissement exact doit être approuvé.',
-  virement_not_settled: 'Le virement exact doit être approuvé.',
+  disbursement_not_settled: 'Le décaissement demandé doit être approuvé.',
+  virement_not_settled: 'Le virement demandé doit être approuvé.',
   virement_confirmation_required: 'Le virement externe doit être confirmé.',
   reversement_not_settled: 'Le reversement exact doit être enregistré.',
   financial_insufficiency_unresolved:
@@ -106,6 +141,89 @@ function administrativeDecisionActor(decision) {
     decision?.actor_display_name ||
     decision?.actor_email ||
     (decision ? 'Utilisateur indisponible' : null)
+  )
+}
+
+function FinancialDecisionForm({
+  request,
+  version,
+  pending,
+  path,
+  mutate,
+  onCancel,
+}) {
+  const [error, setError] = useState('')
+  const actions = request.allowed_actions || []
+  const canDecide = actions.some((action) =>
+    ['prevalidate', 'approve', 'return'].includes(action),
+  )
+  if (!canDecide) return null
+  return (
+    <BusinessForm
+      className="order-last grid gap-5"
+      onChangeCapture={() => setError('')}
+      onSubmit={async (event) => {
+        const decision = event.nativeEvent.submitter?.value
+        if (!['prevalidate', 'approve', 'return'].includes(decision))
+          return false
+        const data = new FormData(event.currentTarget)
+        const reason = String(data.get('reason') || '').trim()
+        if (decision === 'return' && !reason) {
+          setError(strings.financialReturnReasonRequired)
+          return false
+        }
+        const result = await mutate(`${path}/${request.id}/decisions`, {
+          expected_version: version,
+          decision,
+          ...(reason ? { reason } : {}),
+        })
+        if (result !== false) onCancel()
+        return result
+      }}
+    >
+      <label>
+        {strings.financialDecisionObservation}
+        <textarea name="reason" maxLength="4000" />
+      </label>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div data-ui="modal-actions" className="order-last">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {strings.cancelEntry}
+        </Button>
+        {actions.includes('return') && (
+          <Button
+            type="submit"
+            value="return"
+            variant="outline"
+            disabled={pending || !navigator.onLine}
+          >
+            {strings.returnForCorrection}
+          </Button>
+        )}
+        {actions.includes('prevalidate') && (
+          <Button
+            type="submit"
+            value="prevalidate"
+            disabled={pending || !navigator.onLine}
+          >
+            <ShieldCheck size={16} /> {strings.prevalidate}
+          </Button>
+        )}
+        {actions.includes('approve') && (
+          <Button
+            type="submit"
+            value="approve"
+            disabled={pending || !navigator.onLine}
+          >
+            <ShieldCheck size={16} /> {strings.authorize}
+          </Button>
+        )}
+      </div>
+    </BusinessForm>
   )
 }
 
@@ -359,6 +477,9 @@ function ExecutionWorkspace({
       Boolean(params.activityId) &&
       Boolean(virementRequestId),
   })
+  const reversementRequestId =
+    selectedVirement.data?.reversement?.current_declaration?.request_id ||
+    virementRequestId
   const confirmationHistory = useQuery({
     ...executionQuery(
       api,
@@ -389,11 +510,11 @@ function ExecutionWorkspace({
       [
         'reversement-history',
         params.activityId,
-        virementRequestId,
+        reversementRequestId,
         search.reversementCursor,
       ],
       cursorPath(
-        `/activities/${params.activityId}/virement-requests/${virementRequestId}/reversement/history`,
+        `/activities/${params.activityId}/virement-requests/${reversementRequestId}/reversement/history`,
         search.reversementCursor,
       ),
       onDenied,
@@ -402,7 +523,7 @@ function ExecutionWorkspace({
       financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
-      Boolean(virementRequestId) &&
+      Boolean(reversementRequestId) &&
       Boolean(selectedVirement.data?.reversement),
   })
   const filters = Object.fromEntries(
@@ -511,7 +632,7 @@ function ExecutionWorkspace({
     retry: false,
     networkMode: 'always',
     meta: { localError: true },
-    mutationFn: async ({ path, body }) => {
+    mutationFn: async ({ path, body, rawBody, headers }) => {
       const activeGeneration = generation.current
       const requestController = new AbortController()
       controller.current = requestController
@@ -520,6 +641,8 @@ function ExecutionWorkspace({
         {
           method: 'POST',
           body,
+          rawBody,
+          headers,
           csrf: session.csrf,
           signal: requestController.signal,
         },
@@ -540,7 +663,10 @@ function ExecutionWorkspace({
         }),
       ])
       if (
-        variables.path === '/disbursement-requests' ||
+        [
+          '/disbursement-requests',
+          '/disbursement-requests/with-attachment',
+        ].includes(variables.path) ||
         (variables.path.endsWith('/cancellation') &&
           variables.path.startsWith('/disbursement-requests'))
       )
@@ -548,7 +674,9 @@ function ExecutionWorkspace({
           search: (current) => ({ ...current, financeRequest: '' }),
         })
       if (
-        variables.path === '/virement-requests' ||
+        ['/virement-requests', '/virement-requests/with-attachment'].includes(
+          variables.path,
+        ) ||
         (variables.path.endsWith('/cancellation') &&
           variables.path.startsWith('/virement-requests'))
       )
@@ -556,10 +684,22 @@ function ExecutionWorkspace({
           search: (current) => ({ ...current, virementRequest: '' }),
         })
       setError('')
+      const submittedDisbursement = [
+        '/disbursement-requests',
+        '/disbursement-requests/with-attachment',
+      ].includes(variables.path)
+      const submittedVirement = [
+        '/virement-requests',
+        '/virement-requests/with-attachment',
+      ].includes(variables.path)
       toast.success(
         variables.path === '/closure'
           ? 'Activité clôturée.'
-          : 'Suivi financier mis à jour.',
+          : submittedDisbursement
+            ? 'Demande de décaissement envoyée.'
+            : submittedVirement
+              ? 'Demande de virement envoyée.'
+              : 'Suivi financier mis à jour.',
       )
     },
     onError: async (problem) => {
@@ -722,10 +862,10 @@ function ExecutionWorkspace({
             .catch(() => false)
           return result
         }}
-        mutateFinance={async (path, body) => {
+        mutateFinance={async (path, body, options = {}) => {
           const activeGeneration = generation.current
           const result = await financeMutation
-            .mutateAsync({ path, body })
+            .mutateAsync({ path, body, ...options })
             .catch(() => false)
           return activeGeneration === generation.current ? result : false
         }}
@@ -865,7 +1005,7 @@ function ExecutionWorkspace({
               ...current,
               reversementCursor: cursorFrom(
                 link,
-                `/activities/${params.activityId}/virement-requests/${virementRequestId}/reversement/history`,
+                `/activities/${params.activityId}/virement-requests/${reversementRequestId}/reversement/history`,
               ),
             }),
           })
@@ -1066,27 +1206,15 @@ export function ExecutionList({
           </tbody>
         </table>
       </div>
-      {(result?.previous || result?.next) && (
-        <nav
-          className="flex gap-2 items-end flex-wrap"
-          aria-label={strings.listPagination}
-        >
-          <Button
-            variant="outline"
-            disabled={!result.previous}
-            onClick={() => onPage(result.previous)}
-          >
-            {strings.previousPage}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!result.next}
-            onClick={() => onPage(result.next)}
-          >
-            {strings.nextPage}
-          </Button>
-        </nav>
-      )}
+      <Pagination
+        label={strings.listPagination}
+        canPrevious={Boolean(result?.previous)}
+        canNext={Boolean(result?.next)}
+        previousLabel={strings.previousPage}
+        nextLabel={strings.nextPage}
+        onPrevious={() => onPage(result.previous)}
+        onNext={() => onPage(result.next)}
+      />
     </section>
   )
 }
@@ -1145,7 +1273,7 @@ function ExecutionDetail({
   )
   const [financialModalMode, setFinancialModalMode] = useState(
     selectedFinance || (virementSelectedBySearch && selectedVirement)
-      ? 'request'
+      ? 'review'
       : 'new',
   )
   const taskOpener = useRef(null)
@@ -1162,17 +1290,12 @@ function ExecutionDetail({
     detail.spending_total === null ? null : BigInt(detail.spending_total)
   const acceptedAmount =
     detail.realization_status === 'validated' ? recordedAmount : null
-  const approvedDisbursement = finance?.data?.find(
-    (request) => request.state === 'approved',
+  const virementContext = detail.virement_context
+  const authorizedAmount = virementContext?.authorized_amount ?? null
+  const authorizationPending = ['submitted', 'prevalidated'].includes(
+    virementContext?.disbursement_state,
   )
-  const authorizedAmount =
-    approvedDisbursement?.amount ??
-    (detail.virement_context?.disbursement_request_id
-      ? detail.virement_context.amount
-      : null)
-  const authorizationPending = finance?.data?.some((request) =>
-    ['submitted', 'prevalidated'].includes(request.state),
-  )
+  const approvedVirementAmount = virementContext?.transferred_amount ?? null
   const financialVariance =
     recordedAmount !== null && recordedAmount > plannedAmount
       ? recordedAmount - plannedAmount
@@ -1204,52 +1327,29 @@ function ExecutionDetail({
   const financialRequests = [
     ...(finance?.data || []).map((request) => ({
       ...request,
-      kind: 'Décaissement',
+      kind: strings.disbursementKind,
       drawer: 'disbursement',
     })),
     ...(virements?.data || []).map((request) => ({
       ...request,
-      kind: 'Virement',
+      kind: strings.virementKind,
       drawer: 'virement',
     })),
     ...(funding?.data || []).map((request) => ({
       ...request,
-      kind: 'Financement complémentaire',
+      kind: strings.fundingTitle,
       drawer: 'funding',
     })),
     ...(zeroSpending?.data || []).map((request) => ({
       ...request,
       amount: '0',
-      kind: 'Déclaration sans dépense',
+      kind: strings.zeroSpendingDeclaration,
       drawer: 'zero',
     })),
   ]
-  const closureRequestDrawers = {
-    zero_spending_not_approved: 'zero',
-    disbursement_not_settled: 'disbursement',
-    virement_not_settled: 'virement',
-    financial_insufficiency_unresolved: 'funding',
-  }
-  const closureRequestDrawer = detail.closure_blockers
-    ?.map((blocker) => closureRequestDrawers[blocker])
-    .find(Boolean)
-  const closureRequest = closureRequestDrawer
-    ? financialRequests.find(
-        (request) =>
-          request.drawer === closureRequestDrawer &&
-          ['submitted', 'prevalidated', 'returned'].includes(request.state),
-      )
-    : null
-  const closureRequestOwner = closureRequest
-    ? {
-        submitted: 'Agent superviseur',
-        prevalidated: 'Validateur définitif',
-        returned: 'Agent de saisie',
-      }[closureRequest.state]
-    : null
   const openFinancialRequest = (request, trigger) => {
     financialDrawerOpener.current = trigger
-    setFinancialModalMode('request')
+    setFinancialModalMode('review')
     if (request.drawer === 'disbursement') onFinanceSelect(request.id)
     if (request.drawer === 'virement') onVirementSelect(request.id)
     if (request.drawer === 'zero') setSelectedZeroSpendingId(request.id)
@@ -1265,20 +1365,25 @@ function ExecutionDetail({
         ? 'virement'
         : funding?.allowed_actions?.includes('submit')
           ? 'funding'
-          : role === 'AGENT_SAISIE' &&
-              detail.works_completed &&
-              Number(detail.spending_total) > 0 &&
-              !finance?.data?.some(
-                (row) => !['returned', 'cancelled'].includes(row.state),
-              )
+          : role === 'AGENT_SAISIE' && detail.disbursement_can_submit
             ? 'disbursement'
             : null
   const financialDrawerLabels = {
-    disbursement: 'Autorisation de décaissement',
-    virement: 'Autorisation de virement',
-    funding: 'Financement complémentaire',
-    zero: 'Déclaration sans dépense',
+    disbursement: strings.disbursementAuthorization,
+    virement: strings.virementAuthorization,
+    funding: strings.fundingTitle,
+    zero: strings.zeroSpendingDeclaration,
   }
+  const financialModalLabel =
+    financialModalMode === 'new'
+      ? strings.newFinancialRequest
+      : financialModalMode === 'create'
+        ? financialDrawer === 'virement'
+          ? strings.virementRequest
+          : financialDrawer === 'disbursement'
+            ? strings.disbursementRequest
+            : financialDrawerLabels[financialDrawer] || strings.financialRequest
+        : financialDrawerLabels[financialDrawer] || strings.financialRequest
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
@@ -1300,18 +1405,6 @@ function ExecutionDetail({
           {error}
         </p>
       )}
-      {detail.execution_paused &&
-        detail.pause_reason !== 'disbursement_frozen' && (
-          <p
-            role="status"
-            className="border-l-4 border-l-primary bg-background py-3 px-4"
-          >
-            La réalisation est suspendue :{' '}
-            {unavailableLabels[detail.pause_reason] ||
-              'une action préalable reste nécessaire'}
-            .
-          </p>
-        )}
       {!detail.execution_paused &&
         detail.mutation_unavailable_reason &&
         !['reviewer_read_only', 'disbursement_frozen'].includes(
@@ -1493,7 +1586,7 @@ function ExecutionDetail({
           <header className="border-b border-border px-6 py-5">
             <h2 id="financial-situation-title">Situation financière</h2>
           </header>
-          <dl className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-6 px-6 py-5 max-[760px]:grid-cols-2 max-[480px]:grid-cols-1">
+          <dl className="grid grid-cols-[repeat(4,minmax(0,1fr))] gap-6 px-6 py-5 max-[900px]:grid-cols-2 max-[480px]:grid-cols-1">
             <div>
               <dt className="text-xs text-muted-foreground">Montant prévu</dt>
               <dd className="mt-1 font-semibold text-navy">
@@ -1512,17 +1605,20 @@ function ExecutionDetail({
                     : 'Autorisation à obtenir'}
               </dd>
             </div>
-            {recordedAmount !== null && (
-              <div>
-                <dt className="text-xs text-muted-foreground">
-                  Dépenses enregistrées
-                </dt>
-                <dd className="mt-1 font-semibold text-navy">
-                  {formatXof(String(recordedAmount))}
-                  {recordedTasks < taskDetail.task_count ? ' · partielles' : ''}
-                </dd>
-              </div>
-            )}
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                Dépenses enregistrées
+              </dt>
+              <dd className="mt-1 font-semibold text-navy">
+                {recordedAmount === null
+                  ? strings.notProvided
+                  : `${formatXof(String(recordedAmount))}${
+                      recordedTasks < taskDetail.task_count
+                        ? ' · partielles'
+                        : ''
+                    }`}
+              </dd>
+            </div>
             <div>
               <dt className="text-xs text-muted-foreground">
                 Dépenses acceptées
@@ -1581,7 +1677,7 @@ function ExecutionDetail({
                     setFinancialDrawer('chooser')
                   }}
                 >
-                  Nouvelle demande
+                  {strings.newFinancialRequest}
                 </Button>
               )}
             </header>
@@ -1687,13 +1783,10 @@ function ExecutionDetail({
               setFinancialDrawer(null)
               setSelectedZeroSpendingId(null)
             }}
-            label={
-              financialModalMode === 'new'
-                ? 'Nouvelle demande'
-                : financialDrawerLabels[financialDrawer] || 'Demande financière'
-            }
+            label={financialModalLabel}
             opener={financialDrawerOpener}
-            variant="dialog"
+            variant={financialModalMode === 'review' ? 'drawer' : 'dialog'}
+            size={financialModalMode === 'review' ? 'wide' : 'standard'}
           >
             <div className="p-6 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:shadow-none">
               {financialDrawer === 'chooser' && (
@@ -1701,21 +1794,24 @@ function ExecutionDetail({
                   {[
                     {
                       key: 'disbursement',
-                      label: 'Autorisation de décaissement',
-                      detail: `Total actuellement autorisé : ${authorizedAmount === null ? strings.notProvided : formatXof(authorizedAmount)}`,
+                      label: strings.disbursementAuthorization,
+                      detail:
+                        authorizedAmount === null
+                          ? null
+                          : `${strings.currentAuthorizedTotal} : ${formatXof(authorizedAmount)}`,
                     },
                     {
                       key: 'virement',
-                      label: 'Autorisation de virement',
+                      label: strings.virementAuthorization,
                     },
                     {
                       key: 'funding',
-                      label: 'Financement complémentaire',
+                      label: strings.fundingTitle,
                       hidden: newFinancialRequest !== 'funding',
                     },
                     {
                       key: 'zero',
-                      label: 'Déclaration sans dépense',
+                      label: strings.zeroSpendingDeclaration,
                       hidden: newFinancialRequest !== 'zero',
                     },
                   ].map((option) =>
@@ -1740,7 +1836,7 @@ function ExecutionDetail({
                           variant="outline"
                           disabled={newFinancialRequest !== option.key}
                           onClick={() => {
-                            setFinancialModalMode('request')
+                            setFinancialModalMode('create')
                             setFinancialDrawer(option.key)
                           }}
                         >
@@ -1772,6 +1868,7 @@ function ExecutionDetail({
                     result={finance}
                     selected={selectedFinance}
                     role={role}
+                    authorizedAmount={authorizedAmount}
                     historicalPage={financeHistoryPage}
                     pending={pending}
                     mutate={mutateFinance}
@@ -1789,8 +1886,8 @@ function ExecutionDetail({
                     detail={detail}
                     result={virements}
                     current={currentVirement}
-                    selectedBySearch={virementSelectedBySearch}
                     role={role}
+                    authorizedAmount={approvedVirementAmount}
                     historicalPage={virementHistoryPage}
                     pending={pending}
                     mutate={mutateFinance}
@@ -1873,11 +1970,7 @@ function ExecutionDetail({
                 detail.closure
                   ? 'Confirmer que l’activité et son règlement sont terminés.'
                   : detail.works_completed && detail.closure_blockers?.length
-                    ? `${closureBlockerLabel(detail.closure_blockers[0])}${
-                        closureRequestOwner
-                          ? ` Responsable : ${closureRequestOwner}.`
-                          : ''
-                      }`
+                    ? closureBlockerLabel(detail.closure_blockers[0])
                     : detail.works_completed
                       ? 'Confirmer que l’activité et son règlement sont terminés.'
                       : strings.finishRealization
@@ -1886,37 +1979,9 @@ function ExecutionDetail({
               completed={Boolean(detail.closure)}
               defaultOpen={detail.allowed_actions?.includes('close')}
               actionLabel={
-                detail.closure
-                  ? 'Consulter'
-                  : detail.allowed_actions?.includes('close')
-                    ? 'Clôturer l’activité'
-                    : !detail.works_completed
-                      ? 'Renseigner la réalisation'
-                      : 'Consulter'
-              }
-              actionTo={
-                !detail.closure && !detail.works_completed
-                  ? {
-                      to: Urls.activity,
-                      params: { activityId: detail.id },
-                      search: (current) => ({
-                        ...current,
-                        tab: 'realization',
-                      }),
-                    }
-                  : undefined
-              }
-              secondaryActionLabel={
-                closureRequest
-                  ? closureRequest.allowed_actions?.some((action) =>
-                      ['prevalidate', 'approve'].includes(action),
-                    )
-                    ? 'Examiner la demande'
-                    : 'Ouvrir la demande'
-                  : undefined
-              }
-              onSecondaryAction={(event) =>
-                openFinancialRequest(closureRequest, event.currentTarget)
+                !detail.closure && detail.allowed_actions?.includes('close')
+                  ? 'Clôturer l’activité'
+                  : null
               }
               modalVariant="dialog"
             >
@@ -2119,27 +2184,13 @@ function ZeroSpendingSection({
           </ol>
         </details>
       )}
-      {(result?.previous || result?.next) && (
-        <nav
-          className="flex gap-2 items-end flex-wrap"
-          aria-label="Pagination des déclarations sans dépense"
-        >
-          <Button
-            variant="outline"
-            disabled={!result.previous}
-            onClick={() => onPage(result.previous)}
-          >
-            Précédent
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!result.next}
-            onClick={() => onPage(result.next)}
-          >
-            Suivant
-          </Button>
-        </nav>
-      )}
+      <Pagination
+        label="Pagination des déclarations sans dépense"
+        canPrevious={Boolean(result?.previous)}
+        canNext={Boolean(result?.next)}
+        onPrevious={() => onPage(result.previous)}
+        onNext={() => onPage(result.next)}
+      />
     </Panel>
   )
 }
@@ -2225,6 +2276,7 @@ function DisbursementSection({
   result,
   selected,
   role,
+  authorizedAmount,
   historicalPage,
   pending,
   mutate,
@@ -2234,8 +2286,8 @@ function DisbursementSection({
 }) {
   if (!result) return fallback
   const requests = result.data
-  const active = requests.find(
-    (request) => !['returned', 'cancelled'].includes(request.state),
+  const active = requests.find((request) =>
+    ['submitted', 'prevalidated'].includes(request.state),
   )
   const current =
     selected ||
@@ -2253,17 +2305,16 @@ function DisbursementSection({
     !historicalPage &&
     !active &&
     (!selected || ['returned', 'cancelled'].includes(selected.state)) &&
-    !detail.mutation_unavailable_reason &&
-    detail.works_completed &&
-    Number(detail.spending_total) > 0
+    detail.disbursement_can_submit
   const version = current?.activity_version || detail.version
   return (
     <Panel
-      aria-label="Autorisation de décaissement"
+      aria-label={strings.disbursementAuthorization}
       className="flex min-h-0 flex-1 flex-col"
     >
       <p className="text-sm text-muted-foreground">
-        {detail.name} · {detail.reference}
+        {detail.name}
+        {current ? ` · ${detail.reference}` : ''}
       </p>
       {current ? (
         <>
@@ -2273,187 +2324,71 @@ function DisbursementSection({
             </StatusBadge>
             <span>décaissement · {formatDate(current.submitted_at)}</span>
           </div>
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-border pb-5 text-sm">
-            <div>
-              <dt className="text-xs text-muted-foreground">Total demandé</dt>
-              <dd className="mt-1 text-base font-medium">
-                {formatXof(current.amount)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Budget prévu</dt>
-              <dd className="mt-1 text-base font-medium">
-                {formatXof(detail.approved_allocation)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">
-                Dépenses enregistrées
-              </dt>
-              <dd className="mt-1 text-base font-medium">
-                {formatXof(detail.spending_total)}
-              </dd>
-            </div>
-          </dl>
-          <section className="grid gap-3 border-b border-border pb-5">
-            <h3 className="font-semibold">Décisions</h3>
-            {current.decisions.length ? (
-              <ol className="grid gap-3">
-                {current.decisions.map((decision) => (
-                  <li key={decision.id} className="text-sm">
-                    <strong>
-                      {decision.stage === 'supervisor'
-                        ? 'Superviseur'
-                        : 'Validateur'}{' '}
-                      · {stateLabels[decision.outcome] || decision.outcome}
-                    </strong>
-                    <span className="mt-1 block text-muted-foreground">
-                      {decision.actor_name} ·{' '}
-                      {formatDateTime(decision.decided_at)}
-                    </span>
-                    {decision.reason && (
-                      <p className="mt-1">{decision.reason}</p>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="text-sm text-muted-foreground">Aucune décision.</p>
-            )}
-          </section>
-          <BusinessForm
-            className="order-last grid gap-5"
-            onSubmit={async (event) => {
-              event.preventDefault()
-              const data = new FormData(event.currentTarget)
-              const result = await mutate(
-                `/disbursement-requests/${current.id}/decisions`,
-                {
-                  expected_version: version,
-                  decision: 'return',
-                  reason: String(data.get('reason') || ''),
-                },
-              )
-              if (result !== false) onCancel()
-              return result
-            }}
-          >
-            {current.allowed_actions.includes('return') && (
-              <label>
-                Observation / motif du retour *
-                <textarea name="reason" required maxLength="4000" />
-              </label>
-            )}
-            <div data-ui="modal-actions" className="order-last">
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Annuler
-              </Button>
-              {current.allowed_actions.includes('return') && (
-                <Button
-                  type="submit"
-                  variant="outline"
-                  disabled={pending || !navigator.onLine}
-                >
-                  Retourner en correction
-                </Button>
-              )}
-              {current.allowed_actions.includes('prevalidate') && (
-                <Button
-                  type="button"
-                  disabled={pending || !navigator.onLine}
-                  onClick={() =>
-                    mutate(`/disbursement-requests/${current.id}/decisions`, {
-                      expected_version: version,
-                      decision: 'prevalidate',
-                    })
-                  }
-                >
-                  <ShieldCheck size={16} /> Prévalider
-                </Button>
-              )}
-              {current.allowed_actions.includes('approve') && (
-                <Button
-                  type="button"
-                  disabled={pending || !navigator.onLine}
-                  onClick={() =>
-                    mutate(`/disbursement-requests/${current.id}/decisions`, {
-                      expected_version: version,
-                      decision: 'approve',
-                    })
-                  }
-                >
-                  <ShieldCheck size={16} /> Autoriser
-                </Button>
-              )}
-            </div>
-          </BusinessForm>
-          {current.allowed_actions.includes('cancel') && (
-            <BusinessForm
-              className="order-last [&_>_label]:w-full"
-              onSubmit={(event) => {
-                event.preventDefault()
-                const data = new FormData(event.currentTarget)
-                const reason = String(data.get('reason') || '')
-                return mutate(
-                  `/disbursement-requests/${current.id}/cancellation`,
-                  { expected_version: version, reason },
-                )
-              }}
-            >
-              <label>
-                Motif *
-                <textarea name="reason" required maxLength="4000" />
-              </label>
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={pending || !navigator.onLine}
-              >
-                <XCircle size={16} /> Annuler la demande
-              </Button>
-            </BusinessForm>
-          )}
+          <FinancialRequestSummary
+            requested={current.amount}
+            authorized={authorizedAmount}
+            budget={detail.approved_allocation}
+            spending={detail.spending_total}
+            requestedLabel={strings.requestedTotal}
+            authorizedLabel={strings.currentAuthorizedTotal}
+            unavailableLabel={strings.notProvided}
+          />
+          <FinancialRequestApplicantDetails
+            request={current}
+            activityId={detail.id}
+            kind="disbursement"
+          />
+          <FinancialDecisionHistory
+            decisions={current.decisions}
+            stateLabels={stateLabels}
+          />
+          <FinancialDecisionForm
+            request={current}
+            version={version}
+            pending={pending}
+            path="/disbursement-requests"
+            mutate={mutate}
+            onCancel={onCancel}
+          />
+          <FinancialCancellationForm
+            request={current}
+            version={version}
+            path="/disbursement-requests"
+            pending={pending}
+            mutate={mutate}
+            className="order-last [&_>_label]:w-full"
+          />
         </>
       ) : null}
       {!current && (
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-border pb-5 text-sm max-[520px]:grid-cols-1">
-          <div>
-            <dt className="text-xs text-muted-foreground">Budget prévu</dt>
-            <dd className="mt-1 text-base font-medium">
-              {formatXof(detail.approved_allocation)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              Dépenses enregistrées
-            </dt>
-            <dd className="mt-1 text-base font-medium">
-              {formatXof(detail.spending_total)}
-            </dd>
-          </div>
-        </dl>
+        <FinancialRequestCreationContext
+          authorized={authorizedAmount}
+          budget={detail.approved_allocation}
+        />
       )}
       {(!current || ['returned', 'cancelled'].includes(current.state)) &&
         (role === 'AGENT_SAISIE' &&
         !historicalPage &&
-        detail.spending_total !== '0' ? (
-          <div data-ui="modal-actions">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              disabled={!canSubmit || pending || !navigator.onLine}
-              onClick={() =>
-                mutate('/disbursement-requests', {
+        detail.disbursement_remaining_amount !== '0' ? (
+          <FinancialRequestCreateForm
+            maximumAmount={detail.disbursement_remaining_amount}
+            pending={!canSubmit || pending}
+            onCancel={onCancel}
+            onSubmit={async (values, file) => {
+              const result = await submitFinancialRequest(
+                mutate,
+                '/disbursement-requests',
+                {
                   expected_version: detail.version,
                   expected_approved_revision_id: detail.approved_revision_id,
-                })
-              }
-            >
-              <CircleDollarSign size={16} /> Soumettre la demande
-            </Button>
-          </div>
+                  ...values,
+                },
+                file,
+              )
+              if (result !== false) onCancel()
+              return result
+            }}
+          />
         ) : (
           <p>Consultez l’état et l’historique de l’autorisation.</p>
         ))}
@@ -2476,27 +2411,13 @@ function DisbursementSection({
               </li>
             ))}
           </ol>
-          {(result.previous || result.next) && (
-            <nav
-              className="flex gap-2 items-end flex-wrap"
-              aria-label="Pagination financière"
-            >
-              <Button
-                variant="outline"
-                disabled={!result.previous}
-                onClick={() => onPage(result.previous)}
-              >
-                Précédent
-              </Button>
-              <Button
-                variant="outline"
-                disabled={!result.next}
-                onClick={() => onPage(result.next)}
-              >
-                Suivant
-              </Button>
-            </nav>
-          )}
+          <Pagination
+            label="Pagination financière"
+            canPrevious={Boolean(result.previous)}
+            canNext={Boolean(result.next)}
+            onPrevious={() => onPage(result.previous)}
+            onNext={() => onPage(result.next)}
+          />
         </details>
       )}
     </Panel>
@@ -2672,29 +2593,15 @@ function ExternalTransferStep({
                   </li>
                 ))}
               </ol>
-              {(confirmationHistory.previous || confirmationHistory.next) && (
-                <nav
-                  className="flex gap-2 items-end flex-wrap"
-                  aria-label="Pagination des déclarations de virement"
-                >
-                  <Button
-                    variant="outline"
-                    disabled={!confirmationHistory.previous}
-                    onClick={() =>
-                      onConfirmationPage(confirmationHistory.previous)
-                    }
-                  >
-                    Précédent
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={!confirmationHistory.next}
-                    onClick={() => onConfirmationPage(confirmationHistory.next)}
-                  >
-                    Suivant
-                  </Button>
-                </nav>
-              )}
+              <Pagination
+                label="Pagination des déclarations de virement"
+                canPrevious={Boolean(confirmationHistory.previous)}
+                canNext={Boolean(confirmationHistory.next)}
+                onPrevious={() =>
+                  onConfirmationPage(confirmationHistory.previous)
+                }
+                onNext={() => onConfirmationPage(confirmationHistory.next)}
+              />
             </details>
           )}
         </>
@@ -2716,6 +2623,8 @@ function ReversementStep({
   setUploadError: setReversementUploadError,
   onPage: onReversementPage,
 }) {
+  const reversementRequestId =
+    current.reversement.current_declaration?.request_id || current.id
   const [reversementDate, setReversementDate] = useState(
     current.reversement.current_declaration?.return_date || '',
   )
@@ -2794,7 +2703,7 @@ function ReversementStep({
           <p>
             Montant autorisé :{' '}
             <strong>{formatXof(detail.approved_allocation)}</strong> · montant
-            dépensé : <strong>{formatXof(current.amount)}</strong>.
+            dépensé : <strong>{formatXof(detail.spending_total)}</strong>.
           </p>
           <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
             <div>
@@ -2856,7 +2765,7 @@ function ReversementStep({
                   current.reversement.current_declaration,
                 )
                 const saved = await mutate(
-                  `/virement-requests/${current.id}/reversement${
+                  `/virement-requests/${reversementRequestId}/reversement${
                     correcting ? '/corrections' : ''
                   }`,
                   {
@@ -2993,29 +2902,15 @@ function ReversementStep({
                   </li>
                 ))}
               </ol>
-              {(reversementHistory.previous || reversementHistory.next) && (
-                <nav
-                  className="flex gap-2 items-end flex-wrap"
-                  aria-label="Pagination des déclarations de reversement"
-                >
-                  <Button
-                    variant="outline"
-                    disabled={!reversementHistory.previous}
-                    onClick={() =>
-                      onReversementPage(reversementHistory.previous)
-                    }
-                  >
-                    Précédent
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={!reversementHistory.next}
-                    onClick={() => onReversementPage(reversementHistory.next)}
-                  >
-                    Suivant
-                  </Button>
-                </nav>
-              )}
+              <Pagination
+                label="Pagination des déclarations de reversement"
+                canPrevious={Boolean(reversementHistory.previous)}
+                canNext={Boolean(reversementHistory.next)}
+                onPrevious={() =>
+                  onReversementPage(reversementHistory.previous)
+                }
+                onNext={() => onReversementPage(reversementHistory.next)}
+              />
             </details>
           )}
         </>
@@ -3029,8 +2924,8 @@ function VirementSection({
   detail,
   result,
   current,
-  selectedBySearch,
   role,
+  authorizedAmount,
   historicalPage,
   pending,
   mutate,
@@ -3051,174 +2946,89 @@ function VirementSection({
   const version = current?.activity_version || detail.version
   return (
     <Panel
-      aria-label="Autorisation de virement"
+      aria-label={strings.virementAuthorization}
       className="flex min-h-0 flex-1 flex-col"
     >
       <p className="text-sm text-muted-foreground">
-        {detail.name} · {detail.reference}
+        {detail.name}
+        {current ? ` · ${detail.reference}` : ''}
       </p>
-      <div className="flex justify-end items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        {current && <strong>{stateLabels[current.state]}</strong>}
-      </div>
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-border pb-5 text-sm max-[520px]:grid-cols-1">
-        <div>
-          <dt className="text-xs text-muted-foreground">Budget prévu</dt>
-          <dd className="mt-1 text-base font-medium">
-            {formatXof(detail.approved_allocation)}
-          </dd>
+      {current && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <StatusBadge className={administrativeStateClass(current.state)}>
+            {administrativeStates[current.state] || current.state}
+          </StatusBadge>
+          <span>virement · {formatDate(current.submitted_at)}</span>
         </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">
-            Total actuellement autorisé
-          </dt>
-          <dd className="mt-1 text-base font-medium">
-            {(current?.amount ?? context.amount)
-              ? formatXof(current?.amount ?? context.amount)
-              : strings.notProvided}
-          </dd>
-        </div>
-      </dl>
-      <p className="text-sm text-muted-foreground">
-        Cette autorisation porte sur le montant de décaissement déjà approuvé.
-        Elle ne confirme pas qu’un virement externe a été effectué.
-      </p>
+      )}
+      {current ? (
+        <FinancialRequestSummary
+          requested={current.amount}
+          authorized={authorizedAmount}
+          budget={detail.approved_allocation}
+          spending={detail.spending_total}
+          requestedLabel={strings.requestedTotal}
+          authorizedLabel={strings.currentAuthorizedTotal}
+          unavailableLabel={strings.notProvided}
+        />
+      ) : (
+        <FinancialRequestCreationContext
+          authorized={context.amount ?? null}
+          budget={detail.approved_allocation}
+        />
+      )}
       {current?.state === 'returned' && <p>{strings.virementReturned}</p>}
       {current ? (
         <>
-          <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-            Montant verrouillé : <strong>{formatXof(current.amount)}</strong>.
-            L’autorisation de décaissement et les dépenses restent figées, même
-            si cette demande est annulée.
-          </p>
-          {selectedBySearch && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onSelect('')}
-            >
-              Fermer le détail
-            </Button>
-          )}
-          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-            {current.decisions.map((decision) => (
-              <li key={decision.id}>
-                <strong>
-                  {decision.stage === 'supervisor'
-                    ? 'Superviseur'
-                    : 'Validateur'}{' '}
-                  · {stateLabels[decision.outcome] || decision.outcome}
-                </strong>
-                {decision.reason && <p>{decision.reason}</p>}
-              </li>
-            ))}
-          </ol>
-          <div data-ui="modal-actions">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Annuler
-            </Button>
-            {current.allowed_actions.includes('prevalidate') && (
-              <Button
-                type="button"
-                disabled={pending || !navigator.onLine}
-                onClick={() =>
-                  mutate(`/virement-requests/${current.id}/decisions`, {
-                    expected_version: version,
-                    decision: 'prevalidate',
-                  })
-                }
-              >
-                <ShieldCheck size={16} /> Prévalider
-              </Button>
-            )}
-            {current.allowed_actions.includes('approve') && (
-              <Button
-                type="button"
-                disabled={pending || !navigator.onLine}
-                onClick={() =>
-                  mutate(`/virement-requests/${current.id}/decisions`, {
-                    expected_version: version,
-                    decision: 'approve',
-                  })
-                }
-              >
-                <ShieldCheck size={16} /> Autoriser
-              </Button>
-            )}
-          </div>
-          {(current.allowed_actions.includes('return') ||
-            current.allowed_actions.includes('cancel')) && (
-            <BusinessForm
-              className="[&_>_label]:w-full"
-              onSubmit={(event) => {
-                event.preventDefault()
-                const data = new FormData(event.currentTarget)
-                const reason = String(data.get('reason') || '')
-                const cancellation =
-                  event.nativeEvent.submitter?.value === 'cancel'
-                return mutate(
-                  `/virement-requests/${current.id}/${
-                    cancellation ? 'cancellation' : 'decisions'
-                  }`,
-                  cancellation
-                    ? { expected_version: version, reason }
-                    : {
-                        expected_version: version,
-                        decision: 'return',
-                        reason,
-                      },
-                )
-              }}
-            >
-              <label>
-                Motif *
-                <textarea name="reason" required maxLength="4000" />
-              </label>
-              <div className="flex gap-2 items-end flex-wrap">
-                {current.allowed_actions.includes('return') && (
-                  <Button
-                    type="submit"
-                    value="return"
-                    variant="outline"
-                    disabled={pending || !navigator.onLine}
-                  >
-                    Retourner
-                  </Button>
-                )}
-                {current.allowed_actions.includes('cancel') && (
-                  <Button
-                    type="submit"
-                    value="cancel"
-                    variant="outline"
-                    disabled={pending || !navigator.onLine}
-                  >
-                    <XCircle size={16} /> Annuler la demande
-                  </Button>
-                )}
-              </div>
-            </BusinessForm>
-          )}
+          <FinancialRequestApplicantDetails
+            request={current}
+            activityId={detail.id}
+            kind="virement"
+          />
+          <FinancialDecisionHistory
+            decisions={current.decisions}
+            stateLabels={stateLabels}
+          />
+          <FinancialDecisionForm
+            request={current}
+            version={version}
+            pending={pending}
+            path="/virement-requests"
+            mutate={mutate}
+            onCancel={onCancel}
+          />
+          <FinancialCancellationForm
+            request={current}
+            version={version}
+            path="/virement-requests"
+            pending={pending}
+            mutate={mutate}
+            className="[&_>_label]:w-full"
+          />
         </>
       ) : null}
       {(!current || ['returned', 'cancelled'].includes(current.state)) &&
         (role === 'AGENT_SAISIE' && !historicalPage ? (
-          <div data-ui="modal-actions">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              disabled={!context.can_submit || pending || !navigator.onLine}
-              onClick={() =>
-                mutate('/virement-requests', {
+          <FinancialRequestCreateForm
+            maximumAmount={context.amount}
+            pending={!context.can_submit || pending}
+            onCancel={onCancel}
+            onSubmit={async (values, file) => {
+              const result = await submitFinancialRequest(
+                mutate,
+                '/virement-requests',
+                {
                   expected_version: detail.version,
                   expected_disbursement_request_id:
                     context.disbursement_request_id,
-                })
-              }
-            >
-              <CircleDollarSign size={16} /> Soumettre la demande
-            </Button>
-          </div>
+                  ...values,
+                },
+                file,
+              )
+              if (result !== false) onCancel()
+              return result
+            }}
+          />
         ) : (
           <p>
             {context.unavailable_reason === 'disbursement_required'
@@ -3245,27 +3055,13 @@ function VirementSection({
               </li>
             ))}
           </ol>
-          {(result.previous || result.next) && (
-            <nav
-              className="flex gap-2 items-end flex-wrap"
-              aria-label="Pagination des virements"
-            >
-              <Button
-                variant="outline"
-                disabled={!result.previous}
-                onClick={() => onPage(result.previous)}
-              >
-                Précédent
-              </Button>
-              <Button
-                variant="outline"
-                disabled={!result.next}
-                onClick={() => onPage(result.next)}
-              >
-                Suivant
-              </Button>
-            </nav>
-          )}
+          <Pagination
+            label="Pagination des virements"
+            canPrevious={Boolean(result.previous)}
+            canNext={Boolean(result.next)}
+            onPrevious={() => onPage(result.previous)}
+            onNext={() => onPage(result.next)}
+          />
         </details>
       )}
     </Panel>
@@ -3339,27 +3135,15 @@ function FundingSection({
           states={states}
         />
       ))}
-      {(result.previous || result.next) && (
-        <nav
-          className="flex gap-2 items-end flex-wrap"
-          aria-label={strings.fundingPagination}
-        >
-          <Button
-            variant="outline"
-            disabled={!result.previous}
-            onClick={() => onPage(result.previous)}
-          >
-            {strings.fundingPrevious}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!result.next}
-            onClick={() => onPage(result.next)}
-          >
-            {strings.fundingNext}
-          </Button>
-        </nav>
-      )}
+      <Pagination
+        label={strings.fundingPagination}
+        canPrevious={Boolean(result.previous)}
+        canNext={Boolean(result.next)}
+        previousLabel={strings.fundingPrevious}
+        nextLabel={strings.fundingNext}
+        onPrevious={() => onPage(result.previous)}
+        onNext={() => onPage(result.next)}
+      />
     </Panel>
   )
 }

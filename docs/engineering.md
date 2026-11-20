@@ -359,6 +359,30 @@ interaction. Assertions must demonstrate behavior in context rather than repeat
 constants, fixture setup or implementation details. Update the active slice plan
 after each slice with progress and lessons that affect subsequent work.
 
+For changed behavior, identify the current rule or risk, valid starting state and
+actor, action, observable outcome, appropriate test level and existing scenario.
+Cover one coherent user goal rather than splitting every interaction or combining
+unrelated lifecycles. Retain focused tests for exact calculations, authorization,
+transactions, migrations and other risks that do not need a browser journey.
+Retire expectations that preserve a superseded decision or protect no current
+rule; do not add standalone tests for editorial wording. Text remains valid test
+evidence when it identifies an accessible control or carries a business result,
+error, exact amount, saved reason or prohibited disclosure.
+
+Combine or retire duplicate tests only when they protect the same current risk
+at the same boundary with equivalent defect detection. Identify the surviving
+scenario and preserve unique useful assertions before removal. Share setup or
+parameterize equivalent cases without joining independent goals into one long
+test. Reduced test count alone is not a quality or performance improvement.
+
+Frontend mutations must demonstrate the resulting screen state after completion
+or refetch, not only a request, mock call, cache invalidation or toast. API
+mutations establish the important response and fresh persisted result, adding
+database or audit inspection when that is the protected invariant. Controlled
+browser responses must match the current API and fail unexpected requests.
+Report controlled-browser and connected application journeys separately; a
+skipped connected journey is not passing evidence.
+
 Use PK/FK, uniqueness, NOT NULL and CHECK for local invariants, explicitly handling
 nullable operands. Cross-row sums/rules require locked transaction checks. One
 use case owns the outer transaction including authorization, writes and audit.

@@ -417,6 +417,12 @@ test('OTP fields accept a pasted code and keyboard submission', async () => {
     />,
   )
   const input = await screen.findByLabelText('Code de vérification')
+  expect(
+    screen.getByRole('button', { name: 'Renvoyer le code' }),
+  ).not.toHaveClass('w-full')
+  expect(
+    screen.getByRole('button', { name: 'Retour à la connexion' }),
+  ).not.toHaveClass('w-full')
   await user.click(input)
   await user.paste('123456')
   expect(await screen.findByRole('alert')).toHaveTextContent(

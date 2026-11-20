@@ -672,6 +672,7 @@ def test_representative_history_journey_finance_reasons_exports_and_partner_deni
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     )
     assert requested.status_code == 201, requested.text

@@ -10,6 +10,7 @@ import { Button } from '@/shared/ui/button'
 import { Panel } from '@/shared/ui/layout'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
+import { Pagination } from '@/shared/ui/Pagination'
 import { FileSelection } from '@/shared/ui/FileSelection'
 import {
   formatExactNumber,
@@ -21,6 +22,8 @@ import { strings } from '@/locales/fr/PlanningView'
 import { CategoryCreator } from './CategoryCreator'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { CompactAllocationTable } from './CompactAllocationTable'
+import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
+import { missingRequiredFieldProps } from '@/shared/ui/required-field-feedback'
 
 const positiveAmount = (value) => /^[1-9]\d*$/.test(String(value || ''))
 const percentagePattern = /^(?:100(?:\.0{1,2})?|(?:[1-9]?\d)(?:\.\d{1,2})?)$/
@@ -162,8 +165,9 @@ function submissionProblems({ name, start, end, amount, tasks }) {
   return problems
 }
 
-function draftProblems({ start, end, amount, tasks }) {
+function draftProblems({ name, start, end, amount, tasks }) {
   const problems = []
+  if (!name.trim()) problems.push(strings.submissionActivityName)
   if (start && end && end < start) problems.push(strings.draftActivityPeriod)
   if (positiveAmount(amount) && sumAmounts(tasks) > BigInt(amount))
     problems.push(strings.draftTaskAmountExceeded)
@@ -240,11 +244,7 @@ function ConfirmRemoval({ removal, onClose, onConfirm }) {
           <Button type="button" variant="outline" onClick={onClose}>
             {strings.cancel}
           </Button>
-          <Button
-            type="button"
-            className="bg-danger text-white hover:opacity-90"
-            onClick={onConfirm}
-          >
+          <Button type="button" variant="danger" onClick={onConfirm}>
             {strings.remove}
           </Button>
         </div>
@@ -254,11 +254,12 @@ function ConfirmRemoval({ removal, onClose, onConfirm }) {
   )
 }
 
-function SubtaskDrawer({ task, index, onClose, onSave }) {
+function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
   const opener = useRef(document.activeElement)
   const [draft, setDraft] = useState(() =>
     index === null ? emptySubtask() : { ...task.subtasks[index] },
   )
+  const [attemptedSave, setAttemptedSave] = useState(false)
   const update = (changes) =>
     setDraft((current) => ({ ...current, ...changes }))
   const valid = draft.name.trim() && positiveAmount(draft.allocation)
@@ -278,8 +279,9 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
         className="min-h-0 grid-rows-[minmax(0,1fr)_auto] rounded-none border-0"
         onSubmit={(event) => {
           event.stopPropagation()
-          if (!valid) return
-          onSave(draft)
+          setAttemptedSave(true)
+          if (!valid) return false
+          return onSave(draft)
         }}
       >
         <div className="grid content-start gap-5 overflow-y-auto">
@@ -287,6 +289,10 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
             {strings.title} *
             <input
               aria-label={strings.title}
+              aria-required="true"
+              {...missingRequiredFieldProps(
+                attemptedSave && !draft.name.trim(),
+              )}
               autoFocus
               maxLength={200}
               value={draft.name}
@@ -307,6 +313,10 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
               {strings.operationAmount} *
               <ExactNumberInput
                 aria-label={strings.subtaskPlannedAmount}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  attemptedSave && !positiveAmount(draft.allocation),
+                )}
                 value={draft.allocation}
                 onChange={(allocation) => update({ allocation })}
               />
@@ -319,6 +329,10 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
                 max="100"
                 step="0.01"
                 aria-label={strings.subtaskWeightPercent}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  submissionAttempted && !positivePercentage(draft.weight),
+                )}
                 value={draft.weight || ''}
                 onChange={(weight) => update({ weight })}
               />
@@ -329,6 +343,10 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
               {strings.subtaskStartDate} *
               <DatePicker
                 label={strings.subtaskStartDate}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  submissionAttempted && !draft.planned_start,
+                )}
                 value={draft.planned_start || ''}
                 min={task.planned_start || undefined}
                 max={draft.planned_end || task.planned_end || undefined}
@@ -340,6 +358,10 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
               {strings.subtaskEndDate} *
               <DatePicker
                 label={strings.subtaskEndDate}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  submissionAttempted && !draft.planned_end,
+                )}
                 value={draft.planned_end || ''}
                 min={draft.planned_start || task.planned_start || undefined}
                 max={task.planned_end || undefined}
@@ -353,9 +375,7 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
           <Button type="button" variant="outline" onClick={onClose}>
             {strings.cancel}
           </Button>
-          <Button type="submit" disabled={!valid}>
-            {strings.saveSubtask}
-          </Button>
+          <Button type="submit">{strings.saveSubtask}</Button>
         </div>
       </Panel>
     </Modal>,
@@ -364,7 +384,6 @@ function SubtaskDrawer({ task, index, onClose, onSave }) {
 }
 
 function CategoryPager({ result, navigate }) {
-  if (!result?.previous && !result?.next) return null
   const move = (link) =>
     navigate({
       search: (current) => ({
@@ -373,26 +392,16 @@ function CategoryPager({ result, navigate }) {
       }),
     })
   return (
-    <nav className="flex flex-wrap gap-2" aria-label={strings.categoryPages}>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={!result.previous}
-        onClick={() => move(result.previous)}
-      >
-        {strings.previousPage}
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={!result.next}
-        onClick={() => move(result.next)}
-      >
-        {strings.nextPage}
-      </Button>
-    </nav>
+    <Pagination
+      label={strings.categoryPages}
+      canPrevious={Boolean(result?.previous)}
+      canNext={Boolean(result?.next)}
+      onPrevious={() => move(result.previous)}
+      onNext={() => move(result.next)}
+      previousLabel={strings.previousPage}
+      nextLabel={strings.nextPage}
+      size="sm"
+    />
   )
 }
 
@@ -408,6 +417,7 @@ function TaskEditor({
   onCreateType,
   onCancel,
   onSave,
+  submissionAttempted,
 }) {
   const [draft, setDraft] = useState(() => ({
     ...task,
@@ -416,6 +426,7 @@ function TaskEditor({
   const [drawerIndex, setDrawerIndex] = useState(undefined)
   const [removal, setRemoval] = useState(null)
   const [categoryCreatorOpen, setCategoryCreatorOpen] = useState(false)
+  const [attemptedSave, setAttemptedSave] = useState(false)
   const categorySelect = useRef(null)
   const update = (changes) =>
     setDraft((current) => ({ ...current, ...changes }))
@@ -434,17 +445,6 @@ function TaskEditor({
       label: draft.type_label || strings.existingCategory,
     })
   const canSave = draft.name.trim() && positiveAmount(draft.allocation)
-  const goTo = (event, to, params) => {
-    if (!navigate) return
-    event.preventDefault()
-    navigate({ to, params })
-  }
-  const ptaHref = activity.projectId
-    ? `/projects/${encodeURIComponent(activity.projectId)}/ptas/${encodeURIComponent(activity.year)}`
-    : ''
-  const activityHref = activity.id
-    ? `/activities/${encodeURIComponent(activity.id)}`
-    : ''
   return (
     <Panel
       as={BusinessForm}
@@ -452,52 +452,42 @@ function TaskEditor({
       data-task-editor
       onSubmit={(event) => {
         event.stopPropagation()
+        setAttemptedSave(true)
         if (!canSave || pending) return false
         return onSave(draft)
       }}
     >
-      <nav
-        className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
-        aria-label={strings.breadcrumb}
-      >
-        <a
-          href={Urls.planning}
-          className="text-primary"
-          onClick={(event) => goTo(event, Urls.planning)}
-        >
-          {strings.planningIndex}
-        </a>
-        <span aria-hidden="true">/</span>
-        {activity.projectId ? (
-          <a
-            href={ptaHref}
-            className="text-primary"
-            onClick={(event) =>
-              goTo(event, Urls.pta, {
-                projectId: activity.projectId,
-                year: String(activity.year),
-              })
-            }
-          >
-            PTA {activity.year}
-          </a>
-        ) : (
-          <span>PTA {activity.year}</span>
-        )}
-        <span aria-hidden="true">/</span>
-        <a
-          href={activityHref || '#activity-editor'}
-          className="text-primary"
-          onClick={(event) => {
-            event.preventDefault()
-            onReturnToActivity()
-          }}
-        >
-          {strings.activitySingular}
-        </a>
-        <span aria-hidden="true">/</span>
-        <span>{task.id || task.name ? strings.editTask : strings.newTask}</span>
-      </nav>
+      <Breadcrumbs
+        label={strings.breadcrumb}
+        items={[
+          { label: strings.planningIndex, to: Urls.planning },
+          activity.projectId
+            ? {
+                label: `PTA ${activity.year}`,
+                to: Urls.pta,
+                params: {
+                  projectId: activity.projectId,
+                  year: String(activity.year),
+                },
+              }
+            : { label: `PTA ${activity.year}` },
+          {
+            label: strings.activitySingular,
+            to: activity.id ? Urls.activity : Urls.newActivity,
+            params: activity.id
+              ? { activityId: activity.id }
+              : {
+                  projectId: activity.projectId,
+                  year: String(activity.year),
+                },
+            onClick: (event) => {
+              event.preventDefault()
+              onReturnToActivity()
+            },
+          },
+          { label: task.id || task.name ? strings.editTask : strings.newTask },
+        ]}
+      />
       <header>
         <h1 className="text-2xl font-semibold text-navy">
           {task.id || task.name
@@ -517,6 +507,10 @@ function TaskEditor({
             {strings.title} *
             <input
               aria-label={strings.title}
+              aria-required="true"
+              {...missingRequiredFieldProps(
+                attemptedSave && !draft.name.trim(),
+              )}
               autoFocus
               maxLength={200}
               value={draft.name}
@@ -537,6 +531,10 @@ function TaskEditor({
               {strings.activityOperationType} *
               <Select
                 aria-label={strings.activityOperationType}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  submissionAttempted && !draft.type_id,
+                )}
                 ref={categorySelect}
                 value={draft.type_id || ''}
                 disabled={categoriesUnavailable}
@@ -583,6 +581,10 @@ function TaskEditor({
               {strings.plannedStart} *
               <DatePicker
                 label={strings.plannedStart}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  submissionAttempted && !draft.planned_start,
+                )}
                 value={draft.planned_start || ''}
                 min={activity.start || undefined}
                 max={draft.planned_end || activity.end || undefined}
@@ -594,6 +596,10 @@ function TaskEditor({
               {strings.plannedEnd} *
               <DatePicker
                 label={strings.plannedEnd}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  submissionAttempted && !draft.planned_end,
+                )}
                 value={draft.planned_end || ''}
                 min={draft.planned_start || activity.start || undefined}
                 max={activity.end || undefined}
@@ -613,6 +619,10 @@ function TaskEditor({
             {strings.operationAmount} *
             <ExactNumberInput
               aria-label={strings.taskPlannedAmount}
+              aria-required="true"
+              {...missingRequiredFieldProps(
+                attemptedSave && !positiveAmount(draft.allocation),
+              )}
               value={draft.allocation}
               onChange={(allocation) => update({ allocation })}
             />
@@ -625,6 +635,10 @@ function TaskEditor({
               max="100"
               step="0.01"
               aria-label={strings.taskWeightPercent}
+              aria-required="true"
+              {...missingRequiredFieldProps(
+                submissionAttempted && !positivePercentage(draft.weight),
+              )}
               value={draft.weight || ''}
               onChange={(weight) => update({ weight })}
             />
@@ -713,7 +727,7 @@ function TaskEditor({
         <Button type="button" variant="outline" onClick={onCancel}>
           {strings.cancel}
         </Button>
-        <Button type="submit" disabled={pending || !canSave}>
+        <Button type="submit" disabled={pending}>
           {strings.saveTask}
         </Button>
       </div>
@@ -721,6 +735,7 @@ function TaskEditor({
         <SubtaskDrawer
           task={draft}
           index={drawerIndex}
+          submissionAttempted={submissionAttempted}
           onClose={() => setDrawerIndex(undefined)}
           onSave={(child) => {
             update({
@@ -805,7 +820,13 @@ export function ActivityForm({
     amount,
     tasks,
   })
-  const incompleteDraftProblems = draftProblems({ start, end, amount, tasks })
+  const incompleteDraftProblems = draftProblems({
+    name,
+    start,
+    end,
+    amount,
+    tasks,
+  })
   const visibleProblems = attemptedSubmission
     ? problems
     : attemptedDraft
@@ -852,6 +873,7 @@ export function ActivityForm({
           restoreActivityEditorFocus()
           toast.success(strings.taskKept)
         }}
+        submissionAttempted={attemptedSubmission}
       />
     )
 
@@ -911,7 +933,10 @@ export function ActivityForm({
               {strings.activityName} *
               <input
                 aria-label={strings.activityName}
-                required
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  (attemptedSubmission || attemptedDraft) && !name.trim(),
+                )}
                 maxLength={200}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -937,6 +962,8 @@ export function ActivityForm({
               {strings.startDate} *
               <DatePicker
                 label={strings.startDate}
+                aria-required="true"
+                {...missingRequiredFieldProps(attemptedSubmission && !start)}
                 value={start}
                 min={year ? `${year}-01-01` : undefined}
                 max={year ? `${year}-12-31` : undefined}
@@ -948,6 +975,8 @@ export function ActivityForm({
               {strings.endDate} *
               <DatePicker
                 label={strings.endDate}
+                aria-required="true"
+                {...missingRequiredFieldProps(attemptedSubmission && !end)}
                 value={end}
                 min={start || undefined}
                 optional
@@ -977,6 +1006,10 @@ export function ActivityForm({
               {strings.plannedAmount} *
               <ExactNumberInput
                 aria-label={strings.plannedAmount}
+                aria-required="true"
+                {...missingRequiredFieldProps(
+                  attemptedSubmission && !positiveAmount(amount),
+                )}
                 value={amount}
                 onChange={setAmount}
               />

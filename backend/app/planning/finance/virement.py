@@ -3,11 +3,20 @@ from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    Query,
+    Request,
+    Response,
+)
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.auth.dto import ErrorResponse
 from app.auth.routes import Auth, evidence
@@ -31,6 +40,14 @@ from app.planning.core.service import (
 )
 from app.planning.finance import actor_display_names
 from app.planning.finance.disbursement import verified_financial_basis
+from app.planning.finance.request_attachments import (
+    REQUEST_ATTACHMENT_OPENAPI,
+    RequestAttachment,
+    attachment_output,
+    attachment_response,
+    attachment_values,
+    read_request_attachment,
+)
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
     mark_review_handled,
@@ -61,11 +78,24 @@ class Input(BaseModel):
 class SubmitInput(Input):
     expected_version: int = Field(gt=0, strict=True)
     expected_disbursement_request_id: str = Field(max_length=36)
+    amount: str = Field(pattern=r"^[1-9][0-9]*$")
+    observation: str | None = Field(default=None, max_length=4000)
 
     @field_validator("expected_disbursement_request_id")
     @classmethod
     def uuid(cls, value: str) -> str:
         return str(UUID(value))
+
+    @field_validator("observation", mode="before")
+    @classmethod
+    def observation_text(cls, value: object) -> object:
+        return (value.strip() or None) if isinstance(value, str) else value
+
+
+class AttachmentOutput(Input):
+    name: str
+    media_type: str
+    size: int
 
 
 class DecisionInput(Input):
@@ -120,6 +150,7 @@ class ConfirmationOutput(Input):
 
 class ReversementDeclarationOutput(Input):
     id: str
+    request_id: str
     revision: int
     returned_amount: str
     return_date: str
@@ -143,8 +174,11 @@ class RequestOutput(Input):
     disbursement_request_id: str
     approved_revision_id: str
     amount: str
+    observation: str | None
+    attachment: AttachmentOutput | None
     state: str
     submitter_id: str
+    submitter_name: str
     submitted_at: str
     cancellation: CancellationOutput | None
     decisions: list[DecisionOutput]
@@ -174,13 +208,83 @@ def list_args(
 def active_request(
     db: Session, activity_id: str, *, lock: bool = False
 ) -> VirementRequest | None:
-    statement = select(VirementRequest).where(
-        VirementRequest.activity_id == activity_id,
-        VirementRequest.state.not_in(("returned", "cancelled")),
+    statement = (
+        select(VirementRequest)
+        .where(
+            VirementRequest.activity_id == activity_id,
+            VirementRequest.state.not_in(("returned", "cancelled")),
+        )
+        .order_by(VirementRequest.submitted_at.desc(), VirementRequest.id.desc())
+        .limit(1)
     )
     if lock:
         statement = statement.with_for_update()
     return db.scalar(statement)
+
+
+def pending_request(
+    db: Session, activity_id: str, *, lock: bool = False
+) -> VirementRequest | None:
+    statement = select(VirementRequest).where(
+        VirementRequest.activity_id == activity_id,
+        VirementRequest.state.in_(("submitted", "prevalidated")),
+    )
+    if lock:
+        statement = statement.with_for_update()
+    return db.scalar(statement)
+
+
+def approved_amount_for_source(
+    db: Session, source_id: str, *, lock: bool = False
+) -> int:
+    statement = select(VirementRequest).where(
+        VirementRequest.disbursement_request_id == source_id,
+        VirementRequest.state == "approved",
+    )
+    if lock:
+        statement = statement.with_for_update()
+    return sum(row.amount for row in db.scalars(statement))
+
+
+def settlement_ready_for_reversement(
+    db: Session, item: Activity, *, lock: bool = False
+) -> bool:
+    spent, _operations, _authors = verified_financial_basis(db, item, lock=lock)
+    source_statement = select(DisbursementRequest).where(
+        DisbursementRequest.activity_id == item.id,
+        DisbursementRequest.approved_revision_id == item.approved_revision_id,
+        DisbursementRequest.state == "approved",
+    )
+    virement_statement = select(VirementRequest).where(
+        VirementRequest.activity_id == item.id,
+        VirementRequest.state == "approved",
+    )
+    if lock:
+        source_statement = source_statement.with_for_update()
+        virement_statement = virement_statement.with_for_update()
+    sources = list(db.scalars(source_statement))
+    virements = list(db.scalars(virement_statement))
+    source_ids = {row.id for row in sources}
+    if (
+        sum(row.amount for row in sources) != spent
+        or sum(row.amount for row in virements) != spent
+    ):
+        return False
+    if any(row.disbursement_request_id not in source_ids for row in virements):
+        return False
+    for row in virements:
+        statement = (
+            select(VirementConfirmation)
+            .where(VirementConfirmation.request_id == row.id)
+            .order_by(VirementConfirmation.revision.desc())
+            .limit(1)
+        )
+        if lock:
+            statement = statement.with_for_update()
+        confirmation = db.scalar(statement)
+        if not confirmation or confirmation.amount != row.amount:
+            return False
+    return bool(virements)
 
 
 def request_decisions(db: Session, request_id: str) -> list[VirementDecision]:
@@ -208,6 +312,23 @@ def source_request(
     return result
 
 
+def snapshot_spending(source: DisbursementRequest) -> int:
+    operations = source.snapshot.get("operations")
+    if not isinstance(operations, list):
+        raise AuthError(409, "financial_basis_stale")
+    amounts: list[int] = []
+    for operation in operations:
+        amount = operation.get("actual_spent") if isinstance(operation, dict) else None
+        if (
+            not isinstance(amount, str)
+            or not amount.isascii()
+            or not amount.isdecimal()
+        ):
+            raise AuthError(409, "financial_basis_stale")
+        amounts.append(int(amount))
+    return sum(amounts)
+
+
 def verified_source(
     db: Session, item: Activity, request_id: str, *, lock: bool = False
 ) -> DisbursementRequest:
@@ -221,7 +342,7 @@ def verified_source(
     total, operations, _authors = verified_financial_basis(db, item)
     if (
         source.approved_revision_id != item.approved_revision_id
-        or source.amount != total
+        or source.amount > total
         or source.snapshot.get("allocation") != str(item.allocation)
         or source.snapshot.get("operations") != operations
     ):
@@ -283,7 +404,9 @@ def output(
         db, financial.activity_id, financial.disbursement_request_id
     )
     rows = request_decisions(db, financial.id)
-    actors = actor_display_names(db, (row.actor_id for row in rows))
+    actors = actor_display_names(
+        db, [financial.submitter_id, *(row.actor_id for row in rows)]
+    )
     confirmation = db.scalar(
         select(VirementConfirmation)
         .where(VirementConfirmation.request_id == financial.id)
@@ -292,8 +415,11 @@ def output(
     )
     reversement = db.scalar(
         select(ReversementDeclaration)
-        .where(ReversementDeclaration.request_id == financial.id)
-        .order_by(ReversementDeclaration.revision.desc())
+        .where(ReversementDeclaration.activity_id == financial.activity_id)
+        .order_by(
+            ReversementDeclaration.recorded_at.desc(),
+            ReversementDeclaration.id.desc(),
+        )
         .limit(1)
     )
     can_work = role == "AGENT_SAISIE" and (
@@ -309,10 +435,15 @@ def output(
     item = get_activity(db, financial.activity_id)
     project = db.get(Project, item.request_project_id)
     settlement_allowed = pause_reason(db, item, project) is None
-    if can_work and financial.state == "approved" and settlement_allowed:
+    if (
+        can_work
+        and financial.state == "approved"
+        and settlement_allowed
+        and reversement is None
+    ):
         if not confirmation:
             actions.append("declare_confirmation")
-        elif not reversement:
+        else:
             actions.append("correct_confirmation")
     reversement_output: dict[str, Any] | None = None
     if confirmation and financial.state == "approved":
@@ -323,11 +454,16 @@ def output(
             or not allocation.isdecimal()
         ):
             raise AuthError(409, "financial_basis_stale")
-        required = int(allocation) - source.amount
+        required = int(allocation) - snapshot_spending(source)
         if required < 0:
             raise AuthError(409, "financial_insufficiency_unresolved")
         reversement_actions = ["read"]
-        if can_work and required > 0 and settlement_allowed:
+        if (
+            can_work
+            and required > 0
+            and settlement_allowed
+            and settlement_ready_for_reversement(db, item)
+        ):
             reversement_actions.append("correct" if reversement else "declare")
         reversement_output = {
             "required_amount": str(required),
@@ -342,6 +478,7 @@ def output(
             "current_declaration": (
                 {
                     "id": reversement.id,
+                    "request_id": reversement.request_id,
                     "revision": reversement.revision,
                     "returned_amount": str(reversement.amount),
                     "return_date": reversement.return_date.isoformat(),
@@ -360,9 +497,14 @@ def output(
         "activity_id": financial.activity_id,
         "disbursement_request_id": source.id,
         "approved_revision_id": source.approved_revision_id,
-        "amount": str(source.amount),
+        "amount": str(financial.amount),
+        "observation": financial.observation,
+        "attachment": attachment_output(financial),
         "state": financial.state,
         "submitter_id": financial.submitter_id,
+        "submitter_name": actors.get(
+            financial.submitter_id, "Utilisateur indisponible"
+        ),
         "submitted_at": financial.submitted_at.isoformat(),
         "cancellation": (
             {
@@ -436,25 +578,20 @@ def audit(
             "activity_id": financial.activity_id,
             "request_id": financial.id,
             "disbursement_request_id": source.id,
-            "amount": str(source.amount),
+            "amount": str(financial.amount),
             "before_state": before,
             "after_state": financial.state,
         },
     )
 
 
-@router.post(
-    "/activities/{identifier}/virement-requests",
-    status_code=201,
-    response_model=MutationOutput,
-    openapi_extra=MUTATION_HEADERS,
-)
-def submit(
+def _submit(
     identifier: str,
     body: SubmitInput,
     request: Request,
     background_tasks: BackgroundTasks,
     auth: Auth,
+    attachment: RequestAttachment | None = None,
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():
         locked_mutation(db)
@@ -464,11 +601,17 @@ def submit(
         item = get_activity_for_command(db, identifier, actor)
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
-        if active_request(db, item.id, lock=True):
+        if pending_request(db, item.id, lock=True):
             raise AuthError(409, "virement_exists")
         source = verified_source(
             db, item, body.expected_disbursement_request_id, lock=True
         )
+        amount = int(body.amount)
+        remaining = source.amount - approved_amount_for_source(db, source.id, lock=True)
+        if remaining <= 0:
+            raise AuthError(409, "virement_fully_authorized")
+        if amount > remaining:
+            raise AuthError(422, "virement_amount_exceeds_authorized")
         excluded = set(
             cast(list[str], source.snapshot.get("excluded_reviewer_ids", []))
         )
@@ -485,6 +628,9 @@ def submit(
             context_id=CONTEXT,
             activity_id=item.id,
             disbursement_request_id=source.id,
+            amount=amount,
+            observation=body.observation,
+            **attachment_values(attachment),
             excluded_reviewer_ids=sorted(excluded),
             submitter_id=actor.id,
             submitted_at=now,
@@ -505,6 +651,72 @@ def submit(
         result = output(db, created, actor.role, actor.id)
         result["activity_version"] = item.version
         return result
+
+
+@router.post(
+    "/activities/{identifier}/virement-requests",
+    status_code=201,
+    response_model=MutationOutput,
+    openapi_extra=MUTATION_HEADERS,
+)
+def submit(
+    identifier: str,
+    body: SubmitInput,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
+) -> dict[str, Any]:
+    return _submit(identifier, body, request, background_tasks, auth)
+
+
+@router.post(
+    "/activities/{identifier}/virement-requests/with-attachment",
+    status_code=201,
+    response_model=MutationOutput,
+    openapi_extra={**MUTATION_HEADERS, **REQUEST_ATTACHMENT_OPENAPI},
+)
+async def submit_with_attachment(
+    identifier: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    auth: Auth,
+    x_request_metadata_length: Annotated[
+        int, Header(alias="X-Request-Metadata-Length", ge=2, le=20000)
+    ],
+    x_expected_version: Annotated[int, Header(alias="X-Expected-Version", gt=0)],
+    x_expected_disbursement_request_id: Annotated[
+        str, Header(alias="X-Expected-Disbursement-Request-Id")
+    ],
+    x_request_amount: Annotated[
+        str, Header(alias="X-Request-Amount", pattern=r"^[1-9][0-9]*$")
+    ],
+) -> dict[str, Any]:
+    upload = await read_request_attachment(request, x_request_metadata_length)
+    body = SubmitInput(
+        expected_version=x_expected_version,
+        expected_disbursement_request_id=x_expected_disbursement_request_id,
+        amount=x_request_amount,
+        observation=upload.observation,
+    )
+    return await run_in_threadpool(
+        _submit,
+        identifier,
+        body,
+        request,
+        background_tasks,
+        auth,
+        upload.attachment,
+    )
+
+
+@router.get("/activities/{identifier}/virement-requests/{request_id}/attachment")
+def download_attachment(
+    identifier: str, request_id: str, request: Request, auth: Auth
+) -> Response:
+    with Session(auth.engine) as db, db.begin():
+        actor = principal(db, auth, evidence(request, auth)[0])
+        item = get_activity(db, identifier, actor=actor, shared=True)
+        return attachment_response(exact_request(db, item.id, request_id))
 
 
 @router.post(
@@ -540,8 +752,6 @@ def decide(
             raise AuthError(409, "decision_ineligible")
         if body.decision == "return" and not body.reason:
             raise AuthError(422, "reason_required")
-        if body.decision != "return" and body.reason is not None:
-            raise AuthError(422, "input_invalid")
         before = financial.state
         now = auth.now(db)
         if actor.role == "AGENT_VERIFICATEUR":

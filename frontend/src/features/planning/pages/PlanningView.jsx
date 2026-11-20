@@ -12,7 +12,6 @@ import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
 import { activityStatusClass } from '../lib/activity-status'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
-import { businessActionClassName } from '@/shared/ui/button-variants'
 import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/session/SessionProvider'
 import { authorization } from '@/features/auth/session/authorization'
@@ -49,13 +48,15 @@ import { strings as executionStrings } from '@/locales/fr/ExecutionView'
 import { ExecutionView } from '@/features/execution/ExecutionView'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
-import { useProtectedCleanup } from '@/features/auth/session/access-verification'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { AgentSearchPanel } from '@/shared/ui/AgentSearchPanel'
 import { ActivityForm } from '../components/ActivityForm'
 import { physicalExecutionLabel } from '../lib/physical-execution'
 import { administrativeReminderSchedule } from '../lib/administrative-reminder'
+import { Pagination } from '@/shared/ui/Pagination'
+import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
+import { ProtectedFilePreview } from '@/shared/ui/ProtectedFilePreview'
 
 export { ActivityForm } from '../components/ActivityForm'
 
@@ -633,24 +634,18 @@ function Workspace({ screen, session, onDenied }) {
       )}
       {screen === 'activityNew' && (
         <div className="grid gap-6 [&:has(.activity-task-editor)>header]:hidden [&:has(.activity-task-editor)>nav]:hidden">
-          <nav
-            aria-label={strings.breadcrumb}
-            className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
-          >
-            <Link to={Urls.planning} className="text-primary">
-              {strings.planningIndex}
-            </Link>
-            <span aria-hidden="true">/</span>
-            <Link
-              to={Urls.pta}
-              params={{ projectId, year: String(year) }}
-              className="text-primary"
-            >
-              PTA {year}
-            </Link>
-            <span aria-hidden="true">/</span>
-            <span>{strings.newActivity}</span>
-          </nav>
+          <Breadcrumbs
+            label={strings.breadcrumb}
+            items={[
+              { label: strings.planningIndex, to: Urls.planning },
+              {
+                label: `PTA ${year}`,
+                to: Urls.pta,
+                params: { projectId, year: String(year) },
+              },
+              { label: strings.newActivity },
+            ]}
+          />
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-navy">
@@ -1206,10 +1201,10 @@ function PTA({
             {ptaStrings.breadcrumb}
           </Link>
           <h1 className="mt-3 text-2xl font-semibold text-navy">
-            {context.project.name}
+            {context.pta?.name ?? context.project.name}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            PTA {context.year}
+            {context.pta ? `${context.project.name} · ` : ''}PTA {context.year}
             {context.pta?.description ? ` · ${context.pta.description}` : ''}
           </p>
         </div>
@@ -1417,30 +1412,18 @@ function PTA({
 }
 
 function Pager({ result, cursorKey, navigate }) {
-  if (!result?.next && !result?.previous) return null
   const move = (link) =>
     navigate({
       search: (current) => ({ ...current, [cursorKey]: cursorFrom(link) }),
     })
   return (
-    <nav className="flex gap-2 items-end flex-wrap" aria-label="Pagination">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={!result.previous}
-        onClick={() => move(result.previous)}
-      >
-        {common.previous}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={!result.next}
-        onClick={() => move(result.next)}
-      >
-        {common.next}
-      </Button>
-    </nav>
+    <Pagination
+      label="Pagination"
+      canPrevious={Boolean(result?.previous)}
+      canNext={Boolean(result?.next)}
+      onPrevious={() => move(result.previous)}
+      onNext={() => move(result.next)}
+    />
   )
 }
 
@@ -1659,28 +1642,15 @@ function AssignmentModal({
                         {strings.noOwnerMatch}
                       </p>
                     )}
-                  {(choices.data?.previous || choices.data?.next) && (
-                    <nav className="flex gap-2" aria-label="Pagination">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!choices.data.previous}
-                        onClick={() =>
-                          setCursor(cursorFrom(choices.data.previous))
-                        }
-                      >
-                        {common.previous}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!choices.data.next}
-                        onClick={() => setCursor(cursorFrom(choices.data.next))}
-                      >
-                        {common.next}
-                      </Button>
-                    </nav>
-                  )}
+                  <Pagination
+                    label="Pagination"
+                    canPrevious={Boolean(choices.data?.previous)}
+                    canNext={Boolean(choices.data?.next)}
+                    onPrevious={() =>
+                      setCursor(cursorFrom(choices.data.previous))
+                    }
+                    onNext={() => setCursor(cursorFrom(choices.data.next))}
+                  />
                 </>
               }
               listProps={{ 'aria-label': strings.coordinatedAgents }}
@@ -1943,35 +1913,26 @@ function ActivityDetail({
         as="div"
         className="gap-6 border-0 bg-transparent p-0 [&:has(.activity-task-editor)>header]:hidden [&:has(.activity-task-editor)>nav]:hidden"
       >
-        <nav
-          aria-label={strings.breadcrumb}
-          className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
-        >
-          <Link to={Urls.planning} className="text-primary">
-            {strings.planningIndex}
-          </Link>
-          <span aria-hidden="true">/</span>
-          <Link
-            to={Urls.pta}
-            params={{
-              projectId: item.project_id,
-              year: String(item.placement_year),
-            }}
-            className="text-primary"
-          >
-            {item.pta_name}
-          </Link>
-          <span aria-hidden="true">/</span>
-          <Link
-            to={Urls.activity}
-            params={{ activityId: item.id }}
-            className="text-primary"
-          >
-            {item.reference}
-          </Link>
-          <span aria-hidden="true">/</span>
-          <span>{strings.modify}</span>
-        </nav>
+        <Breadcrumbs
+          label={strings.breadcrumb}
+          items={[
+            { label: strings.planningIndex, to: Urls.planning },
+            {
+              label: item.pta_name,
+              to: Urls.pta,
+              params: {
+                projectId: item.project_id,
+                year: String(item.placement_year),
+              },
+            },
+            {
+              label: item.reference,
+              to: Urls.activity,
+              params: { activityId: item.id },
+            },
+            { label: strings.modify },
+          ]}
+        />
         <header className="flex flex-wrap items-start justify-between gap-6">
           <div>
             <h1 className="text-2xl font-semibold text-navy">
@@ -2082,38 +2043,28 @@ function ActivityDetail({
   ]
   return (
     <div className="grid gap-6">
-      <nav
-        aria-label={strings.breadcrumb}
-        className="flex flex-wrap items-center gap-2 text-[0.8125rem] text-muted-foreground"
-      >
-        {executionContext ? (
-          <>
-            <Link to={Urls.execution} className="text-primary">
-              {executionStrings.listTitle}
-            </Link>
-            <span aria-hidden="true">/</span>
-          </>
-        ) : (
-          <>
-            <Link to={Urls.planning} className="text-primary">
-              {strings.planningIndex}
-            </Link>
-            <span aria-hidden="true">/</span>
-            <Link
-              to={Urls.pta}
-              params={{
-                projectId: item.project_id,
-                year: String(item.placement_year),
-              }}
-              className="text-primary"
-            >
-              {item.pta_name}
-            </Link>
-            <span aria-hidden="true">/</span>
-          </>
-        )}
-        <span>{item.reference}</span>
-      </nav>
+      <Breadcrumbs
+        label={strings.breadcrumb}
+        items={
+          executionContext
+            ? [
+                { label: executionStrings.listTitle, to: Urls.execution },
+                { label: item.reference },
+              ]
+            : [
+                { label: strings.planningIndex, to: Urls.planning },
+                {
+                  label: item.pta_name,
+                  to: Urls.pta,
+                  params: {
+                    projectId: item.project_id,
+                    year: String(item.placement_year),
+                  },
+                },
+                { label: item.reference },
+              ]
+        }
+      />
       <div
         data-ui="activity-header"
         className="flex flex-wrap items-end justify-between gap-8 [&_form]:flex [&_form]:flex-wrap [&_form]:items-end [&_form]:gap-3"
@@ -2200,7 +2151,7 @@ function ActivityDetail({
               {canAssign && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="headerAction"
                   onClick={(event) => {
                     assignmentOpener.current = event.currentTarget
                     setAssignmentOpen(true)
@@ -2235,8 +2186,9 @@ function ActivityDetail({
             <ProtectedDownload
               path={`/api/v1/activities/${item.id}/fiche.pdf`}
               onDenied={onDenied}
+              variant="headerAction"
             >
-              <Download aria-hidden="true" />
+              <Download size={18} aria-hidden="true" />
               {strings.downloadActivityFiche}
             </ProtectedDownload>
           )}
@@ -2855,9 +2807,9 @@ export function ActivityDocuments({
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
   const [uploadFile, setUploadFile] = useState(null)
-  const [preview, setPreview] = useState(null)
   const [deniedDocuments, setDeniedDocuments] = useState([])
   const [uploadUncertain, setUploadUncertain] = useState(false)
+  const uploadAttempt = useRef(null)
   const active = useRef(true)
   useEffect(() => {
     active.current = true
@@ -2867,13 +2819,8 @@ export function ActivityDocuments({
   }, [])
   const [withdrawing, setWithdrawing] = useState(null)
   const [replacementCursor, setReplacementCursor] = useState('')
-  const [previewUrl, setPreviewUrl] = useState('')
   const opener = useRef(null)
-  const previewOpener = useRef(null)
   const withdrawalOpener = useRef(null)
-  const previewController = useRef(null)
-  const previewGeneration = useRef(0)
-  const previewUrlRef = useRef('')
   const deliveryScope = useRef(new AbortController())
   const documentsOptions = planningQuery(
     api,
@@ -2897,7 +2844,6 @@ export function ActivityDocuments({
           )
           deliveryScope.current.abort()
           deliveryScope.current = new AbortController()
-          closePreview()
           setWithdrawing(null)
           setOpen(false)
         }
@@ -2921,7 +2867,22 @@ export function ActivityDocuments({
   })
   const reconcileUpload = async () => {
     const result = await documents.refetch()
-    if (active.current && !result.isError) setOpen(false)
+    if (!active.current || result.isError) return
+    const attempt = uploadAttempt.current
+    const saved = result.data?.data.some(
+      (document) =>
+        attempt &&
+        !attempt.documentIds.has(document.id) &&
+        document.name === attempt.name &&
+        document.size === attempt.size &&
+        document.uploaded_by_id === attempt.uploadedById,
+    )
+    setUploadUncertain(false)
+    uploadAttempt.current = null
+    if (saved) {
+      setOpen(false)
+      setUploadFile(null)
+    }
   }
   const reconcileAssignment = async () => {
     setOpen(false)
@@ -2932,8 +2893,16 @@ export function ActivityDocuments({
   const upload = useMutation({
     retry: false,
     networkMode: 'always',
-    mutationFn: ({ file }) =>
-      api.request(`/api/v1/activities/${activityId}/documents`, {
+    mutationFn: ({ file }) => {
+      uploadAttempt.current = {
+        documentIds: new Set(
+          documents.data?.data.map((document) => document.id) || [],
+        ),
+        name: file.name,
+        size: file.size,
+        uploadedById: user.id,
+      }
+      return api.request(`/api/v1/activities/${activityId}/documents`, {
         method: 'POST',
         csrf,
         rawBody: file,
@@ -2941,7 +2910,8 @@ export function ActivityDocuments({
           'Content-Type': file.type,
           'X-File-Name': file.name,
         },
-      }),
+      })
+    },
     onSuccess: async () => {
       if (!active.current) return
       await Promise.all([
@@ -2955,6 +2925,7 @@ export function ActivityDocuments({
       ])
       setOpen(false)
       setUploadFile(null)
+      uploadAttempt.current = null
       toast.success(strings.documentAdded)
     },
     onError: async (error) => {
@@ -3066,51 +3037,7 @@ export function ActivityDocuments({
       ])
     },
   })
-  const releasePreview = useCallback(() => {
-    previewGeneration.current += 1
-    previewController.current?.abort()
-    previewController.current = null
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
-    previewUrlRef.current = ''
-    setPreviewUrl('')
-  }, [])
-  useProtectedCleanup(releasePreview)
-  useEffect(() => releasePreview, [releasePreview])
-  const imagePreview = useMutation({
-    retry: false,
-    networkMode: 'always',
-    gcTime: 0,
-    mutationFn: async ({ document, generation }) => {
-      const controller = new AbortController()
-      previewController.current = controller
-      const result = await api.download(
-        `/api/v1/activities/${activityId}/documents/${document.id}/preview`,
-        { signal: controller.signal },
-      )
-      if (generation !== previewGeneration.current)
-        throw new DOMException('Stale authorization', 'AbortError')
-      return result.blob
-    },
-    onSuccess: (blob, { generation }) => {
-      if (generation !== previewGeneration.current) return
-      const url = URL.createObjectURL(blob)
-      previewUrlRef.current = url
-      setPreviewUrl(url)
-    },
-    onError: (error, { document, generation }) => {
-      if (generation !== previewGeneration.current) return
-      if (error.name === 'AbortError') return
-      if (error.status === 401) onDenied()
-      if ([403, 404].includes(error.status)) void denyDocument(document.id)
-    },
-  })
-  const closePreview = () => {
-    releasePreview()
-    imagePreview.reset()
-    setPreview(null)
-  }
   const denyDocument = async (id) => {
-    if (preview?.id === id) closePreview()
     setDeniedDocuments((ids) => [...ids, id])
     const queryKey = ['planning', user.id, 'documents', activityId]
     await client.cancelQueries({ queryKey })
@@ -3171,6 +3098,7 @@ export function ActivityDocuments({
                 })
               setUploadUncertain(false)
               setUploadFile(null)
+              uploadAttempt.current = null
               setOpen(true)
             }}
           >
@@ -3183,10 +3111,9 @@ export function ActivityDocuments({
         <p role="alert">{strings.documentUnavailable}</p>
       )}
       {sharing.isError && <p role="alert">{strings.sharingFailed}</p>}
+      {documents.isError && <p role="alert">Les pièces sont indisponibles.</p>}
       {documents.isPending ? (
         <LoadingPlaceholder label={common.documentsLoading} />
-      ) : documents.isError ? (
-        <p role="alert">Les pièces sont indisponibles.</p>
       ) : !documents.data?.data.length ? (
         <EmptyContent kind="documents" />
       ) : (
@@ -3226,26 +3153,34 @@ export function ActivityDocuments({
                     ['image/jpeg', 'image/png'].includes(
                       document.media_type,
                     ) && (
-                      <Button
+                      <ProtectedFilePreview
                         aria-label={`${common.preview} de ${document.name}`}
-                        variant="outline"
                         size="sm"
-                        onClick={(event) => {
-                          previewOpener.current = event.currentTarget
-                          releasePreview()
-                          imagePreview.reset()
-                          setPreview(document)
-                          const generation = previewGeneration.current
-                          imagePreview.mutate({ document, generation })
+                        path={`/api/v1/activities/${activityId}/documents/${document.id}/preview`}
+                        title={document.name}
+                        download={false}
+                        downloadPath={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
+                        errorMessage={(error) =>
+                          error?.kind === 'offline'
+                            ? 'Connexion indisponible. Reconnectez-vous pour afficher l’aperçu.'
+                            : 'L’aperçu est indisponible.'
+                        }
+                        scope={deliveryScope}
+                        onDenied={(status) => {
+                          if (status === 401) onDenied()
+                          else void denyDocument(document.id)
                         }}
                       >
                         <Eye aria-hidden="true" /> {common.preview}
-                      </Button>
+                      </ProtectedFilePreview>
                     )}
                   {!document.withdrawal && (
                     <ProtectedDownload
                       path={`/api/v1/activities/${activityId}/documents/${document.id}/download`}
-                      onDenied={() => void denyDocument(document.id)}
+                      onDenied={(status) => {
+                        if (status === 401) onDenied()
+                        else void denyDocument(document.id)
+                      }}
                       scope={deliveryScope}
                       size="sm"
                     >
@@ -3299,6 +3234,7 @@ export function ActivityDocuments({
         onClose={() => {
           setOpen(false)
           setUploadFile(null)
+          uploadAttempt.current = null
         }}
         label={strings.addAttachment}
         opener={opener}
@@ -3334,6 +3270,7 @@ export function ActivityDocuments({
               onClick={() => {
                 setOpen(false)
                 setUploadFile(null)
+                uploadAttempt.current = null
               }}
             >
               {strings.cancel}
@@ -3399,35 +3336,22 @@ export function ActivityDocuments({
                   ))}
               </Select>
             </label>
-            <div
-              className="flex flex-wrap justify-end gap-3"
-              aria-label="Pages des pièces corrigées"
-            >
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!replacementDocuments.data?.previous}
-                onClick={() =>
-                  setReplacementCursor(
-                    cursorFrom(replacementDocuments.data?.previous),
-                  )
-                }
-              >
-                {common.previous}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!replacementDocuments.data?.next}
-                onClick={() =>
-                  setReplacementCursor(
-                    cursorFrom(replacementDocuments.data?.next),
-                  )
-                }
-              >
-                {common.next}
-              </Button>
-            </div>
+            <Pagination
+              label="Pages des pièces corrigées"
+              className="justify-end gap-3"
+              canPrevious={Boolean(replacementDocuments.data?.previous)}
+              canNext={Boolean(replacementDocuments.data?.next)}
+              onPrevious={() =>
+                setReplacementCursor(
+                  cursorFrom(replacementDocuments.data?.previous),
+                )
+              }
+              onNext={() =>
+                setReplacementCursor(
+                  cursorFrom(replacementDocuments.data?.next),
+                )
+              }
+            />
             <div data-ui="modal-actions">
               <Button
                 type="button"
@@ -3444,49 +3368,6 @@ export function ActivityDocuments({
               </Button>
             </div>
           </BusinessForm>
-        )}
-      </Modal>
-      <Modal
-        open={Boolean(preview)}
-        onClose={closePreview}
-        label={preview ? `${common.preview} — ${preview.name}` : common.preview}
-        opener={previewOpener}
-        className="w-[min(900px,_calc(100vw_-_32px))] max-w-none border border-border rounded-panel p-0 [&::backdrop]:bg-[rgb(15_23_42_/_62%)]"
-      >
-        {preview && (
-          <div className="grid gap-4 p-6 [&_img]:w-full [&_img]:max-h-[65vh] [&_img]:object-contain [&_img]:border [&_img]:border-border [&_img]:bg-background [&_[data-ui~='modal-actions']]:justify-end">
-            <h3>{preview.name}</h3>
-            {imagePreview.isPending ? (
-              <LoadingPlaceholder
-                label={common.previewLoading}
-                variant="preview"
-              />
-            ) : imagePreview.isError ? (
-              <p role="alert">
-                {imagePreview.error?.kind === 'offline'
-                  ? 'Connexion indisponible. Reconnectez-vous pour afficher l’aperçu.'
-                  : 'L’aperçu est indisponible.'}
-              </p>
-            ) : previewUrl ? (
-              <img
-                src={previewUrl}
-                alt={`${common.preview} de ${preview.name}`}
-              />
-            ) : null}
-            <div data-ui="modal-actions">
-              <Button type="button" variant="outline" onClick={closePreview}>
-                {common.dismiss}
-              </Button>
-              <ProtectedDownload
-                className={businessActionClassName}
-                path={`/api/v1/activities/${activityId}/documents/${preview.id}/download`}
-                onDenied={() => void denyDocument(preview.id)}
-                scope={deliveryScope}
-              >
-                <Download aria-hidden="true" /> {common.download}
-              </ProtectedDownload>
-            </div>
-          </div>
         )}
       </Modal>
     </Panel>

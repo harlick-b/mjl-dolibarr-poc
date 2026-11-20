@@ -66,17 +66,29 @@ def request_fixture(planning, kind):
             activity,
             virement_collection(activity),
             request,
-            {"expected_disbursement_request_id": source["id"]},
+            {
+                "expected_disbursement_request_id": source["id"],
+                "amount": request["amount"],
+            },
         )
     activity = finish_activity(planning)
     basis = {"expected_approved_revision_id": activity["approved_revision_id"]}
     response = post(
         planning["agent"],
         collection(activity),
-        {"expected_version": activity["version"], **basis},
+        {
+            "expected_version": activity["version"],
+            "amount": activity["spending_total"],
+            **basis,
+        },
     )
     assert response.status_code == 201, response.text
-    return activity, collection(activity), response.json(), basis
+    return (
+        activity,
+        collection(activity),
+        response.json(),
+        {**basis, "amount": activity["spending_total"]},
+    )
 
 
 def decide(planning, path, request, decision, role="supervisor"):
@@ -142,9 +154,7 @@ def test_return_rollback_then_concurrent_fresh_submission(planning, monkeypatch,
 
 
 @pytest.mark.parametrize("kind", ["disbursement", "virement"])
-def test_returned_database_terminal_and_migration_preserves_legacy_cancellation(
-    planning, kind
-):
+def test_returned_database_terminal_and_details_downgrade_refuses_data(planning, kind):
     _, path, request, basis = request_fixture(planning, kind)
     returned = decide(planning, path, request, "return")
     engine = planning["auth"].engine
@@ -175,16 +185,14 @@ def test_returned_database_terminal_and_migration_preserves_legacy_cancellation(
             {"id": request["id"]},
         )
     assert basis_error.value.orig.sqlstate == "P0001"
-    config = Config("alembic.ini")
-    command.downgrade(config, "0020_pta9a")
-    with engine.begin() as db:
-        db.execute(sql, {"id": request["id"]})
-    command.upgrade(config, "head")
-    legacy = planning["agent"].get(f"{path}/{request['id']}")
-    assert legacy.status_code == 200, legacy.text
-    assert legacy.json()["state"] == "cancelled"
-    assert legacy.json()["decisions"] == returned["decisions"]
-    assert legacy.json()["cancellation"]["reason"] == "Ancien contrôle"
+    with pytest.raises(
+        DBAPIError, match="Refusing destructive financial-request-details downgrade"
+    ):
+        command.downgrade(Config("alembic.ini"), "0020_pta9a")
+    retained = planning["agent"].get(f"{path}/{request['id']}")
+    assert retained.status_code == 200, retained.text
+    assert retained.json()["state"] == "returned"
+    assert retained.json()["decisions"] == returned["decisions"]
     fresh = post(
         planning["agent"],
         path,
@@ -210,7 +218,9 @@ def test_downgrade_refuses_multiple_retained_returns_without_mutation(planning, 
     )
     assert fresh.status_code == 201, fresh.text
     decide(planning, path, fresh.json(), "return")
-    with pytest.raises(RuntimeError, match="retained request history"):
+    with pytest.raises(
+        DBAPIError, match="Refusing destructive financial-request-details downgrade"
+    ):
         command.downgrade(Config("alembic.ini"), "0020_pta9a")
     history = planning["agent"].get(path)
     assert history.status_code == 200, history.text  # exact schema guard still passes
@@ -288,7 +298,10 @@ def test_replacements_drive_settlement_and_closure_with_both_returns_in_history(
         approved = decide(planning, path, prevalidated, "approve", "validator")
         if kind == "disbursement":
             path = virement_collection(activity)
-            basis = {"expected_disbursement_request_id": approved["id"]}
+            basis = {
+                "expected_disbursement_request_id": approved["id"],
+                "amount": approved["amount"],
+            }
             submitted = post(
                 planning["agent"],
                 path,

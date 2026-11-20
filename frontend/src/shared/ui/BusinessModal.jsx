@@ -17,6 +17,7 @@ export function Modal({
   className,
   closeDisabled = false,
   variant = 'dialog',
+  size = 'standard',
 }) {
   const ref = useRef(null)
   const outside = useRef(false)
@@ -55,6 +56,10 @@ export function Modal({
         variant === 'drawer'
           ? "m-0 ml-auto h-dvh max-h-dvh w-[min(560px,100%)] overflow-hidden rounded-none border border-y-0 border-r-0 border-border bg-white p-0 text-foreground backdrop:bg-overlay backdrop:backdrop-blur-sm open:flex open:flex-col sm:rounded-l-panel [&>header]:shrink-0 [&>form]:min-h-0 [&>form]:flex-1 [&>form]:overflow-y-auto [&>form]:overscroll-contain [&>div]:flex [&>div]:min-h-0 [&>div]:flex-1 [&>div]:flex-col [&>div]:overflow-y-auto [&>div]:overscroll-contain [&>div>[data-ui~='planning-card']]:flex-1 [&_[data-ui~='modal-actions']]:sticky [&_[data-ui~='modal-actions']]:bottom-0 [&_[data-ui~='modal-actions']]:z-20 [&_[data-ui~='modal-actions']]:bg-white"
           : 'm-auto w-[min(560px,calc(100%-32px))] max-h-[calc(100dvh-32px)] overflow-auto rounded-panel border border-border bg-white p-0 text-foreground backdrop:bg-overlay backdrop:backdrop-blur-sm',
+        size === 'wide' &&
+          (variant === 'drawer'
+            ? 'w-[min(640px,100%)]'
+            : 'w-[min(640px,calc(100%-32px))]'),
         '[&_form]:grid [&_form]:min-w-0 [&_form]:gap-6 [&>form]:p-6',
         businessFieldStyles,
         variant === 'drawer'

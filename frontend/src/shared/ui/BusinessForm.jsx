@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { FormSubmitContext } from './form-submit-context'
+import {
+  clearMissingRequiredField,
+  markMissingRequiredField,
+} from './required-field-feedback'
 
 // A form owns its unsaved input until its own command succeeds or it is closed.
 export function BusinessForm({
@@ -13,13 +17,20 @@ export function BusinessForm({
 }) {
   const [edited, setEdited] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [validationAttempted, setValidationAttempted] = useState(false)
   return (
     <form
       ref={formRef}
       {...props}
       data-update-blocked={Boolean(saving || (dirty ?? edited))}
+      data-validation-attempted={validationAttempted}
+      onInvalidCapture={(event) => {
+        setValidationAttempted(true)
+        markMissingRequiredField(event)
+      }}
       onChangeCapture={(event) => {
         setEdited(true)
+        clearMissingRequiredField(event)
         onChangeCapture?.(event)
       }}
       onClickCapture={(event) => {
@@ -27,6 +38,7 @@ export function BusinessForm({
       }}
       onReset={(event) => {
         setEdited(false)
+        setValidationAttempted(false)
         onReset?.(event)
       }}
       onSubmit={async (event) => {
@@ -34,7 +46,10 @@ export function BusinessForm({
         setSaving(true)
         try {
           const result = await onSubmit(event)
-          if (result !== false) setEdited(false)
+          if (result !== false) {
+            setEdited(false)
+            setValidationAttempted(false)
+          }
         } catch {
           // The command's existing error handler owns feedback; retain the draft.
         } finally {
@@ -43,6 +58,11 @@ export function BusinessForm({
       }}
     >
       <FormSubmitContext.Provider value={saving}>
+        {validationAttempted && (
+          <p className="sr-only" role="alert">
+            Vérifiez les champs obligatoires signalés.
+          </p>
+        )}
         <fieldset className="contents" disabled={saving}>
           {children}
         </fieldset>

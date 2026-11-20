@@ -1,11 +1,14 @@
 # ruff: noqa: F401, F811
 import os
+from datetime import UTC, datetime
+from io import BytesIO
 from uuid import uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -13,11 +16,22 @@ from sqlalchemy.orm import Session, SessionTransaction
 
 from app.auth.models import Audit, User
 from app.planning.core.models import Activity, ActivityAssignment, Operation
+from app.planning.operations.fiche import (
+    _template_projection,
+)
+from app.planning.operations.fiche import (
+    projection as fiche_projection,
+)
 from tests.auth.test_access import headers
+from tests.execution.test_disbursement import collection as disbursement_collection
 from tests.execution.test_disbursement import finish_activity
 from tests.execution.test_execution import approved_execution_activity
 from tests.execution.test_reversement import confirmed_virement, reversement_path
-from tests.execution.test_virement import approved_disbursement, approved_virement
+from tests.execution.test_virement import (
+    approved_disbursement,
+    approved_virement,
+    virement_collection,
+)
 from tests.planning.test_planning import (
     admin,
     ordered_advisory_race,
@@ -244,6 +258,207 @@ def test_closure_accepts_zero_reversement_without_declaration(planning):
     )
     assert response.status_code == 200, response.text
     assert response.json()["state"] == "closed"
+
+
+def partial_settled_activity(planning, *, allocations=None):
+    activity = finish_activity(planning, allocations=allocations)
+    version = activity["version"]
+    virement_request_ids = []
+
+    def approve_disbursement(amount):
+        nonlocal version
+        submitted = post(
+            planning["agent"],
+            disbursement_collection(activity),
+            {
+                "expected_version": version,
+                "expected_approved_revision_id": activity["approved_revision_id"],
+                "amount": str(amount),
+            },
+        )
+        assert submitted.status_code == 201, submitted.text
+        prevalidated = post(
+            planning["supervisor"],
+            f"{disbursement_collection(activity)}/{submitted.json()['id']}/decisions",
+            {
+                "expected_version": submitted.json()["activity_version"],
+                "decision": "prevalidate",
+            },
+        )
+        assert prevalidated.status_code == 201, prevalidated.text
+        approved = post(
+            planning["validator"],
+            f"{disbursement_collection(activity)}/{submitted.json()['id']}/decisions",
+            {
+                "expected_version": prevalidated.json()["activity_version"],
+                "decision": "approve",
+            },
+        )
+        assert approved.status_code == 201, approved.text
+        version = approved.json()["activity_version"]
+        return approved.json()
+
+    def approve_and_confirm_virement(source, amount, transfer_date):
+        nonlocal version
+        submitted = post(
+            planning["agent"],
+            virement_collection(activity),
+            {
+                "expected_version": version,
+                "expected_disbursement_request_id": source["id"],
+                "amount": str(amount),
+            },
+        )
+        assert submitted.status_code == 201, submitted.text
+        prevalidated = post(
+            planning["supervisor"],
+            f"{virement_collection(activity)}/{submitted.json()['id']}/decisions",
+            {
+                "expected_version": submitted.json()["activity_version"],
+                "decision": "prevalidate",
+            },
+        )
+        approved = post(
+            planning["validator"],
+            f"{virement_collection(activity)}/{submitted.json()['id']}/decisions",
+            {
+                "expected_version": prevalidated.json()["activity_version"],
+                "decision": "approve",
+            },
+        )
+        assert approved.status_code == 201, approved.text
+        confirmed = post(
+            planning["agent"],
+            f"{virement_collection(activity)}/{submitted.json()['id']}/confirmation",
+            {
+                "expected_version": approved.json()["activity_version"],
+                "transfer_date": transfer_date,
+                "note": "Virement partiel confirmé.",
+            },
+        )
+        assert confirmed.status_code == 201, confirmed.text
+        version = confirmed.json()["activity_version"]
+        virement_request_ids.append(submitted.json()["id"])
+
+    first_source = approve_disbursement(100_000)
+    detail = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
+    )
+    assert detail["disbursement_remaining_amount"] == "200000"
+    assert detail["virement_context"]["amount"] == "100000"
+    with Session(planning["auth"].engine) as db:
+        stored_activity = db.get(Activity, activity["id"])
+        assert stored_activity is not None
+        partial_projection = _template_projection(
+            fiche_projection(db, stored_activity, datetime.now(UTC))
+        )
+    assert partial_projection["realization"] == "Terminée — validation attendue"
+    partial_fiche = planning["agent"].get(
+        f"/api/v1/activities/{activity['id']}/fiche.pdf"
+    )
+    assert partial_fiche.status_code == 200, partial_fiche.text
+    partial_content = "\n".join(
+        page.extract_text() or ""
+        for page in PdfReader(BytesIO(partial_fiche.content)).pages
+    )
+    assert "Réalisation validée" not in partial_content
+
+    approve_and_confirm_virement(first_source, 60_000, "2026-10-26")
+    detail = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
+    )
+    assert detail["virement_context"]["amount"] == "40000"
+    approve_and_confirm_virement(first_source, 40_000, "2026-10-27")
+
+    second_source = approve_disbursement(200_000)
+    approve_and_confirm_virement(second_source, 200_000, "2026-10-28")
+    detail = (
+        planning["agent"].get(f"/api/v1/activities/{activity['id']}/execution").json()
+    )
+    assert detail["disbursement_remaining_amount"] == "0"
+    assert detail["virement_context"]["can_submit"] is False
+    assert detail["closure_blockers"] == (
+        ["reversement_not_settled"] if allocations else []
+    )
+    return activity, version, virement_request_ids
+
+
+def test_partial_financial_requests_accumulate_before_closure(planning):
+    activity, version, _request_ids = partial_settled_activity(planning)
+
+    closed = post(
+        planning["agent"], close_path(activity), {"expected_version": version}
+    )
+    assert closed.status_code == 200, closed.text
+    fiche = planning["agent"].get(f"/api/v1/activities/{activity['id']}/fiche.pdf")
+    assert fiche.status_code == 200, fiche.text
+    fiche_content = "\n".join(
+        page.extract_text() or "" for page in PdfReader(BytesIO(fiche.content)).pages
+    )
+    for amount in ("Virement de 60 000 F CFA", "Virement de 40 000 F CFA"):
+        assert amount in fiche_content
+
+
+def test_partial_virements_share_one_activity_reversement(planning):
+    activity, version, request_ids = partial_settled_activity(
+        planning, allocations=(150_000, 250_000)
+    )
+    owner_id, other_id = request_ids[0], request_ids[-1]
+    declared = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{owner_id}/reversement",
+        {
+            "expected_version": version,
+            "return_date": "2026-10-29",
+            "note": "Reversement global après virements partiels.",
+        },
+    )
+    assert declared.status_code == 201, declared.text
+
+    other = planning["agent"].get(f"{virement_collection(activity)}/{other_id}")
+    assert other.status_code == 200, other.text
+    projected = other.json()
+    assert projected["reversement"]["current_declaration"]["request_id"] == owner_id
+    assert projected["reversement"]["allowed_actions"] == ["read", "correct"]
+    assert "correct_confirmation" not in projected["allowed_actions"]
+
+    frozen = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{other_id}/confirmation/corrections",
+        {
+            "expected_version": declared.json()["activity_version"],
+            "transfer_date": "2026-10-30",
+            "note": "Correction interdite après reversement.",
+            "reason": "Vérification du gel global.",
+        },
+    )
+    assert frozen.status_code == 409, frozen.text
+    assert frozen.json()["code"] == "confirmation_frozen"
+
+    with pytest.raises(DBAPIError), planning["auth"].engine.begin() as db:
+        db.execute(
+            text("""
+            INSERT INTO pta_virement_confirmation (
+              id, activity_id, request_id, revision, amount, transfer_date,
+              note, actor_id, recorded_at, correction_reason
+            )
+            SELECT :id, activity_id, request_id, revision + 1, amount,
+              transfer_date, note, actor_id, recorded_at + interval '1 second',
+              'Tentative directe après reversement'
+            FROM pta_virement_confirmation
+            WHERE request_id = :request_id
+            ORDER BY revision DESC
+            LIMIT 1
+            """),
+            {"id": str(uuid4()), "request_id": other_id},
+        )
+
+    closed = post(
+        planning["agent"],
+        close_path(activity),
+        {"expected_version": declared.json()["activity_version"]},
+    )
+    assert closed.status_code == 200, closed.text
 
 
 def test_closure_is_agent_only_and_requires_exact_version(planning):
@@ -795,7 +1010,7 @@ def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0039_editable_activity_dates"
+                "0040_financial_request_details"
             )
             columns = {row["name"] for row in inspect(db).get_columns("pta_activity")}
             assert {"closed_at", "closed_by_id"} <= columns
@@ -804,23 +1019,58 @@ def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
         engine.dispose()
 
 
-def test_closure_evidence_refuses_destructive_downgrade(planning, auth_env):
-    activity, _request, version = settled_activity(planning)
-    response = post(
-        planning["agent"], close_path(activity), {"expected_version": version}
-    )
-    assert response.status_code == 200, response.text
-    planning["auth"].engine.dispose()
-    with pytest.raises(Exception, match="Refusing destructive PTA-3F downgrade"):
-        command.downgrade(Config("alembic.ini"), "0014_pta3e")
-    engine = create_engine(auth_env.url)
+def test_closure_evidence_refuses_destructive_downgrade(auth_env, monkeypatch):
+    config = Config("alembic.ini")
+    base = make_url(os.environ["TEST_DATABASE_URL"])
+    assert (base.database or "").startswith("mjl_test_")
+    database_name = "mjl_test_" + uuid4().hex
+    admin_engine = create_engine(base, isolation_level="AUTOCOMMIT")
+    engine = None
+    database_created = False
     try:
+        with admin_engine.connect() as db:
+            db.execute(text(f"CREATE DATABASE {database_name}"))
+        database_created = True
+        database_url = base.set(database=database_name).render_as_string(
+            hide_password=False
+        )
+        monkeypatch.setenv("DATABASE_URL", database_url)
+        command.upgrade(config, "0015_pta3f")
+        engine = create_engine(database_url)
+        target = str(uuid4())
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO auth_audit "
+                    "(occurred_at,action,actor,target,outcome,request_id) VALUES "
+                    "(clock_timestamp(),'activity.closed','migration-fixture',"
+                    ":target,'ok',:request_id)"
+                ),
+                {"target": target, "request_id": str(uuid4())},
+            )
+        with pytest.raises(Exception, match="Refusing destructive PTA-3F downgrade"):
+            command.downgrade(config, "0014_pta3e")
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0027_pta_metadata"
+                "0015_pta3f"
+            )
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT count(*) FROM auth_audit "
+                        "WHERE action='activity.closed' AND target=:target"
+                    ),
+                    {"target": target},
+                )
+                == 1
             )
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
+        if database_created:
+            with admin_engine.connect() as db:
+                db.execute(text(f"DROP DATABASE {database_name} WITH (FORCE)"))
+        admin_engine.dispose()
 
 
 def test_closure_schema_guard_rejects_function_drift(planning):

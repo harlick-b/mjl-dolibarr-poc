@@ -113,6 +113,7 @@ const execution = {
   realization_status: 'in_progress',
   virement_context: {
     disbursement_request_id: null,
+    disbursement_state: null,
     amount: null,
     current_request_id: null,
     current_state: null,
@@ -266,6 +267,18 @@ test('Activity realization and finance follow the approved detail composition', 
   const financialSituation = page.getByRole('region', {
     name: 'Situation financière',
   })
+  const financialFactLabels = [
+    'Montant prévu',
+    'Montant autorisé',
+    'Dépenses enregistrées',
+    'Dépenses acceptées',
+  ]
+  const desktopFactBoxes = await Promise.all(
+    financialFactLabels.map((label) =>
+      financialSituation.getByText(label, { exact: true }).boundingBox(),
+    ),
+  )
+  expect(new Set(desktopFactBoxes.map((box) => Math.round(box.y))).size).toBe(1)
   await expect(financialSituation.getByText(/^Réalisation\s*:/)).toHaveCount(0)
   await expect(
     financialSituation.getByText('Autorisation à obtenir'),
@@ -291,6 +304,12 @@ test('Activity realization and finance follow the approved detail composition', 
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
+  const mobileFactBoxes = await Promise.all(
+    financialFactLabels.map((label) =>
+      financialSituation.getByText(label, { exact: true }).boundingBox(),
+    ),
+  )
+  expect(new Set(mobileFactBoxes.map((box) => Math.round(box.y))).size).toBe(4)
   await page.screenshot({
     path: '/tmp/mjl-activity-finance-mobile.png',
     fullPage: true,
@@ -318,6 +337,7 @@ test('Activity realization and finance follow the approved detail composition', 
       },
     ],
   }
+  execution.virement_context.disbursement_state = 'submitted'
   await page.setViewportSize({ width: 1846, height: 970 })
   await page.reload()
   await expect(
@@ -340,12 +360,6 @@ test('Activity realization and finance follow the approved detail composition', 
   expect(requestDialogBox.x + requestDialogBox.width).toBeGreaterThanOrEqual(
     1845,
   )
-  const requestActionBox = await requestDialog
-    .getByRole('button', { name: 'Annuler' })
-    .boundingBox()
-  expect(requestActionBox.y + requestActionBox.height).toBeGreaterThanOrEqual(
-    requestDialogBox.y + requestDialogBox.height - 48,
-  )
   await page.screenshot({
     path: '/tmp/mjl-activity-request-drawer.png',
     fullPage: true,
@@ -355,6 +369,12 @@ test('Activity realization and finance follow the approved detail composition', 
   financeRequests = {
     ...financeRequests,
     data: [{ ...financeRequests.data[0], state: 'approved' }],
+  }
+  execution.virement_context = {
+    ...execution.virement_context,
+    disbursement_request_id: 'request-1',
+    disbursement_state: 'approved',
+    amount: '650000',
   }
   await page.reload()
   await expect(

@@ -11,7 +11,7 @@ import { createMemoryHistory } from '@tanstack/react-router'
 import { expect, test, vi } from 'vitest'
 import { App, makeRouter } from './router'
 
-test.each(['success', 'failure'])(
+test.each(['saved', 'absent'])(
   'an uncertain upload waits for %s reconciliation before another attempt',
   async (outcome) => {
     HTMLDialogElement.prototype.showModal = function () {
@@ -43,6 +43,36 @@ test.each(['success', 'failure'])(
       next: null,
       previous: null,
     }
+    const existingDocument = {
+      id: 'doc-existing',
+      activity_id: 'activity-upload',
+      name: 'preuve.png',
+      media_type: 'image/png',
+      size: 3,
+      uploaded_by_id: 'agent',
+      uploaded_at: '2027-01-01T00:00:00Z',
+      withdrawal: null,
+      partner_shared: false,
+      sharing_version: 1,
+      allowed_actions: [],
+    }
+    const existingPage = {
+      ...empty,
+      count: 1,
+      data: [existingDocument],
+    }
+    const unmatchedPage = {
+      ...empty,
+      count: 2,
+      data: [
+        existingDocument,
+        {
+          ...existingDocument,
+          id: 'doc-other-user',
+          uploaded_by_id: 'another-agent',
+        },
+      ],
+    }
     let uploads = 0
     let finishRead
     vi.stubGlobal(
@@ -57,6 +87,8 @@ test.each(['success', 'failure'])(
           return new Promise((resolve) => {
             finishRead = resolve
           })
+        if (path.endsWith('/documents'))
+          return new Response(JSON.stringify(existingPage))
         let body = empty
         if (path.includes('/auth/session'))
           body = {
@@ -106,30 +138,32 @@ test.each(['success', 'failure'])(
       finishRead(
         new Response(
           JSON.stringify(
-            outcome === 'success'
+            outcome === 'saved'
               ? {
                   ...empty,
-                  count: 1,
+                  count: 2,
                   data: [
+                    existingDocument,
                     {
+                      ...existingDocument,
                       id: 'doc-1',
-                      name: 'preuve.png',
-                      media_type: 'image/png',
-                      byte_size: 3,
-                      allowed_actions: [],
                     },
                   ],
                 }
               : { code: 'service_unavailable' },
           ),
-          { status: outcome === 'success' ? 200 : 503 },
+          { status: outcome === 'saved' ? 200 : 503 },
         ),
       ),
     )
     expect(uploads).toBe(1)
-    if (outcome === 'success') {
-      expect(await screen.findByText('preuve.png')).toBeVisible()
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    if (outcome === 'saved') {
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      )
+      expect(
+        screen.getAllByRole('button', { name: 'Aperçu de preuve.png' }),
+      ).toHaveLength(2)
     } else {
       expect(
         within(screen.getByRole('dialog')).getByRole('button', {
@@ -144,10 +178,18 @@ test.each(['success', 'failure'])(
       fireEvent.click(
         screen.getByRole('button', { name: 'Vérifier les pièces jointes' }),
       )
-      await act(async () => finishRead(new Response(JSON.stringify(empty))))
-      await waitFor(() =>
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      await act(async () =>
+        finishRead(new Response(JSON.stringify(unmatchedPage))),
       )
+      await waitFor(() =>
+        expect(
+          within(screen.getByRole('dialog')).getByRole('button', {
+            name: 'Ajouter',
+          }),
+        ).toBeEnabled(),
+      )
+      expect(screen.getByRole('dialog')).toBeVisible()
+      expect(uploads).toBe(1)
     }
   },
 )

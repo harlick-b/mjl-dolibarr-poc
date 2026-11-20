@@ -1,4 +1,5 @@
 import { cn } from '@/shared/lib/utils'
+import { requiredFieldFeedbackStyles } from '@/shared/ui/required-field-feedback'
 
 // Low-specificity defaults let OTP and password controls own their sizing.
 export function AuthCard({ children, busy }) {
@@ -8,6 +9,7 @@ export function AuthCard({ children, busy }) {
       aria-busy={busy}
       className={cn(
         'w-full max-w-120 place-self-center rounded-panel border border-border bg-white p-8 max-[761px]:p-6',
+        requiredFieldFeedbackStyles,
         '[&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:leading-8 [&_h1]:text-navy',
         '[:where(&_p)]:mt-4 [:where(&_p)]:text-sm [:where(&_p)]:leading-6 [:where(&_p)]:text-muted-foreground [:where(&_p)]:wrap-anywhere',
         '[:where(&_form)]:mt-6 [:where(&_form)]:grid [:where(&_form)]:gap-6',

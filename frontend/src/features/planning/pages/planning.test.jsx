@@ -307,7 +307,7 @@ test('the annual plan stays in page loading until its Activity list is ready', a
       name: 'Chargement : Planification des activités sur l’année',
     }),
   ).toBeVisible()
-  expect(screen.queryByRole('heading', { name: 'Projet métriques' })).toBeNull()
+  expect(screen.queryByRole('heading', { name: 'PTA Justice 2027' })).toBeNull()
 
   resolveActivities(
     new Response(
@@ -320,12 +320,14 @@ test('the annual plan stays in page loading until its Activity list is ready', a
       }),
     ),
   )
-  expect(
-    await screen.findByRole('heading', { name: 'Projet métriques' }),
-  ).toBeVisible()
-  expect(
-    screen.getByText('PTA 2027 · Programme annuel de protection'),
-  ).toBeVisible()
+  const heading = await screen.findByRole('heading', {
+    name: 'PTA Justice 2027',
+  })
+  expect(heading).toBeVisible()
+  const header = heading.closest('header')
+  expect(header).toHaveTextContent('Projet métriques')
+  expect(header).toHaveTextContent('PTA 2027')
+  expect(header).toHaveTextContent('Programme annuel de protection')
 })
 
 test('the annual plan shows whole-PTA planning counts and approved budget', async () => {
@@ -1882,6 +1884,13 @@ test('subtasks start blank and keep manually entered totals', async () => {
   expect(screen.getByLabelText('Pondération de la sous-tâche (%)')).toHaveValue(
     '',
   )
+  await user.click(
+    screen.getByRole('button', { name: 'Enregistrer la sous-tâche' }),
+  )
+  expect(
+    within(screen.getByRole('dialog')).getByLabelText('Intitulé'),
+  ).toHaveAttribute('data-value-missing', 'true')
+  expect(first).toHaveAttribute('data-value-missing', 'true')
   await user.type(
     within(screen.getByRole('dialog')).getByLabelText('Intitulé'),
     'Salle',
@@ -3530,6 +3539,10 @@ test('an assigned Agent completes a start-only brief and gets clear missing-date
   expect(screen.getByRole('alert')).toHaveTextContent(
     'Renseignez une période valide pour l’activité',
   )
+  expect(screen.getByRole('button', { name: /^Date de fin/ })).toHaveAttribute(
+    'data-value-missing',
+    'true',
+  )
   await user.click(screen.getAllByRole('button', { name: /^Date de fin/ })[0])
   await user.click(
     screen.getByRole('button', { name: /dimanche 31 janvier 2027/i }),
@@ -3587,7 +3600,12 @@ test('a started Task must be completed or removed without losing its input', asy
   await user.type(screen.getByLabelText('Intitulé'), 'Préparer')
   expect(
     screen.getByRole('button', { name: 'Enregistrer la tâche' }),
-  ).toBeDisabled()
+  ).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: 'Enregistrer la tâche' }))
+  expect(screen.getByLabelText('Montant prévu de la tâche')).toHaveAttribute(
+    'data-value-missing',
+    'true',
+  )
   expect(screen.getByLabelText('Intitulé')).toHaveValue('Préparer')
   expect(submit).not.toHaveBeenCalled()
 })
@@ -3650,7 +3668,16 @@ test('a Task started only through its description is not silently discarded', as
   await user.type(screen.getByLabelText('Description'), 'À organiser')
   expect(
     screen.getByRole('button', { name: 'Enregistrer la tâche' }),
-  ).toBeDisabled()
+  ).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: 'Enregistrer la tâche' }))
+  expect(screen.getByLabelText('Intitulé')).toHaveAttribute(
+    'data-value-missing',
+    'true',
+  )
+  expect(screen.getByLabelText('Montant prévu de la tâche')).toHaveAttribute(
+    'data-value-missing',
+    'true',
+  )
   expect(submit).not.toHaveBeenCalled()
   expect(screen.getByLabelText('Description')).toHaveValue('À organiser')
 })

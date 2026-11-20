@@ -1389,6 +1389,54 @@ shared centered modal at its standard width, keep return observations visible
 with the decision actions, and preserve the Activity programming fact when the
 separate execution summary is temporarily unavailable.
 
+### Financial decision drawer correction — 2026-11-19
+
+Financial request review follows
+`activity-task-prevalidation-and-validation-modal.png`: décaissement and virement
+reviews open in the shared wide drawer, show the requested and authorized amounts
+as read-only facts, and expose one observation field for prevalidation, final
+authorization or return. The observation is optional for approval decisions and
+required only when returning a request for correction. No decision attachment
+control is presented or sent. Request creation remains a centered dialog. The
+later editable-request refinement below supersedes its former fixed-amount rule.
+
+The Activity summary download uses the shared outline action. The shared
+modal owns the wide drawer dimensions and internal scrolling, so financial pages
+do not recreate that layout locally.
+
+### Finance summary and closure-action refinement — 2026-11-19
+
+The Finance summary keeps its four primary facts on one desktop row and falls
+back to two and then one column on narrower screens. The redundant execution
+pause sentence is removed because the pending authorization is already visible
+in the financial status and request list.
+
+The **Clôture de l’activité** row remains status-only while any prerequisite is
+outstanding and after closure. It exposes **Clôturer l’activité** only when the
+API grants the existing `close` action. Pending financial decisions remain
+accessible from **Demandes financières**. The Activity summary download uses the
+shared standard outline-button size from the approved header reference.
+
+### Financial summary projection follow-up — 2026-11-19
+
+The execution-detail response owns the current décaissement state, approved
+amount and current virement facts. History cursors remain responsible only for
+the visible request rows. This keeps **Montant autorisé** and its pending state
+unchanged when users move through older request pages or open a historical item.
+Financial modal labels and decision errors use the execution locale owner.
+
+The frontend regression covers an older page containing only a returned request;
+the summary still displays the current pending authorization from the Activity
+projection. Browser geometry coverage verifies the four desktop Finance facts
+share one row and reflow into four mobile rows. No financial workflow, amount or
+permission rule changes in this follow-up.
+
+Independent re-review cleared the three originating findings. Database-backed
+execution verification remains unavailable without a disposable
+`TEST_DATABASE_URL`. A separate approved-virement drawer scenario for a
+conflicting older history page remains a non-blocking test-depth gap; the current
+page-independent implementation was inspected directly.
+
 ### Activity reminder and PTA identity refinement — 2026-11-19
 
 The approved Activity Programming view now shows the standard **Relance
@@ -1409,3 +1457,65 @@ The focused Planning and reminder run passed 73 tests. Targeted ESLint and
 Prettier checks and the production build passed; the build retains the known
 large-chunk warning. Independent review found no implementation defect after the
 required plan/status record was identified for correction.
+
+### Shared Activity UI follow-up — 2026-11-19
+
+Activity list navigation and Task breadcrumbs now use shared pagination and
+Router-aware breadcrumb primitives. Activity attachments use the same protected
+preview/download lifecycle as Partner documents while retaining Activity-specific
+denial handling and existing authorization. The Task editor, Draft behavior and
+submission rules are unchanged.
+
+### Editable financial-request creation refinement — 2026-11-20
+
+The Agent chooser follows `activity-agent-new-demand-modal.png`. Décaissement
+and virement creation share the centered composition from
+`activity-demande-virement-modal.png`: exact XOF amount, optional observation,
+one optional PDF/JPEG/PNG attachment, then only **Annuler** and **Faire la
+demande**. Financial requests have no Draft action or Draft state. Décaissement
+must be positive and no greater than recorded spending; virement must be
+positive and no greater than the approved décaissement still available.
+
+Submission stores the amount, observation and attachment atomically before the
+existing Supervisor/Validator notification starts. Review remains the wide
+drawer from `activity-task-prevalidation-and-validation-modal.png`: the amount
+is read-only, the applicant's observation and attachment are consultable, and
+the reviewer enters an optional observation or the required return reason.
+Decision attachments remain excluded. Partial authorized amounts do not change
+recorded spending: reversement continues to use allocation minus actual spending,
+while each external transfer confirmation must equal its approved virement amount.
+After a partial approval, the creation form exposes only the remaining balance;
+successive approved requests accumulate, and reversement and closure remain blocked
+until approved décaissements, approved virements and confirmations fully reconcile.
+The internal fiche keeps a partially financed completed realization in
+**validation attendue** and records validation only when cumulative approved
+décaissements equal recorded spending. The Partner closed-finance projection
+likewise totals every approved virement's latest exact confirmation and uses the
+latest transfer date, instead of selecting one request.
+
+The shared Button now owns authentication-link, Activity-header, destructive and
+unstyled-control variants. OTP secondary actions use the authentication-link
+variant; **Affectations** and **Fiche récapitulative** use the same compact header
+variant. Production button controls route through the shared Button base.
+`BusinessForm` supplies consistent required-field invalid styling and accessible
+feedback through its shared field contract. Financial request metadata travels
+as bounded UTF-8 in the body when an attachment is present; user text is not
+placed in transport headers.
+
+Focused verification on the final candidate passed 64 frontend unit tests, the
+two controlled-browser returned-request journeys, 14 disposable-PostgreSQL
+financial/migration scenarios, and three focused internal/Partner projection
+regressions. Backend Ruff, focused mypy, Python compilation,
+targeted ESLint/Prettier, the production frontend build and `git diff --check`
+also passed. The broader financial run exposed an existing weighted-Task fixture
+that cannot record execution because its approved Task weights are incomplete;
+that unrelated scenario remains outside this financial-request correction.
+
+The final review correction makes reversement Activity-scoped when approved
+spending is covered by several partial virements. One reversement is visible from
+every related virement, points to the request that recorded it, and freezes later
+confirmation corrections for the whole Activity. The displayed basis remains the
+Activity's total recorded spending. The focused disposable-PostgreSQL rerun passed
+the cumulative-request, shared-reversement, unsettled-reversement and schema-drift
+scenarios (4 tests); the focused Activity-form and financial frontend run passed
+118 tests.

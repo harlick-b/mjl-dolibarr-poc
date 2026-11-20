@@ -282,6 +282,7 @@ def test_actual_shortfall_correction_history_and_finance_gate(planning, correcte
         {
             "expected_version": current["version"],
             "expected_approved_revision_id": current["approved_revision_id"],
+            "amount": str(current.get("spending_total") or 1),
         },
     )
     assert denied.status_code == 409
@@ -295,6 +296,7 @@ def test_actual_shortfall_correction_history_and_finance_gate(planning, correcte
         {
             "expected_version": current["version"],
             "expected_approved_revision_id": current["approved_revision_id"],
+            "amount": str(current.get("spending_total") or 1),
         },
     )
     assert submitted.status_code == 201, submitted.text

@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { ChevronUp, UserRound, LogOut, Folder } from 'lucide-react'
 import { authorization, roleLabels } from '../session/authorization'
 import { strings } from '@/locales/fr/AccountMenu'
+import { Button } from '@/shared/ui/button'
 
 export function AccountMenu({ user }) {
   const id = useId()
@@ -110,14 +111,15 @@ export function AccountMenu({ user }) {
           </Link>
         </div>
       )}
-      <button
+      <Button
         ref={trigger}
         type="button"
         aria-label={strings.account}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        className="flex min-h-16 w-full items-center gap-3 rounded-card px-2 text-left text-navy hover:bg-selected"
+        variant="unstyled"
+        className="flex min-h-16 w-full items-center justify-start gap-3 rounded-card px-2 text-left text-navy hover:bg-selected"
         onClick={() => {
           setOpen(!open)
           if (!open) requestAnimationFrame(() => focusItem())
@@ -149,7 +151,7 @@ export function AccountMenu({ user }) {
           aria-hidden="true"
           className={open ? 'shrink-0 rotate-180' : 'shrink-0'}
         />
-      </button>
+      </Button>
     </div>
   )
 }

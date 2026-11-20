@@ -12,9 +12,14 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
-from app.planning.core.models import ReversementDeclaration
+from app.planning.core.models import ReversementDeclaration, VirementRequest
 from app.planning.core.service import CONTEXT, Cursor, locked_mutation, principal
-from app.planning.finance.virement import exact_request, verified_source
+from app.planning.finance.virement import (
+    exact_request,
+    settlement_ready_for_reversement,
+    snapshot_spending,
+    verified_source,
+)
 from app.planning.finance.virement_confirmation import current as current_confirmation
 from app.planning.routes import (
     MUTATION_HEADERS,
@@ -159,10 +164,29 @@ def create_declaration(
         confirmation = current_confirmation(db, financial.id, lock=True)
         if not confirmation:
             raise AuthError(409, "virement_confirmation_required")
-        amount = required_amount(source.snapshot, source.amount)
+        if not settlement_ready_for_reversement(db, item, lock=True):
+            raise AuthError(409, "virement_not_settled")
+        amount = required_amount(source.snapshot, snapshot_spending(source))
         if amount == 0:
             raise AuthError(409, "reversement_not_required")
         previous = current(db, financial.id, lock=True)
+        existing_statement = (
+            select(ReversementDeclaration)
+            .join(
+                VirementRequest,
+                VirementRequest.id == ReversementDeclaration.request_id,
+            )
+            .where(VirementRequest.activity_id == item.id)
+            .order_by(
+                ReversementDeclaration.recorded_at.desc(),
+                ReversementDeclaration.id.desc(),
+            )
+            .limit(1)
+            .with_for_update()
+        )
+        existing = db.scalar(existing_statement)
+        if existing is not None and existing.request_id != financial.id:
+            raise AuthError(409, "reversement_exists")
         if correction != (previous is not None):
             raise AuthError(
                 409,

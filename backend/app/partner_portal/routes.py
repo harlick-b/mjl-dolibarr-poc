@@ -403,12 +403,34 @@ def activity_detail_data(
                 ZeroSpendingDeclaration.state == "approved",
             )
         )
-        confirmation = db.scalar(
-            select(VirementConfirmation)
-            .where(VirementConfirmation.activity_id == activity.id)
-            .order_by(VirementConfirmation.revision.desc())
-            .limit(1)
+        approved_virements = list(
+            db.scalars(
+                select(VirementRequest).where(
+                    VirementRequest.activity_id == activity.id,
+                    VirementRequest.state == "approved",
+                )
+            )
         )
+        approved_virement_ids = {row.id for row in approved_virements}
+        latest_confirmations: dict[str, VirementConfirmation] = {}
+        if approved_virement_ids:
+            for confirmation in db.scalars(
+                select(VirementConfirmation)
+                .where(VirementConfirmation.request_id.in_(approved_virement_ids))
+                .order_by(
+                    VirementConfirmation.request_id,
+                    VirementConfirmation.revision.desc(),
+                )
+            ):
+                latest_confirmations.setdefault(confirmation.request_id, confirmation)
+        exact_confirmations = [
+            latest_confirmations[row.id]
+            for row in approved_virements
+            if row.id in latest_confirmations
+            and latest_confirmations[row.id].amount == row.amount
+        ]
+        if approved_virements and len(exact_confirmations) != len(approved_virements):
+            raise AuthError(409, "portal_projection_unavailable")
         reversement = db.scalar(
             select(ReversementDeclaration)
             .where(ReversementDeclaration.activity_id == activity.id)
@@ -422,10 +444,14 @@ def activity_detail_data(
             "final_spending": str(spending),
             "zero_spending": bool(zero),
             "confirmed_transfer_amount": (
-                str(confirmation.amount) if confirmation else None
+                str(sum(row.amount for row in exact_confirmations))
+                if exact_confirmations
+                else None
             ),
             "confirmed_transfer_date": (
-                confirmation.transfer_date.isoformat() if confirmation else None
+                max(row.transfer_date for row in exact_confirmations).isoformat()
+                if exact_confirmations
+                else None
             ),
             "reversement_required": str(required),
             "reversement_amount": str(reversement.amount) if reversement else None,
@@ -846,7 +872,6 @@ def activity_fiche(activity_id: str, request: Request, auth: Auth) -> Response:
                         ),
                     }
                 )
-            amounts = {row.id: row.amount for row in disbursements}
             for virement_row in db.scalars(
                 select(VirementRequest)
                 .where(
@@ -855,12 +880,7 @@ def activity_fiche(activity_id: str, request: Request, auth: Auth) -> Response:
                 )
                 .order_by(VirementRequest.submitted_at)
             ):
-                amount = amounts.get(virement_row.disbursement_request_id)
-                label = (
-                    "Virement"
-                    if amount is None
-                    else f"Virement de {amount:,} F CFA".replace(",", " ")
-                )
+                label = f"Virement de {virement_row.amount:,} F CFA".replace(",", " ")
                 requests.append(
                     {
                         "date": virement_row.submitted_at,
@@ -981,7 +1001,15 @@ def shared_documents(
         return {
             "object": "list",
             "count": total,
-            "data": [dict(row._mapping) for row in rows],
+            "data": [
+                {
+                    "id": row.id,
+                    "name": row.name,
+                    "media_type": row.media_type,
+                    "size": row.size,
+                }
+                for row in rows
+            ],
             "next": link(rows[-1], "next")
             if rows and ((direction == "next" and more) or direction == "previous")
             else None,

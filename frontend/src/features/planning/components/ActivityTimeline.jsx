@@ -162,10 +162,11 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
                     </span>
                   ))
                 : months.map(({ label, count }, index) => (
-                    <button
+                    <Button
                       type="button"
                       key={label}
                       aria-label={label}
+                      variant="unstyled"
                       className="border-l border-border px-1 py-2 capitalize hover:bg-selected hover:text-primary"
                       onClick={() => onMonth(index + 1)}
                     >
@@ -173,7 +174,7 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
                       <small className="font-normal normal-case">
                         {count ? activityCount(count) : '—'}
                       </small>
-                    </button>
+                    </Button>
                   ))}
             </div>
           </div>
@@ -219,10 +220,11 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
                     />
                   ))}
                 </div>
-                <button
+                <Button
                   type="button"
                   title={`${row.name} · ${formatDate(row.planned_start)}${row.planned_end ? ` – ${formatDate(row.planned_end)}` : ''}`}
                   aria-label={`${row.name}, ${strings.fromDate} ${formatDate(row.planned_start)}${row.planned_end ? ` ${strings.toDate} ${formatDate(row.planned_end)}` : `, ${strings.startOnly.toLowerCase()}`}. ${strings.inspectTimeline}`}
+                  variant="unstyled"
                   className={`absolute top-4 h-8 rounded-card bg-primary text-xs font-medium text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${position.marker ? 'min-w-4 rotate-45' : ''}`}
                   style={{
                     left: `${position.left}%`,
@@ -245,7 +247,7 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
                       {position.after ? ' ›' : ''}
                     </span>
                   )}
-                </button>
+                </Button>
                 {position.marker && (
                   <span
                     className="absolute top-12 -translate-x-1/2 text-[0.6875rem] text-muted-foreground"

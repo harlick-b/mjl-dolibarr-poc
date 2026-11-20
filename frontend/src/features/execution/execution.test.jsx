@@ -39,7 +39,7 @@ async function openFinancialDrawer(
       within(dialog).getByText('Autorisation de décaissement'),
     ).toBeVisible()
     expect(within(dialog).getByText('Autorisation de virement')).toBeVisible()
-    if (expectedAuthorized)
+    if (expectedAuthorized && expectedAuthorized !== 'Non renseigné')
       expect(
         within(dialog).getByText(
           `Total actuellement autorisé : ${expectedAuthorized}`,
@@ -106,6 +106,8 @@ function detail({ started = false, completed = false } = {}) {
     progress: completed ? '100.00' : started ? '0.00' : null,
     works_completed: completed,
     spending_total: completed ? '100000' : null,
+    disbursement_remaining_amount: completed ? '100000' : null,
+    disbursement_can_submit: completed,
     balance: completed ? '0' : null,
     required_reversement: null,
     realization_status: completed
@@ -115,7 +117,10 @@ function detail({ started = false, completed = false } = {}) {
         : 'not_started',
     virement_context: {
       disbursement_request_id: null,
+      disbursement_state: null,
       amount: null,
+      authorized_amount: null,
+      transferred_amount: null,
       current_request_id: null,
       current_state: null,
       can_submit: false,
@@ -309,6 +314,85 @@ test('legacy execution detail URLs enter the canonical activity shell', async ()
   })
 })
 
+test('financial summary keeps the current authorization state on older history pages', async () => {
+  const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    ...execution.virement_context,
+    disbursement_state: 'submitted',
+  }
+  const oldReturnedRequest = {
+    id: 'old-returned-request',
+    amount: '90000',
+    state: 'returned',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read'],
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+    activity_version: execution.version,
+    approved_revision_id: execution.approved_revision_id,
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(execution))
+      if (path.includes('/disbursement-requests?cursor=older'))
+        return new Response(
+          JSON.stringify({
+            ...empty,
+            count: 1,
+            data: [oldReturnedRequest],
+            previous: '/api/v1/activities/activity-1/disbursement-requests',
+          }),
+        )
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/execution/activities/activity-1?financeCursor=older',
+          ],
+        }),
+      )}
+    />,
+  )
+
+  const situation = within(
+    await screen.findByRole('region', { name: 'Situation financière' }),
+  )
+  expect(
+    within(situation.getByText('Montant autorisé').parentElement).getByText(
+      'Autorisation en cours',
+    ),
+  ).toBeVisible()
+})
+
 test('activity tabs keep one header and preserve the execution sidebar context', async () => {
   const user = userEvent.setup()
   const createObjectURL = vi.fn(() => 'blob:activity-fiche')
@@ -457,6 +541,16 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     ).getByRole('link', { name: 'Réalisation' }),
   ).toHaveAttribute('aria-current', 'page')
   expect(await screen.findByText('Montant autorisé')).toBeVisible()
+  const financialFacts = within(
+    screen.getByRole('region', { name: 'Situation financière' }),
+  )
+  for (const label of [
+    'Montant prévu',
+    'Montant autorisé',
+    'Dépenses enregistrées',
+    'Dépenses acceptées',
+  ])
+    expect(financialFacts.getByText(label)).toBeVisible()
   expect(
     screen.queryByRole('button', { name: 'Demander une modification' }),
   ).not.toBeInTheDocument()
@@ -466,7 +560,11 @@ test('activity tabs keep one header and preserve the execution sidebar context',
   expect(
     screen.queryByRole('button', { name: 'Transférer vers un autre PTA' }),
   ).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Fiche récapitulative' }))
+  const activitySheet = screen.getByRole('button', {
+    name: 'Fiche récapitulative',
+  })
+  expect(activitySheet).toBeVisible()
+  await user.click(activitySheet)
   await waitFor(() => expect(anchorClick).toHaveBeenCalledOnce())
   expect(
     screen.queryByRole('dialog', { name: 'Fiche récapitulative' }),
@@ -588,7 +686,14 @@ test('agent records tasks before the collapsed financial workflow', async () => 
 
   expect(await screen.findByText('Montant autorisé')).toBeVisible()
   expect(screen.getByText('Dépenses acceptées')).toBeVisible()
-  expect(screen.getByText('Non renseigné')).toBeVisible()
+  const financialSituation = within(
+    screen.getByRole('region', { name: 'Situation financière' }),
+  )
+  expect(
+    within(
+      financialSituation.getByText('Dépenses enregistrées').parentElement,
+    ).getByText('Non renseigné'),
+  ).toBeVisible()
   expect(
     within(screen.getByText('Dépenses acceptées').parentElement).getByText(
       'Réalisation à soumettre',
@@ -1065,12 +1170,12 @@ test('an execution correction keeps its version across refresh and closing resto
   const administration = within(
     screen.getByRole('region', { name: 'Demandes financières' }),
   )
-  await openFinancialDrawer(user, 'Nouvelle demande', 'Non renseigné')
-  expect(
-    screen.getAllByRole('heading', {
-      name: 'Autorisation de décaissement',
-    })[0],
-  ).toBeVisible()
+  const financialDialog = await openFinancialDrawer(
+    user,
+    'Nouvelle demande',
+    'Non renseigné',
+  )
+  expect(financialDialog).toHaveAccessibleName('Demande de décaissement')
   expect(
     within(
       screen.getByRole('region', {
@@ -1271,11 +1376,18 @@ test('Agent confirms eligible Activity closure and sees terminal evidence', asyn
     within(dialog).getByRole('button', { name: 'Confirmer la clôture' }),
   )
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Consulter' })).toBeVisible(),
+    expect(
+      screen.queryByRole('button', { name: 'Clôturer l’activité' }),
+    ).toBeNull(),
   )
-  expect(
-    screen.queryByRole('button', { name: 'Clôturer l’activité' }),
-  ).toBeNull()
+  const completedClosureStep = screen
+    .getByText('Clôture de l’activité', { exact: true, selector: 'strong' })
+    .closest('section')
+  expect(completedClosureStep).toHaveAttribute(
+    'data-administrative-state',
+    'complete',
+  )
+  expect(within(completedClosureStep).queryByRole('button')).toBeNull()
   expect(fetch).toHaveBeenCalledWith(
     '/api/v1/activities/activity-1/closure',
     expect.objectContaining({
@@ -1911,32 +2023,18 @@ test.each(['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'])(
         )}
       />,
     )
-    await userEvent
-      .setup()
-      .click(await screen.findByRole('button', { name: 'Consulter' }))
-    const closureDialog = screen.getByRole('dialog', {
-      name: 'Clôture de l’activité',
-    })
-    expect(within(closureDialog).getByText('Agent de test')).toBeVisible()
-    expect(
-      within(closureDialog).getByRole('link', {
-        name: 'Ouvrir l’historique',
-      }),
-    ).toHaveAttribute('href', expect.stringContaining('tab=history'))
-    expect(
-      (
-        await screen.findAllByText('Clôture de l’activité', { exact: true })
-      )[0].closest('section'),
-    ).toHaveAttribute('data-administrative-state', 'complete')
-    expect(within(closureDialog).getByText('Activité clôturée')).toBeVisible()
-    expect(
-      screen.queryByRole('button', { name: 'Clôturer l’activité' }),
-    ).toBeNull()
+    const closureRow = (
+      await screen.findByText('Clôture de l’activité', {
+        exact: true,
+        selector: 'strong',
+      })
+    ).closest('section')
+    expect(closureRow).toHaveAttribute('data-administrative-state', 'complete')
+    expect(within(closureRow).queryByRole('button')).toBeNull()
   },
 )
 
-test('completed work exposes the financial blocker in the closure drawer', async () => {
-  const user = userEvent.setup()
+test('completed work exposes the financial blocker without a closure action', async () => {
   const current = {
     ...detail({ started: true, completed: true }),
     closure_blockers: ['zero_spending_not_approved'],
@@ -1999,22 +2097,15 @@ test('completed work exposes the financial blocker in the closure drawer', async
   expect(closureRow).toHaveTextContent(
     'La déclaration sans dépense doit être validée.',
   )
-  await user.click(
-    within(closureRow).getByRole('button', { name: 'Consulter' }),
-  )
-  expect(
-    within(
-      screen.getByRole('dialog', { name: 'Clôture de l’activité' }),
-    ).getByText('La déclaration sans dépense doit être validée.'),
-  ).toBeVisible()
+  expect(within(closureRow).queryByRole('button')).toBeNull()
 })
 
 test.each([
-  ['AGENT_VERIFICATEUR', 'submitted', 'Agent superviseur', 'prevalidate'],
-  ['VALIDATEUR_DEFINITIF', 'prevalidated', 'Validateur définitif', 'approve'],
+  ['AGENT_VERIFICATEUR', 'submitted', 'prevalidate'],
+  ['VALIDATEUR_DEFINITIF', 'prevalidated', 'approve'],
 ])(
-  '%s sees its pending closure request and can open it',
-  async (role, state, ownerLabel, action) => {
+  '%s opens a pending request from Finance without a closure action',
+  async (role, state, action) => {
     const user = userEvent.setup()
     const current = {
       ...detail({ started: true, completed: true }),
@@ -2089,10 +2180,15 @@ test.each([
         selector: 'strong',
       })
     ).closest('section')
-    expect(closureRow).toHaveTextContent(`Responsable : ${ownerLabel}.`)
+    expect(closureRow).toHaveTextContent(
+      'La déclaration sans dépense doit être validée.',
+    )
+    expect(within(closureRow).queryByRole('button')).toBeNull()
     await user.click(
-      within(closureRow).getByRole('button', {
-        name: 'Examiner la demande',
+      within(
+        screen.getByRole('region', { name: 'Demandes financières' }),
+      ).getByRole('button', {
+        name: 'Examiner',
       }),
     )
     const requestDialog = screen.getByRole('dialog', {
@@ -2382,7 +2478,7 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
     }
     await user.click(
       screen.getByRole('button', {
-        name: 'Soumettre la demande',
+        name: 'Faire la demande',
       }),
     )
     await waitFor(() => expect(writes).toHaveLength(1))
@@ -2391,10 +2487,14 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
         ? {
             expected_version: current.version,
             expected_disbursement_request_id: source,
+            amount: '100000',
+            observation: '',
           }
         : {
             expected_version: current.version,
             expected_approved_revision_id: current.approved_revision_id,
+            amount: '100000',
+            observation: '',
           },
     )
     expect(requests[1]).toBe(returned)
@@ -2520,7 +2620,7 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   await openFinancialDrawer(user)
   await user.click(
     await screen.findByRole('button', {
-      name: 'Soumettre la demande',
+      name: 'Faire la demande',
     }),
   )
   await waitFor(() =>
@@ -2538,13 +2638,15 @@ test('Agent submits finalized spending for disbursement authorization', async ()
         body: JSON.stringify({
           expected_version: 7,
           expected_approved_revision_id: '11111111-1111-4111-8111-111111111111',
+          amount: '100000',
+          observation: '',
         }),
       }),
     ),
   )
   await user.click(
     screen.getByRole('button', {
-      name: /Soumise au Superviseur.*100.*000 F CFA/,
+      name: 'Consulter',
     }),
   )
   await waitFor(() =>
@@ -2556,12 +2658,13 @@ test('Agent submits finalized spending for disbursement authorization', async ()
   await user.type(screen.getByLabelText('Motif *'), 'Corriger les montants.')
   await user.click(screen.getByRole('button', { name: 'Annuler la demande' }))
   expect(
-    await screen.findByRole('button', { name: 'Soumettre la demande' }),
+    await screen.findByRole('button', { name: 'Faire la demande' }),
   ).toBeVisible()
 })
 
-test('a successful disbursement return closes the return form', async () => {
+test('financial review drawer sends an optional observation without editable amount or file', async () => {
   const user = userEvent.setup()
+  let decisionBody = null
   let request = {
     id: '33333333-3333-4333-8333-333333333333',
     activity_id: 'activity-1',
@@ -2601,19 +2704,20 @@ test('a successful disbursement return closes the return form', async () => {
         path.endsWith(`/disbursement-requests/${request.id}/decisions`) &&
         options.method === 'POST'
       ) {
+        decisionBody = JSON.parse(options.body)
         request = {
           ...request,
-          state: 'returned',
+          state: 'prevalidated',
           activity_version: 8,
           allowed_actions: ['read'],
           decisions: [
             {
               id: 'decision-1',
               stage: 'supervisor',
-              outcome: 'returned',
+              outcome: 'prevalidated',
               actor_name: 'Superviseur',
               decided_at: '2026-10-30T09:00:00Z',
-              reason: 'Préciser les dépenses.',
+              reason: 'Dossier vérifié.',
             },
           ],
         }
@@ -2643,26 +2747,137 @@ test('a successful disbursement return closes the return form', async () => {
     />,
   )
 
-  await openFinancialDrawer(user, 'Examiner')
+  const dialog = await openFinancialDrawer(user, 'Examiner')
+  expect(dialog).toHaveClass('h-dvh')
+  expect(dialog).toHaveClass('w-[min(640px,100%)]')
+  expect(within(dialog).queryByLabelText(/montant/i)).toBeNull()
+  expect(within(dialog).queryByLabelText(/pièce|fichier/i)).toBeNull()
   await user.type(
-    screen.getByLabelText('Observation / motif du retour *'),
-    'Préciser les dépenses.',
+    within(dialog).getByLabelText('Observation / motif du retour'),
+    'Dossier vérifié.',
   )
-  await user.click(
-    screen.getByRole('button', { name: 'Retourner en correction' }),
-  )
+  await user.click(within(dialog).getByRole('button', { name: 'Prévalider' }))
 
   await waitFor(() =>
-    expect(
-      screen.queryByRole('button', { name: 'Retourner en correction' }),
-    ).not.toBeInTheDocument(),
+    expect(decisionBody).toEqual({
+      expected_version: 7,
+      decision: 'prevalidate',
+      reason: 'Dossier vérifié.',
+    }),
   )
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
+test('virement review uses the shared decision composition and submits its observation', async () => {
+  const user = userEvent.setup()
+  const requestId = '44444444-4444-4444-8444-444444444444'
+  let decisionBody = null
+  let request = {
+    id: requestId,
+    activity_id: 'activity-1',
+    disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+    amount: '100000',
+    state: 'submitted',
+    submitted_at: '2026-10-29T09:00:00Z',
+    activity_version: 7,
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read', 'prevalidate', 'return'],
+  }
+  const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    disbursement_request_id: request.disbursement_request_id,
+    amount: request.amount,
+    current_request_id: request.id,
+    current_state: request.state,
+    can_submit: false,
+    unavailable_reason: 'virement_exists',
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'supervisor',
+              email: 'supervisor@example.test',
+              role: 'AGENT_VERIFICATEUR',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (
+        path.endsWith(`/virement-requests/${requestId}/decisions`) &&
+        options.method === 'POST'
+      ) {
+        decisionBody = JSON.parse(options.body)
+        request = {
+          ...request,
+          state: 'prevalidated',
+          activity_version: 8,
+          allowed_actions: ['read'],
+        }
+        return new Response(JSON.stringify(request))
+      }
+      if (path.endsWith(`/virement-requests/${requestId}`))
+        return new Response(JSON.stringify(request))
+      if (path.endsWith('/virement-requests'))
+        return new Response(
+          JSON.stringify({ ...empty, count: 1, data: [request] }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(execution))
+      return new Response(JSON.stringify(empty))
+    }),
+  )
+
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  const dialog = await openFinancialDrawer(user, 'Examiner')
+  expect(dialog).toHaveAccessibleName('Autorisation de virement')
+  expect(within(dialog).getByText('À prévalider')).toBeVisible()
+  expect(within(dialog).getByText('virement · 29 octobre 2026')).toBeVisible()
+  expect(
+    within(dialog).getByRole('heading', { name: 'Décisions' }),
+  ).toBeVisible()
+  expect(within(dialog).getByText('Aucune décision.')).toBeVisible()
+  await user.type(
+    within(dialog).getByLabelText('Observation / motif du retour'),
+    'Virement vérifié.',
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Prévalider' }))
+
+  await waitFor(() =>
+    expect(decisionBody).toEqual({
+      expected_version: 7,
+      decision: 'prevalidate',
+      reason: 'Virement vérifié.',
+    }),
+  )
+})
+
 test.each([
-  ['décaissement', '/disbursement-requests', 'Soumettre la demande'],
-  ['virement', '/virement-requests', 'Soumettre la demande'],
+  ['décaissement', '/disbursement-requests', 'Faire la demande'],
+  ['virement', '/virement-requests', 'Faire la demande'],
 ])(
   'offline invalidation aborts and clears a pending %s mutation',
   async (_label, mutationPath, buttonName) => {
@@ -2861,7 +3076,7 @@ test('virement detail names a missing authorization amount', async () => {
   ).toBeVisible()
 })
 
-test('Agent submits the locked disbursement amount for virement authorization', async () => {
+test('Agent enters a virement amount within the approved disbursement', async () => {
   const user = userEvent.setup()
   const sourceId = '33333333-3333-4333-8333-333333333333'
   const requestId = '44444444-4444-4444-8444-444444444444'
@@ -2983,13 +3198,15 @@ test('Agent submits the locked disbursement amount for virement authorization', 
       )}
     />,
   )
-  await openFinancialDrawer(user)
+  const requestDialog = await openFinancialDrawer(user)
+  expect(within(requestDialog).getByText('Budget prévu')).toBeVisible()
   expect(
-    screen.getByText(/ne confirme pas qu’un virement externe/i),
+    within(requestDialog).getByText('Total actuellement autorisé'),
   ).toBeVisible()
+  expect(within(requestDialog).getByLabelText(/montant/i)).toHaveValue(100000)
   await user.click(
     await screen.findByRole('button', {
-      name: 'Soumettre la demande',
+      name: 'Faire la demande',
     }),
   )
   await waitFor(() =>
@@ -3006,6 +3223,8 @@ test('Agent submits the locked disbursement amount for virement authorization', 
       body: JSON.stringify({
         expected_version: 7,
         expected_disbursement_request_id: sourceId,
+        amount: '100000',
+        observation: '',
       }),
     }),
   )
@@ -3399,6 +3618,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       const body = JSON.parse(options.body)
       const declared = {
         id: 'reversement-1',
+        request_id: requestId,
         revision: 1,
         returned_amount: '100000',
         return_date: body.return_date,
@@ -3513,6 +3733,9 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   ).toBeVisible()
   const dialog = reversementDialog
   expect(dialog.getAllByText('100 000 F CFA', { exact: true })).toHaveLength(2)
+  expect(dialog.getByText(/montant dépensé/i)).toHaveTextContent(
+    '200 000 F CFA',
+  )
   expect(dialog.queryByRole('textbox', { name: /montant/i })).toBeNull()
   await user.click(
     dialog.getByRole('button', {
@@ -3539,16 +3762,18 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   await user.click(
     dialog.getByRole('button', { name: 'Enregistrer le reversement' }),
   )
-  expect(fetch).toHaveBeenCalledWith(
-    `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement`,
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({
-        expected_version: 8,
-        return_date: '2026-10-28',
-        note: 'REVERSEMENT-001',
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          expected_version: 8,
+          return_date: '2026-10-28',
+          note: 'REVERSEMENT-001',
+        }),
       }),
-    }),
+    ),
   )
   expect(fetch).toHaveBeenCalledWith(
     '/api/v1/activities/activity-1/documents',
@@ -3635,6 +3860,160 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
   expect(screen.getAllByText(/Yoann Agent/)).toHaveLength(2)
   expect(screen.queryByText(/^Version /)).not.toBeInTheDocument()
 }, 15000)
+
+test('a related virement uses the Activity reversement owner for history and correction', async () => {
+  const user = userEvent.setup()
+  const activityId = 'activity-owner-routing'
+  const selectedId = '44444444-4444-4444-8444-444444444444'
+  const ownerId = '55555555-5555-4555-8555-555555555555'
+  const execution = detail({ started: true, completed: true })
+  execution.id = activityId
+  execution.approved_allocation = '300000'
+  execution.spending_total = '200000'
+  execution.virement_context = {
+    disbursement_request_id: '33333333-3333-4333-8333-333333333333',
+    amount: '200000',
+    current_request_id: selectedId,
+    current_state: 'approved',
+    can_submit: false,
+    unavailable_reason: 'virement_exists',
+  }
+  const declaration = {
+    id: 'reversement-1',
+    request_id: ownerId,
+    revision: 1,
+    returned_amount: '100000',
+    return_date: '2026-10-28',
+    note: 'REVERSEMENT-001',
+    actor_id: 'agent',
+    actor_name: 'Yoann Agent',
+    recorded_at: '2026-10-28T10:00:00Z',
+    correction_reason: null,
+  }
+  const virement = {
+    id: selectedId,
+    amount: '100000',
+    state: 'approved',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read'],
+    current_confirmation: {
+      id: 'confirmation-2',
+      revision: 1,
+      amount: '100000',
+      transfer_date: '2026-10-27',
+      note: null,
+      actor_id: 'agent',
+      recorded_at: '2026-10-27T10:00:00Z',
+      correction_reason: null,
+    },
+    reversement: {
+      required_amount: '100000',
+      declared_amount: '100000',
+      status: 'declared',
+      current_declaration: declaration,
+      allowed_actions: ['read', 'correct'],
+    },
+    activity_version: 9,
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+  }
+  const fetch = vi.fn((url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'user@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        ),
+      )
+    if (path.endsWith(`/virement-requests/${selectedId}`))
+      return Promise.resolve(new Response(JSON.stringify(virement)))
+    if (path.endsWith(`/virement-requests/${ownerId}/reversement/history`))
+      return Promise.resolve(new Response(JSON.stringify(empty)))
+    if (
+      path.endsWith(`/virement-requests/${ownerId}/reversement/corrections`) &&
+      options.method === 'POST'
+    )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            ...declaration,
+            revision: 2,
+            correction_reason: 'Date vérifiée.',
+            activity_version: 10,
+          }),
+        ),
+      )
+    if (path.endsWith(`/activities/${activityId}/execution`))
+      return Promise.resolve(new Response(JSON.stringify(execution)))
+    if (path.includes('/funding-requests'))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            ...empty,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 0,
+            approved_revision_id: null,
+          }),
+        ),
+      )
+    return Promise.resolve(new Response(JSON.stringify(empty)))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: [`/execution/activities/${activityId}`],
+        }),
+      )}
+    />,
+  )
+
+  const dialog = within(
+    await openAdministrativeDrawer(
+      user,
+      'Modifier le reversement',
+      'Reversement des fonds non utilisés',
+    ),
+  )
+  expect(dialog.getByText(/montant dépensé/i)).toHaveTextContent(
+    '200 000 F CFA',
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    `/api/v1/activities/${activityId}/virement-requests/${ownerId}/reversement/history`,
+    expect.objectContaining({ method: 'GET' }),
+  )
+  await user.type(
+    dialog.getByLabelText('Motif de la correction du reversement *'),
+    'Date vérifiée.',
+  )
+  await user.click(dialog.getByLabelText(/montant exact a été reversé/))
+  await user.click(
+    dialog.getByRole('button', { name: 'Corriger le reversement' }),
+  )
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/v1/activities/${activityId}/virement-requests/${ownerId}/reversement/corrections`,
+      expect.objectContaining({ method: 'POST' }),
+    ),
+  )
+})
 
 test('zero reversement displays settlement without a declaration form', async () => {
   const requestId = '44444444-4444-4444-8444-444444444444'
@@ -3823,7 +4202,7 @@ test('an uncertain virement submission stays blocked until reconciliation succee
   )
   await openFinancialDrawer(user)
   const submit = await screen.findByRole('button', {
-    name: 'Soumettre la demande',
+    name: 'Faire la demande',
   })
   await user.click(submit)
   await waitFor(() => expect(finishReconciliation).toBeDefined())
@@ -3990,7 +4369,7 @@ test.each([
   },
 )
 
-test('a reasoned execution correction refreshes the funding version without releasing the pause', async () => {
+test('a reasoned execution correction refreshes funding without a redundant pause banner', async () => {
   const user = userEvent.setup()
   let current = {
     ...detail({ started: true, completed: true }),
@@ -4098,7 +4477,7 @@ test('a reasoned execution correction refreshes the funding version without rele
       }),
     ).toBeEnabled(),
   )
-  expect(screen.getByText(/La réalisation est suspendue/)).toBeInTheDocument()
+  expect(screen.queryByText(/La réalisation est suspendue/)).toBeNull()
 })
 
 test.each([503, 403, 404])(

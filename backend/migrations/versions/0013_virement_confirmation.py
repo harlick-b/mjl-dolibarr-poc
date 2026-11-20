@@ -37,9 +37,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "revision > 0", name="virement_confirmation_revision_positive"
         ),
-        sa.CheckConstraint(
-            "amount > 0", name="virement_confirmation_amount_positive"
-        ),
+        sa.CheckConstraint("amount > 0", name="virement_confirmation_amount_positive"),
         sa.CheckConstraint(
             "(revision=1 AND correction_reason IS NULL) OR "
             "(revision>1 AND correction_reason IS NOT NULL AND "
@@ -70,7 +68,8 @@ def upgrade() -> None:
       IF expected_amount IS NULL OR NEW.amount<>expected_amount
          OR NEW.revision<>latest_revision+1
          OR NEW.recorded_at<=COALESCE(latest_recorded_at,approved_at)
-         OR NEW.transfer_date>(clock_timestamp() AT TIME ZONE 'Africa/Porto-Novo')::date THEN
+         OR NEW.transfer_date>(clock_timestamp() AT TIME ZONE
+              'Africa/Porto-Novo')::date THEN
         RAISE EXCEPTION 'Invalid virement confirmation';
       END IF;
       RETURN NEW;
@@ -92,8 +91,7 @@ def downgrade() -> None:
     END $$;
     """)
     op.execute(
-        "DROP TRIGGER virement_confirmation_immutable "
-        "ON pta_virement_confirmation"
+        "DROP TRIGGER virement_confirmation_immutable ON pta_virement_confirmation"
     )
     op.execute("DROP FUNCTION pta_preserve_virement_confirmation()")
     op.drop_table("pta_virement_confirmation")

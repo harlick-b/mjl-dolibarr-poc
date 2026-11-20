@@ -839,6 +839,15 @@ class DisbursementRequest(Base):
         ),
         CheckConstraint("amount > 0", name="disbursement_amount_positive"),
         CheckConstraint(
+            "(attachment_name IS NULL AND attachment_media_type IS NULL AND "
+            "attachment_size IS NULL AND attachment_sha256 IS NULL AND "
+            "attachment_content IS NULL) OR "
+            "(attachment_name IS NOT NULL AND attachment_media_type IS NOT NULL "
+            "AND attachment_size > 0 AND attachment_size <= 20971520 AND "
+            "attachment_sha256 IS NOT NULL AND attachment_content IS NOT NULL)",
+            name="disbursement_attachment_complete",
+        ),
+        CheckConstraint(
             "octet_length(snapshot::text) <= 1048576",
             name="disbursement_snapshot_bounded",
         ),
@@ -854,7 +863,7 @@ class DisbursementRequest(Base):
             "disbursement_one_open_per_activity",
             "activity_id",
             unique=True,
-            postgresql_where=text("state NOT IN ('returned', 'cancelled')"),
+            postgresql_where=text("state IN ('submitted', 'prevalidated')"),
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -863,6 +872,12 @@ class DisbursementRequest(Base):
     approved_revision_id: Mapped[str] = mapped_column(String(36))
     snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
     amount: Mapped[int] = mapped_column(BigInteger)
+    observation: Mapped[str | None] = mapped_column(String(4000))
+    attachment_name: Mapped[str | None] = mapped_column(String(200))
+    attachment_media_type: Mapped[str | None] = mapped_column(String(32))
+    attachment_size: Mapped[int | None] = mapped_column(Integer)
+    attachment_sha256: Mapped[str | None] = mapped_column(String(64))
+    attachment_content: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
     submitter_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     state: Mapped[str] = mapped_column(String(16), default="submitted")
@@ -1008,7 +1023,8 @@ class DisbursementDecision(Base):
         CheckConstraint(
             "(outcome='returned' AND reason IS NOT NULL AND "
             "length(btrim(reason)) BETWEEN 1 AND 4000) OR "
-            "(outcome<>'returned' AND reason IS NULL)",
+            "(outcome<>'returned' AND (reason IS NULL OR "
+            "length(btrim(reason)) BETWEEN 1 AND 4000))",
             name="disbursement_decision_reason",
         ),
         CheckConstraint(
@@ -1047,6 +1063,16 @@ class VirementRequest(Base):
             "state IN ('submitted','prevalidated','returned','approved','cancelled')",
             name="virement_request_state_allowed",
         ),
+        CheckConstraint("amount > 0", name="virement_amount_positive"),
+        CheckConstraint(
+            "(attachment_name IS NULL AND attachment_media_type IS NULL AND "
+            "attachment_size IS NULL AND attachment_sha256 IS NULL AND "
+            "attachment_content IS NULL) OR "
+            "(attachment_name IS NOT NULL AND attachment_media_type IS NOT NULL "
+            "AND attachment_size > 0 AND attachment_size <= 20971520 AND "
+            "attachment_sha256 IS NOT NULL AND attachment_content IS NOT NULL)",
+            name="virement_attachment_complete",
+        ),
         CheckConstraint(
             "jsonb_typeof(excluded_reviewer_ids)='array' AND "
             "octet_length(excluded_reviewer_ids::text) <= 1048576",
@@ -1064,13 +1090,20 @@ class VirementRequest(Base):
             "virement_one_open_per_activity",
             "activity_id",
             unique=True,
-            postgresql_where=text("state NOT IN ('returned', 'cancelled')"),
+            postgresql_where=text("state IN ('submitted', 'prevalidated')"),
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     context_id: Mapped[str] = mapped_column(String(3))
     activity_id: Mapped[str] = mapped_column(String(36))
     disbursement_request_id: Mapped[str] = mapped_column(String(36))
+    amount: Mapped[int] = mapped_column(BigInteger)
+    observation: Mapped[str | None] = mapped_column(String(4000))
+    attachment_name: Mapped[str | None] = mapped_column(String(200))
+    attachment_media_type: Mapped[str | None] = mapped_column(String(32))
+    attachment_size: Mapped[int | None] = mapped_column(Integer)
+    attachment_sha256: Mapped[str | None] = mapped_column(String(64))
+    attachment_content: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
     excluded_reviewer_ids: Mapped[list[str]] = mapped_column(JSONB)
     submitter_id: Mapped[str] = mapped_column(ForeignKey("auth_user.id"))
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -1112,7 +1145,8 @@ class VirementDecision(Base):
         CheckConstraint(
             "(outcome='returned' AND reason IS NOT NULL AND "
             "length(btrim(reason)) BETWEEN 1 AND 4000) OR "
-            "(outcome<>'returned' AND reason IS NULL)",
+            "(outcome<>'returned' AND (reason IS NULL OR "
+            "length(btrim(reason)) BETWEEN 1 AND 4000))",
             name="virement_decision_reason",
         ),
         CheckConstraint(

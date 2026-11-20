@@ -5,7 +5,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess, broadcastAuthenticationChange } from './access-verification'
 import { PageLoading } from '@/shared/ui/PageLoading'
 import { FallbackState } from '@/shared/ui/FallbackState'
-import { buttonVariants } from '@/shared/ui/button-variants'
+import { Button } from '@/shared/ui/button'
 import { strings } from '@/locales/fr/AuthView'
 
 const LogoutContext = createContext(null)
@@ -89,9 +89,9 @@ export function LogoutScreen() {
         <FallbackState
           title={strings.logoutHeading}
           action={
-            <button type="button" className={buttonVariants()} onClick={logout}>
+            <Button type="button" onClick={logout}>
               {strings.retryLogout}
-            </button>
+            </Button>
           }
         >
           <p>{strings.logoutUnconfirmed}</p>

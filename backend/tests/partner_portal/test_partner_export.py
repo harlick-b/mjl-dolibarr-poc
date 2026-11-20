@@ -15,6 +15,12 @@ def export(client, pta_id):
     )
 
 
+def exported_activities(response):
+    content, rows = activity_rows(response)
+    header = next(row for row in content if row[:1] == ["Identifiant activité"])
+    return content, [dict(zip(header, row, strict=True)) for row in rows]
+
+
 def test_partner_exports_only_public_approved_rows(planning, auth_env):
     partner, operation, project = references(planning)
     activity = approve_in_project(planning, project, operation, name="=SUM(1;2)")
@@ -26,12 +32,30 @@ def test_partner_exports_only_public_approved_rows(planning, auth_env):
         assert response.status_code == 200, response.text
         assert response.headers["content-type"].startswith("text/csv")
         assert response.headers["cache-control"] == "no-store"
-        content, rows = activity_rows(response)
+        _content, rows = exported_activities(response)
         assert len(rows) == 1
-        assert rows[0][2] == "'=SUM(1;2)"
-        assert rows[0][6] == "Approuvée"
-        assert rows[0][8:] == [""] * 7
-        assert "Généré par" not in response.text
+        assert rows[0]["Nom activité"] == "'=SUM(1;2)"
+        assert rows[0]["État"] == "Approuvée"
+        assert {
+            field: rows[0][field]
+            for field in (
+                "Dépense finale XOF",
+                "Virement externe confirmé XOF",
+                "Date du virement externe",
+                "Surplus à reverser XOF",
+                "Reversement enregistré XOF",
+                "Date du reversement",
+                "Date de clôture UTC",
+            )
+        } == {
+            "Dépense finale XOF": "",
+            "Virement externe confirmé XOF": "",
+            "Date du virement externe": "",
+            "Surplus à reverser XOF": "",
+            "Reversement enregistré XOF": "",
+            "Date du reversement": "",
+            "Date de clôture UTC": "",
+        }
         assert "@example.test" not in response.text
 
 
@@ -220,7 +244,7 @@ def test_partner_export_current_placement_and_invisible_pta(planning, auth_env):
         assert draft["id"] not in before.text
         requested = request_transfer(planning, activity)
         pending = export(portal, activity["pta_id"])
-        assert activity_rows(pending)[1][0][6] == "Approuvée"
+        assert exported_activities(pending)[1][0]["État"] == "Approuvée"
         moved = approve_transfer(planning, activity, requested)
         assert export(portal, activity["pta_id"]).status_code == 404
         destination = export(portal, moved["pta_id"])
@@ -249,4 +273,11 @@ def test_partner_export_validated_zero_and_closed_project(planning, auth_env):
         )
         response = export(portal, activity["pta_id"])
         assert response.status_code == 200, response.text
-        assert activity_rows(response)[1][0][8:14] == ["0", "", "", "0", "", ""]
+        row = exported_activities(response)[1][0]
+        assert row["Dépense finale XOF"] == "0"
+        assert row["Virement externe confirmé XOF"] == ""
+        assert row["Date du virement externe"] == ""
+        assert row["Surplus à reverser XOF"] == "0"
+        assert row["Reversement enregistré XOF"] == ""
+        assert row["Date du reversement"] == ""
+        assert row["Date de clôture UTC"]

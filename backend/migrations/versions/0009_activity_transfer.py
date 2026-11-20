@@ -17,7 +17,9 @@ depends_on = None
 
 
 def corrected_review_function() -> str:
-    previous = import_module("migrations.versions.0008_activity_withdrawal").review_function()
+    previous = import_module(
+        "migrations.versions.0008_activity_withdrawal"
+    ).review_function()
     old = "OR snap->'pta' IS DISTINCT FROM base_snap->'pta'"
     new = """OR (
              snap->'pta' IS DISTINCT FROM base_snap->'pta'
@@ -333,4 +335,6 @@ def downgrade() -> None:
         "pta_activity",
         "(withdrawal_id IS NULL AND state<>'withdrawn') OR (withdrawal_id IS NOT NULL AND amendment_id IS NULL AND withdrawal_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' AND approved_revision_id IS NOT NULL AND state IN ('submitted','prevalidated','returned_supervisor','returned_validator','withdrawn'))",
     )
-    op.execute(import_module("migrations.versions.0008_activity_withdrawal").review_function())
+    op.execute(
+        import_module("migrations.versions.0008_activity_withdrawal").review_function()
+    )

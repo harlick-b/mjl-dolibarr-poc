@@ -157,7 +157,7 @@ class AuthService:
         revisions = list(
             db.scalars(text("SELECT version_num FROM public.alembic_version"))
         )
-        if revisions != ["0039_editable_activity_dates"]:
+        if revisions != ["0040_financial_request_details"]:
             raise AuthError(409, "eligibility_unverified")
         required_constraints = {
             "ownership_context_singleton",
@@ -190,6 +190,7 @@ class AuthService:
             "subtask_execution_started_before_facts",
             "disbursement_request_state_allowed",
             "disbursement_amount_positive",
+            "disbursement_attachment_complete",
             "disbursement_snapshot_bounded",
             "disbursement_cancellation_facts",
             "disbursement_one_open_per_activity",
@@ -199,6 +200,8 @@ class AuthService:
             "disbursement_prevalidation_reference",
             "disbursement_prevalidation_same_request",
             "virement_request_state_allowed",
+            "virement_amount_positive",
+            "virement_attachment_complete",
             "virement_exclusions_bounded",
             "virement_cancellation_facts",
             "virement_one_open_per_activity",
@@ -321,7 +324,7 @@ class AuthService:
         encoded_manifest = json.dumps(manifest, separators=(",", ":"))
         manifest_hash = hashlib.sha256(encoded_manifest.encode()).hexdigest()
         if manifest_hash != (
-            "c8c48ccf25ac765431c0b269c04acd68c6a7964bee4877d1317a8e6ee14807ad"
+            "88b135c13e8615af95058dbb705efcdd28a82cec997e41da3e6700fb057d491d"
         ):
             raise AuthError(409, "eligibility_unverified")
         if require_context:

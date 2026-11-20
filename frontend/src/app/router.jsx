@@ -10,7 +10,7 @@ import {
   loginDestination,
   rememberPage,
 } from '@/features/auth/session/navigation'
-import { businessActionClassName } from '@/shared/ui/button-variants'
+import { Button } from '@/shared/ui/button'
 import { WorkspaceMain, WorkspaceFrame } from '@/shared/ui/layout'
 import { strings } from '@/locales/fr/Router'
 import { strings as common } from '@/locales/fr/common'
@@ -153,13 +153,9 @@ function RouteFailure() {
     <FallbackState
       title={strings.unexpectedTitle}
       action={
-        <button
-          className={businessActionClassName}
-          onClick={() => window.location.reload()}
-          type="button"
-        >
+        <Button onClick={() => window.location.reload()} type="button">
           {strings.reload}
-        </button>
+        </Button>
       }
     >
       <p>{strings.unexpectedMessage}</p>
@@ -322,9 +318,9 @@ function NotFound() {
     <FallbackState
       title={strings.notFound}
       action={
-        <Link to={destination} className={businessActionClassName}>
-          {common.returnToWorkspace}
-        </Link>
+        <Button asChild>
+          <Link to={destination}>{common.returnToWorkspace}</Link>
+        </Button>
       }
     >
       <p>{strings.notFoundMessage}</p>

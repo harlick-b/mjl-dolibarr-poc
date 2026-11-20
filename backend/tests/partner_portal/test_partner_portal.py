@@ -19,11 +19,16 @@ from tests.auth.test_recovery import (
     recovery_proof,
     request,
 )
-from tests.execution.test_closure import close_path, settled_activity
+from tests.execution.test_closure import (
+    close_path,
+    partial_settled_activity,
+    settled_activity,
+)
 from tests.execution.test_reversement import reversement_path
 from tests.planning.test_amendments import edit_amendment, open_amendment
 from tests.planning.test_planning import (
     admin,
+    assign_agents,
     ordered_advisory_race,
     plan,
     planning,
@@ -75,7 +80,8 @@ def approve_in_project(clients, project, operation_type, *, name="Activité port
         },
     )
     assert approved.status_code == 201, approved.text
-    return clients["agent"].get(f"/api/v1/activities/{created['id']}").json()
+    detail = clients["agent"].get(f"/api/v1/activities/{created['id']}").json()
+    return assign_agents(clients, detail, clients["agent"], clients["agent2"])
 
 
 def invite_partner(clients, auth_env, stack, partner_id, email):
@@ -91,7 +97,11 @@ def invite_partner(clients, auth_env, stack, partner_id, email):
     )
     assert invitation.status_code == 201, invitation.text
     client = stack.enter_context(
-        TestClient(clients["admin"].app, base_url="http://localhost")
+        TestClient(
+            clients["admin"].app,
+            base_url="http://localhost",
+            client=(f"partner-{email}", 50000),
+        )
     )
     refreshed_auth = client.app.state.auth
     refreshed_auth.policy = refreshed_auth.policy.model_copy(
@@ -281,11 +291,9 @@ def test_partner_identity_reads_only_its_approved_portfolio(planning, auth_env):
         assert fiche.headers["content-type"] == "application/pdf"
         assert fiche.headers["cache-control"] == "no-store"
         content = pdf_text(fiche)
-        assert "FICHE PARTENAIRE" in content
         assert activity["name"] in content
         for hidden in (
             "Contenu candidat interne",
-            "Pièces justificatives",
             "Journal des événements",
             "@example.test",
         ):
@@ -575,15 +583,17 @@ def test_partner_projection_follows_effective_withdrawal_and_transfer(
         fiche = portal.get(f"/api/v1/partner-portal/activities/{moved['id']}/fiche.pdf")
         assert fiche.status_code == 200, fiche.text
         content = pdf_text(fiche)
-        assert "2028" in content
-        assert "01/02/2028 au 31/08/2028" in content
+        assert source["name"] in content
+        assert "PTA 2028" in content
+        assert "01 fév." in content
+        assert "31 août" in content
         assert "Transfert annuel approuvé" in content
 
 
 def test_partner_closed_finance_uses_latest_definitive_facts(planning, auth_env):
     activity, request_row, version = settled_activity(planning)
     corrected = post(
-        planning["agent2"],
+        planning["agent"],
         reversement_path(activity, request_row) + "/corrections",
         {
             "expected_version": version,
@@ -630,11 +640,10 @@ def test_partner_closed_finance_uses_latest_definitive_facts(planning, auth_env)
         )
         content = pdf_text(fiche)
         for expected in (
-            "FICHE PARTENAIRE",
             "300 000 F CFA",
             "200 000 F CFA",
             "100 000 F CFA",
-            "29/10/2026",
+            "29 oct. 2026",
         ):
             assert expected in content
         assert "NOTE INTERNE" not in content
@@ -653,6 +662,28 @@ def test_partner_closed_finance_uses_latest_definitive_facts(planning, auth_env)
                 "role": "PARTENAIRE",
                 "version": closed.json()["version"],
             }
+
+
+def test_partner_closed_finance_consolidates_partial_virements(planning, auth_env):
+    activity, version, _request_ids = partial_settled_activity(planning)
+    closed = post(
+        planning["agent"], close_path(activity), {"expected_version": version}
+    )
+    assert closed.status_code == 200, closed.text
+    partner_id = activity_partner(planning["auth"], activity["id"])
+
+    with ExitStack() as stack:
+        portal, _identity, _invitation = invite_partner(
+            planning,
+            auth_env,
+            stack,
+            partner_id,
+            "partial-finance-partner@example.test",
+        )
+        detail = portal.get(f"/api/v1/partner-portal/activities/{activity['id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["finance"]["confirmed_transfer_amount"] == "300000"
+        assert detail.json()["finance"]["confirmed_transfer_date"] == "2026-10-28"
 
 
 def test_partner_zero_spending_result_and_fiche_audit_rollback(planning, auth_env):

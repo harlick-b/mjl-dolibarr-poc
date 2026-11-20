@@ -472,6 +472,7 @@ def test_fiche_renders_execution_corrections_and_financial_return(planning):
         {
             "expected_version": complete["version"],
             "expected_approved_revision_id": complete["approved_revision_id"],
+            "amount": str(complete.get("spending_total") or 1),
         },
     ).json()
     return_reason = "Justifier les dépenses enregistrées."

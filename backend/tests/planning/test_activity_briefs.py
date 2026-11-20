@@ -346,24 +346,6 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         "email": validator["email"],
         "full_name": validator["full_name"],
     }
-    if creator == "supervisor":
-        from alembic import command
-        from alembic.config import Config
-        from alembic.script import ScriptDirectory
-        from sqlalchemy import text
-        from sqlalchemy.orm import Session
-
-        with Session(planning["auth"].engine) as db, db.begin():
-            db.execute(text("DELETE FROM pta_activity_workflow_notification"))
-            db.execute(text("DELETE FROM pta_activity_assignment_notification"))
-        with pytest.raises(
-            RuntimeError, match="Preserve positive decision observations"
-        ):
-            command.downgrade(Config("alembic.ini"), "0028_activity_briefs")
-        with Session(planning["auth"].engine) as db:
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
-            )
     # The same reviewer remains excluded from financial approval.
     from tests.execution.test_execution import execution_path
 
@@ -377,6 +359,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
                 "expected_version": detail["version"],
                 "expected_approved_revision_id": detail["approved_revision_id"],
                 "actual_spent": operation["approved_allocation"],
+                "progress": "100.00",
                 "execution_completed": True,
                 "execution_observation": "Terminé",
             },
@@ -389,6 +372,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         {
             "expected_version": detail["version"],
             "expected_approved_revision_id": detail["approved_revision_id"],
+            "amount": detail["spending_total"],
         },
     )
     assert finance.status_code == 201, finance.text
@@ -413,6 +397,76 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         },
     )
     assert denied.status_code == 409, denied.text
+
+
+def test_used_decision_observation_migration_refuses_destructive_downgrade(
+    monkeypatch,
+):
+    import os
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    base = make_url(os.environ["TEST_DATABASE_URL"])
+    assert (base.database or "").startswith("mjl_test_")
+    database_name = "mjl_test_" + uuid4().hex
+    admin_engine = create_engine(base, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as db:
+        db.execute(text(f"CREATE DATABASE {database_name}"))
+    url = base.set(database=database_name).render_as_string(hide_password=False)
+    migration_engine = create_engine(url)
+    monkeypatch.setenv("DATABASE_URL", url)
+    config = Config("alembic.ini")
+    decision_id = str(uuid4())
+    try:
+        command.upgrade(config, "0028_activity_briefs")
+        command.upgrade(config, "0029_decision_observations")
+        # The downgrade reads only the positive observation. Foreign rows are
+        # deliberately absent so this historical fixture stays at the migration seam.
+        with migration_engine.begin() as db:
+            db.execute(text("SET session_replication_role = replica"))
+            db.execute(
+                text(
+                    "INSERT INTO pta_activity_revision_decision "
+                    "(id,context_id,activity_id,revision_id,stage,outcome,actor_id,"
+                    "actor_role,decided_at,reason,requested_amount,"
+                    "prevalidation_revision_id) VALUES "
+                    "(:id,'MJL',:activity_id,:revision_id,'supervisor',"
+                    "'prevalidated',:actor_id,'AGENT_VERIFICATEUR',now(),"
+                    "'Programmation vérifiée.',NULL,NULL)"
+                ),
+                {
+                    "id": decision_id,
+                    "activity_id": str(uuid4()),
+                    "revision_id": str(uuid4()),
+                    "actor_id": str(uuid4()),
+                },
+            )
+            db.execute(text("SET session_replication_role = origin"))
+        with pytest.raises(
+            RuntimeError, match="Preserve positive decision observations"
+        ):
+            command.downgrade(config, "0028_activity_briefs")
+        with migration_engine.connect() as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0029_decision_observations"
+            )
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT reason FROM pta_activity_revision_decision WHERE id=:id"
+                    ),
+                    {"id": decision_id},
+                )
+                == "Programmation vérifiée."
+            )
+    finally:
+        migration_engine.dispose()
+        with admin_engine.connect() as db:
+            db.execute(text(f"DROP DATABASE {database_name} WITH (FORCE)"))
+        admin_engine.dispose()
 
 
 def test_decision_observation_migration_round_trip_when_unused(auth_env):

@@ -264,11 +264,12 @@ export function ActivityBriefModal({
                   agents.data?.data.map((agent) => {
                     const checked = selected.some((row) => row.id === agent.id)
                     return (
-                      <button
+                      <Button
                         type="button"
                         role="option"
                         aria-selected={checked}
                         key={agent.id}
+                        variant="unstyled"
                         className={`flex min-h-10 w-full items-center justify-between rounded-control px-3 text-left text-sm hover:bg-selected ${checked ? 'bg-selected' : ''}`}
                         onClick={() =>
                           setSelected(
@@ -280,7 +281,7 @@ export function ActivityBriefModal({
                       >
                         {agent.full_name || agent.email}
                         {checked && <Check size={15} />}
-                      </button>
+                      </Button>
                     )
                   })}
               </AgentSearchPanel>

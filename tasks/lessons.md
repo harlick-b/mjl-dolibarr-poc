@@ -16,6 +16,9 @@ implementation boundaries; [README](../README.md) owns setup.
   dismissal fixes and tests. Review for reuse first; test concrete outcomes, not
   every conceivable interaction. Record progress and resulting plan adjustments
   after each slice, and ask before major changes.
+- Do not use the immediate absence of localized wording as proof that an async
+  behavior will never occur. Assert the stable workflow or access state after the
+  transition; use accessible wording to operate the flow, not as its outcome.
 
 - Finish the smallest complete authorized slice: implement, inspect the actual
   experience, run relevant checks and obtain independent review before claiming
@@ -147,9 +150,16 @@ implementation boundaries; [README](../README.md) owns setup.
   at deferred commit, including review order, distinct actors and returned or
   cancelled histories. Test adjacent workflows and changed invariant fields,
   such as dates after transfer, not only changed amounts.
+- A returned-workflow test should complete the required recovery path after proving
+  that a review stage cannot be skipped. Read the final resource and prior evidence
+  again so the test catches a correction that never becomes effective or erases
+  the reasons that triggered it.
 - Bound Unicode inputs and encoded audit bytes consistently. Preserve material
   before/after values for mutable drafts; remove repeated projections instead.
   Test maximum multibyte content, edit/revert history and atomic rollback.
+- Keep user-entered Unicode metadata out of request headers. Send bounded UTF-8
+  metadata in the request body, validate it before persistence and cover
+  accented French text through the connected API transport.
 - A cutover rehearsal needs the exact predecessor writer and a distinct restricted
   candidate runtime login. Candidate-created data with a downgraded schema is not
   predecessor evidence. Hash-based schema guards need canonical predecessor
@@ -167,6 +177,9 @@ implementation boundaries; [README](../README.md) owns setup.
 - PDF checks must bind each label to its exact value, including maximum narrative
   text and correction-only changes. Chronology must identify who changed what and
   when in user-facing language; a document-wide amount match is insufficient.
+- For CSV contract tests, map each data row through the published header before
+  asserting named business facts. Numeric offsets silently drift when a column is
+  inserted even though the exported meaning remains stable.
 - Excel numeric cells retain only 15 significant digits reliably. Export larger
   exact XOF integers as labeled text; write user text literally to prevent formula
   or URL interpretation. Verify saved cell types.
@@ -189,6 +202,10 @@ implementation boundaries; [README](../README.md) owns setup.
   before inspecting mail or database results.
 - A retained test tenant retains abuse limits; a neutral recovery response may
   leave old mail untouched. Use a fresh isolated tenant to verify a new delivery.
+- When one test creates several independently authenticated clients, give each a
+  distinct synthetic client address unless shared-IP throttling is the behavior
+  under test. TestClient's default address can exhaust one combined limit before
+  the intended authorization assertions run.
 - Workflow dates and actual audit recording dates can differ. Filter tests using
   captured audit dates; do not assume a dated fixture is always before deadline.
   Assert overdue labels separately from persisted execution controls.
@@ -204,6 +221,9 @@ implementation boundaries; [README](../README.md) owns setup.
 - Before launching an existing app, identify its configured database and runtime.
   Compose can override .env and a new project name selects another volume.
   Healthy endpoints alone do not prove that existing accounts are being served.
+- When CI generates a host file for a non-root container bind mount, verify its
+  mode with the actual image user. A protective runner `umask` can make the file
+  unreadable inside the container even though the same mount works locally.
 
 - A dialog form rendered through a React portal still bubbles submit events to
   its React parent. Stop propagation when creating a reference from another form,
@@ -216,3 +236,10 @@ implementation boundaries; [README](../README.md) owns setup.
   desktop and 390 px state and audit each repeated control against `shared/ui`.
   A passing page-level flow can still hide duplicated file controls, formatters,
   card shells or a drawer footer that is not anchored to the viewport.
+- Shared controls own behavior and baseline geometry, while named variants own
+  the approved context-specific appearance. When migrating raw buttons, verify
+  every existing variant in its real screen; a shared component call alone does
+  not prove that OTP, header and destructive actions kept their design.
+- When an API field becomes required, audit request helpers and dictionaries
+  spread into calls as well as literal JSON bodies. Run the affected test files;
+  source searches that inspect only nearby literals miss reusable request bases.

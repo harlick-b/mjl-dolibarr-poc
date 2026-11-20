@@ -158,7 +158,10 @@ class ExecutionTaskOutput(Input):
 
 class VirementContextOutput(Input):
     disbursement_request_id: str | None
+    disbursement_state: str | None
     amount: str | None
+    authorized_amount: str | None
+    transferred_amount: str | None
     current_request_id: str | None
     current_state: str | None
     can_submit: bool
@@ -194,6 +197,8 @@ class ExecutionDetailOutput(Input):
     progress: str | None
     works_completed: bool
     spending_total: str | None
+    disbursement_remaining_amount: str | None
+    disbursement_can_submit: bool
     balance: str | None
     required_reversement: str | None
     realization_status: Literal[
@@ -368,39 +373,57 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
         return list(dict.fromkeys(blockers))
     source_statement = select(DisbursementRequest).where(
         DisbursementRequest.activity_id == item.id,
-        DisbursementRequest.state.not_in(("returned", "cancelled")),
+        DisbursementRequest.approved_revision_id == item.approved_revision_id,
+        DisbursementRequest.state == "approved",
+    )
+    pending_source_statement = select(DisbursementRequest).where(
+        DisbursementRequest.activity_id == item.id,
+        DisbursementRequest.state.in_(("submitted", "prevalidated")),
     )
     virement_statement = select(VirementRequest).where(
         VirementRequest.activity_id == item.id,
-        VirementRequest.state.not_in(("returned", "cancelled")),
+        VirementRequest.state == "approved",
+    )
+    pending_virement_statement = select(VirementRequest).where(
+        VirementRequest.activity_id == item.id,
+        VirementRequest.state.in_(("submitted", "prevalidated")),
     )
     if lock:
         source_statement = source_statement.with_for_update()
+        pending_source_statement = pending_source_statement.with_for_update()
         virement_statement = virement_statement.with_for_update()
-    source = db.scalar(source_statement)
-    financial = db.scalar(virement_statement)
-    if not source or source.state != "approved" or source.amount != spent:
+        pending_virement_statement = pending_virement_statement.with_for_update()
+    sources = list(db.scalars(source_statement))
+    pending_source = db.scalar(pending_source_statement)
+    virements = list(db.scalars(virement_statement))
+    pending_virement = db.scalar(pending_virement_statement)
+    source_ids = {source.id for source in sources}
+    source_total = sum(source.amount for source in sources)
+    if pending_source is not None or not sources or source_total != spent:
         blockers.append("disbursement_not_settled")
     if (
-        not financial
-        or financial.state != "approved"
-        or not source
-        or financial.disbursement_request_id != source.id
+        pending_virement is not None
+        or not virements
+        or any(row.disbursement_request_id not in source_ids for row in virements)
+        or sum(row.amount for row in virements) != source_total
     ):
         blockers.append("virement_not_settled")
         return list(dict.fromkeys(blockers))
-    confirmation_statement = (
-        select(VirementConfirmation)
-        .where(VirementConfirmation.request_id == financial.id)
-        .order_by(VirementConfirmation.revision.desc())
-        .limit(1)
-    )
-    if lock:
-        confirmation_statement = confirmation_statement.with_for_update()
-    confirmation = db.scalar(confirmation_statement)
-    if not confirmation or confirmation.amount != spent:
-        blockers.append("virement_confirmation_required")
-        return list(dict.fromkeys(blockers))
+    confirmations: dict[str, VirementConfirmation] = {}
+    for financial in virements:
+        confirmation_statement = (
+            select(VirementConfirmation)
+            .where(VirementConfirmation.request_id == financial.id)
+            .order_by(VirementConfirmation.revision.desc())
+            .limit(1)
+        )
+        if lock:
+            confirmation_statement = confirmation_statement.with_for_update()
+        confirmation = db.scalar(confirmation_statement)
+        if not confirmation or confirmation.amount != financial.amount:
+            blockers.append("virement_confirmation_required")
+            return list(dict.fromkeys(blockers))
+        confirmations[financial.id] = confirmation
     assert item.allocation is not None  # verified approved financial basis above
     required = item.allocation - spent
     if required < 0:
@@ -408,8 +431,11 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
     elif required > 0:
         declaration_statement = (
             select(ReversementDeclaration)
-            .where(ReversementDeclaration.request_id == financial.id)
-            .order_by(ReversementDeclaration.revision.desc())
+            .where(ReversementDeclaration.request_id.in_(confirmations))
+            .order_by(
+                ReversementDeclaration.recorded_at.desc(),
+                ReversementDeclaration.id.desc(),
+            )
             .limit(1)
         )
         if lock:
@@ -417,7 +443,7 @@ def closure_blockers(db: Session, item: Activity, *, lock: bool = False) -> list
         declaration = db.scalar(declaration_statement)
         if (
             not declaration
-            or declaration.confirmation_id != confirmation.id
+            or declaration.confirmation_id != confirmations[declaration.request_id].id
             or declaration.amount != required
         ):
             blockers.append("reversement_not_settled")
@@ -449,11 +475,26 @@ def execution_detail(
     project = db.get(Project, item.request_project_id)
     planning_reason = pause_reason(db, item, project)
     reason = planning_reason
-    financial = db.scalar(
-        select(DisbursementRequest).where(
-            DisbursementRequest.activity_id == item.id,
-            DisbursementRequest.state.not_in(("returned", "cancelled")),
+    nonterminal_disbursements = list(
+        db.scalars(
+            select(DisbursementRequest)
+            .where(
+                DisbursementRequest.activity_id == item.id,
+                DisbursementRequest.state.not_in(("returned", "cancelled")),
+            )
+            .order_by(
+                DisbursementRequest.submitted_at.desc(),
+                DisbursementRequest.id.desc(),
+            )
         )
+    )
+    financial = next(
+        (
+            row
+            for row in nonterminal_disbursements
+            if row.state in {"submitted", "prevalidated"}
+        ),
+        nonterminal_disbursements[0] if nonterminal_disbursements else None,
     )
     zero_declaration = db.scalar(
         select(ZeroSpendingDeclaration).where(
@@ -461,18 +502,68 @@ def execution_detail(
             ZeroSpendingDeclaration.state != "returned",
         )
     )
-    approved_disbursement = db.scalar(
-        select(DisbursementRequest).where(
-            DisbursementRequest.activity_id == item.id,
-            DisbursementRequest.state == "approved",
+    approved_disbursements = [
+        row for row in nonterminal_disbursements if row.state == "approved"
+    ]
+    nonterminal_virements = list(
+        db.scalars(
+            select(VirementRequest)
+            .where(
+                VirementRequest.activity_id == item.id,
+                VirementRequest.state.not_in(("returned", "cancelled")),
+            )
+            .order_by(VirementRequest.submitted_at.desc(), VirementRequest.id.desc())
         )
     )
-    current_virement = db.scalar(
-        select(VirementRequest).where(
-            VirementRequest.activity_id == item.id,
-            VirementRequest.state.not_in(("returned", "cancelled")),
-        )
+    pending_virement = next(
+        (
+            row
+            for row in nonterminal_virements
+            if row.state in {"submitted", "prevalidated"}
+        ),
+        None,
     )
+    current_virement = pending_virement or (
+        nonterminal_virements[0] if nonterminal_virements else None
+    )
+    approved_virement_by_source: dict[str, int] = {}
+    for row in nonterminal_virements:
+        if row.state == "approved":
+            approved_virement_by_source[row.disbursement_request_id] = (
+                approved_virement_by_source.get(row.disbursement_request_id, 0)
+                + row.amount
+            )
+    available_source = next(
+        (
+            source
+            for source in reversed(approved_disbursements)
+            if source.amount - approved_virement_by_source.get(source.id, 0) > 0
+        ),
+        None,
+    )
+    available_virement_amount = (
+        available_source.amount
+        - approved_virement_by_source.get(available_source.id, 0)
+        if available_source
+        else 0
+    )
+    approved_disbursement_total = sum(row.amount for row in approved_disbursements)
+    approved_virement_total = sum(
+        row.amount for row in nonterminal_virements if row.state == "approved"
+    )
+    all_virements_confirmed = True
+    for row in nonterminal_virements:
+        if row.state != "approved":
+            continue
+        latest = db.scalar(
+            select(VirementConfirmation)
+            .where(VirementConfirmation.request_id == row.id)
+            .order_by(VirementConfirmation.revision.desc())
+            .limit(1)
+        )
+        if not latest or latest.amount != row.amount:
+            all_virements_confirmed = False
+            break
     current_confirmation = (
         db.scalar(
             select(VirementConfirmation)
@@ -630,7 +721,9 @@ def execution_detail(
     approved_zero = (
         zero_declaration is not None and zero_declaration.state == "approved"
     )
-    realization_validated = approved_disbursement is not None or approved_zero
+    realization_validated = approved_zero or (
+        all_known and known_total > 0 and approved_disbursement_total == known_total
+    )
     has_started = any(
         operation.execution_started_at is not None
         or operation.actual_spent is not None
@@ -651,15 +744,21 @@ def execution_detail(
     required_reversement: int | None = None
     if approved_zero:
         required_reversement = 0
-    elif current_confirmation is not None and approved_disbursement is not None:
-        frozen_allocation = approved_disbursement.snapshot.get("allocation")
+    elif (
+        approved_disbursements
+        and all_known
+        and approved_disbursement_total == known_total
+        and approved_virement_total == known_total
+        and all_virements_confirmed
+    ):
+        frozen_allocation = approved_disbursements[0].snapshot.get("allocation")
         if (
             not isinstance(frozen_allocation, str)
             or not frozen_allocation.isascii()
             or not frozen_allocation.isdecimal()
         ):
             raise AuthError(409, "financial_basis_stale")
-        required_reversement = int(frozen_allocation) - approved_disbursement.amount
+        required_reversement = int(frozen_allocation) - known_total
         if required_reversement < 0:
             raise AuthError(409, "financial_insufficiency_unresolved")
     closure = None
@@ -733,6 +832,19 @@ def execution_detail(
         else None,
         "works_completed": complete == len(projected),
         "spending_total": str(known_total) if all_known else None,
+        "disbursement_remaining_amount": (
+            str(max(0, known_total - approved_disbursement_total))
+            if all_known
+            else None
+        ),
+        "disbursement_can_submit": can_work
+        and all_known
+        and known_total > approved_disbursement_total
+        and not any(
+            row.state in {"submitted", "prevalidated"}
+            for row in nonterminal_disbursements
+        )
+        and planning_reason is None,
         "balance": str(balance) if balance is not None else None,
         "required_reversement": (
             str(required_reversement) if required_reversement is not None else None
@@ -740,23 +852,30 @@ def execution_detail(
         "realization_status": realization_status,
         "tasks": projected,
         "virement_context": {
-            "disbursement_request_id": approved_disbursement.id
-            if approved_disbursement
+            "disbursement_request_id": available_source.id
+            if available_source
             else None,
-            "amount": str(approved_disbursement.amount)
-            if approved_disbursement
-            else None,
-            "current_request_id": current_virement.id if current_virement else None,
+            "disbursement_state": financial.state if financial else None,
+            "amount": str(available_virement_amount) if available_source else None,
+            "authorized_amount": (
+                str(approved_disbursement_total)
+                if approved_disbursement_total > 0
+                else None
+            ),
+            "transferred_amount": (
+                str(approved_virement_total) if approved_virement_total > 0 else None
+            ),
+            "current_request_id": pending_virement.id if pending_virement else None,
             "current_state": current_virement.state if current_virement else None,
             "can_submit": can_work
-            and approved_disbursement is not None
-            and current_virement is None
+            and available_source is not None
+            and pending_virement is None
             and planning_reason is None,
             "unavailable_reason": (
                 "disbursement_required"
-                if approved_disbursement is None
+                if available_source is None
                 else "virement_exists"
-                if current_virement is not None
+                if pending_virement is not None
                 else planning_reason
                 if planning_reason is not None
                 else "reviewer_read_only"

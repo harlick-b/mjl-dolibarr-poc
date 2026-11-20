@@ -32,7 +32,13 @@ from tests.planning.test_planning import (
 )
 
 
-def approved_disbursement(clients, *, amounts=(100_000, 200_000), allocations=None):
+def approved_disbursement(
+    clients,
+    *,
+    amounts=(100_000, 200_000),
+    allocations=None,
+    requested_amount=None,
+):
     activity = finish_activity(clients, amounts=amounts, allocations=allocations)
     submitted = post(
         clients["agent"],
@@ -40,6 +46,9 @@ def approved_disbursement(clients, *, amounts=(100_000, 200_000), allocations=No
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(
+                requested_amount if requested_amount is not None else sum(amounts)
+            ),
         },
     )
     assert submitted.status_code == 201, submitted.text
@@ -68,6 +77,19 @@ def virement_collection(activity):
     return f"/api/v1/activities/{activity['id']}/virement-requests"
 
 
+def test_virement_requires_an_agent_entered_amount(planning):
+    activity, source = approved_disbursement(planning)
+    response = post(
+        planning["agent"],
+        virement_collection(activity),
+        {
+            "expected_version": source["activity_version"],
+            "expected_disbursement_request_id": source["id"],
+        },
+    )
+    assert response.status_code == 422
+
+
 def submit_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
     activity, source = approved_disbursement(
         clients, amounts=amounts, allocations=allocations
@@ -78,9 +100,11 @@ def submit_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
         {
             "expected_version": source["activity_version"],
             "expected_disbursement_request_id": source["id"],
+            "amount": source["amount"],
         },
     )
     assert response.status_code == 201, response.text
+    assert response.json()["submitter_name"] == "Test User"
     return activity, source, response.json()
 
 
@@ -94,6 +118,7 @@ def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
         {
             "expected_version": request["activity_version"],
             "decision": "prevalidate",
+            "reason": "Virement vérifié.",
         },
     )
     assert prevalidated.status_code == 201, prevalidated.text
@@ -103,6 +128,7 @@ def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
         {
             "expected_version": prevalidated.json()["activity_version"],
             "decision": "approve",
+            "reason": "Virement autorisé.",
         },
     )
     assert approved.status_code == 201, approved.text
@@ -110,6 +136,10 @@ def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
         row["actor_name"] and row["actor_name"] != row["actor_id"]
         for row in approved.json()["decisions"]
     )
+    assert [row["reason"] for row in approved.json()["decisions"]] == [
+        "Virement vérifié.",
+        "Virement autorisé.",
+    ]
     return activity, source, approved.json()
 
 
@@ -160,6 +190,50 @@ def test_agent_declares_exact_external_transfer_and_corrects_with_history(planni
         "Test User",
     ]
     assert history.json()["data"][1]["note"] == "Référence banque TEST-001"
+
+
+def test_agent_enters_virement_no_greater_than_approved_disbursement(planning):
+    from tests.execution.test_documents import png
+
+    activity, source = approved_disbursement(planning, requested_amount=250_000)
+    rejected = post(
+        planning["agent"],
+        virement_collection(activity),
+        {
+            "expected_version": source["activity_version"],
+            "expected_disbursement_request_id": source["id"],
+            "amount": "250001",
+        },
+    )
+    assert rejected.status_code == 422, rejected.text
+    observation = "É" * 4000
+    content = png()
+    metadata = json.dumps(
+        {"name": "preuve-virement-équipe.png", "observation": observation},
+        ensure_ascii=False,
+    ).encode()
+    submitted = planning["agent"].post(
+        virement_collection(activity) + "/with-attachment",
+        headers={
+            **headers(planning["agent"]),
+            "Content-Type": "image/png",
+            "X-Request-Metadata-Length": str(len(metadata)),
+            "X-Expected-Version": str(source["activity_version"]),
+            "X-Expected-Disbursement-Request-Id": source["id"],
+            "X-Request-Amount": "200000",
+        },
+        content=metadata + content,
+    )
+    assert submitted.status_code == 201, submitted.text
+    request = submitted.json()
+    assert request["amount"] == "200000"
+    assert request["observation"] == observation
+    assert request["attachment"]["name"] == "preuve-virement-équipe.png"
+    downloaded = planning["supervisor"].get(
+        f"{virement_collection(activity)}/{request['id']}/attachment"
+    )
+    assert downloaded.status_code == 200
+    assert downloaded.content == content
 
 
 def test_confirmation_fails_closed_for_role_date_amount_and_noop(planning):
@@ -547,6 +621,7 @@ def test_agent_submits_locked_amount_and_fresh_reviewers_authorize_virement(plan
         {
             "expected_version": source["activity_version"],
             "expected_disbursement_request_id": source["id"],
+            "amount": source["amount"],
         },
     )
     assert submitted.status_code == 201, submitted.text
@@ -585,6 +660,7 @@ def test_virement_preserves_exact_total_with_an_individual_zero_operation(planni
         {
             "expected_version": source["activity_version"],
             "expected_disbursement_request_id": source["id"],
+            "amount": source["amount"],
         },
     )
     assert submitted.status_code == 201, submitted.text
@@ -602,6 +678,7 @@ def test_virement_preserves_a_large_exact_xof_total(planning):
         {
             "expected_version": source["activity_version"],
             "expected_disbursement_request_id": source["id"],
+            "amount": source["amount"],
         },
     )
     assert submitted.status_code == 201, submitted.text
@@ -633,7 +710,10 @@ def test_return_and_direct_fresh_request_keep_disbursement_frozen(planning, revi
     assert execution.json()["mutation_unavailable_reason"] == "disbursement_frozen"
     assert execution.json()["virement_context"] == {
         "disbursement_request_id": source["id"],
+        "disbursement_state": "approved",
         "amount": "300000",
+        "authorized_amount": "300000",
+        "transferred_amount": None,
         "current_request_id": None,
         "current_state": None,
         "can_submit": True,
@@ -646,6 +726,7 @@ def test_return_and_direct_fresh_request_keep_disbursement_frozen(planning, revi
         {
             "expected_version": returned.json()["activity_version"],
             "expected_disbursement_request_id": source["id"],
+            "amount": source["amount"],
         },
     )
     assert fresh.status_code == 201, fresh.text
@@ -668,6 +749,7 @@ def test_submission_rejects_unapproved_source_and_client_amount(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     )
     assert source.status_code == 201
@@ -677,6 +759,7 @@ def test_submission_rejects_unapproved_source_and_client_amount(planning):
         {
             "expected_version": source.json()["activity_version"],
             "expected_disbursement_request_id": source.json()["id"],
+            "amount": source.json()["amount"],
         },
     )
     assert rejected.status_code == 409
@@ -701,6 +784,7 @@ def test_submission_rejects_valid_foreign_sources(planning):
         {
             "expected_version": first_source["activity_version"],
             "expected_disbursement_request_id": second_source["id"],
+            "amount": second_source["amount"],
         },
     )
     assert foreign.status_code == 404
@@ -714,6 +798,7 @@ def test_submission_rejects_cancelled_sources(planning):
         {
             "expected_version": cancelled_activity["version"],
             "expected_approved_revision_id": cancelled_activity["approved_revision_id"],
+            "amount": str(cancelled_activity.get("spending_total") or 1),
         },
     ).json()
     cancelled = post(
@@ -730,6 +815,7 @@ def test_submission_rejects_cancelled_sources(planning):
         {
             "expected_version": cancelled["activity_version"],
             "expected_disbursement_request_id": pending["id"],
+            "amount": pending["amount"],
         },
     )
     assert rejected.status_code == 409
@@ -815,6 +901,7 @@ def test_submission_serializes_with_concurrent_activity_version_change(planning)
             {
                 "expected_version": source["activity_version"],
                 "expected_disbursement_request_id": source["id"],
+                "amount": source["amount"],
             },
         ),
         lambda: put(
@@ -871,6 +958,7 @@ def test_database_rejects_unapproved_source_and_forged_exclusions(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
@@ -1114,6 +1202,7 @@ def test_audit_failure_rolls_back_submission_and_activity_version(
             {
                 "expected_version": source["activity_version"],
                 "expected_disbursement_request_id": source["id"],
+                "amount": source["amount"],
             },
         )
     with Session(auth.engine) as db:
@@ -1155,6 +1244,7 @@ def test_reason_rules_validator_return_and_approved_request_is_final(planning):
         {
             "expected_version": returned.json()["activity_version"],
             "expected_disbursement_request_id": request["disbursement_request_id"],
+            "amount": request["amount"],
         },
     ).json()
     fresh_path = f"{virement_collection(activity)}/{fresh['id']}"
@@ -1164,16 +1254,20 @@ def test_reason_rules_validator_return_and_approved_request_is_final(planning):
         {
             "expected_version": fresh["activity_version"],
             "decision": "prevalidate",
+            "reason": "Dossier de virement vérifié.",
         },
     ).json()
+    assert prevalidated["decisions"][-1]["reason"] == "Dossier de virement vérifié."
     approved = post(
         planning["validator"],
         f"{fresh_path}/decisions",
         {
             "expected_version": prevalidated["activity_version"],
             "decision": "approve",
+            "reason": "Virement autorisé.",
         },
     ).json()
+    assert approved["decisions"][-1]["reason"] == "Virement autorisé."
     final_cancel = post(
         planning["agent"],
         f"{fresh_path}/cancellation",
@@ -1331,6 +1425,7 @@ def test_constraint_or_commit_failure_rolls_back_virement_transaction(
             {
                 "expected_version": source["activity_version"],
                 "expected_disbursement_request_id": source["id"],
+                "amount": source["amount"],
             },
         ).json()
     action = {
@@ -1384,6 +1479,7 @@ def test_constraint_or_commit_failure_rolls_back_virement_transaction(
             {
                 "expected_version": source["activity_version"],
                 "expected_disbursement_request_id": source["id"],
+                "amount": source["amount"],
             },
         )
     elif mutation == "decision":

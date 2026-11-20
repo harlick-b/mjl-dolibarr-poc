@@ -65,9 +65,8 @@ export function AdminMain({ as: Component = 'main', className, ...props }) {
       data-ui="access-main"
       className={cn(
         'p-8 w-full min-w-0 max-w-360 m-auto',
-        '[&_label]:grid [&_label]:gap-2 [&_label]:text-[0.8125rem]',
-        '[&_input]:min-h-11 [&_input]:border [&_input]:border-border [&_input]:rounded-control [&_input]:py-2 [&_input]:px-3 [&_input]:bg-white [&_input]:max-w-full',
-        '[&_select]:min-h-11 [&_select]:border [&_select]:border-border [&_select]:rounded-control [&_select]:py-2 [&_select]:px-3 [&_select]:bg-white [&_select]:max-w-full',
+        businessFieldStyles,
+        '[&_input]:max-w-full [&_select]:max-w-full',
         '[&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_table]:leading-5',
         '[&_th]:bg-background [&_th]:font-medium [&_th]:text-left [&_th]:p-3 [&_th]:border-b [&_th]:border-b-border [&_th]:wrap-anywhere',
         '[&_td]:p-3 [&_td]:border-b [&_td]:border-b-border [&_td]:wrap-anywhere',

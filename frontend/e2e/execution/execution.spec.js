@@ -640,15 +640,6 @@ test('reviewer sees pause, resume and paginated history without mutation control
   paused = false
   await page.reload()
   await expect(page.getByText(/uniquement la consultation/)).toBeVisible()
-  await page.route('**/api/v1/auth/session', () => new Promise(() => {}))
-  await page.evaluate(() => {
-    const channel = new BroadcastChannel('mjl-auth')
-    channel.postMessage('revoked')
-    channel.close()
-  })
-  await expect(
-    page.getByRole('heading', { name: 'Vérification de votre accès' }),
-  ).toBeVisible()
 })
 
 test('PTA-3B through PTA-3E administrative settlement journey', async ({

@@ -295,8 +295,15 @@ npm run test:e2e -- e2e/partner-portal
 
 Playwright starts its own preview server on port 4173. Some browser suites require
 an isolated backend and synthetic mailbox configuration and otherwise skip;
-check the run's skipped-test count. The GitHub Actions workflow runs quality
-checks and tests against a disposable stack; it does not deploy the app.
+check the run's skipped-test count. The connected Activity-submission journey uses
+`MJL_CONNECTED_PLANNING_MAILBOX`, `MJL_CONNECTED_PLANNING_CONTAINER` and
+`MJL_CONNECTED_PLANNING_DATABASE`. Set `MJL_REQUIRE_CONNECTED_PLANNING=1` when
+that journey is a required gate; missing settings then fail instead of skipping.
+`MJL_PLAYWRIGHT_PORT` may select another local preview port when a separate
+browser run is already active; the synthetic policy origin must use the same port.
+The GitHub Actions workflow creates the synthetic policy and mailbox inside its
+disposable stack, runs this journey as an explicit gate, and removes the project
+and database volume afterward. It does not deploy the app.
 
 ## Contributing
 

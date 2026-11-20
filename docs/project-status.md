@@ -1,10 +1,386 @@
 # Project status
 
-Updated 2026-11-18. MJL is under development; implemented does not mean accepted
+Updated 2026-11-20. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
+
+## Application-update browser reconciliation — 2026-11-20
+
+The controlled application-update journey again reaches the real unsaved Activity
+form before installing a waiting service worker. It uses the current programming-
+edit action and a complete current Activity-detail response for an assigned Agent.
+When the worker activates, the client discards the unsaved protected screen,
+performs server logout, opens a fresh login and leaves no waiting worker or stale
+protected screen. The test checks these state and access outcomes rather than
+treating update wording as the feature under test.
+
+No application, API or security behavior changed. The focused browser reproduction
+first timed out waiting for the removed generic edit action. After fixture and flow
+reconciliation, the focused journey passed in 5.1 seconds and the complete state-
+handling browser file passed all three journeys in 6.6 seconds. The adjacent PWA-
+update unit contract passed in 1.47 seconds. Targeted ESLint, Prettier and whitespace
+checks passed. These controlled responses do not replace server-side session-
+revocation evidence or a broad browser-suite pass.
+
+## Editable financial requests and shared action variants — implemented, 2026-11-20
+
+Agents can enter a positive décaissement up to recorded spending and a positive
+virement up to the approved décaissement amount. Both request forms accept an
+optional observation and one optional validated attachment, submit directly into
+the existing two-stage review, and provide no Draft action. Review keeps amounts
+read-only and exposes the applicant facts. Settlement calculations retain actual
+spending as the reversement basis and the approved virement as the transfer basis.
+Partial approvals now retain and expose the remaining balance. Successive approved
+requests accumulate, every approved virement requires its own exact external
+confirmation, and reversement/closure stay blocked until the cumulative décaissement,
+virement and confirmation totals reconcile with final spending. When several
+partial virements cover one Activity, they share one Activity-level reversement;
+opening any related virement shows that same declaration and later confirmation
+corrections remain frozen across the Activity.
+
+The OTP secondary actions, Activity-header downloads/assignments, destructive
+actions and specialized controls now use explicit shared Button variants. Shared
+business forms provide consistent required-field feedback. Attachment metadata
+travels as bounded UTF-8 in the request body and is validated before storage, so
+French filenames and observations keep their exact text without depending on
+browser or proxy header limits.
+
+The focused shared-field/Auth/Access/Execution frontend run passed 82 tests. The final disposable-
+PostgreSQL run passed five request, observation, attachment, transfer and migration
+checks. Migration 0040 also completed an empty-database downgrade to 0039 and
+re-upgrade to head. Ruff, mypy, ESLint, CSS lint, Prettier and the production build
+passed; the build retains the existing large-chunk warning. The final review
+correction additionally passed four focused PostgreSQL cumulative-request,
+shared-reversement, closure and schema-integrity scenarios and 118 focused
+frontend tests.
+
+## Uncertain-upload reconciliation correction — 2026-11-20
+
+The uncertain document-upload checks again follow the authorized Activity flow.
+Their Agent is assigned to the Activity, the browser opens the existing supporting-
+documents tab, and an older document cursor is cleared when the upload dialog
+opens. Before upload, the client records the newest page's document identifiers
+and the selected file facts. After an uncertain network result, it closes the
+dialog only when a fresh read contains a new document with the same name, size
+and uploader. A failed read keeps reconciliation available; a successful read
+that proves absence enables a deliberate retry. The original upload is never
+replayed automatically.
+
+The unit flow covers a saved upload and a proven-absent upload after a failed read.
+It includes an older identical file and another user's new identical file so
+neither can be mistaken for the attempted upload. The controlled browser journey
+uses an assigned Agent, follows the existing supporting-documents tab, rejects
+unexpected API requests and proves that exactly one upload precedes successful
+reconciliation. The API contract and server authorization behavior did not change.
+The final unit file passed both outcomes in 9.26 seconds, the adjacent document-
+workspace scenario passed in 16.33 seconds, and the rebuilt focused Playwright
+journey passed in 3.4 seconds. Targeted ESLint and Prettier checks and the production
+build passed; the build retains its existing large-chunk warning. The complete
+browser file's earlier diagnostic run recorded two passes and the known application-
+update timeout, so no final browser-file or broad-suite pass is claimed.
+
+## Activity financial-summary projection correction — 2026-11-19
+
+The Activity execution detail now projects the current décaissement state with
+the already authoritative approved amount and virement context. The Finance
+summary therefore remains stable while a user browses older cursor pages: an
+older returned request cannot replace or hide the current authorization state.
+Financial decision and request-dialog copy is owned by the French execution
+locale. Unit checks assert visible business facts, while the controlled browser
+journey checks the four-fact desktop row and its mobile reflow.
+
+The broad affected unit run passed 46 of 48 tests; its two known order-sensitive
+reversement scenarios then passed together on the immediate focused rerun. The
+focused Activity-detail browser journey and production build pass. The previously
+unavailable PostgreSQL gate was rerun on an isolated disposable database: both the
+Supervisor-return and Validator-return variants passed in 18.04 seconds. They
+prove that the Activity remains frozen while execution detail retains the approved
+décaissement request, its `approved` state and the exact 300,000 XOF amount.
+
+Independent re-review cleared the pagination-authority, localization and
+outcome-test findings. It recorded one non-blocking coverage gap: the regression
+directly proves the pending summary state, while an approved virement drawer on
+an older conflicting history page is verified by code inspection rather than a
+separate visible-outcome test.
+
+## Backend static gates — restored, 2026-11-19
+
+The three historical migrations identified by the CI-equivalent baseline now use
+the repository's current Ruff layout. Migration 0013's long PostgreSQL condition
+was split only at an existing SQL whitespace boundary; revision identifiers,
+parent links, operations, constraints and downgrade guards are unchanged. No new
+test was added because this slice changes no behavior or schema.
+
+The complete backend Ruff lint and format gates pass across 157 Python files. An
+AST comparison against the captured pre-edit sources matched after normalizing
+whitespace inside string constants. The exact final backend image
+`sha256:d531d6732a357060e55eac23fdb4ec9216e4bdca49270493f2189d3012e76898`
+then applied the complete Alembic chain to a fresh disposable PostgreSQL database,
+which reported `0039_editable_activity_dates (head)`. This is focused migration
+and static evidence, not a complete backend-suite result.
+
+## PTA detail identity test reconciliation — 2026-11-19
+
+The PTA detail again presents the required saved PTA name as its single page
+heading. Project, year and optional description remain visible as supporting
+context. This restores the approved metadata boundary after concurrent visual
+work had replaced the PTA identity with the Project name.
+
+The existing create, uncertain-write reconciliation and submitted-edit dismissal
+tests were retained because each completes a distinct save workflow and verifies
+the refreshed saved PTA. The adjacent annual-page loading test now uses the PTA
+identity as its ready-state outcome while continuing to prove that the page stays
+in loading until its Activity list is available. No test was added, removed or
+split.
+
+The baseline reproduced three PTA-metadata failures while the adjacent Planning
+file passed, for 75 passes and three failures overall. The focused PTA file then
+passed all 11 tests, and the final combined Planning/PTA selection passed all 78
+tests in 54.32 seconds while targeted static checks ran in parallel. Frontend
+lint passed with one existing Hooks warning,
+Prettier passed and the production build passed with the existing large-chunk
+warning. The broader Planning design browser file remains incomplete: two tests
+passed and six failed on the concurrent visual candidate; four failures concern
+existing focus/modal interactions and two use hard-coded port 4173 while the
+isolated run used 4193. No browser or visual-acceptance pass is claimed.
+
+## CI-equivalent stabilization baseline — incomplete, 2026-11-19
+
+The working tree was checked in independent backend, frontend and browser lanes
+on a disposable Compose stack. It was not frozen while concurrent frontend work
+continued, so this is a time-bounded failure inventory rather than one immutable
+candidate or a clean CI result. The exact source boundary and commands are in the
+[testing-strategy evidence ledger](testing-strategy-plan.md#ci-baseline-evidence-ledger--2026-11-19).
+
+Backend mypy passed all 59 application source files. Ruff found one line-length
+error in migration 0013, and the format check found migration 0009, 0013 and 0036
+outside the current formatter output. The first full pytest client session ended
+without a summary while its process continued; the durable rerun therefore
+overlapped it unintentionally. Both processes were interrupted. The durable run
+reported 109 passed, one setup error and two warnings in 13 minutes at about 7%.
+The error was a migration statement timeout while the two broad processes
+overlapped; its cause is unconfirmed. Its exact audit-history case passed alone
+in 7.65 seconds after both broad processes stopped. No complete backend-suite
+pass is claimed, and the overlapped timing is not valid evidence for changing the
+CI timeout or test architecture.
+
+Frontend ESLint, Prettier, CSS lint and the production build passed; ESLint retains
+one existing Hooks warning and the build retains its existing large-chunk warning.
+The complete unit run finished with 286 passed and seven failed across Planning,
+Execution, Partner documents, PTA metadata and uncertain-upload handling. The
+financial-summary regression passed inside that run. These failures remain a
+classification backlog alongside the ongoing visual work.
+
+The required connected Activity-submission browser journey first stopped before
+mutation because a reused local policy named another lifecycle database. After a
+disposable policy was aligned with the actual isolated database and browser origin,
+the journey passed in 21.9 seconds. The broader controlled-browser command was
+interrupted after five passes, five failures, one skip and one interrupted test;
+116 tests did not run. Two failures came from running port-specific fixtures on an
+alternate port. A corrected focused rerun of the first four affected browser files
+on the expected port passed 12 tests and failed five in 1.6 minutes. The remaining
+foundation, upload/update, Activity-history and access-retry mismatches are not
+reported as visual acceptance or a completed browser baseline.
+
+No application, API, schema or test code changed in this checkpoint. Its backend
+static-gate follow-up is now complete. The next stabilization slice should
+reconcile one frontend failure cluster at a time; no further test retirement is
+justified by this baseline alone.
+
+## Activity approval/correction test strategy slice — completed, 2026-11-19
+
+The existing API flow now covers the complete recovery after both review stages
+return an Activity. An unchanged Supervisor return remains unresubmittable; changed
+content creates a fresh revision; a Validator return preserves its reason and
+requested 350,000 XOF amount; and direct final approval before fresh Supervisor
+prevalidation remains denied. The same scenario now completes the fresh Supervisor
+and Validator decisions, reads the Activity again and proves that revision 3 and
+the exact corrected allocation are the approved baseline. Revision detail retains
+both earlier return reasons and the final two-stage decisions.
+
+The strengthened scenario passed alone in 8.53 seconds. Initial approval, the
+corrected return flow, approval/return serialization and duplicate-evidence
+protection then passed all 4 focused tests in 24.92 seconds on the exact final
+candidate and disposable PostgreSQL. A broader selected command did not return its
+pytest summary and is not reported as passing. Three adjacent baseline failures
+were outside that slice and are reconciled in the following section:
+private-draft assignment setup, an old migration-message expectation reached after
+the weighted-Task downgrade guard, and a reviewer-brief fixture missing current
+Task weights. No application behavior, API contract, schema, deployment or
+production configuration changed.
+
+## Contributor/reviewer test fixture reconciliation — completed, 2026-11-19
+
+The contributor evidence scenario now starts from a Supervisor-created private
+draft assigned to both Agents. Agent 2 completes and submits it, so the test still
+proves that a persisted content contributor cannot review the lineage after a role
+change and that revision, decision and the exact content-contributor evidence are
+immutable. It no longer depends on a reviewer seeing an Agent-created private draft.
+
+The reviewer-created brief scenario supplies 100% progress when completing weighted
+Tasks. It retains the approved distinction: a Supervisor or Validator who only
+created the brief may perform normal planning review, but remains excluded from
+financial self-review. The positive decision-observation migration guard now runs
+in a dedicated disposable database at the exact 0028→0029 seam; it proves both
+downgrade refusal and preservation of the used observation. The existing unused
+round trip remains covered separately.
+
+The contributor scenario, both reviewer roles, used downgrade guard and unused
+round trip passed all 5 focused tests in 28.04 seconds on disposable PostgreSQL.
+Ruff, formatting and whitespace checks passed. No application behavior, API
+contract, schema, deployment or production configuration changed.
+
+## Password-recovery test reconciliation — completed, 2026-11-19
+
+The concurrent preparation scenario now proves that two requests produce one
+delivered recovery record and one usable emailed proof. Concurrent completion
+still proves one successful reset, one rejected contender, one credential-version
+change, one consumed proof, one significant completion record and one reset notice.
+Notification failure checks observe actual notice delivery while proving that a
+mail or recording failure cannot reverse the completed password change.
+
+Three previously recorded failures came from expecting routine
+`recovery_prepare` or `recovery_notification` rows in business history, contrary
+to the current security-event boundary. The baseline reproduced those three
+failures with the fourth parameterization passing. After reconciliation, all four
+focused cases passed in 19.73 seconds on disposable PostgreSQL; the concurrent
+preparation case includes public inspection of the exact emailed selector and
+verifier. No application behavior, API contract, schema, deployment or production
+configuration changed.
+
+## Historical migration test reconciliation — completed, 2026-11-19
+
+Closure downgrade protection now runs at the exact 0014→0015 boundary. A dedicated
+database contains one synthetic `activity.closed` audit record; attempted downgrade
+is refused and both revision 0015 and the evidence remain intact. This replaces a
+current-head downgrade that correctly stopped earlier at weighted-Task history.
+
+Operation-tombstone validation now uses a complete synthetic PTA-1 removal chain at
+revision 0005. A clean control proves upgrade to 0006 succeeds and reconstructs its
+contributor. Four independent cases then corrupt the removed Task's type, name,
+allocation or position and prove the upgrade refuses each incomplete chain without
+partially advancing or discarding the corruption.
+
+The five recorded failures were reproduced in 33.22 seconds. The repaired five
+protections plus the clean control passed all 6 cases in 7.43 seconds on disposable
+PostgreSQL. Independent review then required guaranteed teardown around migration
+setup and a test-database prefix guard; the same final selection passed all 6 in
+6.31 seconds. No application behavior, API contract, schema, deployment or
+production configuration changed. This focused result does not claim a broad
+backend pass.
+
+The adjacent contributor and attribution cases were subsequently reconciled on the
+same exact revision-0005 fixture. Their new baseline reproduced all 4 failures in
+30.34 seconds: one stale private-Draft assignment and three current-head downgrades
+blocked by weighted-Task history. The complete historical chain now contains a
+real edit, reversion, no-op save and Task removal. Upgrade to 0006 reconstructs the
+creator and real editor while excluding the no-op saver; missing, duplicated and
+skipped audit versions each refuse upgrade without advancing or rewriting the
+corruption. The repaired four cases passed in 4.57 seconds, and all eight consumers
+of the consolidated contributor/attribution/tombstone fixture initially passed in
+5.20 seconds. Independent review required valid active assignments for every
+historical editor and removed a redundant exclusion assertion. The corrected final
+eight-case selection passed in 5.74 seconds. The stronger contributor success case
+subsumes the removed tombstone-only clean control. No application behavior, API
+contract, schema, deployment or production configuration changed; this remains
+focused migration-test evidence.
+
+## Partner-isolation test strategy slice — completed, 2026-11-19
+
+Partner users remain permanently bound to one Partner and read only approved public
+portfolio facts. Focused real-API flows prove that guessed foreign Projects, PTAs,
+Activities, Fiches, private/shared documents and exports remain unavailable, while
+authorized CSV, sanitized Fiche and shared-file delivery work through protected
+routes. Four focused PostgreSQL tests passed in 48.19 seconds.
+
+The shared-document list now keeps its upload timestamp solely for opaque cursor
+ordering and returns only the approved identifier, name, media type and size. This
+corrects a strict response-serialization failure without expanding the API contract.
+Independent synthetic Partner clients use separate fixture addresses so unrelated
+actors do not exhaust one IP rate budget before the authorization checks run.
+
+The controlled browser flow now rejects unexpected API requests, confirms the
+read-only public portfolio and protected CSV/PDF/image downloads, and shows no
+internal Users, Planning or History navigation. Wording-only Fiche expectations,
+the repeated mobile download and screenshots were removed; the unique mobile
+preview-containment check remains. The initial tightened browser journey passed 1
+test in 8.6 seconds; the final review-corrected journey passed 1 test in 5.0 seconds.
+The 28 focused frontend tests passed in 14.59 seconds.
+
+The seven remaining lifecycle scenarios were reconciled with current rules. Shared
+setup assigns both acting Agents; post-closure evidence administration uses the
+Validator; Partner CSV assertions identify public fields by column name; and exact
+API values are paired with current-format Fiche checks for transferred dates, the
+transfer decision and the corrected reversement date. The obsolete downgrade round
+trip from current head was replaced because the weighted-task migration deliberately
+refuses that lossy history boundary. A separate disposable database now exercises
+the exact 0021→0022 sharing migration, proving private defaults and refusal to
+discard used sharing history. Closed-Activity sharing and the runtime schema guard
+remain covered. Before these independent-review corrections, the complete Partner
+API group passed all 21 tests in 130.82 seconds. The final corrected group, including
+the added migration seam, passed all 22 tests in 136.96 seconds on disposable
+PostgreSQL. The earlier 14-of-21 run remains historical evidence of stale fixtures.
+No schema, approved business rule, deployment or production configuration changed.
+
+## Session-revocation test strategy slice — completed, 2026-11-19
+
+A dedicated controlled browser journey now proves the cross-tab security outcome.
+A Supervisor sees protected notification data and the current account; after an
+authentication-change broadcast, the client immediately removes the old account,
+business data and workspace while the bounded server recheck remains pending, then
+presents a fresh login after the rejected and anonymous session checks. The fixture
+uses exact paths and methods, current error envelopes and rejects unexpected API
+requests.
+
+The existing server tests remain the authoritative proof that logout rejects a
+restored old cookie and that role, lifecycle, password and security-version changes
+invalidate active sessions. Six selected cases passed in 11.37 seconds on disposable
+PostgreSQL. The existing access-coordinator and RestClient files passed all 39 tests
+in 3.95 seconds. The corrected dedicated Playwright journey passed 1 test in 2.8 seconds.
+The revocation tail was removed from an unrelated execution-review browser scenario;
+its focused baseline still fails earlier on the in-progress current screen, so no
+passing execution-flow claim is made. No application behavior, API contract, schema,
+deployment or production configuration changed.
+
+## Financial-return test strategy slice — completed, 2026-11-19
+
+The controlled browser scenario now follows the current Activity finance screen
+for both disbursement and virement returns. It proves that the Agent sees the
+return reason and exact 100,000 F CFA amount, submits a fresh request with the
+immutable approval basis, and still sees the fresh and returned requests. Its API
+fixture lists every expected path and method, uses current list/mutation shapes and
+valid financial states, and fails unexpected calls. The retained return reason is
+reopened after the fresh submission. The stale legacy-route/cursor setup and
+unrelated page-wide overflow assertion were removed. A separate 390 px base-screen
+check remains; the in-progress visual work retains responsibility for the returned
+modal at the previous 375 px viewport.
+
+The final focused Playwright run passed 2 tests in 6.6 seconds. The existing connected
+API journey passed 1 test in 10.35 seconds on disposable PostgreSQL, covering both
+returns, fresh Supervisor and Validator approvals, exact external confirmation,
+settlement, closure and retained reasons in the Fiche. No application behavior,
+API contract, schema, deployment or production configuration changed.
+
+## Connected Activity-submission test gate — implemented, 2026-11-19
+
+CI now creates and migrates a disposable `mjl_test_` PostgreSQL database with a
+generated synthetic auth policy, then explicitly runs one connected Playwright
+goal. An assigned Agent submits a complete Activity through the UI; a Supervisor
+sees the submitted state, exact amount and prevalidation action, and the same
+browser session reads the persisted Activity and immutable revision snapshot.
+Missing connected-test settings fail this required selection instead of producing
+a skipped pass. Controlled-response browser checks run separately.
+
+The final isolated local run passed 1 connected test in 52.8 seconds on port 4174
+while visual checks continued on port 4173. Negative checks rejected missing
+settings, a mismatched database before mutation and an invalid preview port. An
+actual UID-10001 backend-image check confirmed the generated policy needs and now
+receives read permission. The production build passed with the existing chunk-size
+warning. No product behavior, API contract, deployment or production configuration
+changed. The current in-progress History visual does not yet render revision data;
+this gate proves the reviewer screen and real revision API, not that presentation.
 
 ## Shared Axios transport — implemented, 2026-11-18
 
@@ -1884,7 +2260,7 @@ reminder window and excludes past-end, closed, withdrawn and unapproved
 Activities. It does not add a delivery claim, notification mutation or new API
 contract.
 
-The PTA detail heading now identifies the Project, with the PTA year and
+The PTA detail heading identifies the saved PTA, with the Project, PTA year and
 description retained as supporting context. Activity detail dates appear only in
 the identity header, and technical revision numbers remain hidden. The explicitly
 excluded Réalisation filters/status presentation, PTA workflow labels and sidebar
@@ -1894,3 +2270,34 @@ Verification passed 73 focused frontend tests, targeted ESLint and Prettier, and
 the production build with its existing large-chunk warning. Independent review
 found no implementation defect; its documentation finding was corrected here and
 in the existing Activity UX plan.
+
+### Shared frontend composition — 2026-11-19
+
+Planning, Execution, Audit, Notifications, Access, Partner and shared filters use
+one pagination component. Activity breadcrumbs use Router links through one shared
+composition. Access field styling, Authentication loading actions/password rules,
+ordinary Access/Partner actions, protected file previews/downloads and the common
+financial-request detail sections now use their shared owners. No API, permission,
+amount, validation or financial decision rule changed.
+
+### Financial request findings correction — 2026-11-20
+
+The Agent-entered amount is required at both financial request APIs. Internal and
+Partner fiches display each virement's own amount, and attachment persistence no
+longer performs synchronous database work on the async event loop. Successive
+partial décaissements and virements accumulate without double counting. Database
+triggers and closure checks require cumulative approved décaissements, approved
+virements and exact latest confirmations to reconcile before reversement or
+closure. The fail-closed schema fingerprint and downgrade guards cover the new
+schema. A partial décaissement no longer marks the internal fiche as validated,
+and a closed Partner finance summary consolidates every approved virement's
+latest exact confirmation and reports the latest transfer date.
+
+Final focused evidence: 64 frontend unit tests, two Playwright financial-return
+journeys, 14 disposable-PostgreSQL financial/migration scenarios, and three
+focused internal/Partner projection regressions passed.
+Backend Ruff, focused mypy, Python compilation, targeted ESLint/Prettier, the
+production build and `git diff --check` passed. A broader run also encountered an
+existing weighted-Task fixture whose approved weights are incomplete; its
+execution-recording failure is separate from this correction and is not counted
+as passing evidence.

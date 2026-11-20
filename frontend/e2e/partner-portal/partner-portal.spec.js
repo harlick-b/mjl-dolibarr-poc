@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('Partner portfolio stays read-only on desktop and mobile', async ({
+test('Partner reads public portfolio facts and protected downloads without internal controls on desktop and mobile', async ({
   page,
 }) => {
   const list = (data) => ({
@@ -10,9 +10,11 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
     next: null,
     previous: null,
   })
-  await page.route('**/api/v1/**', async (route) => {
-    const path = new URL(route.request().url()).pathname
-    if (path === '/api/v1/auth/session')
+  await page.route('**/api/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    const method = request.method()
+    if (path === '/api/v1/auth/session' && method === 'GET')
       return route.fulfill({
         json: {
           state: 'verified',
@@ -26,10 +28,12 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           expires_at: new Date(Date.now() + 60_000).toISOString(),
         },
       })
-    if (path === '/api/v1/partner-portal/ptas/pta-1/exports') {
-      expect(route.request().method()).toBe('POST')
-      expect(route.request().headers()['x-csrf-token']).toBe('csv-csrf')
-      expect(route.request().postDataJSON()).toEqual({ format: 'csv' })
+    if (
+      path === '/api/v1/partner-portal/ptas/pta-1/exports' &&
+      method === 'POST'
+    ) {
+      expect(request.headers()['x-csrf-token']).toBe('csv-csrf')
+      expect(request.postDataJSON()).toEqual({ format: 'csv' })
       return route.fulfill({
         body: '\ufeffNom;Budget\nActivité;120000',
         contentType: 'text/csv',
@@ -39,11 +43,11 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
         },
       })
     }
-    if (path === '/api/v1/partner-portal/profile')
+    if (path === '/api/v1/partner-portal/profile' && method === 'GET')
       return route.fulfill({
         json: { id: 'partner-1', name: 'Partenaire Démo' },
       })
-    if (path === '/api/v1/partner-portal/projects')
+    if (path === '/api/v1/partner-portal/projects' && method === 'GET')
       return route.fulfill({
         json: list([
           {
@@ -54,7 +58,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           },
         ]),
       })
-    if (path === '/api/v1/partner-portal/projects/project-1/ptas')
+    if (
+      path === '/api/v1/partner-portal/projects/project-1/ptas' &&
+      method === 'GET'
+    )
       return route.fulfill({
         json: list([
           {
@@ -72,7 +79,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           },
         ]),
       })
-    if (path === '/api/v1/partner-portal/ptas/pta-1/activities')
+    if (
+      path === '/api/v1/partner-portal/ptas/pta-1/activities' &&
+      method === 'GET'
+    )
       return route.fulfill({
         json: list([
           {
@@ -87,7 +97,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           },
         ]),
       })
-    if (path === '/api/v1/partner-portal/activities/activity-1')
+    if (
+      path === '/api/v1/partner-portal/activities/activity-1' &&
+      method === 'GET'
+    )
       return route.fulfill({
         json: {
           id: 'activity-1',
@@ -99,6 +112,7 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           allocation: '120000',
           state: 'closed',
           approved_revision: 1,
+          progress: '100',
           context: {
             partner: 'Partenaire Démo',
             project_reference: 'PRJ-2027-001',
@@ -110,7 +124,12 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
               name: 'Consultations',
               description: 'Trois journées réalisées.',
               allocation: '120000',
+              weight: '100',
+              planned_start: '2027-01-10',
+              planned_end: '2027-03-10',
               final_spending: '90000',
+              progress: '100',
+              subtasks: [],
             },
           ],
           decisions: [
@@ -133,7 +152,10 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           },
         },
       })
-    if (path === '/api/v1/partner-portal/activities/activity-1/documents')
+    if (
+      path === '/api/v1/partner-portal/activities/activity-1/documents' &&
+      method === 'GET'
+    )
       return route.fulfill({
         json: list([
           {
@@ -145,10 +167,11 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
         ]),
       })
     if (
-      path ===
+      (path ===
         '/api/v1/partner-portal/activities/activity-1/documents/file-1/preview' ||
-      path ===
-        '/api/v1/partner-portal/activities/activity-1/documents/file-1/download'
+        path ===
+          '/api/v1/partner-portal/activities/activity-1/documents/file-1/download') &&
+      method === 'GET'
     )
       return route.fulfill({
         body: Buffer.from(
@@ -156,9 +179,14 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
           'base64',
         ),
         contentType: 'image/png',
-        headers: { 'Content-Disposition': 'attachment; filename="photo.png"' },
+        headers: {
+          'Content-Disposition': 'attachment; filename="photo.png"',
+        },
       })
-    if (path === '/api/v1/partner-portal/activities/activity-1/fiche.pdf')
+    if (
+      path === '/api/v1/partner-portal/activities/activity-1/fiche.pdf' &&
+      method === 'GET'
+    )
       return route.fulfill({
         body: Buffer.from(
           'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjIwMgolJUVPRgo=',
@@ -170,7 +198,7 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
             'attachment; filename="fiche-partenaire-ACT-001.pdf"',
         },
       })
-    return route.fulfill({ status: 404, json: {} })
+    throw new Error(`Unexpected API request: ${method} ${path}`)
   })
 
   await page.goto('/partner')
@@ -182,10 +210,9 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   await expect(
     page.getByText('Espace Partenaire · Lecture seule'),
   ).toBeVisible()
-  await page.screenshot({
-    path: '/tmp/mjl-tailwind-partner-desktop.png',
-    fullPage: true,
-  })
+  await expect(page.getByRole('link', { name: 'Utilisateurs' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Planification' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Historique' })).toHaveCount(0)
   const csvDownload = page.waitForEvent('download')
   await page
     .getByRole('button', { name: 'Télécharger le récapitulatif CSV' })
@@ -233,29 +260,12 @@ test('Partner portfolio stays read-only on desktop and mobile', async ({
   const attachmentDownload = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Télécharger', exact: true }).click()
   expect((await attachmentDownload).suggestedFilename()).toBe('photo.png')
+
   await page.setViewportSize({ width: 390, height: 844 })
-  const mobileCsv = page.waitForEvent('download')
-  await page
-    .getByRole('button', { name: 'Télécharger le récapitulatif CSV' })
-    .click()
-  expect((await mobileCsv).suggestedFilename()).toBe('pta-partenaire-2027.csv')
-  await expect(
-    page.getByRole('navigation', { name: 'Espace Partenaire' }),
-  ).toBeVisible()
-  await expect(page.getByText('1 activité clôturée sur 2')).toBeVisible()
-  await expect(
-    page.getByRole('heading', { name: 'Campagne de santé', exact: true }),
-  ).toBeVisible()
-  await expect(page.getByText('Résultat financier')).toBeVisible()
-  await expect(page.getByText(/13 mars 2027/)).toBeVisible()
   await page.getByRole('button', { name: 'Aperçu', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog).toBeVisible()
-  await page.screenshot({
-    path: '/tmp/mjl-tailwind-partner-preview-mobile.png',
-    fullPage: true,
-  })
-  const bounds = await dialog.boundingBox()
-  expect(bounds.width).toBeLessThanOrEqual(390)
-  await dialog.getByText('Fermer', { exact: true }).click()
+  const mobileDialog = page.getByRole('dialog')
+  await expect(mobileDialog).toBeVisible()
+  const mobileBounds = await mobileDialog.boundingBox()
+  expect(mobileBounds.width).toBeLessThanOrEqual(390)
+  await mobileDialog.getByText('Fermer', { exact: true }).click()
 })

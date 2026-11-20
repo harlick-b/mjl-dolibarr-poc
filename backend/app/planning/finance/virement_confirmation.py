@@ -131,13 +131,13 @@ def create_confirmation(
         if item.version != body.expected_version:
             raise AuthError(409, "activity_stale")
         financial = exact_request(db, item.id, request_id, lock=True)
-        source = verified_source(db, item, financial.disbursement_request_id, lock=True)
+        verified_source(db, item, financial.disbursement_request_id, lock=True)
         if financial.state != "approved":
             raise AuthError(409, "virement_not_approved")
         previous = current(db, financial.id, lock=True)
-        if previous and db.scalar(
+        if db.scalar(
             select(ReversementDeclaration.id).where(
-                ReversementDeclaration.request_id == financial.id
+                ReversementDeclaration.activity_id == item.id
             )
         ):
             raise AuthError(409, "confirmation_frozen")
@@ -160,7 +160,7 @@ def create_confirmation(
             activity_id=item.id,
             request_id=financial.id,
             revision=(previous.revision + 1) if previous else 1,
-            amount=source.amount,
+            amount=financial.amount,
             transfer_date=body.transfer_date,
             note=body.note,
             actor_id=actor.id,

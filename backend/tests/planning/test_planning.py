@@ -1,3 +1,5 @@
+import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from threading import Barrier, Event, Lock
@@ -10,6 +12,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, func, inspect, select, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session, SessionTransaction
 
@@ -340,7 +343,7 @@ def test_category_migration_refuses_to_discard_an_incomplete_draft(planning, aut
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0039_editable_activity_dates"
+                == "0040_financial_request_details"
             )
             assert (
                 connection.scalar(
@@ -695,12 +698,73 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
         {"expected_version": revised.json()["version"]},
     )
     assert third.status_code == 201, third.text
+    third_revision = third.json()
     skipped = post(
         planning["validator"],
-        f"/api/v1/activities/{created['id']}/revisions/{third.json()['id']}/decisions",
-        {"expected_version": third.json()["activity_version"], "decision": "approve"},
+        f"/api/v1/activities/{created['id']}/revisions/{third_revision['id']}/decisions",
+        {"expected_version": third_revision["activity_version"], "decision": "approve"},
     )
     assert skipped.status_code == 409
+    fresh_prevalidation = post(
+        planning["supervisor"],
+        f"/api/v1/activities/{created['id']}/revisions/{third_revision['id']}/decisions",
+        {
+            "expected_version": third_revision["activity_version"],
+            "decision": "prevalidate",
+        },
+    )
+    assert fresh_prevalidation.status_code == 201, fresh_prevalidation.text
+    approved = post(
+        planning["validator"],
+        f"/api/v1/activities/{created['id']}/revisions/{third_revision['id']}/decisions",
+        {
+            "expected_version": fresh_prevalidation.json()["activity_version"],
+            "decision": "approve",
+        },
+    )
+    assert approved.status_code == 201, approved.text
+    approved_detail_response = planning["agent"].get(
+        f"/api/v1/activities/{created['id']}"
+    )
+    assert approved_detail_response.status_code == 200, approved_detail_response.text
+    approved_detail = approved_detail_response.json()
+    assert approved_detail["state"] == "approved"
+    assert approved_detail["approved_revision_id"] == third_revision["id"]
+    assert approved_detail["approved_allocation"] == "350000"
+
+    first_evidence_response = planning["agent"].get(
+        f"/api/v1/activities/{created['id']}/revisions/{first['id']}"
+    )
+    second_evidence_response = planning["agent"].get(
+        f"/api/v1/activities/{created['id']}/revisions/{second.json()['id']}"
+    )
+    third_evidence_response = planning["agent"].get(
+        f"/api/v1/activities/{created['id']}/revisions/{third_revision['id']}"
+    )
+    for response in (
+        first_evidence_response,
+        second_evidence_response,
+        third_evidence_response,
+    ):
+        assert response.status_code == 200, response.text
+    first_evidence = first_evidence_response.json()
+    second_evidence = second_evidence_response.json()
+    third_evidence = third_evidence_response.json()
+    assert [
+        (row["stage"], row["outcome"], row["reason"])
+        for row in first_evidence["decisions"]
+    ] == [("supervisor", "returned", "Préciser le résultat attendu.")]
+    assert [
+        (row["stage"], row["outcome"], row["reason"], row["requested_amount"])
+        for row in second_evidence["decisions"]
+    ] == [
+        ("supervisor", "prevalidated", None, None),
+        ("validator", "returned", "Réviser le budget proposé.", "350000"),
+    ]
+    assert [(row["stage"], row["outcome"]) for row in third_evidence["decisions"]] == [
+        ("supervisor", "prevalidated"),
+        ("validator", "approved"),
+    ]
     with Session(planning["auth"].engine) as db:
         validator_id = db.scalar(
             select(User.id).where(User.email == "validator@example.test")
@@ -729,17 +793,32 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
 
 def test_v03_v08_contributors_and_review_evidence_remain_immutable(planning, auth_env):
     _partner, operation_type, project = references(planning)
-    created = post(
-        planning["agent"],
+    agent_id = planning["agent"].get("/api/v1/auth/session").json()["user"]["id"]
+    agent2_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
+    brief = post(
+        planning["supervisor"],
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
-        {**plan(operation_type), "request_key": str(uuid4())},
-    ).json()
-    created = assign_agents(planning, created, planning["agent"], planning["agent2"])
+        {
+            "request_key": str(uuid4()),
+            "name": "Contribution immuable",
+            "agent_ids": [agent_id, agent2_id],
+        },
+    )
+    assert brief.status_code == 201, brief.text
+    completed = patch(
+        planning["agent2"],
+        f"/api/v1/activities/{brief.json()['id']}",
+        {**plan(operation_type), "expected_version": brief.json()["version"]},
+    )
+    assert completed.status_code == 200, completed.text
+    created = completed.json()
     submitted = post(
         planning["agent2"],
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": created["version"]},
-    ).json()
+    )
+    assert submitted.status_code == 201, submitted.text
+    submitted = submitted.json()
     reassigned = assign_agents(
         planning,
         planning["agent"].get(f"/api/v1/activities/{created['id']}").json(),
@@ -792,7 +871,9 @@ def test_v03_v08_contributors_and_review_evidence_remain_immutable(planning, aut
         )
         membership = db.scalar(
             select(ActivityContributor).where(
-                ActivityContributor.activity_id == created["id"]
+                ActivityContributor.activity_id == created["id"],
+                ActivityContributor.user_id == agent2_id,
+                ActivityContributor.kind == "content",
             )
         )
         assert revision and decision and membership
@@ -1506,59 +1587,6 @@ def test_v12_correction_and_final_approval_serialize_in_both_orders(planning):
         )
 
 
-def test_v14_submission_and_decision_audit_failures_roll_back(planning, monkeypatch):
-    _partner, operation_type, project = references(planning)
-    created = post(
-        planning["agent"],
-        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
-        {**plan(operation_type), "request_key": str(uuid4())},
-    ).json()
-    auth = planning["auth"]
-    real_audit = auth.business_audit
-    failed_action = {"value": "activity.submit"}
-
-    def fail_selected(db, action, *args, **kwargs):
-        if action == failed_action["value"]:
-            raise IntegrityError("synthetic workflow audit failure", {}, Exception())
-        return real_audit(db, action, *args, **kwargs)
-
-    monkeypatch.setattr(auth, "business_audit", fail_selected)
-    failed = post(
-        planning["agent"],
-        f"/api/v1/activities/{created['id']}/submissions",
-        {"expected_version": created["version"]},
-    )
-    assert failed.status_code == 503
-    with Session(auth.engine) as db:
-        activity = db.get(Activity, created["id"])
-        assert activity and activity.state == "draft" and activity.version == 1
-        assert db.query(ActivityRevision).count() == 0
-        assert (
-            db.query(ActivityContributor)
-            .filter(ActivityContributor.activity_id == created["id"])
-            .count()
-            == 1
-        )
-
-    failed_action["value"] = "none"
-    submitted = post(
-        planning["agent"],
-        f"/api/v1/activities/{created['id']}/submissions",
-        {"expected_version": 1},
-    ).json()
-    failed_action["value"] = "activity.prevalidate"
-    rejected = post(
-        planning["supervisor"],
-        f"/api/v1/activities/{created['id']}/revisions/{submitted['id']}/decisions",
-        {"expected_version": submitted["activity_version"], "decision": "prevalidate"},
-    )
-    assert rejected.status_code == 503
-    with Session(auth.engine) as db:
-        activity = db.get(Activity, created["id"])
-        assert activity and activity.state == "submitted"
-        assert db.query(ActivityRevisionDecision).count() == 0
-
-
 @pytest.mark.parametrize(
     "workflow_action",
     [
@@ -1669,11 +1697,14 @@ def test_v14_every_workflow_stage_rolls_back_all_failure_classes(
                 "SELECT state,version,name,current_revision_id,approved_revision_id,"
                 "(SELECT count(*) FROM pta_activity_revision),"
                 "(SELECT count(*) FROM pta_activity_revision_decision),"
-                "(SELECT count(*) FROM auth_audit WHERE business IS NOT NULL) "
+                "(SELECT count(*) FROM auth_audit WHERE business IS NOT NULL),"
+                "(SELECT count(*) FROM pta_activity_contributor "
+                "WHERE activity_id=:id) AS contributor_count "
                 "FROM pta_activity WHERE id=:id"
             ),
             {"id": activity["id"]},
         ).one()
+    assert before.contributor_count == 1
     real_audit = auth.business_audit
 
     def fail(db, *args, **kwargs):
@@ -1707,12 +1738,21 @@ def test_v14_every_workflow_stage_rolls_back_all_failure_classes(
                 "SELECT state,version,name,current_revision_id,approved_revision_id,"
                 "(SELECT count(*) FROM pta_activity_revision),"
                 "(SELECT count(*) FROM pta_activity_revision_decision),"
-                "(SELECT count(*) FROM auth_audit WHERE business IS NOT NULL) "
+                "(SELECT count(*) FROM auth_audit WHERE business IS NOT NULL),"
+                "(SELECT count(*) FROM pta_activity_contributor "
+                "WHERE activity_id=:id) AS contributor_count "
                 "FROM pta_activity WHERE id=:id"
             ),
             {"id": activity["id"]},
         ).one()
     assert after == before
+    if workflow_action == "submission" and failure == "audit":
+        monkeypatch.setattr(auth, "business_audit", real_audit)
+        retried = request()
+        assert retried.status_code == 201
+        detail = planning["agent"].get(f"/api/v1/activities/{activity['id']}").json()
+        assert detail["state"] == "submitted"
+        assert detail["current_revision_id"] == retried.json()["id"]
 
 
 def test_v13_v15_reviewer_deactivation_preserves_decision_and_never_blocks(
@@ -2962,103 +3002,315 @@ def test_v20_replaced_immutability_function_fails_schema_guard(planning):
 
 
 @pytest.fixture
-def predecessor_audit_format(monkeypatch):
-    # These migration fixtures represent PTA-1, which stored full before/after
-    # facts. Current compact field deltas are not a valid predecessor fixture.
-    monkeypatch.setattr("app.audit.facts.compact_planning_facts", lambda facts: facts)
+def pta1_audit_chain_database(monkeypatch):
+    """Create one exact PTA-1 edit and removal chain for the PTA-2A guard."""
+    base = make_url(os.environ["TEST_DATABASE_URL"])
+    assert (base.database or "").startswith("mjl_test_")
+    database_name = "mjl_test_" + uuid4().hex
+    admin_engine = create_engine(base, isolation_level="AUTOCOMMIT")
+    engine = None
+    database_created = False
+    try:
+        with admin_engine.connect() as db:
+            db.execute(text(f"CREATE DATABASE {database_name}"))
+        database_created = True
+        database_url = base.set(database=database_name).render_as_string(
+            hide_password=False
+        )
+        monkeypatch.setenv("DATABASE_URL", database_url)
+        config = Config("alembic.ini")
+        command.upgrade(config, "0005_pta1")
+        engine = create_engine(database_url)
+
+        identifiers = {
+            key: str(uuid4())
+            for key in (
+                "user",
+                "editor",
+                "noop_user",
+                "partner",
+                "type",
+                "other_type",
+                "project",
+                "pta",
+                "activity",
+                "kept",
+                "removed",
+                "assignment",
+                "editor_assignment",
+                "noop_assignment",
+            )
+        }
+        created_at = "2027-01-01T10:00:00+00:00"
+        edited_at = "2027-01-02T10:00:00+00:00"
+        reverted_at = "2027-01-03T10:00:00+00:00"
+        noop_at = "2027-01-04T10:00:00+00:00"
+        removed_at = "2027-01-05T10:00:00+00:00"
+        assigned_agents = sorted(
+            [identifiers["user"], identifiers["editor"], identifiers["noop_user"]]
+        )
+        initial_operations = [
+            {
+                "id": identifiers["kept"],
+                "type_id": identifiers["type"],
+                "name": "Tâche conservée",
+                "allocation": "100000",
+                "position": 1,
+            },
+            {
+                "id": identifiers["removed"],
+                "type_id": identifiers["type"],
+                "name": "Tâche retirée",
+                "allocation": "200000",
+                "position": 2,
+            },
+        ]
+
+        def activity_fact(version, allocation, operations):
+            return {
+                "id": identifiers["activity"],
+                "pta_id": identifiers["pta"],
+                "reference": "ACT-PTA1-0001",
+                "name": "Activité historique",
+                "description": "Chaîne PTA-1 synthétique",
+                "planned_start": "2027-01-01",
+                "planned_end": "2027-03-31",
+                "allocation": str(allocation),
+                "state": "draft",
+                "version": version,
+                "operations": operations,
+                "agent_ids": assigned_agents,
+            }
+
+        created = activity_fact(1, 300000, initial_operations)
+        edited = {
+            **activity_fact(2, 300000, initial_operations),
+            "name": "Nom temporaire",
+        }
+        reverted = activity_fact(3, 300000, initial_operations)
+        noop = activity_fact(4, 300000, initial_operations)
+        after_removal = activity_fact(5, 100000, initial_operations[:1])
+        removed = {
+            "id": identifiers["removed"],
+            "position": 2,
+            "removed_at": removed_at,
+            "removed_by_id": identifiers["user"],
+        }
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO auth_user "
+                    "(id,email,role,state,password_hash,version) VALUES "
+                    "(:user,'pta1@example.test','AGENT_SAISIE','active','hash',1),"
+                    "(:editor,'pta1-editor@example.test','AGENT_SAISIE','active',"
+                    "'hash',1),"
+                    "(:noop,'pta1-noop@example.test','AGENT_SAISIE','active','hash',1)"
+                ),
+                {
+                    "user": identifiers["user"],
+                    "editor": identifiers["editor"],
+                    "noop": identifiers["noop_user"],
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO mjl_ownership_context(id,created_at) "
+                    "VALUES ('MJL',:created_at)"
+                ),
+                {"created_at": created_at},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_partner "
+                    "(id,context_id,name,active,creator_id,created_at,updated_at) "
+                    "VALUES (:id,'MJL','Partenaire historique',true,:user,"
+                    ":created,:created)"
+                ),
+                {
+                    "id": identifiers["partner"],
+                    "user": identifiers["user"],
+                    "created": created_at,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_operation_type "
+                    "(id,context_id,label,active,creator_id,created_at,updated_at) "
+                    "VALUES (:type,'MJL','Type historique',true,:user,:created,"
+                    ":created),"
+                    "(:other,'MJL','Autre type',true,:user,:created,:created)"
+                ),
+                {
+                    "type": identifiers["type"],
+                    "other": identifiers["other_type"],
+                    "user": identifiers["user"],
+                    "created": created_at,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_project "
+                    "(id,context_id,partner_id,reference,name,state,version,creator_id,"
+                    "created_at,updated_at) VALUES "
+                    "(:id,'MJL',:partner,'PRJ-PTA1-0001','Projet historique',"
+                    "'active',1,:user,:created,:created)"
+                ),
+                {
+                    "id": identifiers["project"],
+                    "partner": identifiers["partner"],
+                    "user": identifiers["user"],
+                    "created": created_at,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_annual "
+                    "(id,context_id,project_id,year,creator_id,created_at) VALUES "
+                    "(:id,'MJL',:project,2027,:user,:created)"
+                ),
+                {
+                    "id": identifiers["pta"],
+                    "project": identifiers["project"],
+                    "user": identifiers["user"],
+                    "created": created_at,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_activity "
+                    "(id,context_id,pta_id,reference,name,description,planned_start,"
+                    "planned_end,allocation,state,version,creator_id,created_at,"
+                    "request_actor_id,request_project_id,request_year,request_key,"
+                    "request_fingerprint,updated_at) VALUES "
+                    "(:id,'MJL',:pta,'ACT-PTA1-0001','Activité historique',"
+                    "'Chaîne PTA-1 synthétique','2027-01-01','2027-03-31',100000,"
+                    "'draft',5,:user,:created,:user,:project,2027,:request_key,"
+                    ":fingerprint,:removed)"
+                ),
+                {
+                    "id": identifiers["activity"],
+                    "pta": identifiers["pta"],
+                    "user": identifiers["user"],
+                    "project": identifiers["project"],
+                    "created": created_at,
+                    "removed": removed_at,
+                    "request_key": str(uuid4()),
+                    "fingerprint": "f" * 64,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_operation "
+                    "(id,context_id,activity_id,type_id,name,allocation,position,"
+                    "creator_id,created_at,updated_by_id,updated_at,removed_at,"
+                    "removed_by_id) VALUES "
+                    "(:kept,'MJL',:activity,:type,'Tâche conservée',100000,1,"
+                    ":user,:created,:user,:removed,NULL,NULL),"
+                    "(:removed_id,'MJL',:activity,:type,'Tâche retirée',200000,2,"
+                    ":user,:created,:user,:removed,:removed,:user)"
+                ),
+                {
+                    "kept": identifiers["kept"],
+                    "removed_id": identifiers["removed"],
+                    "activity": identifiers["activity"],
+                    "type": identifiers["type"],
+                    "user": identifiers["user"],
+                    "created": created_at,
+                    "removed": removed_at,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_activity_agent_assignment "
+                    "(id,context_id,activity_id,agent_id,assigned_by_id,assigned_at) "
+                    "VALUES (:creator_assignment,'MJL',:activity,:user,:user,:created),"
+                    "(:editor_assignment,'MJL',:activity,:editor,:user,:created),"
+                    "(:noop_assignment,'MJL',:activity,:noop,:user,:created)"
+                ),
+                {
+                    "creator_assignment": identifiers["assignment"],
+                    "editor_assignment": identifiers["editor_assignment"],
+                    "noop_assignment": identifiers["noop_assignment"],
+                    "activity": identifiers["activity"],
+                    "user": identifiers["user"],
+                    "editor": identifiers["editor"],
+                    "noop": identifiers["noop_user"],
+                    "created": created_at,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO auth_audit "
+                    "(occurred_at,action,actor,target,outcome,request_id,business) "
+                    "VALUES (:created,'activity.create',:user,:activity,'ok',"
+                    ":create_request,CAST(:create_business AS jsonb)),"
+                    "(:edited,'activity.replace',:editor,:activity,'ok',"
+                    ":edit_request,CAST(:edit_business AS jsonb)),"
+                    "(:reverted,'activity.replace',:editor,:activity,'ok',"
+                    ":revert_request,CAST(:revert_business AS jsonb)),"
+                    "(:noop_at,'activity.replace',:noop,:activity,'ok',"
+                    ":noop_request,CAST(:noop_business AS jsonb)),"
+                    "(:removed,'activity.replace',:user,:activity,'ok',"
+                    ":replace_request,CAST(:replace_business AS jsonb))"
+                ),
+                {
+                    "created": created_at,
+                    "edited": edited_at,
+                    "reverted": reverted_at,
+                    "noop_at": noop_at,
+                    "removed": removed_at,
+                    "user": identifiers["user"],
+                    "editor": identifiers["editor"],
+                    "noop": identifiers["noop_user"],
+                    "activity": identifiers["activity"],
+                    "create_request": str(uuid4()),
+                    "edit_request": str(uuid4()),
+                    "revert_request": str(uuid4()),
+                    "noop_request": str(uuid4()),
+                    "replace_request": str(uuid4()),
+                    "create_business": json.dumps({"after": created}),
+                    "edit_business": json.dumps({"before": created, "after": edited}),
+                    "revert_business": json.dumps(
+                        {"before": edited, "after": reverted}
+                    ),
+                    "noop_business": json.dumps({"before": reverted, "after": noop}),
+                    "replace_business": json.dumps(
+                        {
+                            "before": noop,
+                            "after": after_removal,
+                            "removed_operations": [removed],
+                        }
+                    ),
+                },
+            )
+        yield engine, config, identifiers
+    finally:
+        if engine is not None:
+            engine.dispose()
+        if database_created:
+            with admin_engine.connect() as db:
+                db.execute(text(f"DROP DATABASE {database_name} WITH (FORCE)"))
+        admin_engine.dispose()
 
 
 def test_v20_predecessor_upgrade_reconstructs_complete_contributors(
-    planning, auth_env, predecessor_audit_format
+    pta1_audit_chain_database,
 ):
-    """A real PTA-1 audit chain retains reverted/removal editors, not no-op savers."""
-    with ExitStack() as stack:
-        noop_agent = invite(
-            planning["admin"],
-            auth_env,
-            stack,
-            "noop-agent@example.test",
-            "AGENT_SAISIE",
-        )
-        refreshed_auth = planning["admin"].app.state.auth
-        refreshed_auth.policy = refreshed_auth.policy.model_copy(
-            update={"lifecycle_database": refreshed_auth.engine.url.database}
-        )
-        planning["auth"] = refreshed_auth
-        _partner, operation_type, project = references(planning)
-        activity = post(
-            planning["agent"],
-            f"/api/v1/projects/{project['id']}/ptas/2027/activities",
-            {**plan(operation_type), "request_key": str(uuid4())},
-        ).json()
-        activity = assign_agents(
-            planning, activity, planning["agent"], planning["agent2"], noop_agent
-        )
-        changed = patch(
-            planning["agent2"],
-            f"/api/v1/activities/{activity['id']}",
-            replace_body(activity, name="Nom temporaire"),
-        ).json()
-        reverted = patch(
-            planning["agent2"],
-            f"/api/v1/activities/{activity['id']}",
-            replace_body(changed, name=activity["name"]),
-        ).json()
-        noop = patch(
-            noop_agent,
-            f"/api/v1/activities/{activity['id']}",
-            replace_body(reverted),
-        )
-        assert noop.status_code == 200, noop.text
-        after_noop = noop.json()
-        kept = after_noop["tasks"][0]
-        removed = patch(
-            planning["agent2"],
-            f"/api/v1/activities/{activity['id']}",
-            replace_body(
-                after_noop,
-                allocation=kept["allocation"],
-                tasks=[
-                    {
-                        "id": kept["id"],
-                        "type_id": kept["type_id"],
-                        "name": kept["name"],
-                        "allocation": kept["allocation"],
-                    }
-                ],
-            ),
-        )
-        assert removed.status_code == 200, removed.text
-        users = planning["admin"].get("/api/v1/access/users").json()["items"]
-        expected = {
-            next(row["id"] for row in users if row["email"] == "agent@example.test"),
-            next(row["id"] for row in users if row["email"] == "agent2@example.test"),
-        }
-        excluded = next(
-            row["id"] for row in users if row["email"] == "noop-agent@example.test"
-        )
-
-    planning["auth"].engine.dispose()
-    config = Config("alembic.ini")
-    command.downgrade(config, "0005_pta1")
-    command.upgrade(config, "head")
-    engine = create_engine(auth_env.url)
-    try:
-        with engine.connect() as db:
-            contributors = set(
-                db.scalars(
-                    select(ActivityContributor.user_id).where(
-                        ActivityContributor.activity_id == activity["id"]
-                    )
+    """A complete PTA-1 chain retains real editors but excludes a no-op saver."""
+    engine, config, identifiers = pta1_audit_chain_database
+    command.upgrade(config, "0006_pta2a")
+    with engine.connect() as db:
+        contributors = set(
+            db.scalars(
+                select(ActivityContributor.user_id).where(
+                    ActivityContributor.activity_id == identifiers["activity"]
                 )
             )
-            assert contributors == expected
-            assert excluded not in contributors
-            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0027_pta_metadata"
-            )
-    finally:
-        engine.dispose()
+        )
+        assert contributors == {identifiers["user"], identifiers["editor"]}
+        assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+            "0006_pta2a"
+        )
 
 
 def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_env):
@@ -3091,125 +3343,114 @@ def test_v20_used_pta2a_database_refuses_destructive_downgrade(planning, auth_en
 
 @pytest.mark.parametrize("corruption", ["missing", "duplicate", "gap"])
 def test_v20_predecessor_upgrade_rejects_broken_attribution(
-    planning, auth_env, corruption, predecessor_audit_format
+    pta1_audit_chain_database, corruption
 ):
-    _partner, operation_type, project = references(planning)
-    activity = post(
-        planning["agent"],
-        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
-        {**plan(operation_type), "request_key": str(uuid4())},
-    ).json()
-    changed = patch(
-        planning["agent"],
-        f"/api/v1/activities/{activity['id']}",
-        replace_body(activity, name="Modification attribuée"),
-    )
-    assert changed.status_code == 200, changed.text
-    planning["auth"].engine.dispose()
-    config = Config("alembic.ini")
-    command.downgrade(config, "0005_pta1")
-    engine = create_engine(auth_env.url)
-    try:
-        with engine.begin() as db:
-            if corruption in {"missing", "gap"}:
-                db.execute(
-                    text("ALTER TABLE auth_audit DISABLE TRIGGER auth_audit_immutable")
-                )
-            if corruption == "missing":
-                db.execute(
+    engine, config, identifiers = pta1_audit_chain_database
+    target = identifiers["activity"]
+    with engine.begin() as db:
+        if corruption in {"missing", "gap"}:
+            db.execute(
+                text("ALTER TABLE auth_audit DISABLE TRIGGER auth_audit_immutable")
+            )
+        if corruption == "missing":
+            db.execute(
+                text(
+                    "DELETE FROM auth_audit WHERE target=:target "
+                    "AND action='activity.replace' "
+                    "AND (business->'after'->>'version')::integer=2"
+                ),
+                {"target": target},
+            )
+        elif corruption == "duplicate":
+            db.execute(
+                text(
+                    "INSERT INTO auth_audit(occurred_at,action,actor,target,outcome,"
+                    "request_id,details,business) SELECT occurred_at,action,actor,"
+                    "target,outcome,:request_id,details,business FROM auth_audit "
+                    "WHERE target=:target AND action='activity.replace' "
+                    "AND (business->'after'->>'version')::integer=2"
+                ),
+                {"target": target, "request_id": str(uuid4())},
+            )
+        else:
+            db.execute(
+                text(
+                    "UPDATE auth_audit SET business=jsonb_set(business,"
+                    "'{after,version}','7'::jsonb) WHERE target=:target "
+                    "AND action='activity.replace' "
+                    "AND (business->'after'->>'version')::integer=3"
+                ),
+                {"target": target},
+            )
+        if corruption in {"missing", "gap"}:
+            db.execute(
+                text("ALTER TABLE auth_audit ENABLE TRIGGER auth_audit_immutable")
+            )
+
+    with pytest.raises(Exception, match="Incomplete PTA-1 Activity audit chain"):
+        command.upgrade(config, "0006_pta2a")
+
+    expected_versions = {
+        "missing": [1, 3, 4, 5],
+        "duplicate": [1, 2, 2, 3, 4, 5],
+        "gap": [1, 2, 4, 5, 7],
+    }
+    with engine.connect() as db:
+        assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+            "0005_pta1"
+        )
+        assert (
+            list(
+                db.scalars(
                     text(
-                        "DELETE FROM auth_audit WHERE ctid IN (SELECT ctid FROM "
-                        "auth_audit WHERE target=:target AND action='activity.replace' "
-                        "LIMIT 1)"
+                        "SELECT (business->'after'->>'version')::integer "
+                        "FROM auth_audit WHERE target=:target AND outcome='ok' "
+                        "AND action IN ('activity.create','activity.replace',"
+                        "'activity.assign_agents') ORDER BY 1"
                     ),
-                    {"target": activity["id"]},
+                    {"target": target},
                 )
-            elif corruption == "duplicate":
-                db.execute(
-                    text(
-                        "INSERT INTO auth_audit(occurred_at,action,actor,target,"
-                        "outcome,"
-                        "request_id,details,business) SELECT occurred_at,action,actor,"
-                        "target,outcome,request_id,details,business FROM auth_audit "
-                        "WHERE target=:target AND action='activity.replace' LIMIT 1"
-                    ),
-                    {"target": activity["id"]},
-                )
-            else:
-                db.execute(
-                    text(
-                        "UPDATE auth_audit SET business=jsonb_set(business,"
-                        "'{after,version}','4'::jsonb) WHERE target=:target "
-                        "AND action='activity.replace'"
-                    ),
-                    {"target": activity["id"]},
-                )
-            if corruption in {"missing", "gap"}:
-                db.execute(
-                    text("ALTER TABLE auth_audit ENABLE TRIGGER auth_audit_immutable")
-                )
-        with pytest.raises(Exception, match="Incomplete PTA-1 Activity audit chain"):
-            command.upgrade(config, "head")
-    finally:
-        engine.dispose()
+            )
+            == expected_versions[corruption]
+        )
 
 
 @pytest.mark.parametrize("field", ["type_id", "name", "allocation", "position"])
 def test_v20_predecessor_upgrade_rejects_corrupted_operation_tombstone(
-    planning, auth_env, field, predecessor_audit_format
+    pta1_audit_chain_database, field
 ):
-    _partner, operation_type, project = references(planning)
-    other_type = post(
-        planning["validator"],
-        "/api/v1/task-categories",
-        {"label": "Type de corruption"},
-    ).json()
-    activity = post(
-        planning["agent"],
-        f"/api/v1/projects/{project['id']}/ptas/2027/activities",
-        {**plan(operation_type), "request_key": str(uuid4())},
-    ).json()
-    kept = activity["tasks"][0]
-    response = patch(
-        planning["agent"],
-        f"/api/v1/activities/{activity['id']}",
-        replace_body(
-            activity,
-            allocation=kept["allocation"],
-            tasks=[
-                {
-                    "id": kept["id"],
-                    "type_id": kept["type_id"],
-                    "name": kept["name"],
-                    "allocation": kept["allocation"],
-                }
-            ],
-        ),
-    )
-    assert response.status_code == 200, response.text
-    planning["auth"].engine.dispose()
-    config = Config("alembic.ini")
-    command.downgrade(config, "0005_pta1")
-    engine = create_engine(auth_env.url)
+    engine, config, identifiers = pta1_audit_chain_database
     values = {
-        "type_id": other_type["id"],
+        "type_id": identifiers["other_type"],
         "name": "Tombstone falsifiée",
         "allocation": 999999,
         "position": 99,
     }
-    try:
-        with engine.begin() as db:
-            db.execute(
-                text(
-                    f"UPDATE pta_operation SET {field}=:value "
-                    "WHERE activity_id=:activity AND removed_at IS NOT NULL"
-                ),
-                {"value": values[field], "activity": activity["id"]},
+    with engine.begin() as db:
+        db.execute(
+            text(
+                f"UPDATE pta_operation SET {field}=:value "
+                "WHERE id=:operation AND activity_id=:activity"
+            ),
+            {
+                "value": values[field],
+                "operation": identifiers["removed"],
+                "activity": identifiers["activity"],
+            },
+        )
+    with pytest.raises(Exception, match="Incomplete PTA-1 Activity audit chain"):
+        command.upgrade(config, "0006_pta2a")
+    with engine.connect() as db:
+        assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+            "0005_pta1"
+        )
+        assert (
+            db.scalar(
+                text(f"SELECT {field} FROM pta_operation WHERE id=:operation"),
+                {"operation": identifiers["removed"]},
             )
-        with pytest.raises(Exception, match="Incomplete PTA-1 Activity audit chain"):
-            command.upgrade(config, "head")
-    finally:
-        engine.dispose()
+            == values[field]
+        )
 
 
 def test_p03_database_ancestry_and_client_context_fail_closed(planning):

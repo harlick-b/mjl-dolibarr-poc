@@ -7,6 +7,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess } from '@/features/auth/session/access-verification'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { Button } from '@/shared/ui/button'
+import { Pagination } from '@/shared/ui/Pagination'
 import { PTAModal } from '../components/PTAModal'
 import { strings as metadata } from '@/locales/fr/PTAModal'
 import { EmptyTable } from '@/shared/ui/EmptyContent'
@@ -197,24 +198,16 @@ export function PlanningIndex() {
           </table>
         </div>
       )}
-      {(ptas.data?.next || ptas.data?.previous) && (
-        <nav className="flex justify-end gap-2" aria-label={strings.ptaPages}>
-          <Button
-            variant="outline"
-            disabled={!ptas.data.previous}
-            onClick={() => move(ptas.data.previous)}
-          >
-            {strings.previousPage}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!ptas.data.next}
-            onClick={() => move(ptas.data.next)}
-          >
-            {strings.nextPage}
-          </Button>
-        </nav>
-      )}
+      <Pagination
+        label={strings.ptaPages}
+        className="justify-end"
+        canPrevious={Boolean(ptas.data?.previous)}
+        canNext={Boolean(ptas.data?.next)}
+        onPrevious={() => move(ptas.data.previous)}
+        onNext={() => move(ptas.data.next)}
+        previousLabel={strings.previousPage}
+        nextLabel={strings.nextPage}
+      />
       {open && (
         <PTAModal
           opener={ptaOpener}

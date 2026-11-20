@@ -484,8 +484,17 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
     )
     authorized = int(str(snapshot.get("allocation", "0")))
     approved_zero = any(row.state == "approved" for row in data["zero_declarations"])
-    approved_disbursement = any(
-        row.state == "approved" for row in data["disbursements"]
+    approved_disbursements = {
+        row.id: row
+        for row in data["disbursements"]
+        if row.state == "approved"
+        and row.approved_revision_id == activity.approved_revision_id
+    }
+    disbursement_validated = (
+        spending_known
+        and spent is not None
+        and spent > 0
+        and sum(row.amount for row in approved_disbursements.values()) == spent
     )
     all_completed = bool(operation_rows) and all(
         row is not None and row.execution_completed for row in operation_rows
@@ -530,15 +539,11 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
                 "state": state_labels.get(row.state, row.state),
             }
         )
-    source_amounts = {row.id: row.amount for row in data["disbursements"]}
     for row in data["virements"]:
         requests.append(
             {
                 "date": row.submitted_at,
-                "label": (
-                    "Virement de "
-                    f"{xof(source_amounts.get(row.disbursement_request_id))}"
-                ),
+                "label": f"Virement de {xof(row.amount)}",
                 "state": state_labels.get(row.state, row.state),
             }
         )
@@ -609,10 +614,7 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
         (
             "Virement",
             data["virement_decisions"],
-            {
-                row.id: disbursement_amounts.get(row.disbursement_request_id)
-                for row in data["virements"]
-            },
+            {row.id: row.amount for row in data["virements"]},
             "request_id",
         ),
         (
@@ -758,13 +760,19 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
             }
         )
     validation = next(
-        (
-            row
-            for row in [*data["disbursement_decisions"], *data["zero_decisions"]]
-            if row.outcome == "approved"
-        ),
+        (row for row in data["zero_decisions"] if row.outcome == "approved"),
         None,
     )
+    if validation is None and disbursement_validated:
+        approved_total = 0
+        for decision in data["disbursement_decisions"]:
+            request = approved_disbursements.get(decision.request_id)
+            if decision.outcome != "approved" or request is None:
+                continue
+            approved_total += request.amount
+            if approved_total == spent:
+                validation = decision
+                break
     if validation:
         events.append(
             {
@@ -802,7 +810,7 @@ def _template_projection(data: dict[str, Any]) -> dict[str, Any]:
         "programming": "Approuvée",
         "realization": (
             "Validée"
-            if approved_zero or approved_disbursement
+            if approved_zero or disbursement_validated
             else "Terminée — validation attendue"
             if all_completed
             else "En cours"

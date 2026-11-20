@@ -1,0 +1,8 @@
+services:
+  backend:
+    environment:
+      MJL_AUTH_MODE: synthetic
+      MJL_ENVIRONMENT: isolated-test
+      MJL_AUTH_POLICY_FILE: /run/mjl/connected-test-policy.json
+    volumes:
+      - ${MJL_CONNECTED_POLICY_HOST:?Set MJL_CONNECTED_POLICY_HOST}:/run/mjl/connected-test-policy.json:ro

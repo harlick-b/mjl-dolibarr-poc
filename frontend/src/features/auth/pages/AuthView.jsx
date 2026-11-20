@@ -3,7 +3,7 @@ import { authTitle } from '../lib/auth-title'
 import { Urls } from '@/app/urls'
 import { useLogout } from '../session/LogoutProvider'
 import { loginDestination } from '../session/navigation'
-import { buttonVariants } from '@/shared/ui/button-variants'
+import { Button } from '@/shared/ui/button'
 import { useSessionQuery } from '@/features/auth/session/SessionProvider'
 import {
   useCallback,
@@ -26,6 +26,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/AuthView'
 import { strings as common } from '@/locales/fr/common'
 import { OtpInput } from '../components/OtpInput'
+import { requiredFieldFeedbackHandlers } from '@/shared/ui/required-field-feedback'
 import {
   broadcastAuthenticationChange,
   isLocalAuthenticationChange,
@@ -46,7 +47,7 @@ function Password({ label, name, value, onChange, disabled }) {
   return (
     <label>
       {label} *
-      <span className="flex relative [&_input]:pr-12 [&_button]:absolute [&_button]:right-0 [&_button]:top-0 [&_button]:min-h-11 [&_button]:w-11 [&_button]:grid [&_button]:place-items-center [&_button]:text-muted-foreground">
+      <span className="flex relative [&_input]:pr-12 [&_button]:absolute [&_button]:right-0 [&_button]:top-0 [&_button]:text-muted-foreground">
         <input
           name={name}
           disabled={disabled}
@@ -59,7 +60,9 @@ function Password({ label, name, value, onChange, disabled }) {
           required
           maxLength={128}
         />
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           type="button"
           disabled={disabled}
           aria-label={
@@ -68,9 +71,24 @@ function Password({ label, name, value, onChange, disabled }) {
           onClick={() => setVisible(!visible)}
         >
           {visible ? <EyeOff size={18} /> : <Eye size={18} />}
-        </button>
+        </Button>
       </span>
     </label>
+  )
+}
+
+function PasswordRequirements({ criteria }) {
+  return (
+    <ul
+      className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-primary [&_li[data-valid='true']]:bg-selected"
+      aria-live="polite"
+    >
+      {criteria.map(([valid, label]) => (
+        <li key={label} data-valid={valid}>
+          {valid ? '✓' : '○'} {label}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -317,14 +335,14 @@ function AuthPage({ path }) {
       <>
         <h1>{strings.offlineTitle}</h1>
         <p>{strings.offlineMessage}</p>
-        <button
-          className={buttonVariants({ variant: 'auth' })}
+        <Button
+          variant="auth"
           data-ui="auth-primary"
           onClick={() => void access.verify({ manual: true }).catch(() => null)}
           type="button"
         >
           {common.retry}
-        </button>
+        </Button>
         {notice && <p role="alert">{notice}</p>}
       </>
     )
@@ -347,8 +365,8 @@ function AuthPage({ path }) {
       <>
         <h1>{strings.sessionUnavailable}</h1>
         <p role="alert">{strings.identityUnavailable}</p>
-        <button
-          className={buttonVariants({ variant: 'auth' })}
+        <Button
+          variant="auth"
           data-ui="auth-primary"
           onClick={async () => {
             const fresh = await session.refetch()
@@ -356,7 +374,7 @@ function AuthPage({ path }) {
           }}
         >
           {common.retry}
-        </button>
+        </Button>
       </>
     )
   else if (
@@ -391,6 +409,7 @@ function AuthPage({ path }) {
         <h1>{strings.forgotHeading}</h1>
         <p>{strings.forgotPrompt}</p>
         <form
+          {...requiredFieldFeedbackHandlers}
           onSubmit={(event) =>
             submit(event, 'password-reset/requests', { email })
           }
@@ -408,18 +427,18 @@ function AuthPage({ path }) {
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
-          <AuthButton
-            className={buttonVariants({ variant: 'auth' })}
+          <Button
+            variant="auth"
             data-ui="auth-primary"
             disabled={disabled}
-            busy={
+            loading={
               busy &&
               (transition?.endpoint || mutation.variables?.endpoint) ===
                 'password-reset/requests'
             }
           >
             {strings.forgotSubmit}
-          </AuthButton>
+          </Button>
         </form>
         <Link
           to={Urls.login}
@@ -434,31 +453,28 @@ function AuthPage({ path }) {
       <>
         <h1>{strings.resetHeading}</h1>
         <p role="status">{strings.resetSuccess}</p>
-        <Link
-          to={Urls.login}
-          className={buttonVariants({ variant: 'auth' })}
-          data-ui="auth-primary"
-        >
-          {strings.backToLogin}
-        </Link>
+        <Button asChild variant="auth">
+          <Link to={Urls.login} data-ui="auth-primary">
+            {strings.backToLogin}
+          </Link>
+        </Button>
       </>
     ) : !loader?.proof || !loader?.email ? (
       <>
         <h1>{strings.invalidResetTitle}</h1>
         <p role="alert">{strings.invalidResetMessage}</p>
-        <Link
-          to={Urls.forgotPassword}
-          className={buttonVariants({ variant: 'auth' })}
-          data-ui="auth-primary"
-        >
-          {strings.newRecovery}
-        </Link>
+        <Button asChild variant="auth">
+          <Link to={Urls.forgotPassword} data-ui="auth-primary">
+            {strings.newRecovery}
+          </Link>
+        </Button>
       </>
     ) : (
       <>
         <h1>{strings.resetHeading}</h1>
         <p>{strings.resetPrompt}</p>
         <form
+          {...requiredFieldFeedbackHandlers}
           onSubmit={(event) =>
             submit(event, 'password-reset/complete', {
               ...loader.proof,
@@ -478,16 +494,7 @@ function AuthPage({ path }) {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <ul
-            className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-primary [&_li[data-valid='true']]:bg-selected"
-            aria-live="polite"
-          >
-            {criteria.map(([ok, label]) => (
-              <li key={label} data-valid={ok}>
-                {ok ? '✓' : '○'} {label}
-              </li>
-            ))}
-          </ul>
+          <PasswordRequirements criteria={criteria} />
           <Password
             disabled={busy}
             label={strings.confirmationLabel}
@@ -498,13 +505,13 @@ function AuthPage({ path }) {
           {confirmation && password !== confirmation && (
             <p role="status">{strings.passwordMismatch}</p>
           )}
-          <AuthButton
-            busy={
+          <Button
+            variant="auth"
+            loading={
               busy &&
               (transition?.endpoint || mutation.variables?.endpoint) ===
                 'password-reset/complete'
             }
-            className={buttonVariants({ variant: 'auth' })}
             data-ui="auth-primary"
             disabled={
               disabled ||
@@ -513,7 +520,7 @@ function AuthPage({ path }) {
             }
           >
             {strings.resetSubmit}
-          </AuthButton>
+          </Button>
         </form>
       </>
     )
@@ -534,6 +541,7 @@ function AuthPage({ path }) {
         </p>
         {loader?.proof && loader?.email && (
           <form
+            {...requiredFieldFeedbackHandlers}
             onSubmit={(e) =>
               submit(
                 e,
@@ -561,23 +569,17 @@ function AuthPage({ path }) {
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
             />
-            <ul className="flex flex-wrap gap-2 list-none text-xs leading-5 text-muted-foreground [&_li]:bg-background [&_li]:rounded [&_li]:py-1 [&_li]:px-2 [&_li[data-valid='true']]:text-primary [&_li[data-valid='true']]:bg-selected">
-              {criteria.map(([ok, label]) => (
-                <li key={label} data-valid={ok}>
-                  {ok ? '✓' : '○'} {label}
-                </li>
-              ))}
-            </ul>
+            <PasswordRequirements criteria={criteria} />
             {confirmation && password !== confirmation && (
               <p role="status">{strings.passwordMismatch}</p>
             )}
-            <AuthButton
-              busy={
+            <Button
+              variant="auth"
+              loading={
                 busy &&
                 (transition?.endpoint || mutation.variables?.endpoint) ===
                   'invitations/accept'
               }
-              className={buttonVariants({ variant: 'auth' })}
               data-ui="auth-primary"
               disabled={
                 disabled ||
@@ -586,7 +588,7 @@ function AuthPage({ path }) {
               }
             >
               {strings.invitationSubmit}
-            </AuthButton>
+            </Button>
           </form>
         )}
         <Link
@@ -605,7 +607,10 @@ function AuthPage({ path }) {
           {strings.otpPrompt}
           <strong>{displaySession.email || strings.otpEmailFallback}</strong>
         </p>
-        <form onSubmit={(e) => submit(e, 'otp/verify', { code }, Urls.home)}>
+        <form
+          {...requiredFieldFeedbackHandlers}
+          onSubmit={(e) => submit(e, 'otp/verify', { code }, Urls.home)}
+        >
           <OtpInput
             value={code}
             onChange={setCode}
@@ -614,53 +619,55 @@ function AuthPage({ path }) {
             }
             disabled={busy}
           />
-          <AuthButton
-            className={buttonVariants({ variant: 'auth' })}
+          <Button
+            variant="auth"
             data-ui="auth-primary"
             disabled={disabled || !/^[0-9]{6}$/.test(code)}
-            busy={
+            loading={
               busy &&
               (transition?.endpoint || mutation.variables?.endpoint) ===
                 'otp/verify'
             }
           >
             {strings.otpSubmit}
-          </AuthButton>
+          </Button>
         </form>
         <form
+          {...requiredFieldFeedbackHandlers}
           className="mt-4 flex items-center justify-center gap-2 text-[0.8125rem] text-muted-foreground"
 
           onSubmit={(e) => submit(e, 'otp/resend', {})}
         >
           <span>{strings.otpNotReceived}</span>
-          <AuthButton
-            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
+          <Button
+            variant="authLink"
             disabled={disabled}
-            busy={
+            loading={
               busy &&
               (transition?.endpoint || mutation.variables?.endpoint) ===
                 'otp/resend'
             }
           >
             {strings.otpResend}
-          </AuthButton>
+          </Button>
         </form>
         <form
+          {...requiredFieldFeedbackHandlers}
           className="mt-0"
 
           onSubmit={(e) => submit(e, 'logout', {}, Urls.login)}
         >
-          <AuthButton
-            className="inline-flex justify-center items-center text-primary min-h-11 text-[0.8125rem] leading-5"
+          <Button
+            variant="authLink"
             disabled={disabled}
-            busy={
+            loading={
               busy &&
               (transition?.endpoint || mutation.variables?.endpoint) ===
                 'logout'
             }
           >
             {strings.backToLogin}
-          </AuthButton>
+          </Button>
         </form>
       </>
     )
@@ -669,6 +676,7 @@ function AuthPage({ path }) {
       <>
         <h1>{strings.loginHeading}</h1>
         <form
+          {...requiredFieldFeedbackHandlers}
           onSubmit={(e) =>
             submit(e, 'login', { email, password }, Urls.verification)
           }
@@ -699,17 +707,17 @@ function AuthPage({ path }) {
           >
             {strings.forgotLink}
           </Link>
-          <AuthButton
-            className={buttonVariants({ variant: 'auth' })}
+          <Button
+            variant="auth"
             data-ui="auth-primary"
             disabled={disabled}
-            busy={
+            loading={
               busy &&
               (transition?.endpoint || mutation.variables?.endpoint) === 'login'
             }
           >
             {strings.loginSubmit}
-          </AuthButton>
+          </Button>
         </form>
       </>
     )
@@ -760,16 +768,5 @@ function AuthMinimalLoading({ label = common.loading }) {
       />
       <p>{common.loading}</p>
     </div>
-  )
-}
-
-function AuthButton({ busy, children, ...props }) {
-  return (
-    <button {...props} aria-busy={busy || undefined}>
-      {busy && (
-        <LoaderCircle className="animate-spin" aria-hidden="true" size={16} />
-      )}
-      {children}
-    </button>
   )
 }

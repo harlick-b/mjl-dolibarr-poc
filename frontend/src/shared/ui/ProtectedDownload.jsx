@@ -8,6 +8,7 @@ export function ProtectedDownload({
   children,
   className,
   size,
+  variant = 'outline',
   onDenied,
   scope,
 }) {
@@ -34,7 +35,7 @@ export function ProtectedDownload({
       }
     },
     onError: (error) => {
-      if ([403, 404].includes(error.status)) onDenied?.()
+      if ([401, 403, 404].includes(error.status)) onDenied?.(error.status)
     },
     onSuccess: ({
       blob,
@@ -59,7 +60,7 @@ export function ProtectedDownload({
       disabled={download.isPending}
       onClick={() => download.mutate()}
       type="button"
-      variant="outline"
+      variant={variant}
       size={size}
     >
       {children}

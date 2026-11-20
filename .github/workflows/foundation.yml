@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      HUSKY: '0'
-      COMPOSE_FILE: compose.rebuild.yaml
+      HUSKY: "0"
+      COMPOSE_FILE: compose.rebuild.yaml:.github/compose.connected-tests.yaml
       COMPOSE_PROJECT_NAME: mjl-foundation-ci
       COMPOSE_ENV_FILES: .env.ci
       API_PROXY_TARGET: http://127.0.0.1:8013
@@ -18,12 +18,49 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Create disposable configuration
         run: |
           umask 077
+          policy="$RUNNER_TEMP/mjl-connected-test-policy.json"
+          key="$(openssl rand -hex 32)"
+          cat > "$policy" <<EOF
+          {
+            "fixture": "a1-synthetic-v1",
+            "password_min": 8,
+            "invitation_seconds": 604800,
+            "otp_seconds": 600,
+            "otp_attempts": 5,
+            "otp_lock_seconds": 600,
+            "resend_seconds": 60,
+            "resend_max": 3,
+            "context_seconds": 900,
+            "login_window_seconds": 900,
+            "login_limit": 10,
+            "ip_window_seconds": 60,
+            "ip_limit": 120,
+            "concurrent_sessions": "independent-test-only",
+            "origin": "http://127.0.0.1:4173",
+            "key": "$key",
+            "mailbox": "/tmp/mjl-a1-mail-connected-ci",
+            "lifecycle_database": "mjl_test_foundation",
+            "recovery_fixture": "TEST_ONLY",
+            "recovery_seconds": 600,
+            "recovery_email_window_seconds": 600,
+            "recovery_email_limit": 3,
+            "recovery_ip_window_seconds": 60,
+            "recovery_ip_limit": 20,
+            "planning_lifecycle_fixture": "SYNTHETIC_EXECUTION_TEST_ONLY"
+          }
+          EOF
+          chmod 0644 "$policy"
+          echo "MJL_CONNECTED_POLICY_HOST=$policy" >> "$GITHUB_ENV"
+          echo 'MJL_CONNECTED_PLANNING_MAILBOX=/tmp/mjl-a1-mail-connected-ci' >> "$GITHUB_ENV"
+          echo 'MJL_CONNECTED_PLANNING_CONTAINER=mjl-foundation-ci-backend-1' >> "$GITHUB_ENV"
+          echo 'MJL_CONNECTED_PLANNING_DATABASE=mjl_test_foundation' >> "$GITHUB_ENV"
+          echo 'MJL_REQUIRE_CONNECTED_PLANNING=1' >> "$GITHUB_ENV"
           {
             echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
             echo 'POSTGRES_DB=mjl_test_foundation'
@@ -35,6 +72,7 @@ jobs:
         run: |
           docker compose config --quiet
           docker compose up -d --build --wait
+          docker compose exec -T backend alembic upgrade head
       - name: Frontend quality
         run: |
           npm --prefix frontend ci
@@ -53,7 +91,8 @@ jobs:
         working-directory: frontend
         run: |
           npx playwright install --with-deps chromium
-          npm run test:e2e
+          npm run test:e2e -- e2e/planning/activity-submission.spec.js
+          npm run test:e2e -- --grep-invert 'assigned Agent submits an Activity for Supervisor review'
       - name: Remove only the disposable CI project
         if: always()
         run: docker compose down --volumes --remove-orphans

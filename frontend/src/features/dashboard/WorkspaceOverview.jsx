@@ -11,6 +11,7 @@ import { useAccess } from '@/features/auth/session/access-verification'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { Panel } from '@/shared/ui/layout'
 import { Button } from '@/shared/ui/button'
+import { Pagination } from '@/shared/ui/Pagination'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { formatPercentage, formatXof } from '@/shared/lib/format'
@@ -561,24 +562,18 @@ function dashboardPercentage(value, total) {
   return String(total) === '0' ? '0 %' : formatPercentage(value, total)
 }
 function CursorButtons({ result, path, onMove, busy }) {
-  if (!result?.previous && !result?.next) return null
   return (
-    <nav aria-label={strings.projects} className="flex justify-end gap-2">
-      <Button
-        variant="outline"
-        disabled={busy || !result.previous}
-        onClick={() => onMove(cursorFrom(result.previous, path))}
-      >
-        {strings.previous}
-      </Button>
-      <Button
-        variant="outline"
-        disabled={busy || !result.next}
-        onClick={() => onMove(cursorFrom(result.next, path))}
-      >
-        {strings.next}
-      </Button>
-    </nav>
+    <Pagination
+      label={strings.projects}
+      className="justify-end"
+      canPrevious={Boolean(result?.previous)}
+      canNext={Boolean(result?.next)}
+      busy={busy}
+      onPrevious={() => onMove(cursorFrom(result.previous, path))}
+      onNext={() => onMove(cursorFrom(result.next, path))}
+      previousLabel={strings.previous}
+      nextLabel={strings.next}
+    />
   )
 }
 

@@ -195,11 +195,7 @@ def _request_amount(db: Session, source: FinancialRequest) -> int | None:
     if isinstance(source, ZeroSpendingDeclaration):
         return 0
     if isinstance(source, VirementRequest):
-        return db.scalar(
-            select(DisbursementRequest.amount).where(
-                DisbursementRequest.id == source.disbursement_request_id
-            )
-        )
+        return source.amount
     return None
 
 

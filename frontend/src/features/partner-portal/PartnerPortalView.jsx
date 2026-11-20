@@ -19,6 +19,7 @@ import { useProtectedCleanup } from '@/features/auth/session/access-verification
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { ProtectedFilePreview } from '@/shared/ui/ProtectedFilePreview'
+import { Pagination } from '@/shared/ui/Pagination'
 
 const emptyList = { data: [] }
 
@@ -54,22 +55,15 @@ function cursor(link) {
 }
 
 function PortalPagination({ page, change, label }) {
-  if (!page?.next && !page?.previous) return null
   return (
-    <nav
-      className="[&_button]:min-h-11 [&_button]:text-primary [&_button]:underline flex justify-end flex-wrap items-center gap-4 mt-3 mr-0 mb-10 ml-0 text-[0.8125rem]"
-      aria-label={`Pagination ${label}`}
-    >
-      <button
-        disabled={!page.previous}
-        onClick={() => change(cursor(page.previous))}
-      >
-        Précédent
-      </button>
-      <button disabled={!page.next} onClick={() => change(cursor(page.next))}>
-        Suivant
-      </button>
-    </nav>
+    <Pagination
+      className="justify-end mt-3 mb-10"
+      label={`Pagination ${label}`}
+      canPrevious={Boolean(page?.previous)}
+      canNext={Boolean(page?.next)}
+      onPrevious={() => change(cursor(page.previous))}
+      onNext={() => change(cursor(page.next))}
+    />
   )
 }
 
@@ -505,15 +499,17 @@ export function PartnerPortalView({ screen = 'projects' }) {
               <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
                 <div>
                   <h2>PTA {selectedPta.year}</h2>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     disabled={csvExport.isPending}
+                    loading={csvExport.isPending}
                     onClick={() => csvExport.mutate(selectedPta.id)}
                   >
                     {csvExport.isPending
                       ? strings.partnerPtaCsvPending
                       : strings.partnerPtaCsv}
-                  </button>
+                  </Button>
                   {csvExport.isError &&
                     csvExport.error?.name !== 'AbortError' && (
                       <p role="alert">{strings.partnerPtaCsvFailed}</p>
@@ -610,14 +606,16 @@ export function PartnerPortalView({ screen = 'projects' }) {
                         {activity.state === 'closed' ? 'Clôturée' : 'Approuvée'}{' '}
                         · {formatXof(activity.allocation)}
                       </span>
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={() =>
                           void changeSearch({ activity: activity.id })
                         }
                       >
                         Voir le détail
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -760,7 +758,6 @@ export function PartnerPortalView({ screen = 'projects' }) {
                 changeCursor={(documentCursor) =>
                   changeSearch({ documentCursor })
                 }
-                guard={downloadGuard}
                 onDenied={deny}
               />
               <h3>Résultat financier</h3>

@@ -149,8 +149,8 @@ use the full Activity workspace, not a standalone brief page. An Agent may save
 a title-only initial draft and resume it later. A Task or Subtask is added through
 its dedicated editor and must have a name and positive amount before it joins the
 Activity Draft. Category, dates and weight may remain empty until submission.
-Description, both dates, complete Tasks and balanced budget are mandatory
-before submission. A submitted Activity has one
+Both dates, complete Tasks and balanced budget are mandatory before submission;
+the Activity description remains optional. A submitted Activity has one
 or more Tasks with positive allocations whose sum equals its allocation.
 In the full Agent form, the suggested end date is start plus three calendar
 months: preserve the day when valid, otherwise clamp to the month's last day.
@@ -223,10 +223,15 @@ changed through a late budget exception.
 
 For positive final spending, after every approved Operation is physically complete:
 
-1. Agent requests décaissement for server-calculated actual final spending, not
-   the allocation. Supervisor prevalidates; distinct Validator approves.
-2. Agent requests virement from the immutable approved décaissement amount,
-   with a fresh Supervisor/Validator approval chain.
+1. Agent requests décaissement by entering a positive amount no greater than
+   the recorded final spending. An optional observation and one optional PDF,
+   JPEG or PNG attachment may accompany the request. Submission immediately
+   starts review; financial requests have no Draft state. Supervisor
+   prevalidates; distinct Validator approves.
+2. Agent requests virement by entering a positive amount no greater than the
+   approved décaissement amount still available. The request may also contain
+   an optional observation and one optional PDF, JPEG or PNG attachment. A
+   fresh Supervisor/Validator approval chain applies.
 3. Agent confirms the external virement for the exact approved amount, effective
    date and optional note. MJL records the declaration; it never executes banking.
 4. Required reversement is max(0, approved allocation − final spending). If positive,
@@ -237,13 +242,23 @@ For positive final spending, after every approved Operation is physically comple
 5. Agent directly closes after all work and required settlement checks pass.
    No additional closure approval, manual closure date or reopening is enabled.
 
+Décaissement and virement requests may be partial. Only one request of each type
+may be under review at a time; after approval, the Agent may submit another positive
+request up to the remaining available balance. Approved décaissements must cumulatively
+equal final recorded spending before settlement is complete. Approved and externally
+confirmed virements must cumulatively equal the approved décaissements. Reversement
+becomes available only after those totals reconcile, and closure rechecks every
+approved request and confirmation without dropping a remainder.
+
+The submitted amount, observation and attachment are immutable review facts.
 Pending financial requests freeze their basis. Supervisor/Validator return ends
 that request and permits correction and fresh submission without cancellation.
 Original facts/reasons remain; fresh requests need both approvals. Reasoned
 cancellation abandons a pending request. Approved décaissement remains frozen
 even after a virement return; approvals are not rewritten. Virement date/note
 corrections require a reason and stop at reversement/closure; reversement date/note
-corrections require a reason and stop at closure. Amounts never become editable.
+corrections require a reason and stop at closure. Submitted request amounts never
+become editable.
 
 For zero spending, every Operation must be complete with explicit zero. Agent
 submits a reasoned declaration, Supervisor prevalidates and distinct Validator

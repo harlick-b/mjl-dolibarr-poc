@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -89,15 +89,13 @@ test('an assignment notification is readable and uses the standard read flow', a
     />,
   )
 
-  await screen.findByText(/ACT-001/)
+  const notification = await screen.findByRole('listitem')
   expect(screen.getByRole('heading', { name: 'Notifications' })).toBeVisible()
-  expect(await screen.findByText(/ACT-001/)).toBeVisible()
-  expect(screen.getByText('Nouvelle activité assignée')).toBeVisible()
-  expect(
-    screen.getByText(
-      'Yoann Validateur vous a assigné cette activité dans PTA Protection - Protection de l’enfant.',
-    ),
-  ).toBeVisible()
+  expect(within(notification).getByText('Formation')).toBeVisible()
+  expect(within(notification).getByText('ACT-001')).toBeVisible()
+  expect(notification).toHaveTextContent('Yoann Validateur')
+  expect(notification).toHaveTextContent('PTA Protection')
+  expect(notification).toHaveTextContent('Protection de l’enfant')
   expect(screen.getByLabelText('1 non lues')).toBeVisible()
   await userEvent.click(screen.getByRole('link', { name: /Ouvrir l’activité/ }))
   await waitFor(() =>

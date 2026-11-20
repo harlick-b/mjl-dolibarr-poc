@@ -98,7 +98,7 @@ def test_visibility_pagination_and_public_contract(planning, auth_env):
     draft = draft_activity(planning)
     draft_file = upload(planning["agent"], draft["id"]).json()
     assert (
-        share(planning["validator"], draft["id"], draft_file["id"]).status_code == 409
+        share(planning["validator"], draft["id"], draft_file["id"]).status_code == 404
     )
     document = upload(planning["agent"], activity["id"]).json()
     pdf_content = pdf()
@@ -273,30 +273,18 @@ def test_sharing_rollback_serialization_and_immutable_bytes(
                 db.execute(text(sql), {"id": document["id"]})
 
 
-def test_sharing_after_closure_and_migration_guard(planning):
+def test_sharing_after_closure_and_schema_guard(planning):
     import pytest
-    from alembic import command
-    from alembic.config import Config
     from sqlalchemy import text
     from sqlalchemy.orm import Session
 
     from app.auth.service import AuthError
     from tests.reports.test_annual_export import approve_zero_and_close
 
-    partner, operation, project = references(planning)
-    activity = approve_in_project(planning, project, operation)
-    document = upload(planning["agent"], activity["id"]).json()
-    config = Config("alembic.ini")
-    command.downgrade(config, "0021_financial_returns")
-    command.upgrade(config, "head")
-    # An existing private attachment survives round-trip with private defaults.
-    listing = planning["validator"].get(
-        f"/api/v1/activities/{activity['id']}/documents"
-    )
-    assert listing.status_code == 200, listing.text
-    assert listing.json()["data"][0]["sharing_version"] == 0
     activity = approve_zero_and_close(planning)
-    document = upload(planning["agent"], activity["id"]).json()
+    uploaded = upload(planning["validator"], activity["id"])
+    assert uploaded.status_code == 201, uploaded.text
+    document = uploaded.json()
     assert (
         share(planning["validator"], activity["id"], document["id"]).status_code == 200
     )
@@ -306,8 +294,6 @@ def test_sharing_after_closure_and_migration_guard(planning):
         ).status_code
         == 200
     )
-    with pytest.raises(RuntimeError, match="sharing history"):
-        command.downgrade(config, "0021_financial_returns")
     with Session(planning["auth"].engine) as db, db.begin():
         db.execute(
             text(
@@ -319,3 +305,83 @@ def test_sharing_after_closure_and_migration_guard(planning):
             planning["auth"].environment_verified(db)
         assert denied.value.code == "eligibility_unverified"
         db.rollback()
+
+
+def test_partner_document_migration_private_defaults_and_history_guard(monkeypatch):
+    import os
+    from uuid import uuid4
+
+    import pytest
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    base = make_url(os.environ["TEST_DATABASE_URL"])
+    assert (base.database or "").startswith("mjl_test_")
+    database_name = "mjl_test_" + uuid4().hex
+    admin_engine = create_engine(base, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as db:
+        db.execute(text(f"CREATE DATABASE {database_name}"))
+    url = base.set(database=database_name).render_as_string(hide_password=False)
+    migration_engine = create_engine(url)
+    monkeypatch.setenv("DATABASE_URL", url)
+    config = Config("alembic.ini")
+    document_id = str(uuid4())
+    try:
+        command.upgrade(config, "0021_financial_returns")
+        # The migration only reads this historical document row. Foreign resources
+        # are deliberately absent so this fixture stays scoped to the schema seam.
+        with migration_engine.begin() as db:
+            db.execute(text("SET session_replication_role = replica"))
+            db.execute(
+                text(
+                    "INSERT INTO pta_activity_document "
+                    "(id, context_id, activity_id, display_name, media_type, "
+                    "byte_size, sha256, content, uploaded_by_id, uploaded_at) "
+                    "VALUES (:id, '001', :activity_id, 'preuve.png', 'image/png', "
+                    "1, :sha256, :content, :user_id, now())"
+                ),
+                {
+                    "id": document_id,
+                    "activity_id": str(uuid4()),
+                    "sha256": "a" * 64,
+                    "content": b"x",
+                    "user_id": str(uuid4()),
+                },
+            )
+            db.execute(text("SET session_replication_role = origin"))
+
+        command.upgrade(config, "0022_partner_documents")
+        with migration_engine.connect() as db:
+            row = db.execute(
+                text(
+                    "SELECT partner_shared, sharing_version "
+                    "FROM pta_activity_document WHERE id=:id"
+                ),
+                {"id": document_id},
+            ).one()
+            assert row == (False, 0)
+
+        # Deliberately create used sharing history to exercise the destructive
+        # downgrade guard independently from current application eligibility.
+        with migration_engine.begin() as db:
+            db.execute(text("SET session_replication_role = replica"))
+            db.execute(
+                text("UPDATE pta_activity_document SET sharing_version=1 WHERE id=:id"),
+                {"id": document_id},
+            )
+            db.execute(text("SET session_replication_role = origin"))
+        with pytest.raises(
+            RuntimeError, match="Refusing to discard attachment sharing history"
+        ):
+            command.downgrade(config, "0021_financial_returns")
+        with migration_engine.connect() as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0022_partner_documents"
+            )
+    finally:
+        migration_engine.dispose()
+        with admin_engine.connect() as db:
+            db.execute(text(f"DROP DATABASE {database_name} WITH (FORCE)"))
+        admin_engine.dispose()

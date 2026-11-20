@@ -1,4 +1,5 @@
 # ruff: noqa: F401, F811
+import json
 from datetime import timedelta
 from uuid import uuid4
 
@@ -62,6 +63,19 @@ def collection(activity):
     return f"/api/v1/activities/{activity['id']}/disbursement-requests"
 
 
+def test_disbursement_requires_an_agent_entered_amount(planning):
+    activity = finish_activity(planning)
+    response = post(
+        planning["agent"],
+        collection(activity),
+        {
+            "expected_version": activity["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     activity = finish_activity(planning)
     list_path = f"/api/v1/ptas/{activity['pta_id']}/execution"
@@ -73,6 +87,7 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": activity["spending_total"],
         },
     )
     assert submitted.status_code == 201, submitted.text
@@ -80,6 +95,7 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     assert "snapshot" not in request
     assert request["amount"] == "300000"
     assert request["state"] == "submitted"
+    assert request["submitter_name"] == "Test User"
     assert request["allowed_actions"] == ["read", "cancel"]
     review = planning["validator"].get(list_path, params={"state": "review"}).json()
     assert [row["id"] for row in review["data"]] == [activity["id"]]
@@ -103,7 +119,11 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     prevalidated = post(
         planning["supervisor"],
         f"{collection(activity)}/{request['id']}/decisions",
-        {"expected_version": request["activity_version"], "decision": "prevalidate"},
+        {
+            "expected_version": request["activity_version"],
+            "decision": "prevalidate",
+            "reason": "Dossier vérifié.",
+        },
     )
     assert prevalidated.status_code == 201, prevalidated.text
     approved = post(
@@ -112,6 +132,7 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
         {
             "expected_version": prevalidated.json()["activity_version"],
             "decision": "approve",
+            "reason": "Décaissement autorisé.",
         },
     )
     assert approved.status_code == 201, approved.text
@@ -119,6 +140,10 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
     assert [row["outcome"] for row in approved.json()["decisions"]] == [
         "prevalidated",
         "approved",
+    ]
+    assert [row["reason"] for row in approved.json()["decisions"]] == [
+        "Dossier vérifié.",
+        "Décaissement autorisé.",
     ]
     assert all(
         row["actor_name"] and row["actor_name"] != row["actor_id"]
@@ -157,10 +182,61 @@ def test_agent_can_submit_disbursement_with_optional_execution_observation(plann
         {
             "expected_version": recorded.json()["version"],
             "expected_approved_revision_id": recorded.json()["approved_revision_id"],
+            "amount": str(recorded.json().get("spending_total") or 1),
         },
     )
     assert submitted.status_code == 201, submitted.text
     assert submitted.json()["amount"] == "90000"
+
+
+def test_agent_enters_bounded_disbursement_details_and_optional_attachment(planning):
+    from tests.execution.test_documents import png
+
+    activity = finish_activity(planning)
+    rejected = post(
+        planning["agent"],
+        collection(activity),
+        {
+            "expected_version": activity["version"],
+            "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": "300001",
+        },
+    )
+    assert rejected.status_code == 422, rejected.text
+    content = png()
+    metadata = json.dumps(
+        {
+            "name": "preuve-équipe.png",
+            "observation": "Décaissement partiel demandé.",
+        },
+        ensure_ascii=False,
+    ).encode()
+    submitted = planning["agent"].post(
+        collection(activity) + "/with-attachment",
+        headers={
+            **headers(planning["agent"]),
+            "Content-Type": "image/png",
+            "X-Request-Metadata-Length": str(len(metadata)),
+            "X-Expected-Version": str(activity["version"]),
+            "X-Expected-Approved-Revision-Id": activity["approved_revision_id"],
+            "X-Request-Amount": "250000",
+        },
+        content=metadata + content,
+    )
+    assert submitted.status_code == 201, submitted.text
+    request = submitted.json()
+    assert request["amount"] == "250000"
+    assert request["observation"] == "Décaissement partiel demandé."
+    assert request["attachment"] == {
+        "name": "preuve-équipe.png",
+        "media_type": "image/png",
+        "size": len(content),
+    }
+    downloaded = planning["supervisor"].get(
+        f"{collection(activity)}/{request['id']}/attachment"
+    )
+    assert downloaded.status_code == 200
+    assert downloaded.content == content
 
 
 @pytest.mark.parametrize("release", ["cancel", "supervisor", "validator"])
@@ -172,6 +248,7 @@ def test_cancellation_or_return_releases_execution_for_fresh_request(planning, r
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     operation = activity["tasks"][0]
@@ -240,6 +317,7 @@ def test_cancellation_or_return_releases_execution_for_fresh_request(planning, r
         {
             "expected_version": corrected.json()["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     )
     assert fresh.status_code == 201, fresh.text
@@ -273,6 +351,7 @@ def test_submission_rejects_incomplete_zero_and_overspent_activity(planning):
             {
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
+                "amount": str(activity.get("spending_total") or 1),
             },
         ).status_code
         == 409
@@ -285,6 +364,7 @@ def test_submission_rejects_incomplete_zero_and_overspent_activity(planning):
             {
                 "expected_version": zero["version"],
                 "expected_approved_revision_id": zero["approved_revision_id"],
+                "amount": str(zero.get("spending_total") or 1),
             },
         ).status_code
         == 409
@@ -297,6 +377,7 @@ def test_submission_rejects_incomplete_zero_and_overspent_activity(planning):
             {
                 "expected_version": overspent["version"],
                 "expected_approved_revision_id": overspent["approved_revision_id"],
+                "amount": str(overspent.get("spending_total") or 1),
             },
         ).status_code
         == 409
@@ -311,6 +392,7 @@ def test_positive_activity_total_accepts_an_individual_zero_operation(planning):
         {
             "expected_version": one_zero["version"],
             "expected_approved_revision_id": one_zero["approved_revision_id"],
+            "amount": str(one_zero.get("spending_total") or 1),
         },
     )
     assert accepted.status_code == 201, accepted.text
@@ -325,6 +407,7 @@ def test_submission_rejects_pending_amendment_and_inactive_project(planning):
         {
             "expected_version": opened["version"],
             "expected_approved_revision_id": opened["approved_revision_id"],
+            "amount": str(opened.get("spending_total") or 1),
         },
     )
     assert rejected.status_code == 409
@@ -342,6 +425,7 @@ def test_submission_rejects_pending_amendment_and_inactive_project(planning):
         {
             "expected_version": inactive["version"],
             "expected_approved_revision_id": inactive["approved_revision_id"],
+            "amount": str(inactive.get("spending_total") or 1),
         },
     )
     assert rejected.status_code == 409
@@ -381,6 +465,7 @@ def test_return_requires_reason_and_approved_request_is_final(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     path = f"{collection(activity)}/{submitted['id']}/decisions"
@@ -422,6 +507,7 @@ def test_return_requires_reason_and_approved_request_is_final(planning):
         {
             "expected_version": returned.json()["activity_version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     path = f"{collection(activity)}/{fresh['id']}/decisions"
@@ -431,16 +517,24 @@ def test_return_requires_reason_and_approved_request_is_final(planning):
         {
             "expected_version": fresh["activity_version"],
             "decision": "prevalidate",
+            "reason": "Dossier vérifié par le Superviseur.",
         },
     ).json()
+    assert prevalidated["decisions"][-1]["reason"] == (
+        "Dossier vérifié par le Superviseur."
+    )
     approved = post(
         planning["validator"],
         path,
         {
             "expected_version": prevalidated["activity_version"],
             "decision": "approve",
+            "reason": "Autorisation confirmée par le Validateur.",
         },
     ).json()
+    assert approved["decisions"][-1]["reason"] == (
+        "Autorisation confirmée par le Validateur."
+    )
     cancellation = post(
         planning["agent"],
         f"{collection(activity)}/{fresh['id']}/cancellation",
@@ -542,6 +636,7 @@ def test_historical_overspending_remains_blocked_after_budget_increase(
         {
             "expected_version": current["version"],
             "expected_approved_revision_id": current["approved_revision_id"],
+            "amount": str(current.get("spending_total") or 1),
         },
     )
     assert rejected.status_code == 409
@@ -572,6 +667,7 @@ def test_audit_failure_rolls_back_each_mutation_and_activity_version(
             {
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
+                "amount": str(activity.get("spending_total") or 1),
             },
         )
     assert planning["validator"].get(collection(activity)).json()["count"] == 0
@@ -589,6 +685,7 @@ def test_audit_failure_rolls_back_each_mutation_and_activity_version(
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     detail_path = f"{collection(activity)}/{submitted['id']}"
@@ -637,6 +734,7 @@ def test_constraint_or_commit_failure_rolls_back_financial_transaction(
             {
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
+                "amount": str(activity.get("spending_total") or 1),
             },
         ).json()
     action = (
@@ -689,6 +787,7 @@ def test_constraint_or_commit_failure_rolls_back_financial_transaction(
             {
                 "expected_version": activity["version"],
                 "expected_approved_revision_id": activity["approved_revision_id"],
+                "amount": str(activity.get("spending_total") or 1),
             },
         )
         if mutation == "submit"
@@ -725,6 +824,7 @@ def test_financial_evidence_refuses_destructive_downgrade(planning, auth_env):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     )
     assert response.status_code == 201
@@ -762,6 +862,7 @@ def test_missing_execution_audits_fail_closed(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     )
     assert rejected.status_code == 409
@@ -828,6 +929,7 @@ def test_legacy_separate_start_and_record_history_remains_verifiable(planning):
         {
             "expected_version": current["version"],
             "expected_approved_revision_id": current["approved_revision_id"],
+            "amount": str(current.get("spending_total") or 1),
         },
     )
     assert submitted.status_code == 201, submitted.text
@@ -855,6 +957,7 @@ def test_execution_author_cannot_review_after_role_change(planning, auth_env):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     agent2_id = planning["agent2"].get("/api/v1/auth/session").json()["user"]["id"]
@@ -887,6 +990,7 @@ def test_approval_and_cancellation_race_has_one_final_outcome(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     decision_path = f"{collection(activity)}/{submitted['id']}/decisions"
@@ -967,6 +1071,7 @@ def test_submission_serializes_with_execution_correction_and_amendment(planning)
                 "expected_approved_revision_id": amendment_activity[
                     "approved_revision_id"
                 ],
+                "amount": str(amendment_activity.get("spending_total") or 1),
             },
         ),
     )
@@ -981,6 +1086,7 @@ def test_reviewer_deactivation_wins_before_financial_decision(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     account = next(
@@ -1020,6 +1126,7 @@ def test_database_rejects_approval_without_valid_distinct_prevalidation(planning
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     validator_id = (
@@ -1210,6 +1317,7 @@ def test_routes_are_scoped_and_openapi_success_contracts_are_typed(planning):
         {
             "expected_version": activity["version"],
             "expected_approved_revision_id": activity["approved_revision_id"],
+            "amount": str(activity.get("spending_total") or 1),
         },
     ).json()
     other = approved_execution_activity(planning)

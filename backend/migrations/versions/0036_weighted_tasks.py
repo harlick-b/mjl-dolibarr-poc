@@ -147,9 +147,7 @@ def downgrade() -> None:
     if hierarchy_used:
         raise RuntimeError("Refusing to discard task hierarchy history")
     op.drop_table("pta_subtask")
-    op.drop_constraint(
-        "operation_activity_identity", "pta_operation", type_="unique"
-    )
+    op.drop_constraint("operation_activity_identity", "pta_operation", type_="unique")
     op.create_check_constraint(
         "operation_completion_has_amount",
         "pta_operation",

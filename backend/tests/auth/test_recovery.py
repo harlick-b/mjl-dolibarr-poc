@@ -213,7 +213,7 @@ def test_a3_migration_preserves_existing_auth_evidence(auth_env):
         with engine.connect() as db:
             assert (
                 db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0039_editable_activity_dates"
+                == "0040_financial_request_details"
             )
             for table in (
                 "auth_user",
@@ -510,17 +510,11 @@ def test_concurrent_completion_has_one_winner(ordinary, auth_env):
                 Audit.action == "recovery_complete", Audit.target == identifier
             )
         )
-        notifications = db.scalar(
-            select(func.count(Audit.id)).where(
-                Audit.action == "recovery_notification", Audit.target == identifier
-            )
-        )
         assert user and user.version == initial_version + 1
         assert user.password_hash != initial_hash
         assert client.app.state.auth.hasher.verify(user.password_hash, NEW_PASSWORD)
         assert recovery and recovery.state == "consumed"
         assert successes == 1
-        assert notifications == 1
     notices = [
         item
         for item in messages(auth_env.mailbox)
@@ -530,7 +524,7 @@ def test_concurrent_completion_has_one_winner(ordinary, auth_env):
 
 
 def test_concurrent_preparation_sends_one_generation(ordinary, auth_env):
-    client, email, identifier = ordinary
+    client, email, _identifier = ordinary
     enable_recovery(client)
     auth = client.app.state.auth
     before = len(
@@ -553,15 +547,19 @@ def test_concurrent_preparation_sends_one_generation(ordinary, auth_env):
         if item["recipient"] == email and item["kind"] == "password_recovery"
     ]
     assert len(after) == before + 1
+    proof = recovery_proof(auth_env.mailbox, email)
+    inspection = client.post(
+        "/api/v1/auth/password-reset/inspect",
+        headers=headers(client),
+        json=proof,
+    )
+    assert inspection.status_code == 200
+    assert inspection.json() == {"email": email}
     with Session(auth.engine) as db:
-        assert (
-            db.scalar(
-                select(func.count(Audit.id)).where(
-                    Audit.action == "recovery_prepare", Audit.target == identifier
-                )
-            )
-            == 1
-        )
+        recoveries = list(db.scalars(select(Recovery)))
+        assert len(recoveries) == 1
+        assert recoveries[0].id == proof["selector"]
+        assert recoveries[0].state == "delivered"
 
 
 @pytest.mark.parametrize("first", ["reset", "login"])
@@ -1179,7 +1177,7 @@ def test_account_security_change_invalidates_recovery_proof(
         assert recovery and recovery.state == "delivered"
 
 
-@pytest.mark.parametrize("failure", ["mail", "audit"])
+@pytest.mark.parametrize("failure", ["mail", "recording"])
 def test_notification_failure_does_not_reverse_reset(
     ordinary, auth_env, monkeypatch, failure
 ):
@@ -1195,17 +1193,26 @@ def test_notification_failure_does_not_reverse_reset(
         return original(recipient, kind, value)
 
     auth = client.app.state.auth
+    notices_before = len(
+        [
+            item
+            for item in messages(auth_env.mailbox)
+            if item["recipient"] == email and item["kind"] == "password_reset_notice"
+        ]
+    )
     if failure == "mail":
         monkeypatch.setattr(auth.mail, "send", fail_notice)
     else:
         original_audit = auth.audit
 
-        def fail_notice_audit(db, action, actor, target, outcome="ok", details=None):
+        def fail_notice_recording(
+            db, action, actor, target, outcome="ok", details=None
+        ):
             if action == "recovery_notification":
-                raise RuntimeError("synthetic notice audit failure")
+                raise RuntimeError("synthetic notice recording failure")
             return original_audit(db, action, actor, target, outcome, details)
 
-        monkeypatch.setattr(auth, "audit", fail_notice_audit)
+        monkeypatch.setattr(auth, "audit", fail_notice_recording)
     response = client.post(
         "/api/v1/auth/password-reset/complete",
         headers=headers(client),
@@ -1215,15 +1222,19 @@ def test_notification_failure_does_not_reverse_reset(
     with Session(client.app.state.auth.engine) as db:
         user = db.get(User, identifier)
         recovery = db.get(Recovery, proof["selector"])
-        notice = db.scalar(select(Audit).where(Audit.action == "recovery_notification"))
         assert user and client.app.state.auth.hasher.verify(
             user.password_hash, NEW_PASSWORD
         )
         assert recovery and recovery.state == "consumed"
-        if failure == "mail":
-            assert notice and notice.outcome == "failed"
-        else:
-            assert notice is None
+    notices_after = len(
+        [
+            item
+            for item in messages(auth_env.mailbox)
+            if item["recipient"] == email and item["kind"] == "password_reset_notice"
+        ]
+    )
+    expected_new_notices = 0 if failure == "mail" else 1
+    assert notices_after == notices_before + expected_new_notices
 
 
 def test_notification_task_loss_does_not_reverse_reset(ordinary, auth_env):

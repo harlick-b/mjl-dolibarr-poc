@@ -16,6 +16,7 @@ import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
+import { Pagination } from '@/shared/ui/Pagination'
 
 const notificationRoot = ['notifications']
 
@@ -315,29 +316,16 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
             })}
           </ul>
         )}
-        {(notifications.data.next || notifications.data.previous) && (
-          <nav
-            className="flex gap-2 items-end flex-wrap"
-            aria-label={strings.paginationLabel}
-          >
-            <button
-              type="button"
-              disabled={
-                !notifications.data.previous || notifications.isFetching
-              }
-              onClick={() => move(notifications.data.previous)}
-            >
-              {strings.previous}
-            </button>
-            <button
-              type="button"
-              disabled={!notifications.data.next || notifications.isFetching}
-              onClick={() => move(notifications.data.next)}
-            >
-              {strings.next}
-            </button>
-          </nav>
-        )}
+        <Pagination
+          label={strings.paginationLabel}
+          canPrevious={Boolean(notifications.data.previous)}
+          canNext={Boolean(notifications.data.next)}
+          busy={notifications.isFetching}
+          previousLabel={strings.previous}
+          nextLabel={strings.next}
+          onPrevious={() => move(notifications.data.previous)}
+          onNext={() => move(notifications.data.next)}
+        />
       </Panel>
     </section>
   )

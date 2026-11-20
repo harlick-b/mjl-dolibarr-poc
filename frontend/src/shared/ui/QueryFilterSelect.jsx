@@ -4,6 +4,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess } from '@/features/auth/session/access-verification'
 import { Select } from '@/shared/ui/select'
 import { Button } from '@/shared/ui/button'
+import { Pagination } from '@/shared/ui/Pagination'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { strings } from '@/locales/fr/ListFilters'
 import { strings as common } from '@/locales/fr/common'
@@ -71,25 +72,15 @@ export function QueryFilterSelect({
   useEffect(() => {
     onResolvedLabel?.(value ? selected?.label || '' : '')
   }, [onResolvedLabel, selected?.label, value])
-  const pagination = (query.data?.next || query.data?.previous) && (
-    <div className="flex gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={!query.data.previous}
-        onClick={() => setCursor(cursorFrom(query.data.previous, path))}
-      >
-        {common.previous}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={!query.data.next}
-        onClick={() => setCursor(cursorFrom(query.data.next, path))}
-      >
-        {common.next}
-      </Button>
-    </div>
+  const pagination = (
+    <Pagination
+      label="Pages des options"
+      canPrevious={Boolean(query.data?.previous)}
+      canNext={Boolean(query.data?.next)}
+      busy={query.isFetching}
+      onPrevious={() => setCursor(cursorFrom(query.data.previous, path))}
+      onNext={() => setCursor(cursorFrom(query.data.next, path))}
+    />
   )
   return (
     <div className="grid gap-2">
@@ -147,15 +138,16 @@ export function QueryFilterSelect({
                 >
                   {query.data?.data.map((row) => (
                     <Popover.Close asChild key={row.id}>
-                      <button
+                      <Button
                         type="button"
                         role="option"
                         aria-selected={value === row.id}
+                        variant="unstyled"
                         className="rounded-control px-3 py-2 text-left hover:bg-selected aria-selected:bg-selected"
                         onClick={() => onChange(row.id, row.label)}
                       >
                         {row.label}
-                      </button>
+                      </Button>
                     </Popover.Close>
                   ))}
                 </AgentSearchPanel>

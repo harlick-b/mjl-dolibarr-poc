@@ -415,6 +415,7 @@ def test_weighted_subtasks_roll_up_progress_and_spending_once(
         {
             "expected_version": financial.json()["version"],
             "expected_approved_revision_id": financial.json()["approved_revision_id"],
+            "amount": financial.json()["spending_total"],
         },
     )
     assert disbursement.status_code == 201, disbursement.text

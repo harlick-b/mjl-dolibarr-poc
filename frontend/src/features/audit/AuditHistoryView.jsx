@@ -27,6 +27,7 @@ import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
+import { Pagination } from '@/shared/ui/Pagination'
 
 const historyRoot = ['audit-history']
 
@@ -305,27 +306,14 @@ function History({ session, onDenied }) {
             </tbody>
           </table>
         )}
-        {(result.data.previous || result.data.next) && (
-          <nav
-            className="flex gap-2 items-end flex-wrap"
-            aria-label="Pages de l’historique"
-          >
-            <button
-              type="button"
-              disabled={!result.data.previous}
-              onClick={() => move(result.data.previous)}
-            >
-              Précédent
-            </button>
-            <button
-              type="button"
-              disabled={!result.data.next}
-              onClick={() => move(result.data.next)}
-            >
-              Suivant
-            </button>
-          </nav>
-        )}
+        <Pagination
+          label="Pages de l’historique"
+          canPrevious={Boolean(result.data.previous)}
+          canNext={Boolean(result.data.next)}
+          busy={result.isFetching}
+          onPrevious={() => move(result.data.previous)}
+          onNext={() => move(result.data.next)}
+        />
       </Panel>
     </section>
   )
