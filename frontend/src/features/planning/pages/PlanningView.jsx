@@ -993,6 +993,193 @@ const ProjectClosureAction = ({ project, onCloseProject, focusFallback }) => {
   )
 }
 
+const DocumentWithdrawalModal = ({
+  document,
+  activityId,
+  user,
+  blocked,
+  pending,
+  onDenied,
+  onWithdraw,
+  onClose,
+  onCompleted,
+  opener,
+}) => {
+  const { api } = useAPI()
+  const [replacementCursor, setReplacementCursor] = useState('')
+  const [error, setError] = useState('')
+  const active = useRef(true)
+  const replacementDocuments = useQuery({
+    ...planningQuery(
+      api,
+      user.id,
+      ['documents', activityId, 'replacement-candidates', replacementCursor],
+      `/activities/${activityId}/documents?limit=60${
+        replacementCursor
+          ? `&cursor=${encodeURIComponent(replacementCursor)}`
+          : ''
+      }`,
+      onDenied,
+    ),
+  })
+
+  useEffect(
+    () => () => {
+      active.current = false
+    },
+    [],
+  )
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      label={strings.withdrawAttachment}
+      opener={opener}
+    >
+      <BusinessForm
+        onSubmit={async (event) => {
+          const values = new FormData(event.currentTarget)
+          setError('')
+          try {
+            await onWithdraw({
+              documentId: document.id,
+              reason: values.get('reason'),
+              replacementDocumentId: values.get('replacement_document_id'),
+            })
+            if (active.current) onCompleted()
+          } catch (problem) {
+            if (active.current)
+              setError(problem.message || strings.unavailablePlanning)
+            throw problem
+          }
+        }}
+      >
+        {error && (
+          <p role="alert" className="border-l-4 border-l-danger p-3">
+            {error}
+          </p>
+        )}
+        <h3>
+          {strings.withdrawAttachment} — {document.name}
+        </h3>
+        <label>
+          {strings.attachmentWithdrawalReason} *
+          <textarea name="reason" required maxLength="4000" autoFocus />
+        </label>
+        <label>
+          {strings.replacementAttachment}
+          <Select name="replacement_document_id" defaultValue="">
+            <option value="">{strings.noReplacementAttachment}</option>
+            {(replacementDocuments.data?.data || [])
+              .filter(
+                (candidate) =>
+                  candidate.id !== document.id &&
+                  !candidate.withdrawal &&
+                  candidate.uploaded_at > document.uploaded_at,
+              )
+              .map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+          </Select>
+        </label>
+        <Pagination
+          label="Pages des pièces corrigées"
+          className="justify-end gap-3"
+          canPrevious={Boolean(replacementDocuments.data?.previous)}
+          canNext={Boolean(replacementDocuments.data?.next)}
+          onPrevious={() =>
+            setReplacementCursor(
+              cursorFrom(replacementDocuments.data?.previous),
+            )
+          }
+          onNext={() =>
+            setReplacementCursor(cursorFrom(replacementDocuments.data?.next))
+          }
+        />
+        <div data-ui="modal-actions">
+          <Button type="button" variant="outline" onClick={() => onClose()}>
+            {strings.cancel}
+          </Button>
+          <Button disabled={blocked || pending} type="submit">
+            {strings.remove}
+          </Button>
+        </div>
+      </BusinessForm>
+    </Modal>
+  )
+}
+
+const DocumentWithdrawalAction = ({
+  document,
+  activityId,
+  user,
+  blocked,
+  pending,
+  onDenied,
+  onWithdraw,
+  focusFallback,
+}) => {
+  const [open, setOpen] = useState(false)
+  const opener = useRef(null)
+  const openRef = useRef(false)
+  const close = (restoreFallback = false) => {
+    setOpen(false)
+    if (restoreFallback) {
+      const target = focusFallback.current
+      setTimeout(() => {
+        if (!opener.current?.isConnected && target?.isConnected) target.focus()
+      }, 0)
+    }
+  }
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  useEffect(
+    () => () => {
+      if (openRef.current) {
+        const target = focusFallback.current
+        setTimeout(() => {
+          if (target?.isConnected) target.focus()
+        }, 0)
+      }
+    },
+    [focusFallback],
+  )
+
+  return (
+    <>
+      <Button
+        ref={opener}
+        variant="outline"
+        size="sm"
+        disabled={blocked || pending}
+        onClick={() => setOpen(true)}
+      >
+        {strings.withdrawAttachment}
+      </Button>
+      {open && (
+        <DocumentWithdrawalModal
+          document={document}
+          activityId={activityId}
+          user={user}
+          blocked={blocked}
+          pending={pending}
+          onDenied={onDenied}
+          onWithdraw={onWithdraw}
+          onClose={() => close()}
+          onCompleted={() => close(true)}
+          opener={opener}
+        />
+      )}
+    </>
+  )
+}
+
 function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -2860,10 +3047,8 @@ export function ActivityDocuments({
       active.current = false
     }
   }, [])
-  const [withdrawing, setWithdrawing] = useState(null)
-  const [replacementCursor, setReplacementCursor] = useState('')
   const opener = useRef(null)
-  const withdrawalOpener = useRef(null)
+  const focusFallback = useRef(null)
   const deliveryScope = useRef(new AbortController())
   const documentsOptions = planningQuery(
     api,
@@ -2887,26 +3072,11 @@ export function ActivityDocuments({
           )
           deliveryScope.current.abort()
           deliveryScope.current = new AbortController()
-          setWithdrawing(null)
           setOpen(false)
         }
         throw error
       }
     },
-  })
-  const replacementDocuments = useQuery({
-    ...planningQuery(
-      api,
-      user.id,
-      ['documents', activityId, 'replacement-candidates', replacementCursor],
-      `/activities/${activityId}/documents?limit=60${
-        replacementCursor
-          ? `&cursor=${encodeURIComponent(replacementCursor)}`
-          : ''
-      }`,
-      onDenied,
-    ),
-    enabled: Boolean(withdrawing),
   })
   const reconcileUpload = async () => {
     const result = await documents.refetch()
@@ -2929,7 +3099,6 @@ export function ActivityDocuments({
   }
   const reconcileAssignment = async () => {
     setOpen(false)
-    setWithdrawing(null)
     await client.invalidateQueries({ queryKey: ['planning', user.id] })
     toast.error(strings.assignmentRequired)
   }
@@ -3015,8 +3184,6 @@ export function ActivityDocuments({
         }),
         client.invalidateQueries({ queryKey: ['audit-history'] }),
       ])
-      setWithdrawing(null)
-      setReplacementCursor('')
       toast.success(strings.documentWithdrawn)
     },
     onError: async (error) => {
@@ -3029,8 +3196,6 @@ export function ActivityDocuments({
         await client.invalidateQueries({
           queryKey: ['planning', user.id, 'documents', activityId],
         })
-        setWithdrawing(null)
-        setReplacementCursor('')
       }
     },
   })
@@ -3122,7 +3287,14 @@ export function ActivityDocuments({
       className="p-0 gap-0 [&>div:first-child]:border-b [&>div:first-child]:border-border [&>div:first-child]:p-5"
     >
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <h3 id="activity-documents-title">{strings.attachments}</h3>
+        <h3
+          id="activity-documents-title"
+          ref={focusFallback}
+          tabIndex={-1}
+          className="rounded-control focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+        >
+          {strings.attachments}
+        </h3>
         {canUpload && (
           <Button
             variant="outline"
@@ -3249,18 +3421,16 @@ export function ActivityDocuments({
                     </Button>
                   )}
                   {document.allowed_actions?.includes('withdraw') && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={blocked || withdraw.isPending}
-                      onClick={(event) => {
-                        withdrawalOpener.current = event.currentTarget
-                        setReplacementCursor('')
-                        setWithdrawing(document)
-                      }}
-                    >
-                      {strings.withdrawAttachment}
-                    </Button>
+                    <DocumentWithdrawalAction
+                      document={document}
+                      activityId={activityId}
+                      user={user}
+                      blocked={blocked}
+                      pending={withdraw.isPending}
+                      onDenied={onDenied}
+                      onWithdraw={withdraw.mutateAsync}
+                      focusFallback={focusFallback}
+                    />
                   )}
                 </div>
               </li>
@@ -3332,86 +3502,6 @@ export function ActivityDocuments({
             </Button>
           </div>
         </BusinessForm>
-      </Modal>
-      <Modal
-        open={Boolean(withdrawing)}
-        onClose={() => {
-          setWithdrawing(null)
-          setReplacementCursor('')
-        }}
-        label={strings.withdrawAttachment}
-        opener={withdrawalOpener}
-      >
-        {withdrawing && (
-          <BusinessForm
-            onSubmit={(event) => {
-              event.preventDefault()
-              const values = new FormData(event.currentTarget)
-              return withdraw.mutateAsync({
-                documentId: withdrawing.id,
-                reason: values.get('reason'),
-                replacementDocumentId: values.get('replacement_document_id'),
-              })
-            }}
-          >
-            <h3>
-              {strings.withdrawAttachment} — {withdrawing.name}
-            </h3>
-            <label>
-              {strings.attachmentWithdrawalReason} *
-              <textarea name="reason" required maxLength="4000" autoFocus />
-            </label>
-            <label>
-              {strings.replacementAttachment}
-              <Select name="replacement_document_id" defaultValue="">
-                <option value="">{strings.noReplacementAttachment}</option>
-                {(replacementDocuments.data?.data || [])
-                  .filter(
-                    (candidate) =>
-                      candidate.id !== withdrawing.id &&
-                      !candidate.withdrawal &&
-                      candidate.uploaded_at > withdrawing.uploaded_at,
-                  )
-                  .map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-              </Select>
-            </label>
-            <Pagination
-              label="Pages des pièces corrigées"
-              className="justify-end gap-3"
-              canPrevious={Boolean(replacementDocuments.data?.previous)}
-              canNext={Boolean(replacementDocuments.data?.next)}
-              onPrevious={() =>
-                setReplacementCursor(
-                  cursorFrom(replacementDocuments.data?.previous),
-                )
-              }
-              onNext={() =>
-                setReplacementCursor(
-                  cursorFrom(replacementDocuments.data?.next),
-                )
-              }
-            />
-            <div data-ui="modal-actions">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setWithdrawing(null)
-                  setReplacementCursor('')
-                }}
-              >
-                {strings.cancel}
-              </Button>
-              <Button disabled={blocked || withdraw.isPending} type="submit">
-                {strings.remove}
-              </Button>
-            </div>
-          </BusinessForm>
-        )}
       </Modal>
     </Panel>
   )

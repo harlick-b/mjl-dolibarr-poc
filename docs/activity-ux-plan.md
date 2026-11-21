@@ -1661,7 +1661,7 @@ remain outside the authorized slices.
 | Access submission                        | The former `finally` branch closed forms after correctable errors.                              | Complete: close after success; retain ordinary invalid submissions, errors and input.                                  |
 | Timeline Activity preview                | Complete: each row owns only tooltip/preview visibility and renders its current Activity prop.  | Query refreshes update an open preview; removing the row closes it without stored record or identifier reconciliation. |
 | Project closure                          | Complete: each closure action owns local visibility and renders its current Project prop.       | Refresh updates the confirmation/version; removing the row closes it and focuses the Projects heading.                 |
-| Document withdrawal                      | The selected document snapshot can become stale after refresh.                                  | Use current props for display while preserving the editable reason, replacement choice and starting version.           |
+| Document withdrawal                      | Complete: each document row owns withdrawal visibility and renders its current Query record.    | Refresh updates document facts while the reason and optional replacement choice remain in the open form.               |
 | Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                      |
 | Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                      |
 | Zero-spending and funding submission     | Some successful actions kept the modal open.                                                    | Zero-spending complete; funding remains outside the authorized slice.                                                  |
@@ -1850,3 +1850,27 @@ version submission, successful refreshed state, failed-then-successful retry and
 removed-row focus recovery. Targeted ESLint passed and the production build
 completed with the existing chunk-size warning. Both independent reviewers
 cleared the corrected candidate. No browser visual journey was run.
+
+### Activity document withdrawal ownership — 2026-11-21
+
+Each withdrawable document row now owns only whether its withdrawal modal is
+open. The modal renders the current document supplied by the latest paginated
+Query result; the page no longer stores a selected document object or identifier.
+The required reason, optional replacement choice and replacement-page cursor are
+temporary form state and remain available when the document metadata refreshes.
+The existing page mutation continues to own the API command, audit/history
+invalidations and success toast. No document API, permission or withdrawal rule
+changed.
+
+An ordinary failure stays inside the open modal with the entered values and a
+safe error. A successful or already-reconciled withdrawal removes the row action;
+if that unmounts the open modal, focus moves to the stable **Pièces
+justificatives** heading. Ordinary Cancel and close actions share one reset path.
+
+Focused evidence: the full Planning unit file passed 70/70 tests, including
+replacement pagination, current-record refresh, retained reason/replacement,
+failed retry, ordinary success, conflict reconciliation and focus recovery.
+Targeted ESLint and Prettier passed, `git diff --check` was clean, and the
+production build passed with the existing chunk-size warning. The same
+independent reviewer verified both corrected outcomes and reported no remaining
+blocking finding. No browser journey was run.

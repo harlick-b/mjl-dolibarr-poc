@@ -852,6 +852,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   }
   let documents = []
   let previewStatus = 200
+  let withdrawalAttempts = 0
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.includes('/auth/session'))
@@ -876,9 +877,44 @@ test('an Agent opens and cancels an amendment while the approved version stays v
         }),
       )
     if (
+      path.endsWith('/documents/document-conflict/withdrawal') &&
+      options.method === 'POST'
+    ) {
+      const body = JSON.parse(options.body)
+      documents = documents.map((document) =>
+        document.id === 'document-conflict'
+          ? {
+              ...document,
+              withdrawal: {
+                reason: body.reason,
+                withdrawn_by_id: 'agent',
+                withdrawn_at: '2027-01-02T12:30:00Z',
+                replacement_document_id: null,
+                replacement_document_name: null,
+              },
+              allowed_actions: [],
+            }
+          : document,
+      )
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: 'document_withdrawn' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }
+    if (
       path.endsWith('/documents/document-2/withdrawal') &&
       options.method === 'POST'
     ) {
+      withdrawalAttempts += 1
+      if (withdrawalAttempts === 1)
+        return Promise.resolve(
+          new Response(JSON.stringify({ detail: 'Retrait indisponible.' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
       const body = JSON.parse(options.body)
       documents = documents.map((document) =>
         document.id === 'document-2'
@@ -896,10 +932,13 @@ test('an Agent opens and cancels an amendment while the approved version stays v
           : document,
       )
       return Promise.resolve(
-        new Response(JSON.stringify({ code: 'document_withdrawn' }), {
-          status: 409,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(documents.find(({ id }) => id === 'document-2')),
+          {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       )
     }
     if (path.endsWith('/activities/activity-1/documents?limit=60'))
@@ -977,6 +1016,17 @@ test('an Agent opens and cancels an amendment while the approved version stays v
             size: 3,
             uploaded_by_id: 'agent',
             uploaded_at: '2027-01-02T09:00:00Z',
+            withdrawal: null,
+            allowed_actions: ['withdraw'],
+          },
+          {
+            id: 'document-conflict',
+            activity_id: 'activity-1',
+            name: 'archive.pdf',
+            media_type: 'application/pdf',
+            size: 3,
+            uploaded_by_id: 'agent',
+            uploaded_at: '2027-01-01T09:00:00Z',
             withdrawal: null,
             allowed_actions: ['withdraw'],
           },
@@ -1240,6 +1290,42 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     within(withdrawalDialog).getByLabelText('Motif du retrait *'),
     'Pièce incorrecte.',
   )
+  documents = documents.map((document) =>
+    document.id === 'document-2'
+      ? { ...document, name: 'preuve-actualisée.pdf' }
+      : document,
+  )
+  const currentDocumentPage = router.options.context.queryClient
+    .getQueryCache()
+    .getAll()
+    .find(
+      (query) =>
+        query.queryKey.at(-1) === 'older' &&
+        query.state.data?.data?.some(
+          (document) => document.id === 'document-2',
+        ),
+    )
+  act(() => {
+    router.options.context.queryClient.setQueryData(
+      currentDocumentPage.queryKey,
+      (page) => ({
+        ...page,
+        data: page.data.map((document) =>
+          document.id === 'document-2'
+            ? { ...document, name: 'preuve-actualisée.pdf' }
+            : document,
+        ),
+      }),
+    )
+  })
+  expect(
+    await within(withdrawalDialog).findByRole('heading', {
+      name: 'Retirer la pièce — preuve-actualisée.pdf',
+    }),
+  ).toBeVisible()
+  expect(
+    within(withdrawalDialog).getByLabelText('Motif du retrait *'),
+  ).toHaveValue('Pièce incorrecte.')
   expect(
     within(withdrawalDialog).queryByRole('option', { name: 'preuve.png' }),
   ).toBeNull()
@@ -1248,6 +1334,27 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   )
   await user.click(within(withdrawalDialog).getByLabelText('Pièce corrigée'))
   await user.click(await screen.findByRole('option', { name: 'preuve.png' }))
+  act(() => {
+    router.options.context.queryClient.setQueryData(
+      currentDocumentPage.queryKey,
+      (page) => ({
+        ...page,
+        data: page.data.map((document) =>
+          document.id === 'document-2'
+            ? { ...document, name: 'preuve-vérifiée.pdf' }
+            : document,
+        ),
+      }),
+    )
+  })
+  expect(
+    await within(withdrawalDialog).findByRole('heading', {
+      name: 'Retirer la pièce — preuve-vérifiée.pdf',
+    }),
+  ).toBeVisible()
+  expect(
+    within(withdrawalDialog).getByLabelText('Pièce corrigée'),
+  ).toHaveTextContent('preuve.png')
   online.mockReturnValue(false)
   await user.click(
     within(withdrawalDialog).getByRole('button', { name: 'Retirer' }),
@@ -1262,8 +1369,22 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   await user.click(
     within(withdrawalDialog).getByRole('button', { name: 'Retirer' }),
   )
+  expect(await within(withdrawalDialog).findByRole('alert')).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
+  expect(
+    within(withdrawalDialog).getByLabelText('Motif du retrait *'),
+  ).toHaveValue('Pièce incorrecte.')
+  await user.click(
+    within(withdrawalDialog).getByRole('button', { name: 'Retirer' }),
+  )
   const withdrawnStatus = await screen.findByText(/Pièce retirée/)
   const withdrawnRow = withdrawnStatus.closest('li')
+  await waitFor(() =>
+    expect(
+      screen.getByRole('heading', { name: 'Pièces justificatives' }),
+    ).toHaveFocus(),
+  )
   expect(
     within(withdrawnRow).queryByRole('link', { name: 'Télécharger' }),
   ).toBeNull()
@@ -1282,6 +1403,43 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       }),
     }),
   )
+  expect(
+    screen.queryByRole('dialog', { name: 'Retirer la pièce' }),
+  ).not.toBeInTheDocument()
+  await act(async () => {
+    await router.navigate({
+      to: '/activities/$activityId',
+      params: { activityId: 'activity-1' },
+      search: (previous) => ({ ...previous, documentCursor: '' }),
+    })
+  })
+  const reconciledRow = (await screen.findByText('archive.pdf')).closest('li')
+  await user.click(
+    within(reconciledRow).getByRole('button', { name: 'Retirer la pièce' }),
+  )
+  const conflictDialog = screen.getByRole('dialog', {
+    name: 'Retirer la pièce',
+  })
+  await user.type(
+    within(conflictDialog).getByLabelText('Motif du retrait *'),
+    'Retrait déjà enregistré.',
+  )
+  await user.click(
+    within(conflictDialog).getByRole('button', { name: 'Retirer' }),
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Retirer la pièce' }),
+    ).not.toBeInTheDocument(),
+  )
+  expect(reconciledRow).toHaveTextContent('Retrait déjà enregistré.')
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/documents/document-conflict/withdrawal',
+    expect.objectContaining({ method: 'POST' }),
+  )
+  expect(
+    screen.getByRole('heading', { name: 'Pièces justificatives' }),
+  ).toHaveFocus()
   await act(async () => {
     await router.navigate({
       to: '/activities/$activityId',

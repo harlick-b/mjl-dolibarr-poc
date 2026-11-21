@@ -2564,3 +2564,21 @@ their open modal. Its final evidence is 71/71 focused tests, passing targeted
 Prettier and ESLint, a clean `git diff --check`, and a successful production build
 with only the existing chunk-size warning. Both independent reviewers cleared the
 candidate. The browser journey was not rerun at the user's direction.
+
+### Activity document withdrawal modal — 2026-11-21
+
+The Activity Documents tab no longer keeps a selected document snapshot in page
+state to open withdrawal. Each eligible row opens the shared modal from its
+current Query data, while the reason, optional corrected document and replacement
+pagination remain temporary form input. Background document refreshes update the
+open modal without clearing those values. Failed requests stay open with safe
+feedback. Success refreshes the documents, Activity history and audit data;
+conflict reconciliation refreshes the document list. Focus recovers to the
+Documents heading when the action disappears.
+
+The API payload, document permissions, immutable withdrawal evidence and audit
+workflow are unchanged. The full Planning unit file passed 70/70 tests; targeted
+ESLint and Prettier passed, `git diff --check` was clean, and the production build
+passed with the existing chunk-size warning. The independent review's success
+coverage and status-wording findings were corrected, and the same reviewer
+cleared the candidate. No browser journey was run.

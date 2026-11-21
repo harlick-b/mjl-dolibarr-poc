@@ -708,3 +708,21 @@ The affected Planning and timeline run passed 74/74 tests; targeted lint,
 formatting and `git diff --check` passed, and the production build completed with
 the existing chunk-size warning. Both independent reviewers cleared the corrected
 candidate. No browser visual journey was run.
+
+### Activity document withdrawal ownership — 2026-11-21
+
+Document withdrawal now follows the same current-record ownership seam. The
+document row owns a local visibility boolean and receives its latest Query record
+through props. The page retains the existing mutation and invalidations but no
+longer stores a selected document or its identifier. Legitimate temporary form
+state is limited to the reason, optional replacement choice and cursor used to
+browse replacement candidates. A failed write keeps that state and displays its
+safe error in the shared modal. If a refreshed row removes the action, focus
+returns to the Documents heading.
+
+The complete Planning unit file passed 70/70 tests. Targeted formatting and lint
+passed, `git diff --check` was clean, and the production build completed with the
+existing chunk-size warning. Review initially found missing ordinary-success
+coverage and an overstated conflict invalidation note. The correction separately
+proves 201 success and 409 reconciliation; the same reviewer cleared the final
+candidate. No API or backend contract changed, and no browser journey was run.
