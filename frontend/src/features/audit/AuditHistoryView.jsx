@@ -20,7 +20,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { Download } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
 import { cursorFrom } from '@/shared/lib/pagination'
@@ -177,7 +176,6 @@ function History({ session, onDenied }) {
           onClick={() => download.mutate()}
           type="button"
         >
-          <Download aria-hidden="true" size={18} />
           Exporter le CSV
         </Button>
       </div>

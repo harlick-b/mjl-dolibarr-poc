@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Clock } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess } from '@/features/auth/session/access-verification'
 import { Modal } from '@/shared/ui/BusinessModal'
@@ -30,7 +29,6 @@ export function ReminderMenu() {
           void unread.refetch()
         }}
       >
-        <Clock size={14} aria-hidden="true" />
         {strings.reminders}
         {unread.data?.count > 0 && (
           <span

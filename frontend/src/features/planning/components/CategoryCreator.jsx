@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus } from 'lucide-react'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
@@ -45,7 +44,6 @@ export function CategoryCreator({
             setOpen(true)
           }}
         >
-          <Plus size={16} aria-hidden="true" />
           {strings.createCategory}
         </Button>
       )}

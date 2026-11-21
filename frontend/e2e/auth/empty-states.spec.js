@@ -69,8 +69,8 @@ test('reminders open in a dialog without changing the page and center the empty 
 }) => {
   await setup(page, 'AGENT_SAISIE')
   await page.goto('/dashboard')
-  await page.getByRole('button', { name: 'Relances', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Relances administratives' })
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Notifications' })
   await expect(
     dialog.getByText('Aucune notification pour le moment.'),
   ).toBeVisible()
@@ -82,7 +82,7 @@ test('reminders open in a dialog without changing the page and center the empty 
   await page.screenshot({ path: '/tmp/mjl-empty-reminders.png' })
   await page.keyboard.press('Escape')
   await expect(
-    page.getByRole('button', { name: 'Relances', exact: true }),
+    page.getByRole('button', { name: 'Notifications', exact: true }),
   ).toBeFocused()
 })
 test('Agent can open a year with no PTA and reach first activity creation', async ({

@@ -116,11 +116,14 @@ function WorkspaceShell() {
 function LegacyExecutionActivityRedirect() {
   const params = useParams({ strict: false })
   const search = useSearch({ strict: false })
+  const pageSearch = { ...search }
+  delete pageSearch.financeRequest
+  delete pageSearch.virementRequest
   return (
     <Navigate
       to={Urls.activity}
       params={{ activityId: params.activityId }}
-      search={{ ...search, tab: 'realization', origin: 'execution' }}
+      search={{ ...pageSearch, tab: 'realization', origin: 'execution' }}
       replace
     />
   )
@@ -333,9 +336,7 @@ function validatedFinanceSearch(search) {
     financeCursor: String(search.financeCursor || '').slice(0, 512),
     fundingCursor: String(search.fundingCursor || '').slice(0, 512),
     zeroSpendingCursor: String(search.zeroSpendingCursor || '').slice(0, 512),
-    financeRequest: String(search.financeRequest || '').slice(0, 36),
     virementCursor: String(search.virementCursor || '').slice(0, 512),
-    virementRequest: String(search.virementRequest || '').slice(0, 36),
     confirmationCursor: String(search.confirmationCursor || '').slice(0, 512),
     reversementCursor: String(search.reversementCursor || '').slice(0, 512),
   }
@@ -510,8 +511,6 @@ export function makeRouter(history, componentOverrides = {}) {
       ].includes(search.role)
         ? search.role
         : '',
-      invite:
-        search.invite === true || search.invite === 'true' ? true : undefined,
       page:
         Number.isInteger(Number(search.page)) &&
         Number(search.page) > 0 &&

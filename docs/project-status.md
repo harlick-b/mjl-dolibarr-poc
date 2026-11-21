@@ -1,10 +1,97 @@
 # Project status
 
-Updated 2026-11-20. MJL is under development; implemented does not mean accepted
+Updated 2026-11-21. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
+
+## Activity header and financial review flow — 2026-11-21
+
+Activity-header actions now use a shared Activity-specific Button variant, and
+the visible header actions are text-only. The workspace navigation calls the
+reminder entry **Notifications**. Supervisor and Validator review of both
+décaissement and virement requests now opens a centered modal immediately from
+the Activity finance table without URL mutation or an Activity-page reload; the
+obsolete request-history expander is no longer displayed. Links identify only
+the Activity page or tab and never open a particular request dialog.
+
+Financial-request pagination is restored in the **Demandes financières** card,
+so older décaissement and virement requests remain reachable outside any modal.
+Task/Subtask execution dialogs receive the current Query records through props
+and keep only local open/closed state. Their unsaved values and starting version
+remain stable if the Activity refreshes in the background.
+
+Access invitation links open the Users page without opening a dialog. Failed
+Access actions keep the dialog and entered fields visible with the error inside
+the dialog. Zero-spending creation and review now use the same success/close and
+failure/retain behavior as the other financial dialogs; zero-spending history
+pagination is owned by the Finance card.
+
+The focused 154-test frontend run, targeted formatting/lint checks and production
+build passed. A focused Playwright settlement journey failed before reaching the
+changed modal because its fixture rendered the service-unavailable screen and
+waited for an older submission control. Browser-level visual evidence for this
+candidate therefore remains incomplete pending fixture reconciliation.
+
+The follow-up verification passed 69 Access/Execution unit tests, targeted ESLint,
+`git diff --check` and the production build with the existing large-chunk warning.
+The focused browser journey was not rebuilt or rerun for these final corrections
+at the user's direction; earlier browser evidence remains historical evidence for
+the earlier candidate only.
+
+Independent review found one zero-spending creation error hidden behind the open
+modal. The correction displays that error in the dialog, retains the reason for a
+retry and clears through the same close handler after success or cancellation.
+The same reviewer cleared the corrected candidate with no remaining blocking
+finding; its focused two-scenario rerun passed.
+
+The next corrective review found route, concurrency and error-placement gaps.
+Financial pagination now remains on the Activity Finance tab and each control is
+disabled only by its own request. Zero-spending creation and return reasons keep
+their starting version through background refreshes. Task/Subtask failures appear
+inside their open modal. Access row dialogs now receive current Query records,
+store no selected record or identifier, retain a role draft's starting version,
+and avoid refreshing the list after confirmed validation errors.
+
+## Controlled-browser baseline and auth reconciliation — 2026-11-21
+
+The CI-shaped controlled-browser group was restarted against a freshly built
+frontend and a disposable synthetic FastAPI/PostgreSQL stack. Foundation reached
+the real readiness API and passed. The process ended without a final Playwright
+summary after case 105 of 128; the observed ledger is 69 passed, 31 failed, five
+skipped because their isolated connected environments were not supplied, and 23
+unrun. This is an incomplete, failing broad run. The failures cluster around
+current authentication/form labels, empty-state and loading expectations, fixture
+route drift and Execution presentation; they do not justify blanket removal.
+
+The first bounded cluster is reconciled. Authentication password locators now use
+the stable field-label prefix rather than requiring punctuation, required markers
+and password-toggle text to remain exact. The Admin invitation journey proves that
+an omitted Partner blocks the request and exposes a validation alert before the
+selected Partner ID is submitted. Admin navigation checks compare route paths
+instead of assuming preview port 4173. No application or API behavior changed.
+
+The final complete authentication-presentation file passed 17/17 in 13.2 seconds,
+and the reviewer-corrected complete Admin-presentation file passed 9/9 in 11.3
+seconds on
+isolated preview port 4196. Targeted ESLint and Prettier passed. Some controlled
+auth fixtures still allowed unrelated API reads to reach the absent default proxy;
+tightening those fixtures and reconciling the remaining empty-state/loading cluster
+is the next browser-test phase. These focused passes do not turn the broad run into
+a pass.
+
+No immutable source snapshot was captured before the broad command. Repository
+HEAD was `b3d7cd4f1f729890ec4a928aa367c031370f17a5`; the surviving `npm run build`
+artifact used by Playwright has aggregate SHA-256
+`b05a6c5bb0d649477cdb321f12d78a8206452f9e988499fd138319401efabee6`.
+The aggregate uses the path/content algorithm recorded in the testing plan.
+At the post-run evidence capture, the unfrozen worktree had 29 status entries. The
+broad run preceded the final locator corrections, while the focused results bind to
+Admin test SHA-256 `492b00be4b2c7a765c33ecbe1bdd5829a0acda611003d37efa3d9ca1e7ca394c`
+and authentication test SHA-256
+`caec580de93b11e0d5f932fc8a1a08cd4dd91014ec1d06c427cabe3aefee67c8`.
+Later concurrent source edits are outside those results.
 
 ## Activity submission and visual consistency — 2026-11-20
 
@@ -22,6 +109,90 @@ pending a final métier choice. The focused final frontend run passed 123 tests,
 targeted ESLint and the production build passed, and independent re-review cleared
 the candidate. Responsive financial breakpoints were inspected in code; no rendered
 browser screenshot pass was run.
+
+## Foundation browser reconciliation — 2026-11-20
+
+The Foundation browser file now follows the current public route contract against
+a real disposable FastAPI/PostgreSQL stack. Anonymous `/` redirects to the usable
+login form, `/health` is opened directly and returns the real readiness response,
+and an unknown route shows the not-found recovery whose return link opens login.
+Keyboard focus and mobile-width containment remain verified. Exact button/body
+color assertions were removed because they repeated presentation values without
+establishing another application outcome.
+
+The same built artifact proves manifest installability, static-asset-only caching,
+no API caching or offline POST replay, no business IndexedDB store and controlled
+service-worker replacement. The first real-backend run passed the two PWA journeys
+and failed only the stale anonymous-home assertion. After reconciliation, all three
+Foundation journeys passed in 8.6 seconds. The adjacent router/PWA unit files passed
+13/13 tests in 7.66 seconds; ESLint and Prettier passed. The production build passed
+with its existing large-chunk warning. No application, API, security or business
+behavior changed. The isolated containers, network, database volume and temporary
+policy/environment files were removed after review.
+
+## Session-service recovery browser reconciliation — 2026-11-20
+
+The controlled Admin journey now follows the accepted session-service failure
+behavior: while the initial session read is pending, protected Users content stays
+hidden; a 503 then triggers one bounded local sign-out and returns the browser to a
+fresh login form without exposing the protected table or requiring a retry click.
+The fixture accepts only GET session reads and one POST logout, and the journey
+proves the recovery stops after three session reads and one logout request. Its
+loading screenshot and obsolete on-page retry assertions were removed because they
+did not establish the current application outcome.
+
+The adjacent invitation scenario passed unchanged and therefore did not justify a
+test or application edit. The initial two-scenario reproduction passed invitation
+and failed the stale recovery expectation. After reconciliation, the same two
+scenarios passed in 4.0 seconds and the complete Admin browser file passed all nine
+journeys in the final 11.7-second run. The access and access-coordinator unit files
+passed 44/44 tests in 10.19 seconds. Targeted ESLint, Prettier and whitespace checks
+passed. No application, API, security or business behavior changed, and the
+Foundation live-backend verification remains separate.
+
+## Activity-history browser reconciliation — 2026-11-20
+
+The controlled Agent journey now follows the current Activity-history contract:
+changed values are visible directly in the compact timeline, while presentation
+metadata and a separate details expander are absent by design. Its Activity fixture
+uses the current Task field and represents an assigned Agent. The journey proves
+that two history events returned by the API remain newest-first, names the actor,
+shows the actual before/after description and keeps the event and exact change
+visible after resizing to mobile. Its fixture permits only the expected session,
+Activity, history and unread-notification reads. Two screenshots and assertions
+for milestone wording and the removed expander were retired because they did not
+establish another application outcome.
+
+The fresh four-file browser probe reported 12 passes and five failures. Two
+Foundation failures did not reach their intended checks because no backend was
+running at the configured proxy target; the other failures reproduced the recorded
+Activity-history and two access/retry mismatches. After reconciliation, the complete
+audit-history browser file passed both its global-history and Activity-history
+journeys in 4.9 seconds. Its adjacent timeline unit contract passed in 2.32 seconds;
+targeted ESLint, Prettier and whitespace checks passed. No application, API or
+business behavior changed. The Foundation environment and two access/retry
+mismatches remain separate work rather than being reported as passing.
+
+## Frontend unit-gate scheduling — 2026-11-20
+
+The complete Vitest gate now runs test files serially while retaining per-file
+isolation and the existing per-test timeouts. On the current four-core development
+environment, default file parallelism produced nine failures across Execution,
+Planning, PTA and Audit while all affected scenarios passed in focused or complete-
+file reruns. Two workers still produced two Execution failures. These results are
+consistent with scheduling contention, but do not yet distinguish resource pressure
+from order-dependent or cross-file interference. No Partner document failure
+reproduced: both Partner files passed all 15 tests together.
+
+The measured serial command passed all 300 tests in 215.85 seconds. After making
+file serialization the configured default, the ordinary `npm run test:unit`
+command passed the same 34 files and 300 tests in 180.05 seconds. No individual
+timeout was enlarged, no test was removed, and no application behavior changed.
+The two serial runs provide a reliable frontend unit gate on the measured
+environment. If the affected tests recur, inspect their setup and cross-file
+interactions before considering restored parallelism; do not mask recurrence by
+raising timeouts. CI timing remains to be measured, and these runs do not establish
+browser, API, production or other-runner performance.
 
 ## Application-update browser reconciliation — 2026-11-20
 
@@ -2318,3 +2489,38 @@ production build and `git diff --check` passed. A broader run also encountered a
 existing weighted-Task fixture whose approved weights are incomplete; its
 execution-recording failure is separate from this correction and is not counted
 as passing evidence.
+
+### Prop-driven financial review modals — 2026-11-21
+
+Décaissement and virement review dialogs now open immediately from their current
+Activity Finance table row without navigation, URL selection IDs or a redundant
+décaissement detail request. The latest TanStack Query record is passed through
+props to the shared centered modal. Background refreshes update displayed server
+facts while an entered observation and its starting version remain stable.
+Successful decisions and cancellations refresh the Activity data and close the
+dialog; failed submissions keep it open with the entered value and display the
+server error inside the dialog.
+
+Legacy financial-request search parameters reach the Activity page without
+opening a dialog. The existing virement detail query remains for settlement
+confirmation, reversement and history data. Creation, funding, zero-spending and
+other modal-ownership follow-ups remain unchanged and require their own authorized
+slice. No backend, schema, API payload, permission or financial approval rule
+changed.
+
+Focused evidence: the 119-test affected frontend run passed, followed by a
+49-test Execution rerun after the review-error correction. Targeted ESLint and
+the production build passed. The focused Playwright PTA-3B through PTA-3E
+administrative-settlement journey passed; its populated 1440×900 and 390×844
+captures were inspected against the approved centered modal. The independent
+review found the initially hidden server error and missing visual evidence; both
+were corrected, and the same reviewer cleared the final candidate with no
+blocking findings.
+
+The follow-up correction also keeps Finance pagination on the Activity route,
+uses each Query's own loading state, preserves zero-spending and Access edit
+versions across background refreshes, and displays Task/Subtask failures inside
+their open modal. Its final evidence is 71/71 focused tests, passing targeted
+Prettier and ESLint, a clean `git diff --check`, and a successful production build
+with only the existing chunk-size warning. Both independent reviewers cleared the
+candidate. The browser journey was not rerun at the user's direction.

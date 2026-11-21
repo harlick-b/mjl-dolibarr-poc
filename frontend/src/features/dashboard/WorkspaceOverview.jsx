@@ -85,9 +85,7 @@ function AdminOverview({ user }) {
           {strings.administration}
         </h1>
         <Button asChild>
-          <Link to={Urls.accessUsers} search={{ invite: true }}>
-            {strings.invite}
-          </Link>
+          <Link to={Urls.accessUsers}>{strings.invite}</Link>
         </Button>
       </div>
       {counts.isPending ? (

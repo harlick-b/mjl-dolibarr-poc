@@ -18,8 +18,8 @@ export const buttonVariants = cva(
         auth: 'min-h-11 w-full bg-primary py-3 leading-5 text-white hover:enabled:opacity-90 disabled:bg-disabled disabled:text-muted-foreground',
         authLink:
           'min-h-11 rounded-none bg-transparent px-0 py-0 text-[0.8125rem] font-normal leading-5 text-primary hover:underline disabled:opacity-50',
-        headerAction:
-          'min-h-10 border border-strong-border bg-white px-4 py-2 text-sm leading-5 text-navy hover:bg-selected disabled:opacity-50 pointer-coarse:min-h-11',
+        activityHeader:
+          'min-h-10 rounded-card border border-strong-border bg-white px-4 py-[9px] text-[0.8125rem] font-semibold leading-5 text-navy hover:bg-selected disabled:opacity-50 pointer-coarse:min-h-11',
         danger:
           'bg-danger text-white hover:opacity-90 active:opacity-80 disabled:pointer-events-none disabled:opacity-50',
         unstyled:

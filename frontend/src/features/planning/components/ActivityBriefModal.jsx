@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { useSessionQuery } from '@/features/auth/session/SessionProvider'
 import { sessionKey } from '@/features/auth/session/auth'
@@ -205,7 +205,6 @@ export function ActivityBriefModal({
                       .join(', ')
                   : strings.chooseAgents}
               </span>
-              <ChevronDown size={16} />
             </Button>
             {expanded && (
               <AgentSearchPanel

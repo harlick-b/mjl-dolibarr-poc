@@ -2,7 +2,6 @@ import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Eye } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/PartnerDocuments'
 import { strings as common } from '@/locales/fr/common'
@@ -103,7 +102,6 @@ export function PartnerDocuments({
                     scope={deliveryScope}
                     errorMessage={strings.sharedFileUnavailable}
                   >
-                    <Eye aria-hidden="true" />
                     {common.preview}
                   </ProtectedFilePreview>
                 )}
@@ -112,7 +110,6 @@ export function PartnerDocuments({
                   onDenied={denyFile}
                   scope={deliveryScope}
                 >
-                  <Download aria-hidden="true" />
                   {common.download}
                 </ProtectedDownload>
               </div>

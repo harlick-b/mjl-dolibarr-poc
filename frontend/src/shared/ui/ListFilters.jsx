@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, SlidersHorizontal } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { Button } from './button'
 import { strings } from '@/locales/fr/ListFilters'
 
@@ -56,7 +56,6 @@ export function ListFilters({
             onClick={() => setExpanded(!expanded)}
             disabled={disabled}
           >
-            <SlidersHorizontal size={16} />
             {strings.filters}
           </Button>
         </div>

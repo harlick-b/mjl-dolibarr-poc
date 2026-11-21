@@ -1,5 +1,4 @@
-import { XCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { formatDateTime, formatXof } from '@/shared/lib/format'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
@@ -197,20 +196,27 @@ export function FinancialCancellationForm({
   path,
   pending,
   mutate,
+  onSuccess,
   className,
 }) {
+  const draftVersion = useRef(null)
   if (!request.allowed_actions.includes('cancel')) return null
   return (
     <BusinessForm
       className={className}
-      onSubmit={(event) => {
+      onChangeCapture={() => {
+        draftVersion.current ??= version
+      }}
+      onSubmit={async (event) => {
         event.preventDefault()
         const data = new FormData(event.currentTarget)
         const reason = String(data.get('reason') || '')
-        return mutate(`${path}/${request.id}/cancellation`, {
-          expected_version: version,
+        const result = await mutate(`${path}/${request.id}/cancellation`, {
+          expected_version: draftVersion.current ?? version,
           reason,
         })
+        if (result !== false) onSuccess?.()
+        return result
       }}
     >
       <label>
@@ -222,7 +228,7 @@ export function FinancialCancellationForm({
         variant="outline"
         disabled={pending || !navigator.onLine}
       >
-        <XCircle size={16} /> Annuler la demande
+        Annuler la demande
       </Button>
     </BusinessForm>
   )

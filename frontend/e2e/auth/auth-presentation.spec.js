@@ -204,9 +204,7 @@ test('invitation matches the auth layout, preserves proof handling and validates
   await expect(
     page.getByRole('button', { name: 'Enregistrer le mot de passe' }),
   ).toBeDisabled()
-  await page
-    .getByLabel('Nouveau mot de passe', { exact: true })
-    .fill('Synthetic!93')
+  await page.getByLabel(/^Nouveau mot de passe/).fill('Synthetic!93')
   await page.getByLabel('Confirmer le mot de passe').fill('Synthetic!93')
   await expect(
     page.getByRole('button', { name: 'Enregistrer le mot de passe' }),
@@ -224,16 +222,14 @@ test('invitation matches the auth layout, preserves proof handling and validates
   await page
     .getByRole('button', { name: 'Enregistrer le mot de passe' })
     .click()
-  await expect(
-    page.getByLabel('Nouveau mot de passe', { exact: true }),
-  ).toBeDisabled()
+  await expect(page.getByLabel(/^Nouveau mot de passe/)).toBeDisabled()
   await expect(page.getByLabel('Confirmer le mot de passe')).toBeDisabled()
   releaseSave()
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByLabel('Adresse e-mail')).toHaveValue(
     'invited@example.test',
   )
-  await expect(page.getByLabel('Mot de passe', { exact: true })).toHaveValue('')
+  await expect(page.getByLabel(/^Mot de passe/)).toHaveValue('')
   await expect(
     page.getByRole('heading', { name: 'Connexion', exact: true }),
   ).toBeVisible()
@@ -274,7 +270,7 @@ test('password then OTP opens the workspace without an intermediate session scre
   })
   await page.goto('/')
   await page.getByLabel('Adresse e-mail').fill(user.email)
-  await page.getByLabel('Mot de passe', { exact: true }).fill('Synthetic!93')
+  await page.getByLabel(/^Mot de passe/).fill('Synthetic!93')
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Vérification', exact: true }),
@@ -300,7 +296,7 @@ test('expired cookies recover to login and service failures offer a retry', asyn
   })
   await page.goto('/identity')
   await expect(page).toHaveURL(/\/login$/)
-  await expect(page.getByLabel('Mot de passe', { exact: true })).toBeVisible()
+  await expect(page.getByLabel(/^Mot de passe/)).toBeVisible()
   await page.unroute('**/api/v1/auth/session')
   await page.route('**/api/v1/auth/session', (route) =>
     route.fulfill({ status: 503, json: {} }),
@@ -317,7 +313,7 @@ test('expired cookies recover to login and service failures offer a retry', asyn
     route.fulfill({ status: 204 }),
   )
   await page.reload()
-  await expect(page.getByLabel('Mot de passe', { exact: true })).toBeVisible()
+  await expect(page.getByLabel(/^Mot de passe/)).toBeVisible()
 })
 
 test('OTP fields reflow and retain visible keyboard focus at narrow widths', async ({
@@ -442,7 +438,7 @@ test('login keeps the recovery link close and shows progress inside the CTA', as
   )
   await page.route('**/api/v1/auth/login', () => new Promise(() => {}))
   await page.goto('/login')
-  const password = page.getByLabel('Mot de passe', { exact: true })
+  const password = page.getByLabel(/^Mot de passe/)
   await password.fill('Synthetic!93')
   await page.getByLabel('Adresse e-mail').fill('actor@example.test')
   const fieldBox = await password.boundingBox()

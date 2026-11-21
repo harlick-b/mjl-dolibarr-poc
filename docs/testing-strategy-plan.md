@@ -250,11 +250,11 @@ row; remaining changes are proposals:
 | `planning.test.jsx`, “formats an exact integer amount in F CFA”                                                                                    | Completed 2026-11-19: retired the weak substring-only duplicate and moved its ordinary amount example to `shared/lib/format.test.js` with the full expected value.                                                                                                    |
 | `notification.test.jsx`, assignment notification sentence                                                                                          | Completed 2026-11-19: checks the activity, assigner, PTA and project independently within the notification while retaining navigation and read/unread behavior; punctuation and sentence structure are no longer test requirements.                                   |
 | `test_planning.py`, `test_v14_submission_and_decision_audit_failures_roll_back` and `test_v14_every_workflow_stage_rolls_back_all_failure_classes` | Completed 2026-11-19: the matrix now snapshots contributor count, requires the expected contributor and verifies a successful submission retry plus fresh detail after an audit failure. The narrower duplicate was removed after disposable PostgreSQL verification. |
-| `test_planning.py`, `test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation`                                                 | Completed 2026-11-19: the existing return/correction flow now completes the required fresh Supervisor and Validator review, proves the corrected 350,000 XOF baseline through a fresh read and retains both return reasons in immutable revision evidence.              |
-| Contributor immutability and reviewer-created brief fixtures                                                                                    | Completed 2026-11-19: contributor setup now uses a reviewer-created private draft assigned to both Agents, weighted execution records complete progress, and the used 0029 downgrade guard runs at its exact isolated migration seam.                                  |
-| `test_recovery.py`, concurrent preparation/completion and notification failure                                                                   | Completed 2026-11-19: retired obsolete routine business-audit row expectations while retaining one usable generation, one reset winner, password/recovery persistence, significant completion evidence and truthful notice delivery outcomes.                       |
-| Closure downgrade and PTA-1 operation-tombstone predecessor checks                                                                               | Completed 2026-11-19: closure evidence now exercises the exact 0014→0015 seam; the shared complete PTA-1 fixture proves 0005→0006 succeeds before four independent tombstone corruptions prove refusal and rollback.                                                  |
-| PTA-1 contributor reconstruction and broken-attribution predecessor checks                                                                       | Completed 2026-11-19: one exact 0005 audit chain retains the creator and real editor, excludes a no-op saver and proves missing, duplicated or skipped versions each refuse 0006 without advancing or rewriting the corrupt evidence.                                  |
+| `test_planning.py`, `test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation`                                                    | Completed 2026-11-19: the existing return/correction flow now completes the required fresh Supervisor and Validator review, proves the corrected 350,000 XOF baseline through a fresh read and retains both return reasons in immutable revision evidence.            |
+| Contributor immutability and reviewer-created brief fixtures                                                                                       | Completed 2026-11-19: contributor setup now uses a reviewer-created private draft assigned to both Agents, weighted execution records complete progress, and the used 0029 downgrade guard runs at its exact isolated migration seam.                                 |
+| `test_recovery.py`, concurrent preparation/completion and notification failure                                                                     | Completed 2026-11-19: retired obsolete routine business-audit row expectations while retaining one usable generation, one reset winner, password/recovery persistence, significant completion evidence and truthful notice delivery outcomes.                         |
+| Closure downgrade and PTA-1 operation-tombstone predecessor checks                                                                                 | Completed 2026-11-19: closure evidence now exercises the exact 0014→0015 seam; the shared complete PTA-1 fixture proves 0005→0006 succeeds before four independent tombstone corruptions prove refusal and rollback.                                                  |
+| PTA-1 contributor reconstruction and broken-attribution predecessor checks                                                                         | Completed 2026-11-19: one exact 0005 audit chain retains the creator and real editor, excludes a no-op saver and proves missing, duplicated or skipped versions each refuse 0006 without advancing or rewriting the corrupt evidence.                                 |
 | `rest-client-adapter.test.js` and `rest-client.test.js`, protected 401 cases                                                                       | Keep both: real Axios/fetch streaming and mocked Axios result handling detect different failures.                                                                                                                                                                     |
 | `test_activity_briefs.py` draft completion and `test_planning.py` immutable revision approval                                                      | Keep both: incomplete-draft completion and approval integrity are distinct goals despite sharing submission.                                                                                                                                                          |
 
@@ -843,3 +843,192 @@ The focused browser run passed in 5.1 seconds; the final browser file passed all
 three tests in 6.6 seconds; and the adjacent unit check passed in 1.47 seconds.
 Targeted ESLint, Prettier and whitespace checks passed. This closes the recorded
 application-update mismatch without claiming broad browser or production readiness.
+
+The next frontend checkpoint completed on 2026-11-20. The recorded Partner
+document mismatch did not reproduce: its dedicated file passed 7 tests and both
+Partner feature files passed all 15 together. A fresh default unit run then passed
+291 tests and failed nine across Execution, Planning, PTA and Audit. Every affected
+scenario passed in focused or complete-file reruns, showing that file competition
+was consistent with the failures being scheduling-related rather than nine behavior
+defects. The measurements do not distinguish resource pressure from order-dependent
+or cross-file interference. No assertion, feature test or timeout was changed.
+
+The runner comparison used the same 34 files and 300 tests on the current four-core
+environment. The exact comparison commands and results were:
+
+```sh
+# Pre-configuration default: 291 passed, 9 failed; 149.19 seconds.
+npm run test:unit
+
+# Limited parallelism: 298 passed, 2 failed; 180.48 seconds.
+npm run test:unit -- --maxWorkers=2
+
+# Explicit serial scheduling: 300 passed; 215.85 seconds.
+npm run test:unit -- --no-file-parallelism
+```
+
+Vitest now sets `fileParallelism: false`, preserving test-file isolation. The
+exact configured candidate was the second serial run and passed all 300 tests in
+180.05 seconds with:
+
+```sh
+npm run test:unit
+```
+
+The project did not raise individual timeouts, disable isolation or retire tests to
+obtain these passes. The serial setting contains the observed instability; it does
+not establish its root cause. If the affected tests recur, inspect their setup and
+cross-file interactions before considering restored parallelism, without raising
+timeouts. Performance conclusions are limited to the measured environment; CI
+timing for this configured candidate remains to be measured.
+
+The next browser checkpoint reconciled the controlled Activity-history mismatch.
+The fresh four-file probe passed 12 tests and failed five: two Foundation cases
+could not reach their objectives because the configured backend proxy target was
+not running, while Activity history and two access/retry scenarios reproduced
+their recorded mismatches. The Activity test expected visible milestone metadata
+and a details expander even though the accepted compact timeline intentionally
+shows actual changes inline and omits metadata.
+
+The corrected journey uses the current `tasks` detail field and an assigned-Agent
+fixture. It proves two history events returned by the API remain newest-first, the
+actor is visible, the before/after description is presented inline and the event
+and exact change remain visible at mobile width. Its route fixture rejects every
+API request outside the expected session, Activity, history and unread-notification
+reads. Presentation-only screenshots and the stale milestone and expander
+assertions were removed; no application assertion was replaced with a tautology or
+request-only check. The complete audit-history browser file and its adjacent unit
+contract passed with:
+
+```sh
+npm run test:e2e -- e2e/audit/audit-history.spec.js
+npm run test:unit -- src/features/audit/activity-timeline.test.jsx
+```
+
+The final browser file passed 2 tests in 4.9 seconds and the unit file passed its one
+contract in 2.32 seconds. Targeted ESLint, Prettier and whitespace checks passed.
+The Foundation environment and two access/retry mismatches remain open; this
+focused pass does not turn the earlier browser group into a pass.
+
+The next access/retry checkpoint reproduced the two recorded Admin scenarios on
+current source. The Partner-role invitation flow passed unchanged. The session
+failure flow still expected an on-page retry after a 503, but the accepted design
+now clears the unusable local session once, performs a bounded logout and opens a
+fresh login without a retry click.
+
+The existing browser journey now holds the first session read long enough to prove
+the protected Users table stays hidden, returns a 503, supplies fresh anonymous
+contexts for recovery, accepts exactly one logout and proves the usable password
+form at `/login`. It rejects wrong methods on the session and logout paths and
+establishes that recovery stops after three session reads and one logout request.
+The loading screenshot and obsolete retry-heading/button assertions were removed;
+no test was added or split, and no application or API code changed.
+
+```sh
+npm run test:e2e -- e2e/auth/admin-presentation.spec.js --grep \
+  'invitation Select|session service failure'
+npm run test:e2e -- e2e/auth/admin-presentation.spec.js
+npm run test:unit -- \
+  src/features/access/access.test.jsx \
+  src/features/auth/session/access-verification.test.jsx
+```
+
+The focused browser pair passed 2 tests in 4.0 seconds, the final complete Admin
+browser file passed 9 tests in 11.7 seconds and the adjacent unit files passed 44/44
+tests in 10.19 seconds. Targeted ESLint, Prettier and whitespace checks passed. The
+Foundation live-backend verification remains open; these controlled responses do
+not replace server-side session enforcement.
+
+The remaining Foundation checkpoint used the CI-shaped synthetic policy and a
+dedicated Compose project with the disposable `mjl_test_foundation_browser`
+database. The first backend start rejected a mailbox path outside the required
+`/tmp/mjl-a1-mail...` boundary; correcting that setup input produced a healthy,
+migrated backend on port 8193. This was an environment correction before test
+execution, not product evidence.
+
+Against the real proxy, the first Foundation run passed the installability/offline
+and service-worker-update journeys and failed only the public-route journey. That
+test still expected the removed anonymous “Espace MJL” home and a health link from
+it. The current contract redirects anonymous `/` to login, exposes `/health`
+directly and shows the not-found recovery for an unknown anonymous route; its
+return link opens login. The corrected journey proves those routes, the real
+readiness response, keyboard focus and mobile containment. It removes exact
+button/body color assertions because they repeated presentation values rather than
+an application outcome.
+
+```sh
+npm run build
+API_PROXY_TARGET=http://127.0.0.1:8193 npm run test:e2e -- \
+  e2e/app/foundation.spec.js
+npm run test:unit -- src/app/app.test.jsx src/app/pwa-update.test.jsx
+```
+
+The final Foundation browser file passed 3 tests in 8.6 seconds and the adjacent
+unit files passed 13/13 tests in 7.66 seconds. ESLint and Prettier passed. The build
+passed with its existing large-chunk warning. No test was split or added and no
+application or API code changed. After independent re-review cleared the candidate,
+the isolated containers, network, database volume and temporary policy/environment
+files were removed. This is test evidence rather than production readiness.
+
+The broader controlled-browser checkpoint started on 2026-11-20 and was completed
+as a bounded failure audit on 2026-11-21. It used a freshly built frontend and a
+disposable synthetic FastAPI/PostgreSQL stack on backend port 8194. Foundation
+passed against the real readiness endpoint. The broad command was:
+
+```sh
+API_PROXY_TARGET=http://127.0.0.1:8194 npm run test:e2e -- \
+  --grep-invert 'assigned Agent submits an Activity for Supervisor review'
+```
+
+The process ended without a final Playwright summary after case 105 of 128. The
+visible result ledger is 69 passed, 31 failed, five skipped because their separate
+connected environments were absent, and 23 unrun. This remains an incomplete,
+failing broad run. Failures span authentication/form labels, empty-state and
+loading expectations, fixture route drift and Execution presentation. They must be
+handled as coherent clusters; this evidence does not support blanket test deletion,
+timeout increases or a project-wide assertion rewrite.
+
+The first cluster showed that exact accessible-name locators had accidentally made
+required punctuation and password-toggle text part of the authentication contract.
+Password and invitation locators now select the stable label prefix while retaining
+the full proof-handling, submit, OTP and navigation outcomes. The Admin invitation
+journey now explicitly proves that missing Partner selection sends no request and
+shows a validation alert before the selected Partner ID is submitted. Admin URL
+checks compare the application path, allowing the configured isolated preview port
+without weakening navigation or history assertions.
+
+```sh
+MJL_PLAYWRIGHT_PORT=4196 npm run test:e2e -- \
+  e2e/auth/auth-presentation.spec.js
+MJL_PLAYWRIGHT_PORT=4196 npm run test:e2e -- \
+  e2e/auth/admin-presentation.spec.js
+npx eslint e2e/auth/admin-presentation.spec.js \
+  e2e/auth/auth-presentation.spec.js
+npx prettier --check e2e/auth/admin-presentation.spec.js \
+  e2e/auth/auth-presentation.spec.js
+```
+
+The final complete authentication-presentation file passed 17/17 in 13.2 seconds;
+the reviewer-corrected complete Admin-presentation file passed 9/9 in 11.3 seconds;
+targeted ESLint and Prettier passed. Some auth fixtures still emitted unrelated
+requests to the absent default proxy while their intended outcomes passed. The next
+browser cluster should make those controlled fixtures reject or fulfill every
+expected request, then reconcile the empty-state/loading failures. These focused
+results do not replace the incomplete broad ledger or establish a browser baseline
+pass.
+
+No immutable source snapshot was captured before the broad command. Repository
+HEAD was `b3d7cd4f1f729890ec4a928aa367c031370f17a5`; `npm run build` produced the
+surviving browser artifact with aggregate SHA-256
+`b05a6c5bb0d649477cdb321f12d78a8206452f9e988499fd138319401efabee6`.
+It was calculated by iterating every regular file under `frontend/dist` in lexical
+repository-relative path order and feeding SHA-256 each path, a NUL byte, the file
+bytes and another NUL byte. This states the aggregation method rather than implying
+the digest is a conventional archive or concatenated-file hash.
+At the post-run evidence capture, the unfrozen worktree had 29 status entries. The
+broad run preceded the final locator corrections. The final focused results bind to
+Admin test SHA-256 `492b00be4b2c7a765c33ecbe1bdd5829a0acda611003d37efa3d9ca1e7ca394c`
+and authentication test SHA-256
+`caec580de93b11e0d5f932fc8a1a08cd4dd91014ec1d06c427cabe3aefee67c8`.
+Later concurrent source edits are outside these results; the hashes prevent those
+edits from being folded into this evidence retrospectively.

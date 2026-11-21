@@ -26,15 +26,7 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import {
-  ChevronDown,
-  Download,
-  Eye,
-  Folder,
-  LoaderCircle,
-  Plus,
-  X,
-} from 'lucide-react'
+import { Folder, LoaderCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
@@ -785,7 +777,6 @@ function ReferenceList({
               setOpen(true)
             }}
           >
-            <Plus size={16} />{' '}
             {title === strings.partners ? strings.createPartner : strings.add}
           </Button>
         )}
@@ -965,7 +956,7 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
               setOpen(true)
             }}
           >
-            <Plus size={16} /> {strings.createProject}
+            {strings.createProject}
           </Button>
         )}
       </div>
@@ -1231,7 +1222,6 @@ function PTA({
                   setCreatingBrief({ open: true })
                 }}
               >
-                <Plus size={16} />
                 {strings.addActivityToPta}
               </Button>
             ) : (
@@ -1243,7 +1233,6 @@ function PTA({
                     year: String(context.year),
                   }}
                 >
-                  <Plus size={16} />
                   {strings.addActivityToPta}
                 </Link>
               </Button>
@@ -1394,7 +1383,6 @@ function PTA({
               disabled={exportPending}
               onClick={() => onExport(format)}
             >
-              <Download size={16} />
               {
                 strings[
                   {
@@ -1606,7 +1594,6 @@ function AssignmentModal({
             onClick={() => setExpanded((value) => !value)}
           >
             {strings.searchOwner}
-            <ChevronDown size={16} aria-hidden="true" />
           </Button>
           {expanded && (
             <AgentSearchPanel
@@ -2155,7 +2142,7 @@ function ActivityDetail({
               {canAssign && (
                 <Button
                   type="button"
-                  variant="headerAction"
+                  variant="activityHeader"
                   onClick={(event) => {
                     assignmentOpener.current = event.currentTarget
                     setAssignmentOpen(true)
@@ -2190,9 +2177,8 @@ function ActivityDetail({
             <ProtectedDownload
               path={`/api/v1/activities/${item.id}/fiche.pdf`}
               onDenied={onDenied}
-              variant="headerAction"
+              variant="activityHeader"
             >
-              <Download size={18} aria-hidden="true" />
               {strings.downloadActivityFiche}
             </ProtectedDownload>
           )}
@@ -3114,7 +3100,7 @@ export function ActivityDocuments({
               setOpen(true)
             }}
           >
-            <Plus aria-hidden="true" /> {strings.addAttachment}
+            {strings.addAttachment}
           </Button>
         )}
       </div>
@@ -3183,7 +3169,7 @@ export function ActivityDocuments({
                           else void denyDocument(document.id)
                         }}
                       >
-                        <Eye aria-hidden="true" /> {common.preview}
+                        {common.preview}
                       </ProtectedFilePreview>
                     )}
                   {!document.withdrawal && (
@@ -3196,7 +3182,7 @@ export function ActivityDocuments({
                       scope={deliveryScope}
                       size="sm"
                     >
-                      <Download aria-hidden="true" /> {common.download}
+                      {common.download}
                     </ProtectedDownload>
                   )}
                   {(document.allowed_actions?.includes('share') ||

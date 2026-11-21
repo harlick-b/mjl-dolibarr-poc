@@ -3,6 +3,25 @@
 Drafted 2026-11-18. Status: Steps 1–3 and the Step 4 transport slice are
 complete; Step 4 structure work remains.
 
+### Financial-request form and shared-button adoption — 2026-11-20
+
+- Agent-entered financial amounts remain decimal strings at the UI/API boundary
+  and become exact integer XOF only in the server transaction. The field is required
+  by both JSON and attachment submissions; cumulative approved totals determine the
+  next maximum and the database closure trigger rechecks the same reconciliation.
+- The optional request file uses the existing bounded PDF/JPEG/PNG validation;
+  request facts and content commit atomically and download stays protected by
+  Activity visibility.
+- Shared Button variants now cover auth links, compact Activity-header actions,
+  destructive actions and specialized unstyled interactive controls. Raw
+  production button elements were removed from the touched frontend source.
+- Shared `BusinessForm` owns required-field invalid state and inline help styling;
+  native forms use the shared invalid/change handlers and `data-value-missing`
+  marker so the same help appears only after a missing required value is submitted.
+- Focused backend PostgreSQL tests require the repository's disposable
+  `TEST_DATABASE_URL`; absence of that variable is recorded as a verification
+  gap rather than treated as a behavioral pass.
+
 ## Outcome and authority
 
 Adopt the authoritative [API standard](engineering-standards-api.md) and
@@ -24,6 +43,12 @@ The user confirmed:
 - Use Axios and migrate contracts step by step.
 - Preserve métier and ongoing design work.
 - Commit all current intended changes before implementation begins.
+
+The Activity Finance correction keeps current authorization facts in the
+existing execution-detail resource instead of deriving them from whichever
+cursor page is open. This is the accepted resource-projection adaptation for
+that screen; the page continues to use cursor lists for request history and the
+French locale owner for its controls and errors.
 
 This file records the agreed sequence and the evidence from completed slices.
 Existing guides remain the record of current implementation until their
@@ -47,30 +72,99 @@ credential or browser signing secret is introduced.
 Step 2 records adaptations with rule ID, scope, reason, owner decision, risks,
 checks and review condition. The baseline inventory is:
 
-| Rule     | Baseline evidence and disposition                                                                                                                                                                                                                                                                            | Risk/check                                                                                                                   | Slice/status                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| BE-001   | Standards are authoritative and linked from README, AGENTS and the engineering guide. Apply accepted rules only; keep product decisions and explicit adaptations.                                                                                                                                            | Prevent source examples from changing permissions, data or workflows. Review the matrix after every slice.                   | Step 2 compliant.                              |
-| BE-002   | Current `app/main.py` and feature packages differ from the exact `AppMain` and responsibility folders. Adopt the target names with real resource owners only.                                                                                                                                                | Startup, imports and Alembic metadata can break during moves. Verify both launch paths and migration discovery.              | Steps 4–7 pending.                             |
-| BE-003   | Current Python is typed and checked with Ruff/mypy. Retain Ruff/pyproject as the user-approved project tooling adaptation; use the standard naming/interface rules.                                                                                                                                          | A move must not hide mismatches behind `Any` or forwarding modules. Run Ruff/mypy and inspect dependency direction.          | Approved adaptation; ongoing.                  |
-| BE-004   | Planning currently combines Pydantic input/output, scoped queries, projections and mutations in `planning/routes.py` and `core/service.py`. Split read/write serializers, actor-scoped queries and transaction-owning controllers. Keep SQLAlchemy models and database validation appropriate to PostgreSQL. | Reject server-owned input; preserve scoped list/detail/search/export/aggregate reads and atomic audit.                       | Partner pilot then Step 6.                     |
-| BE-005   | FastAPI composition is in `app/main.py`; several large routers mix resources. Move composition to `AppMain/asgi.py`, aggregate resource routers in `app/webapi/`, and keep declared output aligned.                                                                                                          | Update Docker/dev/CLI imports and OpenAPI together. Change each contract only with all consumers.                            | Steps 4–6 pending.                             |
-| BE-006   | Mail/provider adapters and scheduled commands currently live with feature owners. Move external clients to `xlib/` and real background/operational work to `tasks/` without adding queues or retries.                                                                                                        | Preserve one bounded mail attempt and keep network work outside transactions. Mock external work in ordinary tests.          | Step 6 pending.                                |
-| BE-007   | MJL auth already enforces server credentials, authorization and scoped sessions, but ownership differs from the standard layout. MJL invitation-only mandatory-OTP rules override AUTH-001 source behavior.                                                                                                  | Reorganize only after auth flow coverage; preserve revocation, abuse limits, cookies and CSRF.                               | Approved product adaptation; Step 6 migration. |
-| BE-008   | Retain PostgreSQL/SQLAlchemy/Alembic, uv/pyproject, Ruff and mypy as explicitly approved. Do not install MongoDB, Beanie or sapx or copy source-project versions.                                                                                                                                            | Verify locked dependencies and existing configured checks; no dependency-wide upgrade.                                       | Approved adaptation.                           |
-| BE-009   | Tests currently use domain folders with shared disposable PostgreSQL fixtures. Move touched endpoint tests to `tests/webapi/<resource>/` and pure logic to `tests/unit/` while preserving isolated real PostgreSQL.                                                                                          | Do not weaken exact status/body/database/authorization assertions or rewrite untouched tests only for uniformity.            | Partner pilot then Step 6.                     |
-| FE-001   | Standards and staged adoption are now linked from onboarding. Existing deviations migrate deliberately.                                                                                                                                                                                                      | Do not claim repository-wide compliance from a single pilot.                                                                 | Step 2 compliant.                              |
-| FE-002   | Current `src/app`, `features` and `shared` layout differs from the exact target. Move only coherent owners into `App`, `pages`, `components`, `hooks`, `context`, `helpers`, `data`, `lib`, `locales` and `assets`.                                                                                          | Preserve CSS order, aliases, PWA entry and tests; avoid empty scaffolding.                                                   | Steps 4–7 pending.                             |
-| FE-003   | Current JavaScript/JSX naming is largely compatible; imports still reflect the old layout. Apply component/helper naming and direct shared imports during moves.                                                                                                                                             | ESLint plus review must catch barrel cycles, deprecated paths and stale aliases.                                             | Ongoing.                                       |
-| FE-004   | Browser paths live in `app/urls.js`; API strings are repeated in screens. Move to `data/Urls.js`, add `data/ApiUrls.js`, and migrate affected callers with their resource.                                                                                                                                   | Preserve Router parsing, back/forward and route guards. API path changes require paired backend/client updates.              | Shared structure and each resource slice.      |
-| FE-005   | Tailwind/shadcn/Lucide and the approved MJL design are established. Existing structured forms use local accessible components rather than React Hook Form/Zod. Preserve current forms while moving them; use the standard default for genuinely new structured forms.                                        | Compare populated/empty/error/dialog/narrow states; do not alter tokens or drop dirty input.                                 | Approved local pattern; ongoing design checks. |
-| FE-006   | One RestClient/provider/useAPI seam with access-generation protection now uses Axios while preserving the current parsed-body caller contract. Its final ownership move remains.                                                                                                                             | Verify credentials, CSRF, cancellation, trusted URLs, blobs and expiry before migrating resources. No second generic client. | Step 4 transport complete; ownership pending.  |
-| FE-007   | Current reads and writes return parsed bodies. Migrate deliberately to standard method distinctions and Axios response handling, resource by resource.                                                                                                                                                       | Temporary compatibility must be bounded and removed; never leak credential-bearing Axios errors.                             | Partner pilot then Step 6.                     |
-| FE-008   | Query keys usually include user/resource/parameters. MJL's documented default is one-minute freshness and five-minute memory retention, with mount refetch; session/proof/blob queries use zero/specialized lifetimes. Treat these as data-specific project overrides.                                       | Preserve access-scope purges, readiness gates, invalidation and stale-response rejection.                                    | Approved override; verify per slice.           |
-| FE-009   | Session Query and the access coordinator already separate credentials, readiness and authorization. Move ownership without changing invitation, OTP, recovery or logout behavior.                                                                                                                            | Test network retry, account replacement, logout failure and late responses before/after the move.                            | Step 6 pending.                                |
-| FE-010   | Retain current npm/Vite/React 19/Query 5/Tailwind 4/Vitest/Playwright toolchain and lockfile. Source-project versions are observations, not downgrade targets.                                                                                                                                               | Keep config and aliases aligned; run configured lint, CSS, unit, browser and build checks as applicable.                     | Approved adaptation.                           |
-| FE-011   | Retain colocated Vitest/Testing Library tests and Playwright journeys instead of migrating to Jest. Tests already use synthetic isolated data.                                                                                                                                                               | Test observable refresh/error/scope behavior, not only invalidation calls or internal mocks.                                 | Approved adaptation; ongoing.                  |
-| FE-012   | `features/auth/session/authorization.js` centralizes the page catalog, but pages still repeat role strings. Move the pure role helper and expose derived flags through `UserProvider`/`useGetUser` backed by the same session Query.                                                                         | No second permission store; server remains authoritative. Verify unknown roles and session/account changes.                  | Steps 4–7 pending.                             |
-| AUTH-001 | Public registration, optional OTP and its password examples conflict with MJL. The approved MJL contract is Admin invitation, mandatory email OTP, Unicode 8–128 password rules and reset without sign-in.                                                                                                   | Preserve complete auth flow and server enforcement; record this as product precedence, not partial compliance.               | Approved product adaptation.                   |
+| Rule     | Baseline evidence and disposition                                                                                                                                                                                                                                                                            | Risk/check                                                                                                                                                            | Slice/status                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| BE-001   | Standards are authoritative and linked from README, AGENTS and the engineering guide. Apply accepted rules only; keep product decisions and explicit adaptations.                                                                                                                                            | Prevent source examples from changing permissions, data or workflows. Review the matrix after every slice.                                                            | Step 2 compliant.                                                                                                     |
+| BE-002   | Current `app/main.py` and feature packages differ from the exact `AppMain` and responsibility folders. Adopt the target names with real resource owners only.                                                                                                                                                | Startup, imports and Alembic metadata can break during moves. Verify both launch paths and migration discovery.                                                       | Steps 4–7 pending.                                                                                                    |
+| BE-003   | Current Python is typed and checked with Ruff/mypy. Retain Ruff/pyproject as the user-approved project tooling adaptation; use the standard naming/interface rules.                                                                                                                                          | A move must not hide mismatches behind `Any` or forwarding modules. Run Ruff/mypy and inspect dependency direction.                                                   | Approved adaptation; ongoing.                                                                                         |
+| BE-004   | Planning currently combines Pydantic input/output, scoped queries, projections and mutations in `planning/routes.py` and `core/service.py`. Split read/write serializers, actor-scoped queries and transaction-owning controllers. Keep SQLAlchemy models and database validation appropriate to PostgreSQL. | Reject server-owned input; preserve scoped list/detail/search/export/aggregate reads and atomic audit.                                                                | Partner pilot then Step 6.                                                                                            |
+| BE-005   | FastAPI composition is in `app/main.py`; several large routers mix resources. Move composition to `AppMain/asgi.py`, aggregate resource routers in `app/webapi/`, and keep declared output aligned.                                                                                                          | Update Docker/dev/CLI imports and OpenAPI together. Change each contract only with all consumers.                                                                     | Steps 4–6 pending.                                                                                                    |
+| BE-006   | Mail/provider adapters and scheduled commands currently live with feature owners. Move external clients to `xlib/` and real background/operational work to `tasks/` without adding queues or retries.                                                                                                        | Preserve one bounded mail attempt and keep network work outside transactions. Mock external work in ordinary tests.                                                   | Step 6 pending.                                                                                                       |
+| BE-007   | MJL auth already enforces server credentials, authorization and scoped sessions, but ownership differs from the standard layout. MJL invitation-only mandatory-OTP rules override AUTH-001 source behavior.                                                                                                  | Reorganize only after auth flow coverage; preserve revocation, abuse limits, cookies and CSRF.                                                                        | Approved product adaptation; Step 6 migration.                                                                        |
+| BE-008   | Retain PostgreSQL/SQLAlchemy/Alembic, uv/pyproject, Ruff and mypy as explicitly approved. Do not install MongoDB, Beanie or sapx or copy source-project versions.                                                                                                                                            | Verify locked dependencies and existing configured checks; no dependency-wide upgrade.                                                                                | Approved adaptation.                                                                                                  |
+| BE-009   | Tests currently use domain folders with shared disposable PostgreSQL fixtures. Move touched endpoint tests to `tests/webapi/<resource>/` and pure logic to `tests/unit/` while preserving isolated real PostgreSQL.                                                                                          | Do not weaken exact status/body/database/authorization assertions or rewrite untouched tests only for uniformity.                                                     | Activity review/contributors and Partner lifecycle mapped; folder migration remains Step 6.                           |
+| FE-001   | Standards and staged adoption are now linked from onboarding. Existing deviations migrate deliberately.                                                                                                                                                                                                      | Do not claim repository-wide compliance from a single pilot.                                                                                                          | Step 2 compliant.                                                                                                     |
+| FE-002   | Current `src/app`, `features` and `shared` layout differs from the exact target. Move only coherent owners into `App`, `pages`, `components`, `hooks`, `context`, `helpers`, `data`, `lib`, `locales` and `assets`.                                                                                          | Preserve CSS order, aliases, PWA entry and tests; avoid empty scaffolding.                                                                                            | Steps 4–7 pending.                                                                                                    |
+| FE-003   | Current JavaScript/JSX naming is largely compatible; imports still reflect the old layout. Apply component/helper naming and direct shared imports during moves.                                                                                                                                             | ESLint plus review must catch barrel cycles, deprecated paths and stale aliases.                                                                                      | Ongoing.                                                                                                              |
+| FE-004   | Browser paths live in `app/urls.js`; API strings are repeated in screens. Move to `data/Urls.js`, add `data/ApiUrls.js`, and migrate affected callers with their resource.                                                                                                                                   | Preserve Router parsing, back/forward and route guards. API path changes require paired backend/client updates.                                                       | Shared structure and each resource slice.                                                                             |
+| FE-005   | Tailwind/shadcn/Lucide and the approved MJL design are established. Existing structured forms use local accessible components rather than React Hook Form/Zod. Preserve current forms while moving them; use the standard default for genuinely new structured forms.                                        | Compare populated/empty/error/dialog/narrow states; do not alter tokens or drop dirty input.                                                                          | Approved local pattern; ongoing design checks.                                                                        |
+| FE-006   | One RestClient/provider/useAPI seam with access-generation protection now uses Axios while preserving the current parsed-body caller contract. Its final ownership move remains.                                                                                                                             | Verify credentials, CSRF, cancellation, trusted URLs, blobs and expiry before migrating resources. No second generic client.                                          | Step 4 transport complete; ownership pending.                                                                         |
+| FE-007   | Current reads and writes return parsed bodies. Migrate deliberately to standard method distinctions and Axios response handling, resource by resource.                                                                                                                                                       | Temporary compatibility must be bounded and removed; never leak credential-bearing Axios errors.                                                                      | Partner pilot then Step 6.                                                                                            |
+| FE-008   | Query keys usually include user/resource/parameters. MJL's documented default is one-minute freshness and five-minute memory retention, with mount refetch; session/proof/blob queries use zero/specialized lifetimes. Treat these as data-specific project overrides.                                       | Preserve access-scope purges, readiness gates, invalidation and stale-response rejection.                                                                             | Approved override; verify per slice.                                                                                  |
+| FE-009   | Session Query and the access coordinator already separate credentials, readiness and authorization. Move ownership without changing invitation, OTP, recovery or logout behavior.                                                                                                                            | Test network retry, account replacement, logout failure and late responses before/after the move.                                                                     | Revocation coverage reviewed; ownership move remains Step 6.                                                          |
+| FE-010   | Retain current npm/Vite/React 19/Query 5/Tailwind 4/Vitest/Playwright toolchain and lockfile. Source-project versions are observations, not downgrade targets.                                                                                                                                               | Keep config and aliases aligned; run configured lint, CSS, unit, browser and build checks as applicable.                                                              | Approved adaptation.                                                                                                  |
+| FE-011   | Retain colocated Vitest/Testing Library tests and Playwright journeys instead of migrating to Jest. Tests already use synthetic isolated data. Coherent goals and focused rule/risk checks coexist; wording alone is not a test objective.                                                                   | Test observable refresh/error/scope behavior, not only requests, invalidation calls or internal mocks. Distinguish controlled-browser checks from connected journeys. | Approved adaptation; Activity-submission, financial-return, session-revocation and Partner lifecycle slices complete. |
+| FE-012   | `features/auth/session/authorization.js` centralizes the page catalog, but pages still repeat role strings. Move the pure role helper and expose derived flags through `UserProvider`/`useGetUser` backed by the same session Query.                                                                         | No second permission store; server remains authoritative. Verify unknown roles and session/account changes.                                                           | Steps 4–7 pending.                                                                                                    |
+| AUTH-001 | Public registration, optional OTP and its password examples conflict with MJL. The approved MJL contract is Admin invitation, mandatory email OTP, Unicode 8–128 password rules and reset without sign-in.                                                                                                   | Preserve complete auth flow and server enforcement; record this as product precedence, not partial compliance.                                                        | Approved product adaptation.                                                                                          |
+
+FE-011 follow-up: the submission UI fixture represents an assigned Agent and
+requires a post-submission detail read. The connected journey now runs against a
+disposable migrated PostgreSQL stack as an explicit required CI selection; missing
+environment settings fail rather than skip. Controlled browser checks remain a
+separate command. The in-progress History presentation mismatch remains with its
+visual slice and is not cleared by the connected API revision read.
+The unit-gate follow-up keeps Vitest file isolation but disables file parallelism.
+On the measured four-core environment, default parallelism failed nine tests and a
+two-worker run failed two; every affected scenario passed independently. Serial
+files passed all 300 tests before and after configuration without increasing test
+timeouts. This contains results consistent with scheduling contention without
+claiming whether resource pressure or cross-file interference is the root cause.
+Recurring affected tests require setup and interaction inspection before restoring
+parallelism; their timeouts should not be raised to mask the issue. This is an MJL
+runner-reliability adaptation, not a claim that test behavior or production
+performance improved.
+The financial-return follow-up keeps the complete settlement and closure proof in
+the real PostgreSQL API journey. Its controlled browser scenario now follows the
+current Activity finance route, rejects unmodeled API calls and proves the returned
+reason before and after correction, exact amount, fresh immutable-basis submission
+and retained history. List and mutation fixtures use their current distinct
+contracts and valid financial states. The unrelated page-wide overflow check
+remains with the ongoing visual slice; the surviving 390 px base-screen check does
+not clear the returned-request modal at 375 px.
+The session-revocation follow-up retains real API checks for every server-side
+revocation cause and the focused coordinator/transport checks for purge, abort and
+obsolete responses. A dedicated controlled browser journey now owns the visible
+cross-tab outcome and strict session/notification fixtures. The unrelated
+execution-review browser scenario no longer carries that security assertion; its
+current earlier visual/fixture failure remains recorded rather than hidden.
+The Partner follow-up retains real API/PostgreSQL authority for guessed
+foreign resources, private documents and scoped exports. Its controlled browser
+journey now rejects unmodeled requests and owns only public read-only portfolio and
+protected-download behavior. It retains the unique mobile preview-containment
+assertion while removing screenshots and a repeated mobile download. The public
+shared-document projection explicitly excludes the internal timestamp used for
+cursor ordering. The lifecycle reconciliation supplies current Agent assignments,
+uses Validator evidence administration after closure, maps CSV facts by public
+column name and retains transferred-period, decision and corrected-return facts in
+the generated Fiche using its current presentation. The downgrade from current
+head was replaced because the weighted-task migration deliberately refuses that
+lossy boundary. A dedicated disposable database now exercises the exact 0021→0022
+document-sharing seam, including private defaults and refusal to discard used
+sharing history; closed-Activity sharing and the runtime schema constraint guard
+also remain. The final complete Partner API group passes 22 tests on disposable
+PostgreSQL.
+The Activity-review follow-up keeps one coherent API flow for Supervisor and
+Validator returns. It now completes the mandatory fresh two-stage review after
+correction, establishes the exact approved revision and 350,000 XOF allocation
+through a fresh read, and verifies that both prior return reasons remain in their
+immutable revision evidence. Existing initial approval, concurrency, duplicate
+evidence and rollback tests remain separate because they detect different risks.
+The contributor/reviewer follow-up arranges private drafts through the authorized
+reviewer-creation seam, records complete weighted-Task progress and isolates the
+used decision-observation downgrade guard at the exact 0028→0029 boundary. It keeps
+content-contributor exclusion, reviewer-creator planning eligibility, financial
+self-review denial and migration preservation as distinct assertions.
+The recovery follow-up retains the public HTTP and disposable-PostgreSQL boundary
+while replacing stale routine business-audit expectations with the actual user and
+integrity outcomes: one delivered proof, one reset winner, consumed recovery state,
+the significant completion record and truthful notice delivery under failure.
+The historical migration follow-up isolates closure downgrade protection at the
+0014→0015 seam and PTA-1 removal-chain validation at the 0005→0006 seam. A clean
+positive upgrade controls the four corrupted tombstone cases, so a shared fixture
+defect cannot make every negative test pass.
+BE-009/FE-011 consolidation follows the engineering guide's same-risk,
+same-boundary rule and the [testing rollout shortlist](testing-strategy-plan.md#whole-project-rollout-and-consolidation-decisions).
+No suite-wide consolidation or test-folder migration is claimed.
 
 No database replacement, schema redesign, new business workflow, dependency-wide
 upgrade, deployment, production migration or external acceptance exercise belongs
@@ -220,18 +314,24 @@ Configured backend/static evidence:
 The bounded recovery/core/closure run reported 78 passes and seven failures.
 Three current Task-path/head mismatches were corrected and their five relevant
 focused checks passed; the final OpenAPI rerun then exposed and led to removal of
-the remaining old `operation-types` path fixtures. Eight historical backend test
-cases remain recorded rather than being hidden or used to change métier:
-
-- Three recovery tests still expect `recovery_prepare` or
-  `recovery_notification` rows in the business audit table, although the current
-  documented security boundary routes routine authentication evidence away from
-  business history.
-- The closure destructive-downgrade test expects the older PTA-3F guard, while a
-  newer Task-hierarchy guard correctly refuses the downgrade first.
-- Four parameterizations of the older operation-tombstone predecessor test are
-  likewise stopped by the newer Task-hierarchy loss guard before they can reach
-  migration `0005`.
+the remaining old `operation-types` path fixtures. The three recovery failures
+were subsequently reconciled with the settled security boundary and their four
+parameterizations passed on disposable PostgreSQL. The remaining five recorded
+historical failures were then moved to their exact migration seams: one closure
+downgrade guard and four PTA-1 operation-tombstone corruptions. Their six-case
+selection, including a clean positive control, passed on disposable PostgreSQL.
+This resolves the eight recorded backend fixture failures from that bounded run;
+it is not a claim that an unrun broad backend suite passes.
+The adjacent four-case contributor/attribution probe was then reconciled at the
+same exact PTA-1 seam. One shared revision-0005 chain proves that a real editor is
+reconstructed while a no-op saver is excluded; missing, duplicated and skipped
+audit versions each refuse 0006 and preserve the corrupted sequence. The four
+repaired cases passed in 4.57 seconds, and all eight consumers of the consolidated
+fixture initially passed in 5.20 seconds. Independent review added the valid active
+assignments for every historical editor and removed a redundant assertion; the
+corrected final eight-case selection passed in 5.74 seconds. The stronger
+contributor success case replaced the redundant tombstone-only clean control. No
+application or migration code changed.
 
 A 31-test browser group was interrupted after 9 passes and 4 failures, leaving
 18 tests unrun; its failures were old screen fixtures that no longer reach current
@@ -463,6 +563,66 @@ blocking findings or unavailable required review prevent completion.
 Review and passing checks establish implementation evidence, not human acceptance,
 production readiness or authorization for additional work.
 
+### Activity-local review modal adaptation — 2026-11-21
+
+Financial-request table rows own only a local open/closed boolean. The latest
+Query record and Activity context flow into the shared centered `Modal` through
+props; the UI stores neither a request ID nor a server-record copy to select the
+modal. URLs and notification links identify the Activity page or tab only. Legacy
+request search parameters are discarded and cannot open a modal.
+
+Décaissement and virement review reuse one row/modal composition and the existing
+page mutation. Successful mutations invalidate the established Query data and
+close through the same handler as Cancel and the modal close control; failures
+retain the form draft. The draft keeps its starting version token across Query
+refreshes. The redundant décaissement detail read was removed. The virement detail
+read remains for confirmation, reversement and history data that the table row
+does not contain. No API, authorization or financial workflow contract changed.
+
+Activity-header actions reuse the shared Button contract through the
+`activityHeader` variant so their approved page-specific dimensions do not become
+local class overrides.
+
+### Prop-driven execution, Access and zero-spending dialogs — 2026-11-21
+
+Task/Subtask actions and zero-spending review extend the Activity-local ownership
+pattern: the current Query record enters through props, the row/action owns only
+open/closed state, and the UI stores no selected server-record ID. Editable drafts
+retain their starting version token for concurrency protection while refreshed
+server facts continue to render. Successful mutations invalidate the established
+Query data and close through the shared handler; failures retain the dialog and
+entered values.
+
+Access no longer interprets an invitation query flag as a command to open a
+dialog. Access failures remain inside the open dialog and preserve native form
+values. Account and invitation rows pass their current Query record into a
+row-owned dialog and store no selected record or identifier. A role edit captures
+its starting version when the draft changes, preserving optimistic concurrency
+while later server facts continue to render.
+
+Financial history navigation remains page-owned. Décaissement, virement and
+zero-spending controls reuse shared `Pagination` outside the modal and store only
+validated cursor strings in Router search. No backend, schema, payload,
+authorization or financial decision rule changed.
+
+Independent review found one hidden zero-spending creation error. The shared
+creation modal now displays the page mutation error while retaining the reason;
+successful retry and cancellation use the same clear/close handler. The same
+reviewer cleared the corrected candidate with no remaining blocking finding.
+
+Follow-up review corrected Finance cursor navigation to remain on the canonical
+Activity route, scoped pagination busy state to its own Query, bound
+zero-spending creation/return drafts to their starting version, and exposed
+Task/Subtask mutation errors inside their modal. Confirmed Access `422` failures
+no longer trigger an unrelated list refresh; success and uncertain results keep
+the existing invalidation boundary.
+
+Final evidence for the follow-up is 71/71 focused Access and Execution tests,
+passing targeted Prettier and ESLint, a clean `git diff --check`, and a successful
+production build with only the existing chunk-size warning. Both independent
+reviewers cleared the corrected candidate. The browser journey was not rerun at
+the user's direction.
+
 ## Progress and evidence
 
 | Item                                               | Status                                                                                                                                                                                                                                       |
@@ -480,3 +640,23 @@ After each slice, record its commit, changed contracts, commands/results,
 independent-review outcome, remaining work and lessons that change the next step.
 Rollback targets only that slice and must preserve subsequent design work; no
 destructive Git or database operation is implied by this plan.
+
+### Shared UI consolidation — 2026-11-19
+
+The current frontend now routes cursor/page navigation through one `Pagination`
+contract, Activity navigation through Router-aware `Breadcrumbs`, protected image
+and PDF delivery through `ProtectedFilePreview`/`ProtectedDownload`, and repeated
+décaissement/virement facts, decisions and cancellation controls through focused
+Execution components. Access dialogs and admin forms inherit the shared business
+field contract; Authentication uses the shared loading `Button` and one accessible
+password-requirement view. These changes preserve API paths, payloads, permissions
+and workflow behavior.
+
+Focused evidence covers the shared primitives and affected Auth, Access,
+Notifications, Partner, Planning and Execution workflows. The combined 175-test
+run passed 172 tests and hit three five-second timeouts; all three timed-out tests
+passed on immediate focused reruns. ESLint passes with the existing unrelated
+`access-verification.jsx` hook warning. Independent review was the completion
+gate for this slice. The review found a 401 download-routing defect and two lost
+Authentication CTA styles; both were corrected, the focused Auth/document run
+passed 22 tests, and the same reviewer cleared the final candidate.

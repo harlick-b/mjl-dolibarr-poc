@@ -13,7 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Plus, X, LoaderCircle } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import { sessionKey } from '@/features/auth/session/auth'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { strings } from '@/locales/fr/AccessView'
@@ -146,10 +146,10 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const client = useQueryClient()
   const navigate = useNavigate()
   const search = useSearch({ from: Urls.accessUsers })
-  const [dialog, setDialog] = useState(
-    search.invite ? { kind: 'invite' } : null,
-  )
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [dialogVisible, setDialogVisible] = useState(false)
   const [notice, setNotice] = useState('')
+  const [dialogError, setDialogError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const alive = useRef(true)
   const controller = useRef(null)
@@ -176,12 +176,12 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   }, [client, reset])
   useEffect(() => {
     document.documentElement.dataset.authBusy = String(
-      Boolean(dialog) || mutation.isPending,
+      dialogVisible || mutation.isPending,
     )
     return () => {
       delete document.documentElement.dataset.authBusy
     }
-  }, [dialog, mutation.isPending])
+  }, [dialogVisible, mutation.isPending])
   const denied = (status) => {
     void client.cancelQueries({ queryKey: ['access'] })
     client.removeQueries({ queryKey: ['access'] })
@@ -221,7 +221,22 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   })
   const changeSearch = (values) =>
     navigate({ to: Urls.accessUsers, search: { ...search, ...values } })
-  async function submit(event) {
+  const prepareDialog = () => {
+    setNotice('')
+    setDialogError('')
+    setDialogVisible(true)
+  }
+  const closeDialog = (close) => {
+    setDialogError('')
+    close()
+    setDialogVisible(false)
+    reset()
+  }
+  const refreshAccess = async () => {
+    await client.invalidateQueries({ queryKey: ['access', session.user.id] })
+    await client.invalidateQueries({ queryKey: ['audit-history'] })
+  }
+  async function submit(event, dialog, close) {
     event.preventDefault()
     if (submitting) return
     const data = new FormData(event.currentTarget)
@@ -262,7 +277,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             ...(dialog.kind === 'role' ? { role: data.get('role') } : {}),
             ...(dialog.kind === 'deactivate' ? { deactivate: true } : {}),
           }
-    setNotice('')
+    setDialogError('')
     setSubmitting(true)
     controller.current = new AbortController()
     try {
@@ -283,15 +298,23 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             : dialog.kind === 'revoke'
               ? 'Invitation révoquée.'
               : 'Invitation envoyée.'
+      await refreshAccess()
       if (dialog.kind === 'invite') toast.success(message)
       else setNotice(message)
+      close()
     } catch (error) {
       if (!alive.current) return
       if (error.status === 401) {
         denied(error.status)
         return
       }
-      setNotice(
+      if (
+        error.status === 409 ||
+        error.code === 'invitation_delivery_failed' ||
+        ['network', 'malformed'].includes(error.kind)
+      )
+        await refreshAccess()
+      setDialogError(
         error.code === 'eligibility_unverified'
           ? 'Modification indisponible : l’éligibilité de ce compte ne peut pas être vérifiée.'
           : error.code === 'invitation_delivery_failed'
@@ -303,17 +326,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                 : 'Résultat non confirmé. Actualisez les listes avant de réessayer.',
       )
     } finally {
-      if (alive.current) {
-        await client.invalidateQueries({
-          queryKey: ['access', session.user.id],
-        })
-        await client.invalidateQueries({ queryKey: ['audit-history'] })
-        if (alive.current) {
-          setSubmitting(false)
-          setDialog(null)
-          reset()
-        }
-      }
+      if (alive.current) setSubmitting(false)
     }
   }
   return (
@@ -334,13 +347,17 @@ function Accounts({ session, onDenied = () => {}, checking }) {
           >
             <h1>Utilisateurs</h1>
             <div className="flex items-center gap-3">
-              <Button onClick={() => setDialog({ kind: 'invite' })}>
-                <Plus size={18} />
+              <Button
+                onClick={() => {
+                  prepareDialog()
+                  setInviteOpen(true)
+                }}
+              >
                 Inviter un utilisateur
               </Button>
             </div>
           </div>
-          {notice && (
+          {notice && !dialogVisible && (
             <p
               role="status"
               className="p-4 border border-border rounded-card bg-white mb-4"
@@ -390,7 +407,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                     {strings.formatString(strings.searchCriterion, {
                       query: search.q,
                     })}
-                    <X size={14} aria-hidden="true" />
                   </Button>
                 )}
                 {search.role && (
@@ -401,7 +417,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                     onClick={() => void changeSearch({ role: '', page: 1 })}
                   >
                     {roleLabels[search.role]}
-                    <X size={14} aria-hidden="true" />
                   </Button>
                 )}
                 <Button
@@ -509,88 +524,15 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                           )}
                         </td>
                         <td>
-                          <div className="flex flex-wrap gap-3 text-primary">
-                            {u.state === 'active' &&
-                              u.role !== 'ADMIN_PLATEFORME' &&
-                              u.id !== session.user.id && (
-                                <>
-                                  {u.role !== 'PARTENAIRE' && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      type="button"
-                                      disabled={
-                                        mutation.isPending || users.isFetching
-                                      }
-                                      onClick={() =>
-                                        setDialog({ kind: 'role', item: u })
-                                      }
-                                    >
-                                      Modifier le rôle
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    type="button"
-                                    disabled={
-                                      mutation.isPending || users.isFetching
-                                    }
-                                    onClick={() =>
-                                      setDialog({ kind: 'deactivate', item: u })
-                                    }
-                                  >
-                                    Désactiver
-                                  </Button>
-                                </>
-                              )}
-                            {u.invitation &&
-                              u.role !== 'ADMIN_PLATEFORME' &&
-                              ['prepared', 'delivered'].includes(
-                                u.invitation.state,
-                              ) && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    type="button"
-                                    disabled={
-                                      mutation.isPending || users.isFetching
-                                    }
-                                    onClick={() =>
-                                      setDialog({
-                                        kind: 'resend',
-                                        item: {
-                                          ...u.invitation,
-                                          email: u.email,
-                                        },
-                                      })
-                                    }
-                                  >
-                                    Renvoyer
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    type="button"
-                                    disabled={
-                                      mutation.isPending || users.isFetching
-                                    }
-                                    onClick={() =>
-                                      setDialog({
-                                        kind: 'revoke',
-                                        item: {
-                                          ...u.invitation,
-                                          email: u.email,
-                                        },
-                                      })
-                                    }
-                                  >
-                                    Révoquer
-                                  </Button>
-                                </>
-                              )}
-                          </div>
+                          <AccountActions
+                            user={u}
+                            actorId={session.user.id}
+                            pending={submitting || users.isFetching}
+                            error={dialogError}
+                            submit={submit}
+                            prepareDialog={prepareDialog}
+                            finishClose={closeDialog}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -605,17 +547,103 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             change={(page) => changeSearch({ page })}
             label="Comptes"
           />
-          {dialog && (
+          {inviteOpen && (
             <AccessDialog
-              dialog={dialog}
+              dialog={{ kind: 'invite' }}
               pending={submitting}
-              close={() => setDialog(null)}
+              notice={dialogError}
+              close={() => closeDialog(() => setInviteOpen(false))}
               submit={submit}
             />
           )}
         </AdminMain>
       </div>
     </AdminShell>
+  )
+}
+
+function AccountActions({
+  user,
+  actorId,
+  pending,
+  error,
+  submit,
+  prepareDialog,
+  finishClose,
+}) {
+  const [kind, setKind] = useState(null)
+  const open = (nextKind) => {
+    prepareDialog()
+    setKind(nextKind)
+  }
+  const close = () => {
+    finishClose(() => setKind(null))
+  }
+  const item = ['resend', 'revoke'].includes(kind)
+    ? { ...user.invitation, email: user.email }
+    : user
+  return (
+    <div className="flex flex-wrap gap-3 text-primary">
+      {user.state === 'active' &&
+        user.role !== 'ADMIN_PLATEFORME' &&
+        user.id !== actorId && (
+          <>
+            {user.role !== 'PARTENAIRE' && (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={pending}
+                onClick={() => open('role')}
+              >
+                Modifier le rôle
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={pending}
+              onClick={() => open('deactivate')}
+            >
+              Désactiver
+            </Button>
+          </>
+        )}
+      {user.invitation &&
+        user.role !== 'ADMIN_PLATEFORME' &&
+        ['prepared', 'delivered'].includes(user.invitation.state) && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={pending}
+              onClick={() => open('resend')}
+            >
+              Renvoyer
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={pending}
+              onClick={() => open('revoke')}
+            >
+              Révoquer
+            </Button>
+          </>
+        )}
+      {kind && (
+        <AccessDialog
+          dialog={{ kind, item }}
+          pending={pending}
+          notice={error}
+          close={close}
+          submit={submit}
+        />
+      )}
+    </div>
   )
 }
 
@@ -686,11 +714,17 @@ function Pagination({ query, page, change, label }) {
     </div>
   )
 }
-function AccessDialog({ dialog, pending, close, submit }) {
+function AccessDialog({ dialog, pending, notice, close, submit }) {
   const { api } = useAPI()
   const session = useSessionQuery()
+  const draftVersion = useRef(null)
   const [partnerCursor, setPartnerCursor] = useState('')
   const [inviteRole, setInviteRole] = useState('AGENT_SAISIE')
+  const [roleDraft, setRoleDraft] = useState(dialog.item?.role || '')
+  useEffect(() => {
+    if (dialog.kind === 'role' && draftVersion.current === null)
+      setRoleDraft(dialog.item.role)
+  }, [dialog.kind, dialog.item?.role, dialog.item?.version])
   const partners = useQuery({
     queryKey: [
       'access',
@@ -732,12 +766,34 @@ function AccessDialog({ dialog, pending, close, submit }) {
     >
       <form
         {...requiredFieldFeedbackHandlers}
+        onChangeCapture={() => {
+          if (dialog.kind === 'role')
+            draftVersion.current ??= dialog.item.version
+        }}
         onSubmit={(event) => {
           if (optionsBlocked) event.preventDefault()
-          else submit(event)
+          else
+            submit(
+              event,
+              draftVersion.current === null
+                ? dialog
+                : {
+                    ...dialog,
+                    item: { ...dialog.item, version: draftVersion.current },
+                  },
+              close,
+            )
         }}
         aria-busy={pending}
       >
+        {notice && (
+          <p
+            role="alert"
+            className="mb-4 border-l-4 border-l-danger bg-background p-3"
+          >
+            {notice}
+          </p>
+        )}
         <fieldset disabled={pending}>
           {invite ? (
             <div className="grid gap-6">
@@ -853,7 +909,14 @@ function AccessDialog({ dialog, pending, close, submit }) {
               <p>{dialog.item.email}</p>
               <label>
                 Nouveau rôle
-                <Select name="role" defaultValue={dialog.item.role}>
+                <Select
+                  name="role"
+                  value={roleDraft}
+                  onChange={(event) => {
+                    draftVersion.current ??= dialog.item.version
+                    setRoleDraft(event.target.value)
+                  }}
+                >
                   {Object.entries(roleLabels)
                     .filter(
                       ([role]) =>

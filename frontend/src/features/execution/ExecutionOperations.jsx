@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
+import { Modal } from '@/shared/ui/BusinessModal'
 import { Button } from '@/shared/ui/button'
 import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
 import {
@@ -28,7 +29,80 @@ function stateLabel(item) {
   return strings.notStartedLabel
 }
 
-export function ExecutionTasks({ detail, onSelect, embedded = false }) {
+export function ExecutionTaskAction({
+  activity,
+  task,
+  target,
+  isSubtask = false,
+  pending,
+  mutate,
+  error,
+  clearError,
+  label,
+  ariaLabel,
+  variant = 'outline',
+  size = 'sm',
+}) {
+  const [open, setOpen] = useState(false)
+  const opener = useRef(null)
+  const close = () => {
+    clearError?.()
+    setOpen(false)
+  }
+  return (
+    <>
+      <Button
+        ref={opener}
+        type="button"
+        variant={variant}
+        size={size}
+        aria-label={ariaLabel}
+        onClick={() => {
+          clearError?.()
+          setOpen(true)
+        }}
+      >
+        {label}
+      </Button>
+      {open &&
+        createPortal(
+          <Modal
+            open
+            onClose={close}
+            label={target.name || 'Tâche'}
+            opener={opener}
+            className="w-[min(560px,calc(100%-32px))]"
+          >
+            <TaskEditor
+              activity={activity}
+              task={task}
+              target={target}
+              isSubtask={isSubtask}
+              pending={pending}
+              error={error}
+              clearError={clearError}
+              onCancel={close}
+              mutate={async (...args) => {
+                const result = await mutate(...args)
+                if (result !== false) close()
+                return result
+              }}
+            />
+          </Modal>,
+          document.body,
+        )}
+    </>
+  )
+}
+
+export function ExecutionTasks({
+  detail,
+  pending,
+  mutate,
+  error,
+  clearError,
+  embedded = false,
+}) {
   const [expanded, setExpanded] = useState(() => new Set())
   const actionLabel = (item, compact = false) => {
     if (!canRecord(item)) return strings.consult
@@ -116,24 +190,19 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                         }
                       >
                         {isExpanded ? 'Masquer' : 'Développer'}
-                        <ChevronDown
-                          className={isExpanded ? 'rotate-180' : ''}
-                          size={15}
-                          aria-hidden="true"
-                        />
                       </Button>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`${actionLabel(task)} ${task.name}`}
-                        onClick={(event) =>
-                          onSelect(task.id, null, event.currentTarget)
-                        }
-                      >
-                        {actionLabel(task)}
-                      </Button>
+                      <ExecutionTaskAction
+                        activity={detail}
+                        task={task}
+                        target={task}
+                        pending={pending}
+                        mutate={mutate}
+                        error={error}
+                        clearError={clearError}
+                        label={actionLabel(task)}
+                        ariaLabel={`${actionLabel(task)} ${task.name}`}
+                      />
                     )}
                   </td>
                 </tr>,
@@ -167,17 +236,18 @@ export function ExecutionTasks({ detail, onSelect, embedded = false }) {
                         : formatXof(child.actual_spent)}
                     </td>
                     <td className="p-3 text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`${actionLabel(child, true)} ${child.name}`}
-                        onClick={(event) =>
-                          onSelect(task.id, child.id, event.currentTarget)
-                        }
-                      >
-                        {actionLabel(child, true)}
-                      </Button>
+                      <ExecutionTaskAction
+                        activity={detail}
+                        task={task}
+                        target={child}
+                        isSubtask
+                        pending={pending}
+                        mutate={mutate}
+                        error={error}
+                        clearError={clearError}
+                        label={actionLabel(child, true)}
+                        ariaLabel={`${actionLabel(child, true)} ${child.name}`}
+                      />
                     </td>
                   </tr>,
                 )
@@ -198,6 +268,8 @@ export function TaskEditor({
   pending,
   mutate,
   onCancel,
+  error,
+  clearError,
 }) {
   const draftBasis = useRef(null)
   const [submissionError, setSubmissionError] = useState('')
@@ -249,6 +321,7 @@ export function TaskEditor({
           className="grid grid-cols-2 gap-x-4 gap-y-5 max-[520px]:grid-cols-1 [&_>_label]:w-full"
           onChangeCapture={() => {
             setSubmissionError('')
+            clearError?.()
             draftBasis.current ??= {
               version: activity.version,
               revision: activity.approved_revision_id,
@@ -333,9 +406,9 @@ export function TaskEditor({
               <textarea name="correction_reason" required maxLength="4000" />
             </label>
           )}
-          {submissionError && (
+          {(submissionError || error) && (
             <p role="alert" className="col-span-full text-sm text-destructive">
-              {submissionError}
+              {submissionError || error}
             </p>
           )}
           <div data-ui="modal-actions" className="col-span-full">

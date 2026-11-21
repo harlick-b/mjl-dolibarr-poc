@@ -198,6 +198,69 @@ test('successful invitation reports through a toast', async () => {
   }
 })
 
+test('failed invitation keeps the dialog and entered values available', async () => {
+  let userReads = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options = {}) => {
+      if (String(url).includes('/users?')) userReads += 1
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : options.method === 'POST'
+                ? {
+                    code: 'invalid_invitation',
+                    message: 'Invitation refusée.',
+                  }
+                : { items: [], total: 0, page: 1, size: 20 },
+          ),
+          { status: options.method === 'POST' ? 422 : 200 },
+        ),
+      )
+    }),
+  )
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  try {
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Inviter un utilisateur' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Prénom *'), {
+      target: { value: 'Olive' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Nom de famille *'), {
+      target: { value: 'Agent' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Adresse e-mail *'), {
+      target: { value: 'olive@example.test' },
+    })
+    fireEvent.submit(dialog.querySelector('form'))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Demande refusée. Vérifiez l’adresse e-mail et le rôle.',
+    )
+    expect(within(dialog).getByLabelText('Prénom *')).toHaveValue('Olive')
+    expect(within(dialog).getByLabelText('Nom de famille *')).toHaveValue(
+      'Agent',
+    )
+    expect(within(dialog).getByLabelText('Adresse e-mail *')).toHaveValue(
+      'olive@example.test',
+    )
+    expect(userReads).toBe(1)
+  } finally {
+    delete HTMLDialogElement.prototype.showModal
+    delete HTMLDialogElement.prototype.close
+  }
+})
+
 test('cancelling an invitation returns focus to its opening action', async () => {
   vi.stubGlobal(
     'fetch',
@@ -246,13 +309,33 @@ function session(role = 'ADMIN_PLATEFORME') {
     expires_at: new Date(Date.now() + 60000).toISOString(),
   }
 }
-function mount() {
+function mount(initialEntry = '/access/users') {
   const router = makeRouter(
-    createMemoryHistory({ initialEntries: ['/access/users'] }),
+    createMemoryHistory({ initialEntries: [initialEntry] }),
   )
   render(<App router={router} />)
   return router
 }
+
+test('invitation links open the Users page without opening a dialog', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.includes('/auth/')
+              ? session()
+              : { items: [], total: 0, page: 1, size: 20 },
+          ),
+        ),
+      ),
+    ),
+  )
+  mount('/access/users?invite=true')
+  await screen.findByRole('heading', { name: 'Utilisateurs', exact: true })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
 
 test('non-Admin sees denial and never requests the account lists', async () => {
   const fetch = vi.fn(() =>
@@ -458,6 +541,92 @@ test('ordinary active rows expose lifecycle actions but Admin and inactive rows 
   expect(
     screen.queryByRole('button', { name: /réactiver|réinviter/i }),
   ).not.toBeInTheDocument()
+})
+
+test('an open account dialog follows the current query record', async () => {
+  let submittedBody
+  let account = {
+    id: 'ordinary',
+    email: 'ordinary@example.test',
+    role: 'AGENT_SAISIE',
+    state: 'active',
+    version: 2,
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options = {}) => {
+      if (String(url).includes('/auth/'))
+        return Promise.resolve(new Response(JSON.stringify(session())))
+      if (options.method === 'PATCH') {
+        submittedBody = JSON.parse(options.body)
+        return Promise.resolve(
+          new Response(JSON.stringify({ ...account, ...submittedBody })),
+        )
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ items: [account], total: 1, page: 1, size: 20 }),
+        ),
+      )
+    }),
+  )
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open')
+  }
+  try {
+    const router = mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Modifier le rôle' }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Modifier le rôle' })
+    const usersQuery = router.options.context.queryClient
+      .getQueryCache()
+      .getAll()
+      .find((query) => query.queryKey[2] === 'users')
+    account = {
+      ...account,
+      email: 'updated@example.test',
+      version: 3,
+    }
+    await act(async () =>
+      router.options.context.queryClient.setQueryData(usersQuery.queryKey, {
+        items: [account],
+        total: 1,
+        page: 1,
+        size: 20,
+      }),
+    )
+    expect(
+      await within(dialog).findByText('updated@example.test'),
+    ).toBeVisible()
+    await selectOption(
+      within(dialog).getByLabelText('Nouveau rôle'),
+      'Agent superviseur et prévalidateur',
+    )
+    account = { ...account, email: 'latest@example.test', version: 4 }
+    await act(async () =>
+      router.options.context.queryClient.setQueryData(usersQuery.queryKey, {
+        items: [account],
+        total: 1,
+        page: 1,
+        size: 20,
+      }),
+    )
+    expect(await within(dialog).findByText('latest@example.test')).toBeVisible()
+    fireEvent.submit(dialog.querySelector('form'))
+    await waitFor(() =>
+      expect(submittedBody).toEqual({
+        expected_version: 3,
+        role: 'AGENT_VERIFICATEUR',
+      }),
+    )
+  } finally {
+    delete HTMLDialogElement.prototype.showModal
+    delete HTMLDialogElement.prototype.close
+  }
 })
 
 test('Admin binds a Partner invitation to the selected Partner', async () => {

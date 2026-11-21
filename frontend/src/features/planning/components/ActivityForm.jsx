@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus } from 'lucide-react'
 import { Urls } from '@/app/urls'
 import { toast } from 'sonner'
 import { DatePicker } from '@/shared/ui/DatePicker'
@@ -609,7 +608,7 @@ function TaskEditor({
             variant="outline"
             onClick={() => setDrawerIndex(null)}
           >
-            <Plus size={16} aria-hidden="true" /> {strings.addSubtask}
+            {strings.addSubtask}
           </Button>
         </div>
         <div className="p-6">
@@ -959,7 +958,6 @@ export function ActivityForm({
                 setTaskEditor({ index: null, task: emptyTask() })
               }}
             >
-              <Plus size={16} aria-hidden="true" />
               {strings.addOperation}
             </Button>
           </div>

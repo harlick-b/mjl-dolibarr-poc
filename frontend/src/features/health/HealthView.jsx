@@ -2,7 +2,7 @@ import { LoadingPlaceholder } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/HealthView'
 import { useSyncExternalStore } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, RefreshCw } from 'lucide-react'
+import { Activity } from 'lucide-react'
 import { healthQuery } from './health'
 import { Button } from '@/shared/ui/button'
 
@@ -53,7 +53,7 @@ export function HealthView() {
         onClick={() => query.refetch()}
         disabled={!online || query.isFetching}
       >
-        <RefreshCw size={16} aria-hidden="true" /> Vérifier maintenant
+        Vérifier maintenant
       </Button>
     </section>
   )

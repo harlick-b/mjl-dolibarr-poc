@@ -1,6 +1,6 @@
 import { Children, forwardRef, useCallback, useState } from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { Check, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
 // shadcn Select composition, with the existing form value/change contract.
@@ -88,9 +88,6 @@ export const Select = forwardRef(function Select(
                     'mt-1 border-t border-border font-semibold text-primary',
                 )}
               >
-                {option.props['data-cta'] && (
-                  <Plus className="mr-2 size-4 shrink-0" aria-hidden="true" />
-                )}
                 <SelectPrimitive.ItemText>
                   {option.props.children}
                 </SelectPrimitive.ItemText>

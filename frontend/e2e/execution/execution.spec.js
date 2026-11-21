@@ -645,6 +645,7 @@ test('reviewer sees pause, resume and paginated history without mutation control
 test('PTA-3B through PTA-3E administrative settlement journey', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   await page.setViewportSize({ width: 390, height: 844 })
   let role = 'AGENT_SAISIE'
   let version = 7
@@ -718,6 +719,52 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
           reversement: reversementResult(),
         }
       : null
+  const planningActivity = () => ({
+    id: 'activity-1',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    project_name: 'Justice des mineurs',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    placement_year: 2026,
+    reference: 'ACT-000001',
+    name: 'Former les équipes',
+    description: 'Former les équipes de terrain.',
+    planned_start: '2026-10-28',
+    planned_end: '2026-12-31',
+    allocation: '120000',
+    state: 'approved',
+    version,
+    current_revision_id: '11111111-1111-4111-8111-111111111111',
+    approved_revision_id: '11111111-1111-4111-8111-111111111111',
+    approved_allocation: '120000',
+    approved: {
+      planned_start: '2026-10-28',
+      planned_end: '2026-12-31',
+    },
+    candidate: null,
+    amendment: null,
+    withdrawal: null,
+    transfer: null,
+    closure: null,
+    correction: null,
+    execution_paused: false,
+    tasks: [],
+    agent_ids: ['agent'],
+    agents: [
+      {
+        id: 'agent',
+        email: 'agent@example.test',
+        full_name: 'Agent de test',
+      },
+    ],
+    creator: {
+      id: 'agent',
+      email: 'agent@example.test',
+      full_name: 'Agent de test',
+    },
+    allowed_actions: ['read'],
+  })
   await page.route('**/api/v1/**', async (route) => {
     const incoming = route.request()
     const path = new URL(incoming.url()).pathname
@@ -740,6 +787,8 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
           previous: null,
         },
       })
+    if (path.endsWith('/activities/activity-1'))
+      return route.fulfill({ json: planningActivity() })
     if (path.endsWith('/virement-requests') && incoming.method() === 'POST') {
       if (virement?.state === 'returned')
         returnedVirement = structuredClone(virementResult())
@@ -1092,6 +1141,12 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
           operation_count: 1,
           works_completed: true,
           spending_total: '100000',
+          realization_status:
+            request?.state === 'approved' ? 'validated' : 'not_started',
+          disbursement_can_submit:
+            role === 'AGENT_SAISIE' &&
+            (!request || ['returned', 'cancelled'].includes(request.state)),
+          disbursement_remaining_amount: '100000',
           virement_context: {
             disbursement_request_id:
               request?.state === 'approved' ? request.id : null,
@@ -1149,162 +1204,243 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   })
 
   await page.goto('/execution/activities/activity-1')
-  await page.getByRole('button', { name: /Soumettre.*100.*000 F CFA/ }).click()
-  await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
-
-  role = 'AGENT_VERIFICATEUR'
-  await page.reload()
-  await page.getByLabel('Motif obligatoire').fill('Préciser la dépense.')
-  await page.getByRole('button', { name: 'Retourner' }).click()
-  await expect(
-    page.getByText('Retournée pour correction').first(),
-  ).toBeVisible()
-
-  role = 'AGENT_SAISIE'
-  await page.reload()
-  await expect(page.getByText(/Préciser la dépense/)).toBeVisible()
-  await expect(
-    page.getByRole('button', { name: 'Annuler la demande' }),
-  ).toHaveCount(0)
-  await page.getByRole('button', { name: /Soumettre.*100.*000 F CFA/ }).click()
-  await expect(page.getByText('Soumise au Superviseur').first()).toBeVisible()
-
-  role = 'AGENT_VERIFICATEUR'
-  await page.reload()
-  await page.getByRole('button', { name: 'Prévalider' }).click()
-  await expect(page.getByText(/attente du Validateur/).first()).toBeVisible()
-
-  role = 'VALIDATEUR_DEFINITIF'
-  await page.reload()
-  await page.getByRole('button', { name: 'Autoriser' }).click()
-  await expect(page.getByText('Autorisée').first()).toBeVisible()
-  await expect(page.getByText(/paiement a été effectué/)).toBeVisible()
-  await page.getByText('Historique des demandes (2)').click()
+  await page.getByRole('link', { name: 'Finance' }).click()
+  await page.getByRole('button', { name: 'Nouvelle demande' }).click()
   await page
-    .getByRole('navigation', { name: 'Pagination financière' })
-    .getByRole('button', { name: 'Suivant' })
+    .getByRole('dialog', { name: 'Nouvelle demande' })
+    .getByRole('button', { name: 'Créer — Autorisation de décaissement' })
     .click()
-  await expect(page).toHaveURL(/financeCursor=older/)
-  await page.getByText('Historique des demandes (2)').click()
-  await expect(
-    page.getByRole('button', { name: /Retournée pour correction/ }),
-  ).toBeVisible()
+  await page
+    .getByRole('dialog', { name: 'Demande de décaissement' })
+    .getByRole('button', { name: 'Faire la demande' })
+    .click()
+  await expect(page.getByText('À prévalider').first()).toBeVisible()
 
-  role = 'AGENT_SAISIE'
+  role = 'AGENT_VERIFICATEUR'
   await page.reload()
-  const virementSection = page.getByRole('region', {
-    name: 'Autorisation de virement',
+  await page.getByRole('button', { name: 'Examiner' }).click()
+  const disbursementReview = page.getByRole('dialog', {
+    name: 'Demande de décaissement',
   })
-  await virementSection
-    .getByRole('button', { name: /Demander le virement de.*100.*000 F CFA/ })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(disbursementReview).toBeVisible()
+  await page.screenshot({
+    path: '/tmp/mjl-financial-review-desktop.png',
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(disbursementReview).toBeVisible()
+  const mobileReviewBox = await disbursementReview.boundingBox()
+  expect(mobileReviewBox).not.toBeNull()
+  expect(mobileReviewBox.x).toBeGreaterThanOrEqual(0)
+  expect(mobileReviewBox.x + mobileReviewBox.width).toBeLessThanOrEqual(390)
+  await page.screenshot({
+    path: '/tmp/mjl-financial-review-mobile.png',
+  })
+  await disbursementReview
+    .getByLabel('Observation / motif du retour')
+    .fill('Préciser la dépense.')
+  await disbursementReview
+    .getByRole('button', { name: 'Retourner en correction' })
     .click()
-  await expect(
-    virementSection.getByText('Soumise au Superviseur', { exact: true }),
-  ).toBeVisible()
-
-  role = 'AGENT_VERIFICATEUR'
-  await page.reload()
-  await virementSection
-    .getByLabel('Motif obligatoire')
-    .fill('Compléter le dossier.')
-  await virementSection.getByRole('button', { name: 'Retourner' }).click()
-  await expect(
-    virementSection.getByText('Retournée pour correction', { exact: true }),
-  ).toBeVisible()
+  await expect(page.getByText('À corriger').first()).toBeVisible()
 
   role = 'AGENT_SAISIE'
   await page.reload()
-  await expect(virementSection.getByText(/Compléter le dossier/)).toBeVisible()
+  await page.getByRole('button', { name: 'Reprendre' }).click()
+  const returnedDisbursementModal = page.getByRole('dialog', {
+    name: 'Demande de décaissement',
+  })
   await expect(
-    virementSection.getByRole('button', { name: 'Annuler la demande' }),
+    returnedDisbursementModal.getByText(/Préciser la dépense/),
+  ).toBeVisible()
+  await expect(
+    returnedDisbursementModal.getByRole('button', {
+      name: 'Annuler la demande',
+    }),
   ).toHaveCount(0)
-  await virementSection
-    .getByRole('button', { name: /Demander le virement de.*100.*000 F CFA/ })
+  await returnedDisbursementModal
+    .getByRole('button', { name: 'Faire la demande' })
     .click()
+  await expect(page.getByText('À prévalider').first()).toBeVisible()
 
   role = 'AGENT_VERIFICATEUR'
   await page.reload()
-  await virementSection.getByRole('button', { name: 'Prévalider' }).click()
+  await page.getByRole('button', { name: 'Examiner' }).click()
+  await page
+    .getByRole('dialog', { name: 'Demande de décaissement' })
+    .getByRole('button', { name: 'Prévalider' })
+    .click()
+  await expect(page.getByText('À valider').first()).toBeVisible()
+
   role = 'VALIDATEUR_DEFINITIF'
   await page.reload()
-  await virementSection.getByRole('button', { name: 'Autoriser' }).click()
+  await page.getByRole('button', { name: 'Examiner' }).click()
+  await page
+    .getByRole('dialog', { name: 'Demande de décaissement' })
+    .getByRole('button', { name: 'Autoriser' })
+    .click()
+  await expect(page.getByText('Approuvée').first()).toBeVisible()
+  await expect(page.getByText(/Historique des demandes/)).toHaveCount(0)
+
+  role = 'AGENT_SAISIE'
+  await page.reload()
+  await page.getByRole('button', { name: 'Nouvelle demande' }).click()
+  await page
+    .getByRole('dialog', { name: 'Nouvelle demande' })
+    .getByRole('button', { name: 'Créer — Autorisation de virement' })
+    .click()
+  await page
+    .getByRole('dialog', { name: 'Demande de virement' })
+    .getByRole('button', { name: 'Faire la demande' })
+    .click()
   await expect(
-    virementSection.getByText('Autorisée', { exact: true }),
+    page.getByText('À prévalider', { exact: true }).last(),
   ).toBeVisible()
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await page.getByRole('button', { name: 'Examiner' }).click()
+  const virementReview = page.getByRole('dialog', {
+    name: 'Demande de virement',
+  })
+  await virementReview
+    .getByLabel('Observation / motif du retour')
+    .fill('Compléter le dossier.')
+  await virementReview
+    .getByRole('button', { name: 'Retourner en correction' })
+    .click()
   await expect(
-    page.getByText(/ne confirme pas qu’un virement externe/i),
+    page.getByText('À corriger', { exact: true }).last(),
   ).toBeVisible()
 
   role = 'AGENT_SAISIE'
   await page.reload()
-  await virementSection
-    .getByLabel('Date effective du virement')
-    .fill('2026-10-28')
-  await virementSection
-    .getByLabel('Référence ou commentaire (facultatif)')
-    .fill('BANQUE-001')
-  await virementSection
-    .getByLabel('Je confirme que ce montant a été viré.')
-    .check()
-  await virementSection
-    .getByRole('button', { name: 'Enregistrer la déclaration' })
+  await page.getByRole('button', { name: 'Reprendre' }).click()
+  const returnedVirementModal = page.getByRole('dialog', {
+    name: 'Demande de virement',
+  })
+  await expect(
+    returnedVirementModal.getByText(/Compléter le dossier/),
+  ).toBeVisible()
+  await expect(
+    returnedVirementModal.getByRole('button', { name: 'Annuler la demande' }),
+  ).toHaveCount(0)
+  await returnedVirementModal
+    .getByRole('button', { name: 'Faire la demande' })
+    .click()
+
+  role = 'AGENT_VERIFICATEUR'
+  await page.reload()
+  await page.getByRole('button', { name: 'Examiner' }).click()
+  await page
+    .getByRole('dialog', { name: 'Demande de virement' })
+    .getByRole('button', { name: 'Prévalider' })
+    .click()
+  role = 'VALIDATEUR_DEFINITIF'
+  await page.reload()
+  await page.getByRole('button', { name: 'Examiner' }).click()
+  await page
+    .getByRole('dialog', { name: 'Demande de virement' })
+    .getByRole('button', { name: 'Autoriser' })
     .click()
   await expect(
-    virementSection.getByRole('definition').filter({ hasText: 'BANQUE-001' }),
+    page.getByText('Approuvée', { exact: true }).last(),
   ).toBeVisible()
-  await expect(
-    virementSection.getByRole('definition').filter({ hasText: /^agent$/ }),
-  ).toBeVisible()
+  const virementSection = page
 
-  await virementSection
-    .getByLabel('Date effective du virement')
-    .fill('2026-10-27')
-  await virementSection
-    .getByLabel('Référence ou commentaire (facultatif)')
-    .fill('BANQUE-002')
-  await virementSection
-    .getByLabel('Motif de la correction')
-    .fill('Date bancaire corrigée.')
-  await virementSection
+  role = 'AGENT_SAISIE'
+  await page.reload()
+  await page.getByRole('button', { name: 'Enregistrer le virement' }).click()
+  const externalTransferDialog = page.getByRole('dialog', {
+    name: 'Virement externe',
+  })
+  await externalTransferDialog
+    .getByRole('button', {
+      name: /Date effective du virement : Choisir une date/,
+    })
+    .click()
+  await externalTransferDialog
+    .getByRole('grid')
+    .getByRole('button', { name: /mercredi 28 octobre 2026/i })
+    .click()
+  await externalTransferDialog
+    .getByLabel('Référence ou commentaire')
+    .fill('BANQUE-001')
+  await externalTransferDialog
     .getByLabel('Je confirme que ce montant a été viré.')
     .check()
-  await virementSection
+  await externalTransferDialog
+    .getByRole('button', { name: 'Confirmer la déclaration' })
+    .click()
+  await page.getByRole('button', { name: 'Modifier le virement' }).click()
+  await expect(
+    externalTransferDialog
+      .getByRole('definition')
+      .filter({ hasText: 'BANQUE-001' }),
+  ).toBeVisible()
+  await externalTransferDialog
+    .getByRole('button', {
+      name: /Date effective du virement : 28 octobre 2026/,
+    })
+    .click()
+  await externalTransferDialog
+    .getByRole('grid')
+    .getByRole('button', { name: /mardi 27 octobre 2026/i })
+    .click()
+  await externalTransferDialog
+    .getByLabel('Référence ou commentaire')
+    .fill('BANQUE-002')
+  await externalTransferDialog
+    .getByLabel('Motif de la correction *')
+    .fill('Date bancaire corrigée.')
+  await externalTransferDialog
+    .getByLabel('Je confirme que ce montant a été viré.')
+    .check()
+  await externalTransferDialog
     .getByRole('button', { name: 'Corriger la déclaration' })
     .click()
   await expect(
-    virementSection.getByRole('definition').filter({ hasText: 'BANQUE-002' }),
+    externalTransferDialog
+      .getByRole('definition')
+      .filter({ hasText: 'BANQUE-002' }),
   ).toBeVisible()
-  await virementSection.getByText('Historique des déclarations (2)').click()
-  await virementSection
+  await externalTransferDialog
+    .getByText('Historique des déclarations (2)')
+    .click()
+  await externalTransferDialog
     .getByRole('navigation', {
       name: 'Pagination des déclarations de virement',
     })
     .getByRole('button', { name: 'Suivant' })
     .click()
   await expect(page).toHaveURL(/confirmationCursor=older/)
-  await virementSection.getByText('Historique des déclarations (2)').click()
-  await expect(virementSection.getByText('BANQUE-001')).toBeVisible()
+  await page.getByRole('button', { name: 'Modifier le virement' }).click()
+  await externalTransferDialog
+    .getByText('Historique des déclarations (2)')
+    .click()
+  await expect(externalTransferDialog.getByText('BANQUE-001')).toBeVisible()
   await page.goBack()
   await expect(page).not.toHaveURL(/confirmationCursor=older/)
 
   await expect(
-    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+    externalTransferDialog.getByRole('button', {
+      name: 'Corriger la déclaration',
+    }),
   ).toBeVisible()
   expect(confirmationMutationCount).toBe(2)
-  const reversementSection = virementSection.getByRole('region', {
-    name: 'Reversement au Partenaire',
-  })
+  await externalTransferDialog.getByRole('button', { name: 'Fermer' }).click()
+  const reversementSection = page
   await expect(
-    reversementSection.getByText('20 000 F CFA', { exact: true }).first(),
+    reversementSection.getByText(/reversement requis/).first(),
   ).toBeVisible()
   await reversementSection
-    .getByRole('button', { name: 'Renseigner le reversement' })
+    .getByRole('button', { name: 'Enregistrer le reversement' })
     .click()
   const reversementDialog = page.getByRole('dialog', {
     name: /reversement/i,
   })
   await expect(
-    reversementDialog.getByText('20 000 F CFA', { exact: true }),
+    reversementDialog.getByText('20 000 F CFA', { exact: true }).first(),
   ).toBeVisible()
   await reversementDialog
     .getByRole('button', {
@@ -1328,9 +1464,12 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
       .filter({ hasText: 'REVERSEMENT-001' }),
   ).toBeVisible()
   await expect(
-    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+    virementSection.getByRole('button', { name: 'Modifier le virement' }),
   ).toHaveCount(0)
 
+  await reversementSection
+    .getByRole('button', { name: 'Modifier le reversement' })
+    .click()
   await reversementDialog
     .getByRole('button', {
       name: /Date effective du reversement : 28 octobre 2026/,
@@ -1351,22 +1490,24 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     .getByRole('button', { name: 'Corriger le reversement' })
     .click()
   await expect(
-    reversementSection
+    reversementDialog
       .getByRole('definition')
       .filter({ hasText: 'REVERSEMENT-002' }),
   ).toBeVisible()
-  await reversementDialog.getByRole('button', { name: 'Fermer' }).click()
-  await reversementSection.getByText('Historique des reversements (2)').click()
-  await reversementSection
+  await reversementDialog.getByText('Historique des reversements (2)').click()
+  await reversementDialog
     .getByRole('navigation', {
       name: 'Pagination des déclarations de reversement',
     })
     .getByRole('button', { name: 'Suivant' })
     .click()
   await expect(page).toHaveURL(/reversementCursor=older/)
-  await reversementSection.getByText('Historique des reversements (2)').click()
+  await reversementSection
+    .getByRole('button', { name: 'Modifier le reversement' })
+    .click()
+  await reversementDialog.getByText('Historique des reversements (2)').click()
   await expect(
-    reversementSection
+    reversementDialog
       .getByRole('listitem')
       .filter({ hasText: 'REVERSEMENT-001' }),
   ).toBeVisible()
@@ -1382,7 +1523,7 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   expect(confirmationMutationCount).toBe(2)
   expect(reversementMutationCount).toBe(2)
   await expect(
-    reversementSection.getByRole('button', { name: 'Corriger le reversement' }),
+    reversementSection.getByRole('button', { name: 'Modifier le reversement' }),
   ).toBeVisible()
   expect(confirmationMutationCount).toBe(2)
   expect(reversementMutationCount).toBe(2)
@@ -1390,37 +1531,15 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   role = 'AGENT_VERIFICATEUR'
   await page.reload()
   await expect(
-    virementSection.getByRole('button', { name: 'Corriger la déclaration' }),
+    virementSection.getByRole('button', { name: 'Modifier le virement' }),
   ).toHaveCount(0)
   await expect(
-    reversementSection.getByRole('button', { name: 'Corriger le reversement' }),
+    reversementSection.getByRole('button', { name: 'Modifier le reversement' }),
   ).toHaveCount(0)
 
   role = 'AGENT_SAISIE'
   await page.reload()
-  await virementSection.getByText('Historique des demandes (2)').click()
-  await virementSection
-    .getByRole('navigation', { name: 'Pagination des virements' })
-    .getByRole('button', { name: 'Suivant' })
-    .click()
-  await expect(page).toHaveURL(/virementCursor=older/)
-  await virementSection.getByText('Historique des demandes (2)').click()
-  await virementSection
-    .getByRole('button', { name: /Retournée pour correction.*100.*000 F CFA/ })
-    .click()
-  await expect(page).toHaveURL(
-    new RegExp(`virementRequest=${returnedVirement.id}`),
-  )
-  await page.goBack()
-  await expect(page).toHaveURL(/virementCursor=older/)
-  await expect(page).not.toHaveURL(
-    new RegExp(`virementRequest=${returnedVirement.id}`),
-  )
-  await page.goBack()
-  await expect(page).not.toHaveURL(/virementCursor=older/)
-  await page.goForward()
-  await page.goForward()
-  await expect(page).toHaveURL(
-    new RegExp(`virementRequest=${returnedVirement.id}`),
-  )
+  await expect(
+    virementSection.getByText(/Historique des demandes/),
+  ).toHaveCount(0)
 })

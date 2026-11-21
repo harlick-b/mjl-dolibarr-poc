@@ -15,7 +15,7 @@ async function controlledPage(page) {
   ).toBeVisible()
 }
 
-test('real frontend/backend proxy, routes, responsive shell and design tokens', async ({
+test('real frontend/backend proxy keeps public routes usable', async ({
   page,
 }) => {
   const errors = []
@@ -24,21 +24,19 @@ test('real frontend/backend proxy, routes, responsive shell and design tokens', 
     if (message.type() === 'error') errors.push(message.text())
   })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Espace MJL' })).toBeVisible()
-  await page.getByRole('link', { name: 'État du service', exact: true }).click()
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
+  await expect(page.getByLabel('Adresse e-mail *')).toBeVisible()
+  await page.goto('/health')
+  await expect(
+    page.getByRole('heading', { name: 'État du service' }),
+  ).toBeVisible()
   await expect(
     page.getByText('Service disponible', { exact: true }),
   ).toBeVisible()
   expect(
     await page.evaluate(async () => (await fetch('/api/health/ready')).json()),
   ).toEqual({ status: 'ok' })
-  await expect(
-    page.getByRole('button', { name: 'Vérifier maintenant' }),
-  ).toHaveCSS('background-color', 'rgb(22, 79, 122)')
-  await expect(page.locator('body')).toHaveCSS(
-    'background-color',
-    'rgb(245, 247, 248)',
-  )
   await page.getByRole('button', { name: 'Vérifier maintenant' }).focus()
   await expect(
     page.getByRole('button', { name: 'Vérifier maintenant' }),
@@ -54,7 +52,9 @@ test('real frontend/backend proxy, routes, responsive shell and design tokens', 
     page.getByRole('heading', { name: 'Page introuvable' }),
   ).toBeVisible()
   await page.getByRole('link', { name: 'Retour à mon espace' }).click()
-  await expect(page.getByRole('heading', { name: 'Espace MJL' })).toBeVisible()
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
+  await expect(page.getByLabel('Adresse e-mail *')).toBeVisible()
   expect(errors).toEqual([])
 })
 

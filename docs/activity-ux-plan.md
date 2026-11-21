@@ -1,5 +1,10 @@
 # Activity UX improvements — reviewed plan
 
+> Current work: [Prop-driven modal simplification](#prop-driven-modal-simplification--implemented).
+> That plan supersedes earlier modal deep-link and stored-selection-ID proposals.
+> Its first financial-review slice is implemented and verified; the separate
+> follow-ups remain outside the authorized scope.
+
 2026-11-10, updated 2026-11-11. Implementation authorized and completed; focused verification and
 independent code review are complete. Human visual review remains acceptance.
 Source: user findings, supplied screenshots and follow-up decisions.
@@ -1545,3 +1550,242 @@ tests, targeted ESLint and the production build passed, and the same independent
 reviewer cleared the corrected candidate. The responsive four/five-value financial
 composition was verified from its breakpoint classes; no rendered browser
 screenshot pass was run.
+
+### Activity header and financial-review correction — 2026-11-21
+
+Activity-header actions use the shared Button base with an Activity-specific
+variant that owns their approved compact height, border, radius, spacing and
+type scale. **Affectations** and **Fiche récapitulative** use that variant and
+contain text only. Text action buttons across the touched application surfaces
+also contain no decorative icons; icon-only controls and control-state symbols
+remain where the icon is the control or communicates selection. The sidebar
+entry previously labelled **Relances** is now **Notifications**.
+
+Selecting **Examiner** for a décaissement or virement now opens a centered
+Activity-scoped modal directly from the current table data. It no longer writes
+the request ID into the URL, starts a second detail-page load or replaces the
+Activity with a loading screen. Both request types share the standard modal
+composition from `activity-demande-virement-modal.png`; the historical-request
+expander is absent. Legacy links containing a request search parameter now reach
+the Activity page without opening a modal. Cancelling a request closes
+the local modal after the server accepts the cancellation so stale request data
+is not left on screen.
+
+Focused frontend evidence: 154 unit tests passed across Execution, Planning,
+Access, Audit, Notifications, Partner documents and the Agent assignment modal;
+targeted ESLint, Prettier, the production build and `git diff --check` passed.
+The focused Playwright administrative-settlement journey did not reach this flow:
+its fixture exposed a service-unavailable page before the first financial action
+and timed out on its older submission-button locator. This failed browser run is
+recorded as a verification gap rather than a pass.
+
+## Prop-driven modal simplification — implemented
+
+Date: 2026-11-21. Status: first financial-review slice implemented, verified and
+independently reviewed.
+Source: the user's modal ownership rules and the read-only frontend audit.
+Existing uncommitted implementation and unrelated work must be preserved.
+
+### Outcome and rules
+
+Links open pages, never modals. A page CTA opens a modal using data already
+loaded by the page. Close controls and successful submission close it through
+one handler. Correctable failures keep the modal and entered values available.
+
+- Reuse the shared `Modal`, `Button`, form controls and existing financial content.
+- Pass current server records through props; do not copy records or their IDs
+  into UI selection state just to open a modal.
+- Keep visibility local to the component owning the CTA and current record.
+  If a record row owns the trigger, it can own a visibility boolean and pass its
+  current props to the shared modal content. Reuse one row/content composition;
+  do not duplicate a modal implementation for each request type or record.
+- Do not substitute array positions, DOM attributes, persistent browser storage,
+  or captured JSX for stored selection IDs. Those do not solve stale selection.
+- API records may retain IDs required for API actions, Query keys, stable React
+  keys and page routes. Removing redundant UI selection state does not change
+  API identity or server authorization requirements.
+- Editable values and their original version token remain a form draft. Query
+  refresh must update displayed server facts without overwriting unsaved edits
+  or pairing old edits with a newer version token.
+- Keep the existing page-owned financial `useMutation`. Query invalidation
+  refreshes affected server data; callbacks close the modal after success.
+- Do not build a generic modal manager, registry or new state framework.
+
+### First implementation slice: financial review
+
+1. **Remove URL-driven modal behavior.** In `frontend/src/app/router.jsx` and
+   `frontend/src/features/execution/ExecutionView.jsx`, remove the
+   `financeRequest` and `virementRequest` search contract, URL-selected modal
+   branches, and navigation used solely for modal closing. Old links must still
+   reach their page without opening a modal. Notification links already target
+   the Activity Finance tab and should retain that behavior.
+2. **Simplify ownership.** Replace the overlapping request-selection IDs, modal
+   type, mode and URL precedence for décaissement/virement review with a
+   prop-driven composition owned by the CTA's current record. Keep creation
+   choice separate from reviewing an existing record only where the actual flow
+   requires it. Use clear modal naming instead of obsolete drawer names.
+3. **Use loaded data.** Opening Examiner must not navigate, refetch an already
+   loaded request, or replace the page with a loading screen. Refreshed Query
+   records flow through props. If the reviewed record becomes unavailable, close
+   or show its unavailability; never silently display a different request.
+4. **Remove only redundant queries.** Delete the disbursement detail read used
+   solely for modal deep links. Compare virement list/detail projections and
+   administrative consumers before removing any virement query: confirmation,
+   reversement and their histories may still require additional server data.
+   Keep necessary reads in the page and preserve the RestClient contract.
+5. **Unify completion.** Use one close callback for Cancel, the shared modal's
+   close controls, successful decision and successful cancellation. Remove
+   mutation-path-specific navigation for closing. Retain existing error,
+   authorization, version-conflict and uncertain-result handling. Invalidate the
+   existing affected Query keys without introducing a new invalidation layer.
+6. **Preserve the approved composition.** Both review types use the centered
+   shared modal based on
+   [activity-demande-virement-modal.png](inspiration/activities/details/activity-demande-virement-modal.png).
+   Preserve their approved review actions and read-only amount; do not copy the
+   creation screenshot's editable amount, attachment or obsolete Draft action
+   into review. No request-history expander. Keep existing shared header-button
+   work and unrelated visual changes intact.
+
+No backend, schema, API payload, financial approval or permission changes are
+planned. Stop for a concrete decision if inspecting required data reveals that
+this scope cannot preserve an existing workflow.
+
+### Impact map and separate follow-ups
+
+This initial impact map now records completed follow-ups and the boundaries that
+remain outside the authorized slices.
+
+| Area                                     | Audit assessment                                                                   | Proposed follow-up                                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Dashboard invitation link / Access route | The former `invite: true` link opened a modal.                                     | Complete: links open Users only; its CTA opens the dialog.                                                          |
+| Access submission                        | The former `finally` branch closed forms after correctable errors.                 | Complete: close after success; retain ordinary invalid submissions, errors and input.                               |
+| Timeline Activity preview                | Stores a complete clicked row, so displayed data can become stale.                 | Give the trigger current record props and local visibility; do not replace the snapshot with stored selection IDs.  |
+| Project closure / document withdrawal    | Selected record snapshots can become stale after refresh.                          | Use current props for display; preserve editable reason/version where required. Handle a removed record explicitly. |
+| Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements. | Complete: current props, local visibility and one close callback retain draft/version protection.                   |
+| Funding request review                   | The modal displays a collection rather than one clicked request.                   | Confirm intended single-request versus collection behavior before altering this separate workflow.                  |
+| Zero-spending and funding submission     | Some successful actions kept the modal open.                                       | Zero-spending complete; funding remains outside the authorized slice.                                               |
+| Partner/Project edit dialogs             | Separate open/edit state can be simplified, but editable snapshots are legitimate. | Remove redundant visibility only; preserve draft/version semantics.                                                 |
+
+### Mechanisms to retain
+
+- Shared `BusinessModal` owns layout, native dialog behavior, focus and dismissal
+  through props. It does not need API knowledge.
+- PTA, Activity, Task and Subtask editable drafts protect unsaved input and
+  concurrent-edit detection. Activity creation reconciliation prevents duplicate
+  creation after an uncertain response.
+- Agent, Partner and Category selectors may query missing options; the current
+  page does not necessarily contain the full selectable collection.
+- Protected file preview loads bytes absent from page metadata and requires
+  cancellation, access checks and temporary URL cleanup.
+- Notification count and full notification list are different reads. Neither
+  requires modal-opening URL parameters.
+- Existing page routes and meaningful tab/filter/cursor parameters remain.
+
+### Verification and completion gate
+
+Use existing focused tests and extend them only for changed behavior:
+
+- Both Examiner CTAs open the correct modal immediately, without URL mutation,
+  redundant detail reads or replacing the underlying Activity page.
+- Background refresh updates status, decisions and permitted actions while the
+  modal is open; a removed record cannot become another request silently.
+- Cancel and shared close controls dismiss consistently. Successful decisions
+  and cancellations close; failed submissions preserve input and expose errors.
+- Old modal query parameters do not open a modal. Notification links still open
+  the correct Activity tab. Retained administrative queries continue to support
+  confirmation, reversement and closure.
+- Compare rendered populated dialogs and header controls with their supplied
+  references at desktop and narrow widths. Repair the bounded browser fixture
+  needed to reach these states; previous failed browser runs are not evidence
+  that the new plan passes.
+- Run affected unit checks, targeted lint/formatting, production build and
+  `git diff --check`. Record actual commands, candidate and results in this plan.
+- Finish with a separate review-only agent inspecting requirements, actual diff,
+  surrounding code and verification evidence. The implementer fixes accepted
+  findings and returns the candidate to the same reviewer. Do not declare the
+  slice complete with unresolved blocking findings or verification gaps.
+
+The financial-review slice now uses one local visibility boolean at each current
+request row. The current Query record and Activity context flow into the shared
+centered modal through props; no request ID or server-record copy is stored for
+modal selection. Legacy `financeRequest` and `virementRequest` search parameters
+are discarded by the Activity redirect and cannot open a modal. Décaissement
+review no longer performs a redundant detail read. The existing virement detail
+read remains because settlement confirmation, reversement and their histories
+need data absent from the financial-request row.
+
+Decision and cancellation drafts retain the version present when editing starts,
+so a background Query refresh cannot combine unsaved text with a newer concurrency
+token. Successful actions invalidate the existing Query data and close through
+the same handler as Cancel and the modal close control. Failed actions keep the
+modal and entered observation available.
+
+The follow-up slice applies the same ownership rule to Task/Subtask execution and
+zero-spending review. Each current row receives its Query record through props and
+owns only a local visibility boolean; no selected Task, Subtask or zero-spending
+ID is stored. The draft keeps its starting Activity version while refreshed facts
+continue to arrive through props. Access dialogs no longer open from the
+`invite=true` query flag, and failed Access submissions retain entered fields and
+show their error inside the dialog. Funding remains outside this slice.
+
+Cursor controls for décaissement, virement and zero-spending history are rendered
+in the **Demandes financières** card. They use the shared `Pagination` component
+and Router-owned cursors, so changing pages may remount the page without coupling
+pagination to modal state.
+
+Verification for the implemented candidate:
+
+- `npm run test:unit -- --run src/features/execution/execution.test.jsx src/features/notifications/notification.test.jsx src/features/planning/pages/planning.test.jsx` — 119 tests passed.
+- `npx eslint src/app/router.jsx src/features/execution/ExecutionView.jsx src/features/execution/FinancialRequestDetails.jsx src/features/execution/execution.test.jsx` — passed.
+- `npm run build` — passed with the existing large-chunk warning.
+- `MJL_PLAYWRIGHT_PORT=4189 npm run test:e2e -- e2e/execution/execution.spec.js --grep 'PTA-3B through PTA-3E'` — one focused administrative-settlement journey passed.
+- The same focused journey captured the populated review dialog at 1440×900 and
+  390×844 in `/tmp/mjl-financial-review-desktop.png` and
+  `/tmp/mjl-financial-review-mobile.png`. Direct inspection against the approved
+  centered modal confirmed the composition, spacing and narrow-width fit; the
+  narrow dialog keeps its content in its own scroll area.
+
+No backend, schema, API payload, financial approval or permission contract changed.
+No commit or additional follow-up slice is implied by this implementation.
+The separate review-only agent found one hidden-error defect and one missing visual
+verification gate. After the dialog error display, decision/cancellation coverage
+and desktop/narrow comparison were added, the same reviewer cleared the corrected
+candidate with no blocking findings.
+
+Follow-up verification on 2026-11-21:
+
+- `npm run test:unit -- --run src/features/access/access.test.jsx src/features/execution/execution.test.jsx` — 69 tests passed.
+- Targeted ESLint for the touched Access, Execution, Router and Dashboard files — passed.
+- `npm run build` — passed with the existing large-chunk warning.
+- `git diff --check` — passed.
+- The browser journey was not rebuilt or rerun after the final error-display
+  correction, at the user's direction. Earlier browser results do not establish a
+  pass for this final candidate.
+
+The follow-up independent review found that a failed zero-spending creation kept
+the form but displayed its error behind the modal. The creation modal now renders
+that error, retains the entered reason and uses one clear/close handler. The test
+performs a failed attempt before a successful retry. The same reviewer rechecked
+the correction and reported no remaining blocking finding; its independent
+focused rerun passed both zero-spending and financial-pagination scenarios.
+
+Corrective review on 2026-11-21 found that financial cursor navigation still
+targeted the legacy Execution route, zero-spending reasons could adopt a refreshed
+version token, Task/Subtask errors remained behind their modal, and Access row
+dialogs still retained copied records. The corrected candidate keeps pagination
+on the Activity Finance tab and gives each cursor control only its own query
+loading state. Zero-spending creation and return reasons retain their starting
+version. Task/Subtask mutation errors render inside the open modal.
+
+Access creation keeps one page-owned visibility boolean, while each account row
+owns only its action kind and receives the current Query record through props.
+Role drafts retain the version from their first edit. Confirmed validation errors
+keep the dialog and fields without refreshing the list; successful and uncertain
+outcomes still refresh server data. Funding-request ownership remains a separate
+follow-up requiring its single-request versus collection decision.
+
+Final evidence for this correction: the focused Access and Execution run passed
+71/71 tests, targeted Prettier and ESLint passed, `git diff --check` passed, and
+the production build completed with only the existing chunk-size warning. Both
+independent reviewers inspected the corrected candidate and reported no remaining
+blocking finding. Per the user's direction, the browser journey was not rerun.

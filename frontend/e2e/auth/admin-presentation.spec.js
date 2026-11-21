@@ -41,14 +41,12 @@ test('invitation Select supports keyboard, required validation and FormData insi
   await page.keyboard.press('ArrowDown')
   await page.getByRole('option', { name: 'Partenaire', exact: true }).click()
   const submit = dialog.getByRole('button', { name: 'Envoyer l’invitation' })
-  await expect(
-    dialog.getByRole('combobox', { name: 'Partenaire *', exact: true }),
-  ).toBeEnabled()
+  const partner = dialog.getByRole('combobox', { name: /^Partenaire \*/ })
+  await expect(partner).toBeEnabled()
   await submit.click()
   expect(sent).toBeUndefined()
-  await dialog
-    .getByRole('combobox', { name: 'Partenaire *', exact: true })
-    .click()
+  await expect(dialog.getByRole('alert')).toHaveCount(1)
+  await partner.click()
   await page
     .getByRole('option', { name: 'Partenaire test', exact: true })
     .click()
@@ -127,7 +125,10 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
 }) => {
   await adminFixture(page)
   await page.goto('/')
-  await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === '/access/users' && url.search === '' && url.hash === '',
+  )
   await expect(
     page.getByRole('table', { name: 'Comptes utilisateurs' }),
   ).toBeVisible()
@@ -158,13 +159,19 @@ test('Admin lands on a clean URL and filters remain shareable with browser histo
     page.getByRole('heading', { name: 'Aucun résultat' }),
   ).toBeVisible()
   await page.getByRole('button', { name: 'Effacer les filtres' }).click()
-  await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === '/access/users' && url.search === '' && url.hash === '',
+  )
   await page.goBack()
   await expect(page.getByPlaceholder('Rechercher un utilisateur…')).toHaveValue(
     'absent@example.test',
   )
   await page.goForward()
-  await expect(page).toHaveURL('http://127.0.0.1:4173/access/users')
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === '/access/users' && url.search === '' && url.hash === '',
+  )
   await page.getByRole('button', { name: 'Filtres' }).click()
   await expect(page.getByRole('combobox', { name: 'Rôle' })).toBeVisible()
   await expect(page.getByLabel('État du compte')).toHaveCount(0)
@@ -202,7 +209,10 @@ test('Admin account and history retain the same navigation and invitation dialog
     page.getByRole('navigation', { name: 'Administration' }),
   ).toBeVisible()
   await page.getByRole('link', { name: 'Historique', exact: true }).click()
-  await expect(page).toHaveURL('http://127.0.0.1:4173/history')
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === '/history' && url.search === '' && url.hash === '',
+  )
   await expect(
     page.getByRole('navigation', { name: 'Administration' }),
   ).toBeVisible()
@@ -287,64 +297,49 @@ test('Admin history masks the sidebar identity on offline and cross-tab invalida
   ).toBeVisible()
 })
 
-test('users loading covers the route wait and failed-session retry', async ({
+test('session service failure clears protected users and returns to login', async ({
   page,
 }) => {
-  let respond
-  let reads = 0
-  let retrying = false
+  let releaseInitialRead
+  let sessionReads = 0
+  let logoutRequests = 0
   await adminFixture(page)
   await page.route('**/api/v1/auth/session', async (route) => {
-    reads += 1
-    if (reads === 1 || retrying)
+    if (route.request().method() !== 'GET')
+      throw new Error(`Unexpected session method: ${route.request().method()}`)
+    sessionReads += 1
+    if (sessionReads === 1)
       await new Promise((resolve) => {
-        respond = resolve
+        releaseInitialRead = resolve
       })
     await route.fulfill(
-      retrying
-        ? {
-            json: {
-              state: 'verified',
-              csrf: 'test',
-              user: {
-                id: 'admin',
-                email: 'admin@example.test',
-                role: 'ADMIN_PLATEFORME',
-              },
-              expires_at: new Date(Date.now() + 3600000).toISOString(),
-            },
-          }
-        : { status: 503, json: {} },
+      sessionReads === 1
+        ? { status: 503, json: {} }
+        : { json: { state: 'anonymous', csrf: `fresh-${sessionReads}` } },
     )
+  })
+  await page.route('**/api/v1/auth/logout', async (route) => {
+    if (route.request().method() !== 'POST')
+      throw new Error(`Unexpected logout method: ${route.request().method()}`)
+    logoutRequests += 1
+    await route.fulfill({ status: 204 })
   })
   await page.goto('/access/users')
   await expect(
     page.getByRole('status', { name: 'Vérification de votre accès' }),
   ).toBeVisible()
-  await page.screenshot({ path: '/tmp/mjl-users-loading.png' })
-  respond()
-  await expect(
-    page.getByRole('heading', {
-      name: 'Impossible de vérifier votre accès',
-    }),
-  ).toBeVisible()
-  retrying = true
-  await page.getByRole('button', { name: 'Réessayer' }).click()
-  await expect(
-    page.getByRole('status', { name: 'Vérification de votre accès' }),
-  ).toBeVisible()
-  await expect(
-    page.getByRole('heading', {
-      name: 'Impossible de vérifier votre accès',
-    }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: 'Mon compte', exact: true }),
-  ).toHaveCount(0)
-  respond()
   await expect(
     page.getByRole('table', { name: 'Comptes utilisateurs' }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  await expect.poll(() => typeof releaseInitialRead).toBe('function')
+  releaseInitialRead()
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByLabel('Mot de passe *', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('table', { name: 'Comptes utilisateurs' }),
+  ).toHaveCount(0)
+  expect(sessionReads).toBe(3)
+  expect(logoutRequests).toBe(1)
 })
 
 test('history shows the minimal page loader while its data loads', async ({

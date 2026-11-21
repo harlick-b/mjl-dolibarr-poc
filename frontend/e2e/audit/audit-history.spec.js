@@ -71,7 +71,7 @@ test('validator reads the global history on desktop and mobile', async ({
   await expect(page.getByText('validator@example.test')).toBeVisible()
 })
 
-test('Agent reads persisted Activity timeline details on desktop and mobile', async ({
+test('Agent reads Activity history changes on desktop and mobile', async ({
   page,
 }) => {
   const empty = {
@@ -82,8 +82,10 @@ test('Agent reads persisted Activity timeline details on desktop and mobile', as
     previous: null,
   }
   await page.route('**/api/v1/**', async (route) => {
-    const path = new URL(route.request().url()).pathname
-    if (path === '/api/v1/auth/session')
+    const request = route.request()
+    const url = new URL(request.url())
+    const path = url.pathname
+    if (request.method() === 'GET' && path === '/api/v1/auth/session')
       return route.fulfill({
         json: {
           state: 'verified',
@@ -97,7 +99,7 @@ test('Agent reads persisted Activity timeline details on desktop and mobile', as
           expires_at: new Date(Date.now() + 60000).toISOString(),
         },
       })
-    if (path === '/api/v1/activities/activity-1')
+    if (request.method() === 'GET' && path === '/api/v1/activities/activity-1')
       return route.fulfill({
         json: {
           id: 'activity-1',
@@ -107,18 +109,31 @@ test('Agent reads persisted Activity timeline details on desktop and mobile', as
           state: 'draft',
           version: 2,
           project_id: 'project-1',
+          project_name: 'Projet test',
+          partner_name: 'Partenaire test',
           pta_id: 'pta-1',
+          pta_name: 'PTA 2027',
           placement_year: 2027,
           planned_start: '2027-01-10',
           planned_end: '2027-02-10',
           allocation: '1000',
           approved_allocation: null,
-          operations: [],
-          agent_ids: [],
+          tasks: [],
+          agent_ids: ['agent'],
+          agents: [
+            {
+              id: 'agent',
+              full_name: 'Agent de test',
+              email: 'agent@example.test',
+            },
+          ],
           allowed_actions: ['read'],
         },
       })
-    if (path === '/api/v1/activities/activity-1/history')
+    if (
+      request.method() === 'GET' &&
+      path === '/api/v1/activities/activity-1/history'
+    ) {
       return route.fulfill({
         json: {
           ...empty,
@@ -155,25 +170,31 @@ test('Agent reads persisted Activity timeline details on desktop and mobile', as
           ],
         },
       })
-    return route.fulfill({ json: empty })
+    }
+    if (
+      request.method() === 'GET' &&
+      path === '/api/v1/notifications' &&
+      url.searchParams.get('state') === 'unread' &&
+      url.searchParams.get('limit') === '1'
+    )
+      return route.fulfill({ json: empty })
+    throw new Error(`Unexpected API request: ${request.method()} ${path}`)
   })
   await page.goto('/activities/activity-1?tab=history')
-  await expect(page.getByText('Brouillon d’activité modifié')).toBeVisible()
-  await expect(page.getByText('Étape majeure')).toBeVisible()
-  await page.getByText('Consulter les détails').click()
-  await expect(
-    page.getByText(/Ancienne description → Description corrigée/),
-  ).toBeVisible()
-  await page.screenshot({
-    path: '/tmp/mjl-history-timeline-desktop.png',
-    fullPage: true,
-  })
+  const history = page.getByRole('region', { name: 'Historique de l’activité' })
+  const events = history.getByRole('listitem')
+  await expect(events).toHaveCount(2)
+  await expect(events.nth(0)).toContainText('Brouillon d’activité modifié')
+  await expect(events.nth(0)).toContainText('Agent de test')
+  const descriptionChange = events
+    .nth(0)
+    .getByText('Description : Ancienne description → Description corrigée', {
+      exact: true,
+    })
+  await expect(descriptionChange).toBeVisible()
+  await expect(events.nth(1)).toContainText('Activité créée')
+
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(
-    page.getByText(/Ancienne description → Description corrigée/),
-  ).toBeVisible()
-  await page.screenshot({
-    path: '/tmp/mjl-history-timeline-mobile.png',
-    fullPage: true,
-  })
+  await expect(events.nth(0)).toBeVisible()
+  await expect(descriptionChange).toBeVisible()
 })

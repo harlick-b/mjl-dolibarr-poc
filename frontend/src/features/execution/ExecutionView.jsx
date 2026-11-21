@@ -14,13 +14,14 @@ import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
-import { ExecutionTasks, TaskEditor } from './ExecutionOperations'
+import { ExecutionTaskAction, ExecutionTasks } from './ExecutionOperations'
 import { strings } from '@/locales/fr/ExecutionView'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { CheckCircle2, ShieldCheck } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/shared/ui/button'
 import {
@@ -153,6 +154,7 @@ function FinancialDecisionForm({
   onCancel,
 }) {
   const [error, setError] = useState('')
+  const draftVersion = useRef(null)
   const actions = request.allowed_actions || []
   const canDecide = actions.some((action) =>
     ['prevalidate', 'approve', 'return'].includes(action),
@@ -161,7 +163,10 @@ function FinancialDecisionForm({
   return (
     <BusinessForm
       className="order-last grid gap-5"
-      onChangeCapture={() => setError('')}
+      onChangeCapture={() => {
+        draftVersion.current ??= version
+        setError('')
+      }}
       onSubmit={async (event) => {
         const decision = event.nativeEvent.submitter?.value
         if (!['prevalidate', 'approve', 'return'].includes(decision))
@@ -173,7 +178,7 @@ function FinancialDecisionForm({
           return false
         }
         const result = await mutate(`${path}/${request.id}/decisions`, {
-          expected_version: version,
+          expected_version: draftVersion.current ?? version,
           decision,
           ...(reason ? { reason } : {}),
         })
@@ -210,7 +215,7 @@ function FinancialDecisionForm({
             value="prevalidate"
             disabled={pending || !navigator.onLine}
           >
-            <ShieldCheck size={16} /> {strings.prevalidate}
+            {strings.prevalidate}
           </Button>
         )}
         {actions.includes('approve') && (
@@ -219,7 +224,7 @@ function FinancialDecisionForm({
             value="approve"
             disabled={pending || !navigator.onLine}
           >
-            <ShieldCheck size={16} /> {strings.authorize}
+            {strings.authorize}
           </Button>
         )}
       </div>
@@ -387,8 +392,7 @@ function ExecutionWorkspace({
     ),
     enabled: screen === 'detail' && Boolean(params.activityId),
   })
-  const virementRequestId =
-    search.virementRequest || detail.data?.virement_context?.current_request_id
+  const virementRequestId = detail.data?.virement_context?.current_request_id
   const funding = useQuery({
     ...executionQuery(
       api,
@@ -434,20 +438,6 @@ function ExecutionWorkspace({
       Boolean(params.activityId) &&
       detail.data?.works_completed &&
       detail.data?.spending_total === '0',
-  })
-  const selectedFinance = useQuery({
-    ...executionQuery(
-      api,
-      session.user.id,
-      ['finance-detail', params.activityId, search.financeRequest],
-      `/activities/${params.activityId}/disbursement-requests/${search.financeRequest}`,
-      onDenied,
-    ),
-    enabled:
-      financeSection &&
-      screen === 'detail' &&
-      Boolean(params.activityId) &&
-      Boolean(search.financeRequest),
   })
   const virements = useQuery({
     ...executionQuery(
@@ -662,27 +652,6 @@ function ExecutionWorkspace({
           queryKey: ['notifications', session.user.id],
         }),
       ])
-      if (
-        [
-          '/disbursement-requests',
-          '/disbursement-requests/with-attachment',
-        ].includes(variables.path) ||
-        (variables.path.endsWith('/cancellation') &&
-          variables.path.startsWith('/disbursement-requests'))
-      )
-        await navigate({
-          search: (current) => ({ ...current, financeRequest: '' }),
-        })
-      if (
-        ['/virement-requests', '/virement-requests/with-attachment'].includes(
-          variables.path,
-        ) ||
-        (variables.path.endsWith('/cancellation') &&
-          variables.path.startsWith('/virement-requests'))
-      )
-        await navigate({
-          search: (current) => ({ ...current, virementRequest: '' }),
-        })
       setError('')
       const submittedDisbursement = [
         '/disbursement-requests',
@@ -702,7 +671,7 @@ function ExecutionWorkspace({
               : 'Suivi financier mis à jour.',
       )
     },
-    onError: async (problem) => {
+    onError: async (problem, variables) => {
       if (problem.name === 'AbortError') return
       if (problem.status === 401) onDenied()
       if (
@@ -720,7 +689,10 @@ function ExecutionWorkspace({
       setError(
         problem.code === 'activity_assignment_required'
           ? strings.assignmentRequired
-          : problem.message,
+          : variables.path === '/zero-spending-declarations' &&
+              problem.status === 422
+            ? 'Déclaration refusée. Vérifiez le motif saisi.'
+            : problem.message,
       )
     },
   })
@@ -737,7 +709,6 @@ function ExecutionWorkspace({
               ? [zeroSpending]
               : []),
             virements,
-            ...(search.financeRequest ? [selectedFinance] : []),
             ...(virementRequestId ? [selectedVirement] : []),
             ...(selectedVirement.data?.state === 'approved'
               ? [confirmationHistory]
@@ -831,8 +802,32 @@ function ExecutionWorkspace({
             }),
           })
         }
+        onFinancePage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              financeCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/disbursement-requests`,
+              ),
+            }),
+          })
+        }
+        onVirementPage={(link) =>
+          navigate({
+            search: (current) => ({
+              ...current,
+              virementCursor: cursorFrom(
+                link,
+                `/activities/${params.activityId}/virement-requests`,
+              ),
+            }),
+          })
+        }
         zeroSpending={zeroSpending.data}
-        selectedFinance={selectedFinance.data}
+        financeBusy={finance.isFetching}
+        virementBusy={virements.isFetching}
+        zeroSpendingBusy={zeroSpending.isFetching}
         virements={virements.data}
         selectedVirement={selectedVirement.data}
         confirmationHistory={confirmationHistory.data}
@@ -840,8 +835,8 @@ function ExecutionWorkspace({
         role={session.user.role}
         financeHistoryPage={Boolean(search.financeCursor)}
         virementHistoryPage={Boolean(search.virementCursor)}
-        virementSelectedBySearch={Boolean(search.virementRequest)}
         error={error}
+        clearError={() => setError('')}
         pending={
           relevant.some((query) => query.isError || query.isPending) ||
           mutation.isPending ||
@@ -850,7 +845,6 @@ function ExecutionWorkspace({
           detail.isFetching ||
           finance.isFetching ||
           zeroSpending.isFetching ||
-          selectedFinance.isFetching ||
           virements.isFetching ||
           selectedVirement.isFetching ||
           confirmationHistory.isFetching ||
@@ -945,22 +939,6 @@ function ExecutionWorkspace({
         setReversementFile={setReversementFile}
         reversementUploadError={reversementUploadError}
         setReversementUploadError={setReversementUploadError}
-        onFinancePage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              financeCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/disbursement-requests`,
-              ),
-            }),
-          })
-        }
-        onFinanceSelect={(requestId) =>
-          navigate({
-            search: (current) => ({ ...current, financeRequest: requestId }),
-          })
-        }
         onZeroSpendingPage={(link) =>
           navigate({
             search: (current) => ({
@@ -970,22 +948,6 @@ function ExecutionWorkspace({
                 `/activities/${params.activityId}/zero-spending-declarations`,
               ),
             }),
-          })
-        }
-        onVirementPage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              virementCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/virement-requests`,
-              ),
-            }),
-          })
-        }
-        onVirementSelect={(requestId) =>
-          navigate({
-            search: (current) => ({ ...current, virementRequest: requestId }),
           })
         }
         onConfirmationPage={(link) =>
@@ -1219,6 +1181,155 @@ export function ExecutionList({
   )
 }
 
+function FinancialRequestTableRow({
+  request,
+  detail,
+  result,
+  role,
+  authorizedAmount,
+  historicalPage,
+  pending,
+  mutate,
+  onOpenOther,
+  error,
+  clearError,
+}) {
+  const [open, setOpen] = useState(false)
+  const opener = useRef(null)
+  const close = () => {
+    clearError()
+    setOpen(false)
+  }
+  const actions = request.allowed_actions || []
+  const actionLabel = actions.some((action) =>
+    ['prevalidate', 'approve'].includes(action),
+  )
+    ? 'Examiner'
+    : request.state === 'returned' && role === 'AGENT_SAISIE'
+      ? 'Reprendre'
+      : 'Consulter'
+  const latestDecision = latestAdministrativeDecision(request)
+  const decisionActor = administrativeDecisionActor(latestDecision)
+  const localReview = ['disbursement', 'virement', 'zero'].includes(
+    request.drawer,
+  )
+  const modalLabel =
+    request.drawer === 'virement'
+      ? strings.virementRequest
+      : request.drawer === 'zero'
+        ? strings.zeroSpendingDeclaration
+        : strings.disbursementRequest
+  return (
+    <>
+      <tr className="border-b border-border last:border-0">
+        <td className="p-3">
+          <strong className="block text-navy">{request.kind}</strong>
+          <span className="text-xs text-muted-foreground">
+            {request.submitted_at
+              ? `${request.kind.toLocaleLowerCase('fr')} · ${formatDate(request.submitted_at)}`
+              : 'Date non renseignée'}
+          </span>
+        </td>
+        <td className="p-3 text-right font-medium">
+          {formatXof(request.amount)}
+        </td>
+        <td className="p-3">
+          <StatusBadge className={administrativeStateClass(request.state)}>
+            {administrativeStates[request.state] || request.state}
+          </StatusBadge>
+          {latestDecision && (
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {administrativeDecisionLabels[latestDecision.outcome] ||
+                latestDecision.outcome}
+              {decisionActor ? ` · ${decisionActor}` : ''}
+              {latestDecision.decided_at
+                ? ` · ${formatDateTime(latestDecision.decided_at)}`
+                : ''}
+            </span>
+          )}
+        </td>
+        <td className="p-3 text-right">
+          <Button
+            ref={opener}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={(event) => {
+              if (localReview) {
+                clearError()
+                setOpen(true)
+              } else onOpenOther(request, event.currentTarget)
+            }}
+          >
+            {actionLabel}
+          </Button>
+        </td>
+      </tr>
+      {open &&
+        createPortal(
+          <Modal
+            open
+            onClose={close}
+            label={modalLabel}
+            opener={opener}
+            variant="dialog"
+            size="standard"
+          >
+            <div className="p-6 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:shadow-none">
+              {error && (
+                <p
+                  role="alert"
+                  className="mb-4 border-l-4 border-l-danger bg-white p-3"
+                >
+                  {error}
+                </p>
+              )}
+              {request.drawer === 'disbursement' ? (
+                <DisbursementSection
+                  fallback={null}
+                  detail={detail}
+                  result={result}
+                  selected={request}
+                  role={role}
+                  authorizedAmount={authorizedAmount}
+                  historicalPage={historicalPage}
+                  pending={pending}
+                  mutate={mutate}
+                  onCancel={close}
+                />
+              ) : request.drawer === 'virement' ? (
+                <VirementSection
+                  fallback={null}
+                  detail={detail}
+                  result={result}
+                  current={request}
+                  role={role}
+                  authorizedAmount={authorizedAmount}
+                  historicalPage={historicalPage}
+                  pending={pending}
+                  mutate={mutate}
+                  onCancel={close}
+                />
+              ) : (
+                <ZeroSpendingSection
+                  fallback={null}
+                  detail={detail}
+                  result={result}
+                  current={request}
+                  role={role}
+                  pending={pending}
+                  mutate={mutate}
+                  onCancel={close}
+                />
+              )}
+            </div>
+          </Modal>,
+          document.body,
+        )}
+    </>
+  )
+}
+
 function ExecutionDetail({
   section,
   sectionFallbacks,
@@ -1226,8 +1337,12 @@ function ExecutionDetail({
   finance,
   funding,
   onFundingPage,
+  onFinancePage,
+  onVirementPage,
   zeroSpending,
-  selectedFinance,
+  financeBusy,
+  virementBusy,
+  zeroSpendingBusy,
   virements,
   selectedVirement,
   confirmationHistory,
@@ -1235,8 +1350,8 @@ function ExecutionDetail({
   role,
   financeHistoryPage,
   virementHistoryPage,
-  virementSelectedBySearch,
   error,
+  clearError,
   pending,
   mutate,
   mutateFinance,
@@ -1245,11 +1360,7 @@ function ExecutionDetail({
   setReversementFile,
   reversementUploadError,
   setReversementUploadError,
-  onFinancePage,
-  onFinanceSelect,
   onZeroSpendingPage,
-  onVirementPage,
-  onVirementSelect,
   onConfirmationPage,
   onReversementPage,
 }) {
@@ -1261,27 +1372,13 @@ function ExecutionDetail({
     completed_tasks: detail.completed_tasks ?? 0,
     progress: detail.progress ?? null,
   }
-  const [selectedTaskId, setSelectedTaskId] = useState(null)
-  const [selectedSubtaskId, setSelectedSubtaskId] = useState(null)
-  const [selectedZeroSpendingId, setSelectedZeroSpendingId] = useState(null)
-  const [financialDrawer, setFinancialDrawer] = useState(
-    selectedFinance
-      ? 'disbursement'
-      : virementSelectedBySearch && selectedVirement
-        ? 'virement'
-        : null,
-  )
-  const [financialModalMode, setFinancialModalMode] = useState(
-    selectedFinance || (virementSelectedBySearch && selectedVirement)
-      ? 'review'
-      : 'new',
-  )
-  const taskOpener = useRef(null)
-  const financialDrawerOpener = useRef(null)
-  const selectedTask = tasks.find((task) => task.id === selectedTaskId)
-  const selectedTarget = selectedSubtaskId
-    ? selectedTask?.subtasks.find((child) => child.id === selectedSubtaskId)
-    : selectedTask
+  const [financialModal, setFinancialModal] = useState(null)
+  const [financialModalMode, setFinancialModalMode] = useState('new')
+  const financialModalOpener = useRef(null)
+  const closeFinancialModal = () => {
+    clearError()
+    setFinancialModal(null)
+  }
   const recordedTasks = tasks.filter(
     (task) => task.actual_spent !== null,
   ).length
@@ -1347,13 +1444,34 @@ function ExecutionDetail({
       drawer: 'zero',
     })),
   ]
+  const financialPages = [
+    {
+      key: 'disbursement',
+      label: 'Décaissements',
+      result: finance,
+      onPage: onFinancePage,
+      busy: financeBusy,
+    },
+    {
+      key: 'virement',
+      label: 'Virements',
+      result: virements,
+      onPage: onVirementPage,
+      busy: virementBusy,
+    },
+    {
+      key: 'zero',
+      label: 'Déclarations sans dépense',
+      result: zeroSpending,
+      onPage: onZeroSpendingPage,
+      busy: zeroSpendingBusy,
+    },
+  ].filter(({ result }) => result?.previous || result?.next)
   const openFinancialRequest = (request, trigger) => {
-    financialDrawerOpener.current = trigger
+    clearError()
+    financialModalOpener.current = trigger
     setFinancialModalMode('review')
-    if (request.drawer === 'disbursement') onFinanceSelect(request.id)
-    if (request.drawer === 'virement') onVirementSelect(request.id)
-    if (request.drawer === 'zero') setSelectedZeroSpendingId(request.id)
-    setFinancialDrawer(request.drawer)
+    setFinancialModal(request.drawer)
   }
   const newFinancialRequest =
     role === 'AGENT_SAISIE' &&
@@ -1368,7 +1486,7 @@ function ExecutionDetail({
           : role === 'AGENT_SAISIE' && detail.disbursement_can_submit
             ? 'disbursement'
             : null
-  const financialDrawerLabels = {
+  const financialModalLabels = {
     disbursement: strings.disbursementAuthorization,
     virement: strings.virementAuthorization,
     funding: strings.fundingTitle,
@@ -1378,12 +1496,16 @@ function ExecutionDetail({
     financialModalMode === 'new'
       ? strings.newFinancialRequest
       : financialModalMode === 'create'
-        ? financialDrawer === 'virement'
+        ? financialModal === 'virement'
           ? strings.virementRequest
-          : financialDrawer === 'disbursement'
+          : financialModal === 'disbursement'
             ? strings.disbursementRequest
-            : financialDrawerLabels[financialDrawer] || strings.financialRequest
-        : financialDrawerLabels[financialDrawer] || strings.financialRequest
+            : financialModalLabels[financialModal] || strings.financialRequest
+        : financialModal === 'virement'
+          ? strings.virementRequest
+          : financialModal === 'disbursement'
+            ? strings.disbursementRequest
+            : financialModalLabels[financialModal] || strings.financialRequest
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
@@ -1463,11 +1585,10 @@ function ExecutionDetail({
               key={detail.works_completed ? 'completed' : 'in-progress'}
               embedded
               detail={taskDetail}
-              onSelect={(taskId, subtaskId, opener) => {
-                taskOpener.current = opener
-                setSelectedTaskId(taskId)
-                setSelectedSubtaskId(subtaskId)
-              }}
+              pending={pending}
+              mutate={mutate}
+              error={error}
+              clearError={clearError}
             />
             <section className="border-t border-border px-6 py-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1497,24 +1618,25 @@ function ExecutionDetail({
                             ? `Terminez la tâche « ${task.name} ».`
                             : `${count} tâches à terminer.`}
                         </span>
-                        <Button
-                          type="button"
+                        <ExecutionTaskAction
+                          activity={detail}
+                          task={task}
+                          target={target}
+                          isSubtask={group.kind === 'subtask'}
                           variant="link"
                           size="sm"
-                          onClick={(event) => {
-                            taskOpener.current = event.currentTarget
-                            setSelectedTaskId(task.id)
-                            setSelectedSubtaskId(
-                              group.kind === 'subtask' ? subtask?.id : null,
-                            )
-                          }}
-                        >
-                          {canRecord
-                            ? group.kind === 'subtask'
-                              ? 'Renseigner les sous-tâches'
-                              : 'Renseigner la tâche'
-                            : 'Consulter'}
-                        </Button>
+                          pending={pending}
+                          mutate={mutate}
+                          error={error}
+                          clearError={clearError}
+                          label={
+                            canRecord
+                              ? group.kind === 'subtask'
+                                ? 'Renseigner les sous-tâches'
+                                : 'Renseigner la tâche'
+                              : 'Consulter'
+                          }
+                        />
                       </div>
                     )
                   })}
@@ -1544,38 +1666,6 @@ function ExecutionDetail({
               </div>
             </section>
           </Panel>
-          <Modal
-            open={Boolean(selectedTarget)}
-            onClose={() => {
-              setSelectedTaskId(null)
-              setSelectedSubtaskId(null)
-            }}
-            label={selectedTarget?.name || 'Tâche'}
-            opener={taskOpener}
-            className="w-[min(560px,calc(100%-32px))]"
-          >
-            {selectedTask && selectedTarget && (
-              <TaskEditor
-                activity={detail}
-                task={selectedTask}
-                target={selectedTarget}
-                isSubtask={Boolean(selectedSubtaskId)}
-                pending={pending}
-                onCancel={() => {
-                  setSelectedTaskId(null)
-                  setSelectedSubtaskId(null)
-                }}
-                mutate={async (...args) => {
-                  const result = await mutate(...args)
-                  if (result !== false) {
-                    setSelectedTaskId(null)
-                    setSelectedSubtaskId(null)
-                  }
-                  return result
-                }}
-              />
-            )}
-          </Modal>
         </>
       )}
       {section !== 'realization' && (
@@ -1677,10 +1767,10 @@ function ExecutionDetail({
                   type="button"
                   size="sm"
                   onClick={(event) => {
-                    financialDrawerOpener.current = event.currentTarget
-                    setSelectedZeroSpendingId(null)
+                    clearError()
+                    financialModalOpener.current = event.currentTarget
                     setFinancialModalMode('new')
-                    setFinancialDrawer('chooser')
+                    setFinancialModal('chooser')
                   }}
                 >
                   {strings.newFinancialRequest}
@@ -1703,77 +1793,38 @@ function ExecutionDetail({
                     </tr>
                   </thead>
                   <tbody>
-                    {financialRequests.map((request) => {
-                      const actions = request.allowed_actions || []
-                      const actionLabel = actions.some((action) =>
-                        ['prevalidate', 'approve'].includes(action),
-                      )
-                        ? 'Examiner'
-                        : request.state === 'returned' &&
-                            role === 'AGENT_SAISIE'
-                          ? 'Reprendre'
-                          : 'Consulter'
-                      const latestDecision =
-                        latestAdministrativeDecision(request)
-                      const decisionActor =
-                        administrativeDecisionActor(latestDecision)
-                      return (
-                        <tr
-                          key={`${request.kind}:${request.id}`}
-                          className="border-b border-border last:border-0"
-                        >
-                          <td className="p-3">
-                            <strong className="block text-navy">
-                              {request.kind}
-                            </strong>
-                            <span className="text-xs text-muted-foreground">
-                              {request.submitted_at
-                                ? `${request.kind.toLocaleLowerCase('fr')} · ${formatDate(request.submitted_at)}`
-                                : 'Date non renseignée'}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-medium">
-                            {formatXof(request.amount)}
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge
-                              className={administrativeStateClass(
-                                request.state,
-                              )}
-                            >
-                              {administrativeStates[request.state] ||
-                                request.state}
-                            </StatusBadge>
-                            {latestDecision && (
-                              <span className="mt-1 block text-xs text-muted-foreground">
-                                {administrativeDecisionLabels[
-                                  latestDecision.outcome
-                                ] || latestDecision.outcome}
-                                {decisionActor ? ` · ${decisionActor}` : ''}
-                                {latestDecision.decided_at
-                                  ? ` · ${formatDateTime(latestDecision.decided_at)}`
-                                  : ''}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 text-right">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={(event) => {
-                                openFinancialRequest(
-                                  request,
-                                  event.currentTarget,
-                                )
-                              }}
-                            >
-                              {actionLabel}
-                            </Button>
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {financialRequests.map((request) => (
+                      <FinancialRequestTableRow
+                        key={`${request.kind}:${request.id}`}
+                        request={request}
+                        detail={detail}
+                        result={
+                          request.drawer === 'disbursement'
+                            ? finance
+                            : request.drawer === 'virement'
+                              ? virements
+                              : request.drawer === 'zero'
+                                ? zeroSpending
+                                : null
+                        }
+                        role={role}
+                        authorizedAmount={
+                          request.drawer === 'virement'
+                            ? approvedVirementAmount
+                            : authorizedAmount
+                        }
+                        historicalPage={
+                          request.drawer === 'virement'
+                            ? virementHistoryPage
+                            : financeHistoryPage
+                        }
+                        pending={pending}
+                        mutate={mutateFinance}
+                        onOpenOther={openFinancialRequest}
+                        error={error}
+                        clearError={clearError}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1782,20 +1833,48 @@ function ExecutionDetail({
                 Aucune demande financière.
               </p>
             )}
+            {financialPages.length > 0 && (
+              <div className="grid gap-3 border-t border-border px-6 py-4">
+                {financialPages.map(({ key, label, result, onPage, busy }) => (
+                  <div
+                    key={key}
+                    className="flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <span className="text-xs text-muted-foreground">
+                      {label}
+                    </span>
+                    <Pagination
+                      label={`Pagination — ${label}`}
+                      canPrevious={Boolean(result.previous)}
+                      canNext={Boolean(result.next)}
+                      busy={busy}
+                      size="sm"
+                      onPrevious={() => onPage(result.previous)}
+                      onNext={() => onPage(result.next)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </Panel>
           <Modal
-            open={Boolean(financialDrawer)}
-            onClose={() => {
-              setFinancialDrawer(null)
-              setSelectedZeroSpendingId(null)
-            }}
+            open={Boolean(financialModal)}
+            onClose={closeFinancialModal}
             label={financialModalLabel}
-            opener={financialDrawerOpener}
-            variant={financialModalMode === 'review' ? 'drawer' : 'dialog'}
-            size={financialModalMode === 'review' ? 'wide' : 'standard'}
+            opener={financialModalOpener}
+            variant="dialog"
+            size="standard"
           >
             <div className="p-6 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:shadow-none">
-              {financialDrawer === 'chooser' && (
+              {error && (
+                <p
+                  role="alert"
+                  className="mb-4 border-l-4 border-l-danger bg-white p-3"
+                >
+                  {error}
+                </p>
+              )}
+              {financialModal === 'chooser' && (
                 <div className="grid gap-0">
                   {[
                     {
@@ -1848,8 +1927,9 @@ function ExecutionDetail({
                           variant="outline"
                           aria-label={`Créer — ${option.label}`}
                           onClick={() => {
+                            clearError()
                             setFinancialModalMode('create')
-                            setFinancialDrawer(option.key)
+                            setFinancialModal(option.key)
                           }}
                         >
                           Créer
@@ -1859,39 +1939,36 @@ function ExecutionDetail({
                   )}
                 </div>
               )}
-              {financialDrawer === 'zero' && (
+              {financialModal === 'zero' && (
                 <ZeroSpendingSection
                   fallback={sectionFallbacks.zeroSpending}
                   detail={detail}
                   result={zeroSpending}
-                  selectedId={selectedZeroSpendingId}
+                  current={null}
                   role={role}
                   pending={pending}
                   mutate={mutateFinance}
-                  onPage={onZeroSpendingPage}
-                  onCancel={() => setFinancialDrawer(null)}
+                  onCancel={closeFinancialModal}
                 />
               )}
-              {financialDrawer === 'disbursement' &&
+              {financialModal === 'disbursement' &&
                 (detail.works_completed ? (
                   <DisbursementSection
                     fallback={sectionFallbacks.finance}
                     detail={detail}
                     result={finance}
-                    selected={selectedFinance}
+                    selected={null}
                     role={role}
                     authorizedAmount={authorizedAmount}
                     historicalPage={financeHistoryPage}
                     pending={pending}
                     mutate={mutateFinance}
-                    onPage={onFinancePage}
-                    onSelect={onFinanceSelect}
-                    onCancel={() => setFinancialDrawer(null)}
+                    onCancel={closeFinancialModal}
                   />
                 ) : (
                   <p>{strings.previousStepsIncomplete}</p>
                 ))}
-              {financialDrawer === 'virement' &&
+              {financialModal === 'virement' &&
                 (detail.works_completed ? (
                   <VirementSection
                     fallback={sectionFallbacks.virements}
@@ -1903,14 +1980,12 @@ function ExecutionDetail({
                     historicalPage={virementHistoryPage}
                     pending={pending}
                     mutate={mutateFinance}
-                    onPage={onVirementPage}
-                    onSelect={onVirementSelect}
-                    onCancel={() => setFinancialDrawer(null)}
+                    onCancel={closeFinancialModal}
                   />
                 ) : (
                   <p>{strings.previousStepsIncomplete}</p>
                 ))}
-              {financialDrawer === 'funding' && (
+              {financialModal === 'funding' && (
                 <FundingSection
                   fallback={sectionFallbacks.funding}
                   detail={detail}
@@ -1918,7 +1993,7 @@ function ExecutionDetail({
                   pending={pending}
                   mutate={mutateFinance}
                   onPage={onFundingPage}
-                  onCancel={() => setFinancialDrawer(null)}
+                  onCancel={closeFinancialModal}
                 />
               )}
             </div>
@@ -2021,31 +2096,34 @@ function ZeroSpendingSection({
   fallback,
   detail,
   result,
-  selectedId,
+  current,
   role,
   pending,
   mutate,
-  onPage,
   onCancel,
 }) {
+  const draftBasis = useRef(null)
   if (!result) return fallback
   const declarations = result.data
-  const selected = selectedId
-    ? declarations.find((row) => row.id === selectedId)
-    : null
-  const current =
-    selected || declarations.find((row) => row.state !== 'returned')
-  const currentIsOnNewerPage =
-    !current &&
-    Boolean(result?.previous) &&
-    detail.mutation_unavailable_reason === 'zero_spending_frozen'
+  const active = current || declarations.find((row) => row.state !== 'returned')
   const stateLabels = {
     submitted: 'Soumise au Superviseur',
     prevalidated: 'Prévalidée, en attente du Validateur',
     returned: 'Retournée pour correction',
     approved: 'Validée',
   }
-  const version = current?.activity_version || detail.version
+  const version = active?.activity_version || detail.version
+  const captureDraftBasis = () => {
+    draftBasis.current ??= {
+      version,
+      approvedRevisionId: detail.approved_revision_id,
+    }
+  }
+  const submit = async (path, body) => {
+    const response = await mutate(path, body)
+    if (response !== false) onCancel()
+    return response
+  }
   return (
     <Panel
       aria-labelledby="zero-spending-title"
@@ -2058,20 +2136,20 @@ function ZeroSpendingSection({
           </p>
           <h2 id="zero-spending-title">Déclaration de dépense nulle</h2>
         </div>
-        {current && <strong>{stateLabels[current.state]}</strong>}
+        {active && <strong>{stateLabels[active.state]}</strong>}
       </div>
       <p>
         Confirmez pourquoi toutes les tâches ont été réalisées sans dépense.
         Cette déclaration remplace le parcours de décaissement uniquement après
         la validation du Superviseur et du Validateur.
       </p>
-      {current ? (
+      {active ? (
         <>
           <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-            Motif : {current.reason}
+            Motif : {active.reason}
           </p>
           <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-            {current.decisions.map((decision) => (
+            {active.decisions.map((decision) => (
               <li key={decision.id}>
                 <strong>
                   {decision.stage === 'supervisor'
@@ -2087,43 +2165,44 @@ function ZeroSpendingSection({
             <Button type="button" variant="outline" onClick={onCancel}>
               Annuler
             </Button>
-            {current.allowed_actions.includes('prevalidate') && (
+            {active.allowed_actions.includes('prevalidate') && (
               <Button
                 disabled={pending || !navigator.onLine}
                 onClick={() =>
-                  mutate(
-                    `/zero-spending-declarations/${current.id}/decisions`,
-                    { expected_version: version, decision: 'prevalidate' },
-                  )
+                  submit(`/zero-spending-declarations/${active.id}/decisions`, {
+                    expected_version: version,
+                    decision: 'prevalidate',
+                  })
                 }
               >
-                <ShieldCheck size={16} /> Prévalider
+                Prévalider
               </Button>
             )}
-            {current.allowed_actions.includes('approve') && (
+            {active.allowed_actions.includes('approve') && (
               <Button
                 disabled={pending || !navigator.onLine}
                 onClick={() =>
-                  mutate(
-                    `/zero-spending-declarations/${current.id}/decisions`,
-                    { expected_version: version, decision: 'approve' },
-                  )
+                  submit(`/zero-spending-declarations/${active.id}/decisions`, {
+                    expected_version: version,
+                    decision: 'approve',
+                  })
                 }
               >
-                <ShieldCheck size={16} /> Valider
+                Valider
               </Button>
             )}
           </div>
-          {current.allowed_actions.includes('return') && (
+          {active.allowed_actions.includes('return') && (
             <BusinessForm
               className="grid gap-5 [&_>_label]:w-full"
+              onChangeCapture={captureDraftBasis}
               onSubmit={(event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
-                return mutate(
-                  `/zero-spending-declarations/${current.id}/decisions`,
+                return submit(
+                  `/zero-spending-declarations/${active.id}/decisions`,
                   {
-                    expected_version: version,
+                    expected_version: draftBasis.current?.version ?? version,
                     decision: 'return',
                     reason: String(data.get('reason') || ''),
                   },
@@ -2144,24 +2223,20 @@ function ZeroSpendingSection({
             </BusinessForm>
           )}
         </>
-      ) : currentIsOnNewerPage ? (
-        <div className="flex gap-2 items-end flex-wrap">
-          <p>La déclaration en cours se trouve sur une page plus récente.</p>
-          <Button variant="outline" onClick={() => onPage(null)}>
-            Revenir à la déclaration en cours
-          </Button>
-        </div>
       ) : role === 'AGENT_SAISIE' &&
         detail.mutation_unavailable_reason !==
           'activity_assignment_required' ? (
         <BusinessForm
           className="grid gap-5 [&_>_label]:w-full"
+          onChangeCapture={captureDraftBasis}
           onSubmit={(event) => {
             event.preventDefault()
             const data = new FormData(event.currentTarget)
-            return mutate('/zero-spending-declarations', {
-              expected_version: detail.version,
-              expected_approved_revision_id: detail.approved_revision_id,
+            return submit('/zero-spending-declarations', {
+              expected_version: draftBasis.current?.version ?? detail.version,
+              expected_approved_revision_id:
+                draftBasis.current?.approvedRevisionId ??
+                detail.approved_revision_id,
               reason: String(data.get('reason') || ''),
             })
           }}
@@ -2196,13 +2271,6 @@ function ZeroSpendingSection({
           </ol>
         </details>
       )}
-      <Pagination
-        label="Pagination des déclarations sans dépense"
-        canPrevious={Boolean(result?.previous)}
-        canNext={Boolean(result?.next)}
-        onPrevious={() => onPage(result.previous)}
-        onNext={() => onPage(result.next)}
-      />
     </Panel>
   )
 }
@@ -2292,8 +2360,6 @@ function DisbursementSection({
   historicalPage,
   pending,
   mutate,
-  onPage,
-  onSelect,
   onCancel,
 }) {
   if (!result) return fallback
@@ -2364,6 +2430,7 @@ function DisbursementSection({
             path="/disbursement-requests"
             pending={pending}
             mutate={mutate}
+            onSuccess={onCancel}
             className="order-last [&_>_label]:w-full"
           />
         </>
@@ -2400,34 +2467,6 @@ function DisbursementSection({
         ) : (
           <p>Consultez l’état et l’historique de l’autorisation.</p>
         ))}
-      {requests.length > 0 && (
-        <details>
-          <summary>Historique des demandes ({result.count})</summary>
-          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-            {requests.map((request) => (
-              <li key={request.id}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onSelect(request.id)}
-                >
-                  {stateLabels[request.state]} · {formatXof(request.amount)}
-                </Button>
-                {request.cancellation?.reason && (
-                  <p>{request.cancellation.reason}</p>
-                )}
-              </li>
-            ))}
-          </ol>
-          <Pagination
-            label="Pagination financière"
-            canPrevious={Boolean(result.previous)}
-            canNext={Boolean(result.next)}
-            onPrevious={() => onPage(result.previous)}
-            onNext={() => onPage(result.next)}
-          />
-        </details>
-      )}
     </Panel>
   )
 }
@@ -2937,12 +2976,9 @@ function VirementSection({
   historicalPage,
   pending,
   mutate,
-  onPage,
-  onSelect,
   onCancel,
 }) {
   if (!result) return fallback
-  const requests = result.data
   const context = detail.virement_context
   const stateLabels = {
     submitted: 'Soumise au Superviseur',
@@ -3007,6 +3043,7 @@ function VirementSection({
             path="/virement-requests"
             pending={pending}
             mutate={mutate}
+            onSuccess={onCancel}
             className="[&_>_label]:w-full"
           />
         </>
@@ -3040,34 +3077,6 @@ function VirementSection({
               : 'Consultez l’état et l’historique de l’autorisation.'}
           </p>
         ))}
-      {requests.length > 0 && (
-        <details>
-          <summary>Historique des demandes ({result.count})</summary>
-          <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
-            {requests.map((request) => (
-              <li key={request.id}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onSelect(request.id)}
-                >
-                  {stateLabels[request.state]} · {formatXof(request.amount)}
-                </Button>
-                {request.cancellation?.reason && (
-                  <p>{request.cancellation.reason}</p>
-                )}
-              </li>
-            ))}
-          </ol>
-          <Pagination
-            label="Pagination des virements"
-            canPrevious={Boolean(result.previous)}
-            canNext={Boolean(result.next)}
-            onPrevious={() => onPage(result.previous)}
-            onNext={() => onPage(result.next)}
-          />
-        </details>
-      )}
     </Panel>
   )
 }

@@ -2,7 +2,6 @@ import { Urls } from '@/app/urls'
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { useAccess } from '@/features/auth/session/access-verification'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
@@ -76,7 +75,6 @@ export function PlanningIndex() {
               setOpen(true)
             }}
           >
-            <Plus size={16} />
             {metadata.create}
           </Button>
         )}

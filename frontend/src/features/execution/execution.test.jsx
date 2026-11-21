@@ -326,7 +326,7 @@ test('legacy execution detail URLs enter the canonical activity shell', async ()
   const router = makeRouter(
     createMemoryHistory({
       initialEntries: [
-        '/execution/activities/activity-1?financeRequest=request-1&financeCursor=older',
+        '/execution/activities/activity-1?financeRequest=request-1&virementRequest=virement-1&financeCursor=older',
       ],
     }),
     { planning: () => <p>Canonical activity shell</p> },
@@ -338,9 +338,10 @@ test('legacy execution detail URLs enter the canonical activity shell', async ()
   expect(router.state.location.search).toMatchObject({
     tab: 'realization',
     origin: 'execution',
-    financeRequest: 'request-1',
     financeCursor: 'older',
   })
+  expect(router.state.location.search.financeRequest).toBeUndefined()
+  expect(router.state.location.search.virementRequest).toBeUndefined()
 })
 
 test('financial summary keeps the current authorization state on older history pages', async () => {
@@ -491,12 +492,10 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     allowed_actions: ['read'],
     activity_version: execution.version,
   }
-  const requests = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url) => {
       const path = String(url)
-      requests.push(path)
       if (path.includes('/auth/session'))
         return new Response(
           JSON.stringify({
@@ -521,6 +520,8 @@ test('activity tabs keep one header and preserve the execution sidebar context',
         return new Response(JSON.stringify(execution))
       if (path.endsWith('/activities/activity-1'))
         return new Response(JSON.stringify(activity))
+      if (path.endsWith('/funding-requests'))
+        return new Response('{}', { status: 503 })
       if (path.endsWith('/disbursement-requests/finance-returned'))
         return new Response(JSON.stringify(historicalRequest))
       if (path.includes('/disbursement-requests?cursor=older'))
@@ -544,17 +545,12 @@ test('activity tabs keep one header and preserve the execution sidebar context',
       return new Response(JSON.stringify(empty))
     }),
   )
-  render(
-    <App
-      router={makeExecutionRouter(
-        createMemoryHistory({
-          initialEntries: [
-            '/activities/activity-1?tab=finance&origin=execution',
-          ],
-        }),
-      )}
-    />,
+  const router = makeExecutionRouter(
+    createMemoryHistory({
+      initialEntries: ['/activities/activity-1?tab=finance&origin=execution'],
+    }),
   )
+  render(<App router={router} />)
 
   const header = await screen.findByRole(
     'heading',
@@ -570,6 +566,23 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     ).getByRole('link', { name: 'Réalisation' }),
   ).toHaveAttribute('aria-current', 'page')
   expect(await screen.findByText('Montant autorisé')).toBeVisible()
+  const financialRequests = screen.getByRole('region', {
+    name: 'Demandes financières',
+  })
+  expect(
+    within(financialRequests).getByRole('button', { name: 'Suivant' }),
+  ).toBeEnabled()
+  await user.click(
+    within(financialRequests).getByRole('button', { name: 'Suivant' }),
+  )
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe('/activities/activity-1')
+    expect(router.state.location.search.tab).toBe('finance')
+    expect(router.state.location.search.financeCursor).toBe('older')
+  })
+  expect(
+    await screen.findByRole('region', { name: 'Demandes financières' }),
+  ).toBeVisible()
   const financialFacts = within(
     screen.getByRole('region', { name: 'Situation financière' }),
   )
@@ -603,25 +616,7 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:activity-fiche'),
   )
   await openFinancialDrawer(user, 'Reprendre')
-  await user.click(screen.getByText('Historique des demandes (1)'))
-  await user.click(
-    screen.getByRole('button', { name: /Retournée pour correction/ }),
-  )
-  await waitFor(() =>
-    expect(
-      requests.some((path) =>
-        path.endsWith('/disbursement-requests/finance-returned'),
-      ),
-    ).toBe(true),
-  )
-  await user.click(screen.getByRole('button', { name: 'Suivant', exact: true }))
-  await waitFor(() =>
-    expect(
-      requests.some((path) =>
-        path.includes('/disbursement-requests?cursor=older'),
-      ),
-    ).toBe(true),
-  )
+  expect(screen.queryByText(/Historique des demandes/)).toBeNull()
 
   await user.click(screen.getByRole('link', { name: 'Programmation' }))
   expect(screen.getByRole('heading', { name: 'Former les équipes' })).toBe(
@@ -901,6 +896,9 @@ test('agent completes a subtask and keeps the draft after a failed save', async 
   expect(
     screen.getByRole('dialog', { name: 'Réserver la salle' }),
   ).toBeVisible()
+  expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
   expect(screen.getByLabelText('Dépense enregistrée (F CFA)')).toHaveValue(
     '45 000',
   )
@@ -1522,7 +1520,7 @@ test.each([
 
 test('Agent submits a zero-spending declaration without financial requests', async () => {
   const user = userEvent.setup()
-  const current = {
+  let current = {
     ...detail({ started: true, completed: true }),
     spending_total: '0',
     balance: '100000',
@@ -1545,6 +1543,7 @@ test('Agent submits a zero-spending declaration without financial requests', asy
     previous: null,
   }
   const emptyList = { ...declarations }
+  let submissionAttempts = 0
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.includes('/funding-requests'))
@@ -1580,6 +1579,19 @@ test('Agent submits a zero-spending declaration without financial requests', asy
       path.endsWith('/zero-spending-declarations') &&
       options.method === 'POST'
     ) {
+      submissionAttempts += 1
+      if (submissionAttempts === 1)
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              detail: {
+                code: 'zero_spending_invalid',
+                message: 'La déclaration doit être corrigée.',
+              },
+            }),
+            { status: 422 },
+          ),
+        )
       const body = JSON.parse(options.body)
       declarations = {
         ...declarations,
@@ -1618,15 +1630,12 @@ test('Agent submits a zero-spending declaration without financial requests', asy
     return Promise.resolve(new Response('{}', { status: 404 }))
   })
   vi.stubGlobal('fetch', fetch)
-  render(
-    <App
-      router={makeExecutionRouter(
-        createMemoryHistory({
-          initialEntries: ['/execution/activities/activity-1'],
-        }),
-      )}
-    />,
+  const router = makeExecutionRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    }),
   )
+  render(<App router={router} />)
   await openFinancialDrawer(user)
   expect(
     await screen.findByRole('heading', {
@@ -1649,12 +1658,29 @@ test('Agent submits a zero-spending declaration without financial requests', asy
     screen.getByLabelText('Motif de l’absence de dépense *'),
     'Les moyens propres ont suffi.',
   )
+  current = { ...current, version: 8 }
+  await act(async () =>
+    router.options.context.queryClient.setQueryData(
+      ['execution', 'agent', 'activity', 'activity-1'],
+      current,
+    ),
+  )
   await user.click(
     screen.getByRole('button', { name: 'Soumettre la déclaration' }),
   )
+  const dialog = screen.getByRole('dialog')
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Déclaration refusée. Vérifiez le motif saisi.',
+  )
   expect(
-    await screen.findByText('Motif : Les moyens propres ont suffi.'),
-  ).toBeVisible()
+    within(dialog).getByLabelText('Motif de l’absence de dépense *'),
+  ).toHaveValue('Les moyens propres ont suffi.')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Soumettre la déclaration' }),
+  )
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
   expect(fetch).toHaveBeenCalledWith(
     '/api/v1/activities/activity-1/zero-spending-declarations',
     expect.objectContaining({
@@ -1669,17 +1695,18 @@ test('Agent submits a zero-spending declaration without financial requests', asy
 })
 
 test.each([
+  ['AGENT_VERIFICATEUR', 'submitted', 'prevalidate', 'Prévalider', null],
+  ['VALIDATEUR_DEFINITIF', 'prevalidated', 'approve', 'Valider', null],
   [
     'AGENT_VERIFICATEUR',
     'submitted',
-    'prevalidate',
-    'Prévalider',
-    'Prévalidée, en attente du Validateur',
+    'return',
+    'Retourner',
+    'Précisez le motif.',
   ],
-  ['VALIDATEUR_DEFINITIF', 'prevalidated', 'approve', 'Valider', 'Validée'],
 ])(
   '%s performs the projected zero-spending review action',
-  async (role, initialState, decision, buttonLabel, finalLabel) => {
+  async (role, initialState, decision, buttonLabel, returnReason) => {
     const user = userEvent.setup()
     const current = {
       ...detail({ started: true, completed: true }),
@@ -1798,20 +1825,43 @@ test.each([
       return Promise.resolve(new Response('{}', { status: 404 }))
     })
     vi.stubGlobal('fetch', fetch)
-    render(
-      <App
-        router={makeExecutionRouter(
-          createMemoryHistory({
-            initialEntries: ['/execution/activities/activity-1'],
-          }),
-        )}
-      />,
+    const router = makeExecutionRouter(
+      createMemoryHistory({
+        initialEntries: ['/execution/activities/activity-1'],
+      }),
     )
-    await openFinancialDrawer(user, 'Examiner')
+    render(<App router={router} />)
+    await openFinancialDrawer(
+      user,
+      decision === 'return' ? 'Consulter' : 'Examiner',
+    )
     if (decision === 'prevalidate') {
       expect(await screen.findByLabelText('Motif du retour *')).toBeVisible()
     }
+    if (decision === 'return') {
+      await user.type(
+        await screen.findByLabelText('Motif du retour *'),
+        returnReason,
+      )
+      declaration = { ...declaration, activity_version: 9 }
+      const zeroQuery = router.options.context.queryClient
+        .getQueryCache()
+        .getAll()
+        .find((query) => query.queryKey[2] === 'zero-spending')
+      await act(async () =>
+        router.options.context.queryClient.setQueryData(zeroQuery.queryKey, {
+          object: 'list',
+          count: 1,
+          data: [declaration],
+          next: null,
+          previous: null,
+        }),
+      )
+    }
     await user.click(await screen.findByRole('button', { name: buttonLabel }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
     if (decision === 'approve') {
       await waitFor(() =>
         expect(
@@ -1820,14 +1870,16 @@ test.each([
           ).getByText('Approuvée'),
         ).toBeVisible(),
       )
-    } else {
-      expect(await screen.findByText(finalLabel)).toBeVisible()
     }
     expect(fetch).toHaveBeenCalledWith(
       '/api/v1/activities/activity-1/zero-spending-declarations/zero-1/decisions',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ expected_version: 7, decision }),
+        body: JSON.stringify({
+          expected_version: 7,
+          decision,
+          ...(returnReason ? { reason: returnReason } : {}),
+        }),
       }),
     )
     if (decision === 'approve') {
@@ -2472,14 +2524,11 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
         return new Response(JSON.stringify(body))
       }),
     )
-    const search = kind === 'virement' ? 'virementRequest' : 'financeRequest'
     render(
       <App
         router={makeExecutionRouter(
           createMemoryHistory({
-            initialEntries: [
-              `/execution/activities/activity-1?${search}=returned-1`,
-            ],
+            initialEntries: ['/execution/activities/activity-1'],
           }),
         )}
       />,
@@ -2489,7 +2538,10 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
       expect(await screen.findByText('Vérifier le dossier.')).toBeVisible()
       await user.click(screen.getByRole('button', { name: 'Fermer' }))
       await openFinancialDrawer(user)
-    } else expect(await screen.findByText('Vérifier le dossier.')).toBeVisible()
+    } else {
+      await openFinancialDrawer(user, 'Reprendre')
+      expect(await screen.findByText('Vérifier le dossier.')).toBeVisible()
+    }
     expect(
       screen.queryByRole('button', { name: 'Annuler la demande' }),
     ).not.toBeInTheDocument()
@@ -2535,6 +2587,7 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
 test('Agent submits finalized spending for disbursement authorization', async () => {
   const user = userEvent.setup()
   let requests = []
+  let cancellationAttempts = 0
   const fetch = vi.fn((url, options = {}) => {
     const path = String(url)
     if (path.includes('/funding-requests'))
@@ -2594,6 +2647,19 @@ test('Agent submits finalized spending for disbursement authorization', async ()
       return Promise.resolve(new Response(JSON.stringify(requests[0])))
     }
     if (path.endsWith('/cancellation') && options.method === 'POST') {
+      cancellationAttempts += 1
+      if (cancellationAttempts === 1)
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              detail: {
+                code: 'version_conflict',
+                message: 'La demande a changé. Réessayez.',
+              },
+            }),
+            { status: 409 },
+          ),
+        )
       requests[0] = {
         ...requests[0],
         state: 'cancelled',
@@ -2679,22 +2745,45 @@ test('Agent submits finalized spending for disbursement authorization', async ()
       name: 'Consulter',
     }),
   )
-  await waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/activities/activity-1/disbursement-requests/33333333-3333-4333-8333-333333333333',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    ),
+  expect(
+    await screen.findByRole('dialog', { name: 'Demande de décaissement' }),
+  ).toBeVisible()
+  expect(fetch).not.toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/disbursement-requests/33333333-3333-4333-8333-333333333333',
+    expect.anything(),
   )
   await user.type(screen.getByLabelText('Motif *'), 'Corriger les montants.')
   await user.click(screen.getByRole('button', { name: 'Annuler la demande' }))
+  const cancellationDialog = screen.getByRole('dialog', {
+    name: 'Demande de décaissement',
+  })
   expect(
-    await screen.findByRole('button', { name: 'Faire la demande' }),
+    await within(cancellationDialog).findByRole('alert'),
+  ).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
+  expect(within(cancellationDialog).getByLabelText('Motif *')).toHaveValue(
+    'Corriger les montants.',
+  )
+  await user.click(
+    within(cancellationDialog).getByRole('button', {
+      name: 'Annuler la demande',
+    }),
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Demande de décaissement' }),
+    ).toBeNull(),
+  )
+  expect(
+    screen.getByRole('region', { name: 'Demandes financières' }),
   ).toBeVisible()
 })
 
-test('financial review drawer sends an optional observation without editable amount or file', async () => {
+test('financial review opens as a local modal without replacing the Activity page', async () => {
   const user = userEvent.setup()
   let decisionBody = null
+  let decisionAttempts = 0
   let request = {
     id: '33333333-3333-4333-8333-333333333333',
     activity_id: 'activity-1',
@@ -2705,6 +2794,14 @@ test('financial review drawer sends an optional observation without editable amo
     decisions: [],
     cancellation: null,
     allowed_actions: ['read', 'prevalidate', 'return'],
+  }
+  const olderRequest = {
+    ...request,
+    id: '22222222-2222-4222-8222-222222222222',
+    amount: '50000',
+    state: 'cancelled',
+    submitted_at: '2026-10-20T09:00:00Z',
+    allowed_actions: ['read'],
   }
   const empty = {
     object: 'list',
@@ -2734,7 +2831,18 @@ test('financial review drawer sends an optional observation without editable amo
         path.endsWith(`/disbursement-requests/${request.id}/decisions`) &&
         options.method === 'POST'
       ) {
+        decisionAttempts += 1
         decisionBody = JSON.parse(options.body)
+        if (decisionAttempts === 1)
+          return new Response(
+            JSON.stringify({
+              detail: {
+                code: 'version_conflict',
+                message: 'La demande a changé. Réessayez.',
+              },
+            }),
+            { status: 409 },
+          )
         request = {
           ...request,
           state: 'prevalidated',
@@ -2755,9 +2863,23 @@ test('financial review drawer sends an optional observation without editable amo
       }
       if (path.endsWith(`/disbursement-requests/${request.id}`))
         return new Response(JSON.stringify(request))
+      if (path.includes('/disbursement-requests?cursor=older'))
+        return new Response(
+          JSON.stringify({
+            ...empty,
+            count: 2,
+            data: [olderRequest],
+            previous: '/api/v1/activities/activity-1/disbursement-requests',
+          }),
+        )
       if (path.endsWith('/disbursement-requests'))
         return new Response(
-          JSON.stringify({ ...empty, count: 1, data: [request] }),
+          JSON.stringify({
+            ...empty,
+            count: 2,
+            data: [request],
+            next: '/api/v1/activities/activity-1/disbursement-requests?cursor=older',
+          }),
         )
       if (path.endsWith('/activities/activity-1/execution'))
         return new Response(
@@ -2767,26 +2889,105 @@ test('financial review drawer sends an optional observation without editable amo
     }),
   )
 
-  render(
-    <App
-      router={makeExecutionRouter(
-        createMemoryHistory({
-          initialEntries: ['/execution/activities/activity-1'],
-        }),
-      )}
-    />,
+  const history = createMemoryHistory({
+    initialEntries: ['/execution/activities/activity-1'],
+  })
+  const router = makeExecutionRouter(history)
+  render(<App router={router} />)
+
+  const financialRequests = await screen.findByRole('region', {
+    name: 'Demandes financières',
+  })
+  await user.click(
+    within(financialRequests).getByRole('button', { name: 'Suivant' }),
   )
+  await waitFor(() =>
+    expect(history.location.search).toContain('financeCursor=older'),
+  )
+  const olderFinancialRequests = await screen.findByRole('region', {
+    name: 'Demandes financières',
+  })
+  expect(
+    await within(olderFinancialRequests).findByText('50 000 F CFA'),
+  ).toBeVisible()
+  await user.click(
+    within(olderFinancialRequests).getByRole('button', { name: 'Précédent' }),
+  )
+  const currentFinancialRequests = await screen.findByRole('region', {
+    name: 'Demandes financières',
+  })
+  expect(
+    await within(currentFinancialRequests).findByText('100 000 F CFA'),
+  ).toBeVisible()
 
   const dialog = await openFinancialDrawer(user, 'Examiner')
-  expect(dialog).toHaveClass('h-dvh')
-  expect(dialog).toHaveClass('w-[min(640px,100%)]')
+  expect(dialog).toHaveAccessibleName('Demande de décaissement')
+  expect(dialog).not.toHaveClass('h-dvh')
+  expect(history.location.search).toBe('')
+  expect(currentFinancialRequests).toBeInTheDocument()
   expect(within(dialog).queryByLabelText(/montant/i)).toBeNull()
   expect(within(dialog).queryByLabelText(/pièce|fichier/i)).toBeNull()
   expect(within(dialog).queryByText('Pièces justificatives')).toBeNull()
+  expect(within(dialog).queryByText(/Historique des demandes/)).toBeNull()
+  const refreshedRequest = {
+    ...request,
+    state: 'prevalidated',
+    allowed_actions: ['read'],
+    decisions: [
+      {
+        id: 'remote-decision',
+        stage: 'supervisor',
+        outcome: 'prevalidated',
+        actor_name: 'Autre Superviseur',
+        decided_at: '2026-10-30T08:00:00Z',
+        reason: 'Décision distante.',
+      },
+    ],
+  }
+  const financeQueryKey = router.options.context.queryClient
+    .getQueryCache()
+    .getAll()
+    .find((query) => query.queryKey[2] === 'finance')?.queryKey
+  expect(financeQueryKey).toBeDefined()
+  await act(async () =>
+    router.options.context.queryClient.setQueryData(financeQueryKey, {
+      ...empty,
+      count: 1,
+      data: [refreshedRequest],
+    }),
+  )
+  expect(await within(dialog).findByText('Décision distante.')).toBeVisible()
+  expect(
+    within(dialog).queryByRole('button', { name: 'Prévalider' }),
+  ).toBeNull()
+  await act(async () =>
+    router.options.context.queryClient.setQueryData(financeQueryKey, {
+      ...empty,
+      count: 1,
+      data: [request],
+    }),
+  )
   await user.type(
-    within(dialog).getByLabelText('Observation / motif du retour'),
+    await within(dialog).findByLabelText('Observation / motif du retour'),
     'Dossier vérifié.',
   )
+  await act(async () =>
+    router.options.context.queryClient.setQueryData(financeQueryKey, {
+      ...empty,
+      count: 1,
+      data: [{ ...request, activity_version: 9 }],
+    }),
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Prévalider' }))
+
+  await waitFor(() => expect(decisionAttempts).toBe(1))
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
+  expect(screen.getByRole('dialog')).toBeVisible()
+  expect(
+    within(dialog).getByLabelText('Observation / motif du retour'),
+  ).toHaveValue('Dossier vérifié.')
   await user.click(within(dialog).getByRole('button', { name: 'Prévalider' }))
 
   await waitFor(() =>
@@ -2797,6 +2998,16 @@ test('financial review drawer sends an optional observation without editable amo
     }),
   )
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+  await act(async () =>
+    history.push(
+      `/execution/activities/activity-1?financeRequest=${request.id}`,
+    ),
+  )
+  await waitFor(() =>
+    expect(history.location.search.financeRequest).toBeUndefined(),
+  )
+  expect(screen.queryByRole('dialog')).toBeNull()
 })
 
 test('virement review uses the shared decision composition and submits its observation', async () => {
@@ -2884,13 +3095,15 @@ test('virement review uses the shared decision composition and submits its obser
   )
 
   const dialog = await openFinancialDrawer(user, 'Examiner')
-  expect(dialog).toHaveAccessibleName('Autorisation de virement')
+  expect(dialog).toHaveAccessibleName('Demande de virement')
+  expect(dialog).not.toHaveClass('h-dvh')
   expect(within(dialog).getByText('À prévalider')).toBeVisible()
   expect(within(dialog).getByText('virement · 29 octobre 2026')).toBeVisible()
   expect(
     within(dialog).getByRole('heading', { name: 'Décisions' }),
   ).toBeVisible()
   expect(within(dialog).getByText('Aucune décision.')).toBeVisible()
+  expect(within(dialog).queryByText(/Historique des demandes/)).toBeNull()
   await user.type(
     within(dialog).getByLabelText('Observation / motif du retour'),
     'Virement vérifié.',
@@ -3040,8 +3253,16 @@ test.each([
   },
 )
 
-test('virement detail names a missing authorization amount', async () => {
+test('virement review names a missing authorization amount from the loaded row', async () => {
   const execution = detail({ started: true, completed: true })
+  const request = {
+    id: 'virement-missing',
+    activity_version: execution.version,
+    amount: null,
+    state: 'submitted',
+    decisions: [],
+    allowed_actions: ['read'],
+  }
   const empty = {
     object: 'list',
     count: 0,
@@ -3070,16 +3291,9 @@ test('virement detail names a missing authorization amount', async () => {
         )
       if (path.endsWith('/activities/activity-1/execution'))
         return new Response(JSON.stringify(execution))
-      if (path.endsWith('/virement-requests/virement-missing'))
+      if (path.endsWith('/virement-requests'))
         return new Response(
-          JSON.stringify({
-            id: 'virement-missing',
-            activity_version: execution.version,
-            amount: null,
-            state: 'submitted',
-            decisions: [],
-            allowed_actions: ['read'],
-          }),
+          JSON.stringify({ ...empty, count: 1, data: [request] }),
         )
       return new Response(JSON.stringify(empty))
     }),
@@ -3089,16 +3303,17 @@ test('virement detail names a missing authorization amount', async () => {
     <App
       router={makeExecutionRouter(
         createMemoryHistory({
-          initialEntries: [
-            '/execution/activities/activity-1?virementRequest=virement-missing',
-          ],
+          initialEntries: ['/execution/activities/activity-1'],
         }),
       )}
     />,
   )
 
+  await userEvent
+    .setup()
+    .click(await screen.findByRole('button', { name: 'Consulter' }))
   const dialog = await screen.findByRole('dialog', {
-    name: 'Autorisation de virement',
+    name: 'Demande de virement',
   })
   expect(
     within(

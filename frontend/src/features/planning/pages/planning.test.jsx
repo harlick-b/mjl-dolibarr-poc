@@ -1124,9 +1124,12 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   const accessKey = ['access', 'admin', 'users', {}]
   router.options.context.queryClient.setQueryData(accessKey, { items: [] })
   render(<App router={router} />)
-  expect(
-    await screen.findByRole('button', { name: 'Fiche récapitulative' }),
-  ).toBeVisible()
+  const activitySheet = await screen.findByRole('button', {
+    name: 'Fiche récapitulative',
+  })
+  expect(activitySheet).toBeVisible()
+  expect(activitySheet).toHaveClass('rounded-card')
+  expect(activitySheet.querySelector('svg')).toBeNull()
   await user.click(
     screen.getByRole('link', { name: 'Pièces justificatives', exact: true }),
   )
@@ -2053,6 +2056,8 @@ test('assignment edits retain their base version and can discard a stale draft',
     name: 'Affectations',
   })
   expect(editOwners).toHaveTextContent('Affectations')
+  expect(editOwners).toHaveClass('rounded-card')
+  expect(editOwners.querySelector('svg')).toBeNull()
   await user.click(editOwners)
   await user.click(
     screen.getByRole('button', { name: 'Rechercher et ajouter un Agent' }),

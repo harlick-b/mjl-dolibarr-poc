@@ -99,7 +99,9 @@ test('direct logout clears server session and returns ready login', async ({
 })
 
 for (const pendingStage of ['patch', 'refresh']) {
-  test(`Relances closes safely during ${pendingStage}`, async ({ page }) => {
+  test(`Notifications closes safely during ${pendingStage}`, async ({
+    page,
+  }) => {
     let release
     let patched = false
     const item = {
@@ -145,9 +147,9 @@ for (const pendingStage of ['patch', 'refresh']) {
         .catch(() => {})
     })
     await page.goto('/unknown-address')
-    await page.getByRole('button', { name: /Relances/ }).click()
+    await page.getByRole('button', { name: /Notifications/ }).click()
     const dialog = page.getByRole('dialog', {
-      name: 'Relances administratives',
+      name: 'Notifications',
     })
     await expect(dialog.getByText('ACT-2026-001 · PTA 2026')).toBeVisible()
     if (pendingStage === 'patch')
