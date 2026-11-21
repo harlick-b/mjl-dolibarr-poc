@@ -671,3 +671,40 @@ passed on immediate focused reruns. ESLint passes with the existing unrelated
 gate for this slice. The review found a 401 download-routing defect and two lost
 Authentication CTA styles; both were corrected, the focused Auth/document run
 passed 22 tests, and the same reviewer cleared the final candidate.
+
+### Activity timeline preview ownership — 2026-11-21
+
+The Activity calendar applies the same current-record ownership rule without a
+page-level selection. Each rendered row owns only local tooltip and modal
+visibility, while the latest list result supplies all displayed Activity data.
+The component stores neither an Activity record nor its identifier. A refreshed
+row updates the open preview; a removed row unmounts and closes it. Existing
+Router links, shared `Modal`, shared `Button` and timeline calculation helpers are
+preserved, with no API or server-state changes.
+
+Closed row previews are not mounted, preventing hidden duplicate Activity content.
+If refresh removes an Activity while its preview is open, focus moves to the
+stable timeline-period summary; ordinary closure still returns focus to the row
+opener through shared `Modal` behavior.
+
+The combined Planning run passed 71/71 tests, including the removed-row focus and
+access-denial regressions. Targeted ESLint and Prettier passed, `git diff --check`
+was clean, and the production build completed with the existing chunk-size
+warning. Both independent reviewers cleared the corrected candidate. No browser
+visual journey was run.
+
+### Project closure modal ownership — 2026-11-21
+
+Project closure follows the current-record dialog seam. Each eligible row owns
+only local modal visibility and passes its current Query record into the shared
+`Modal`; no selected Project or identifier is retained by the page. The existing
+page mutation continues to own the API write and Query invalidation. A removed
+open row focuses the stable Projects heading, while ordinary dismissal returns to
+the row opener. A rejected closure renders its safe error inside the retained
+modal and can be retried without selecting or copying the Project again. Project
+edit drafts remain outside this change.
+
+The affected Planning and timeline run passed 74/74 tests; targeted lint,
+formatting and `git diff --check` passed, and the production build completed with
+the existing chunk-size warning. Both independent reviewers cleared the corrected
+candidate. No browser visual journey was run.

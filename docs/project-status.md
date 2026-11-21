@@ -66,6 +66,34 @@ funding reviews now use the shared bordered footer with **Annuler** and the same
 close callback. The same reviewer cleared the correction after focused checks.
 No browser visual journey was run for this follow-up.
 
+The Activity calendar preview now follows the same ownership boundary. A timeline
+row stores only whether its tooltip and preview are open and renders the current
+Activity list record directly. An open preview therefore follows refreshed data,
+and it closes naturally if that Activity leaves the list. No Activity identifier
+or copied server record is retained for modal selection; API, permissions,
+navigation and timeline presentation remain unchanged.
+
+Closed previews no longer leave duplicate hidden Activity content in the document.
+When refresh removes the Activity whose preview is open, focus moves to the stable
+timeline-period summary. The combined Planning run passed 71/71 tests; targeted
+ESLint, Prettier, `git diff --check`, and the production build also passed. No
+browser visual journey was run for this state-only change. Both independent
+reviewers cleared the corrected candidate.
+
+Project closure now follows the same current-record ownership rule. An eligible
+Project row stores only whether its confirmation is open, and the confirmation
+uses the latest Query record and version. Successful closure still uses the
+existing page mutation; failure retains the confirmation. Removing the open row
+during refresh closes it and focuses the Projects heading. Project edit drafts,
+API contracts, permissions and closure eligibility rules are unchanged.
+
+Rejected closure now shows its safe error inside the retained confirmation and
+supports retry through the same action. The affected Planning and timeline run
+passed 74/74 tests, targeted lint/formatting and `git diff --check` passed, and the
+production build completed with the existing chunk-size warning. No browser
+visual journey was run. Both independent reviewers cleared the corrected
+candidate.
+
 ## Controlled-browser baseline and auth reconciliation — 2026-11-21
 
 The CI-shaped controlled-browser group was restarted against a freshly built

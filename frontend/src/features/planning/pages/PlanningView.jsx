@@ -920,11 +920,83 @@ function ReferenceList({
   )
 }
 
+const ProjectClosureAction = ({ project, onCloseProject, focusFallback }) => {
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState('')
+  const opener = useRef(null)
+  const openRef = useRef(false)
+  const close = () => {
+    setOpen(false)
+    setError('')
+  }
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  useEffect(
+    () => () => {
+      if (openRef.current) focusFallback.current?.focus()
+    },
+    [focusFallback],
+  )
+
+  return (
+    <>
+      <Button
+        ref={opener}
+        variant="outline"
+        onClick={() => {
+          setError('')
+          setOpen(true)
+        }}
+      >
+        {strings.close}
+      </Button>
+      {open && (
+        <Modal
+          open
+          onClose={close}
+          label={strings.closeProjectTitle}
+          opener={opener}
+        >
+          <BusinessForm
+            onSubmit={async () => {
+              setError('')
+              try {
+                await onCloseProject(project)
+                close()
+              } catch (problem) {
+                setError(problem.message || strings.unavailablePlanning)
+                throw problem
+              }
+            }}
+          >
+            {error && (
+              <p role="alert" className="border-l-4 border-l-danger p-3">
+                {error}
+              </p>
+            )}
+            <p>
+              {strings.formatString(strings.closeProjectPrompt, project.name)}
+            </p>
+            <div data-ui="modal-actions">
+              <Button type="button" variant="outline" onClick={close}>
+                {strings.cancel}
+              </Button>
+              <Button type="submit">{strings.close}</Button>
+            </div>
+          </BusinessForm>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
   const [open, setOpen] = useState(false)
-  const [closing, setClosing] = useState(null)
   const [editing, setEditing] = useState(null)
-  const closeOpener = useRef(null)
+  const focusFallback = useRef(null)
   const { api } = useAPI()
   const session = useSessionQuery()
   const search = useSearch({ strict: false })
@@ -945,7 +1017,13 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
-        <h1 className="text-2xl font-semibold text-navy">{strings.projects}</h1>
+        <h1
+          ref={focusFallback}
+          tabIndex={-1}
+          className="rounded-control text-2xl font-semibold text-navy focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+        >
+          {strings.projects}
+        </h1>
         {canCreate && (
           <Button
             ref={opener}
@@ -964,35 +1042,6 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
         <RetryableError onRetry={() => void partnerChoices.refetch()}>
           {strings.unavailablePlanning}
         </RetryableError>
-      )}
-      {closing && (
-        <Modal
-          open
-          onClose={() => setClosing(null)}
-          label={strings.closeProjectTitle}
-          opener={closeOpener}
-        >
-          <BusinessForm
-            onSubmit={async () => {
-              await onClose(closing)
-              setClosing(null)
-            }}
-          >
-            <p>
-              {strings.formatString(strings.closeProjectPrompt, closing.name)}
-            </p>
-            <div data-ui="modal-actions">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setClosing(null)}
-              >
-                {strings.cancel}
-              </Button>
-              <Button type="submit">{strings.close}</Button>
-            </div>
-          </BusinessForm>
-        </Modal>
       )}
       {canCreate && (
         <Modal
@@ -1139,15 +1188,11 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
                         </Link>
                       </Button>
                       {row.allowed_actions.includes('close') && (
-                        <Button
-                          variant="outline"
-                          onClick={(event) => {
-                            closeOpener.current = event.currentTarget
-                            setClosing(row)
-                          }}
-                        >
-                          {strings.close}
-                        </Button>
+                        <ProjectClosureAction
+                          project={row}
+                          onCloseProject={onClose}
+                          focusFallback={focusFallback}
+                        />
                       )}
                     </div>
                   </td>

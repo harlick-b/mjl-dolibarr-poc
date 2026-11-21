@@ -1,5 +1,5 @@
 import { Urls } from '@/app/urls'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { strings } from '@/locales/fr/PlanningView'
@@ -28,10 +28,165 @@ function formatTimelineDate(value) {
   }).format(new Date(`${value}T00:00:00Z`))
 }
 
-export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
-  const [tip, setTip] = useState(null)
-  const [selected, setSelected] = useState(null)
+const TimelineActivityRow = ({
+  row,
+  position,
+  year,
+  month,
+  gridColumns,
+  gridTicks,
+  monthlyTicks,
+  lastRow,
+  focusFallback,
+}) => {
+  const [tipOpen, setTipOpen] = useState(false)
+  const [inspectionOpen, setInspectionOpen] = useState(false)
   const inspectionOpener = useRef(null)
+  const inspectionOpenRef = useRef(false)
+  const closeInspection = () => setInspectionOpen(false)
+
+  useEffect(() => {
+    inspectionOpenRef.current = inspectionOpen
+  }, [inspectionOpen])
+
+  useEffect(
+    () => () => {
+      if (inspectionOpenRef.current) focusFallback.current?.focus()
+    },
+    [focusFallback],
+  )
+
+  return (
+    <>
+      <div
+        className={`grid min-h-16 grid-cols-[17rem_1fr] ${lastRow ? '' : 'border-b border-border'}`}
+      >
+        <div className="min-w-0 px-3 py-3">
+          <Link
+            className="block max-h-10 overflow-hidden text-sm font-medium leading-5 text-primary"
+            to={Urls.activity}
+            params={{ activityId: row.id }}
+          >
+            {row.name}
+          </Link>
+          <p className="mt-1 text-xs text-muted-foreground">{row.reference}</p>
+        </div>
+        <div className="relative border-l border-border">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 grid"
+            style={{ gridTemplateColumns: gridColumns }}
+          >
+            {gridTicks.map((_, index) => (
+              <span
+                key={index}
+                className={`${!month || monthlyTicks.has(index + 1) ? 'border-l border-border' : ''} first:border-l-0`}
+              />
+            ))}
+          </div>
+          <Button
+            type="button"
+            title={`${row.name} · ${formatDate(row.planned_start)}${row.planned_end ? ` – ${formatDate(row.planned_end)}` : ''}`}
+            aria-label={`${row.name}, ${strings.fromDate} ${formatDate(row.planned_start)}${row.planned_end ? ` ${strings.toDate} ${formatDate(row.planned_end)}` : `, ${strings.startOnly.toLowerCase()}`}. ${strings.inspectTimeline}`}
+            variant="unstyled"
+            className={`absolute top-4 h-8 rounded-card bg-primary text-xs font-medium text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${position.marker ? 'min-w-4 rotate-45' : ''}`}
+            style={{
+              left: `${position.left}%`,
+              width: `${position.width}%`,
+            }}
+            onMouseEnter={() => setTipOpen(true)}
+            onMouseLeave={() => setTipOpen(false)}
+            onFocus={() => setTipOpen(true)}
+            onBlur={() => setTipOpen(false)}
+            onClick={(event) => {
+              inspectionOpener.current = event.currentTarget
+              setInspectionOpen(true)
+            }}
+          >
+            {!position.marker && (
+              <span className="flex h-full items-center overflow-hidden whitespace-nowrap px-2">
+                {position.before ? '‹ ' : ''}
+                {formatTimelineDate(row.planned_start)} –{' '}
+                {formatTimelineDate(row.planned_end)}
+                {position.after ? ' ›' : ''}
+              </span>
+            )}
+          </Button>
+          {position.marker && (
+            <span
+              className="absolute top-12 -translate-x-1/2 text-[0.6875rem] text-muted-foreground"
+              style={{ left: `${position.left}%` }}
+            >
+              {strings.startOnly}
+            </span>
+          )}
+          {tipOpen && (
+            <span
+              role="tooltip"
+              className="absolute left-2 top-13 z-10 grid max-w-72 gap-1 rounded-card bg-navy px-3 py-2 text-left text-xs text-white shadow-lg"
+            >
+              <strong>{row.name}</strong>
+              <span>
+                {formatDate(row.planned_start)}
+                {row.planned_end
+                  ? ` – ${formatDate(row.planned_end)}`
+                  : ` · ${strings.startOnly}`}
+              </span>
+              <span>{row.agents?.join(', ') || strings.noAssignedAgent}</span>
+            </span>
+          )}
+        </div>
+      </div>
+      {inspectionOpen && (
+        <Modal
+          open
+          onClose={closeInspection}
+          label={row.name || strings.activitySingular}
+          opener={inspectionOpener}
+        >
+          <section className="grid gap-5 p-6">
+            <p className="text-xs text-muted-foreground">
+              {row.reference} · PTA {year}
+            </p>
+            <dl className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <dt className="text-muted-foreground">{strings.start}</dt>
+                <dd>{formatDate(row.planned_start)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{strings.end}</dt>
+                <dd>
+                  {row.planned_end
+                    ? formatDate(row.planned_end)
+                    : strings.startOnly}
+                </dd>
+              </div>
+            </dl>
+            <p className="text-sm">
+              <span className="block text-muted-foreground">
+                {strings.assignedAgents}
+              </span>
+              {row.agents?.join(', ') || strings.noAssignedAgent}
+            </p>
+            <div data-ui="modal-actions">
+              <Button type="button" variant="outline" onClick={closeInspection}>
+                {strings.close}
+              </Button>
+              <Button asChild>
+                <Link to={Urls.activity} params={{ activityId: row.id }}>
+                  {strings.consult}
+                </Link>
+              </Button>
+            </div>
+          </section>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
+  const focusFallback = useRef(null)
   const window = timelineWindow(year, month)
   const visible = rows
     .map((row) => ({ row, position: timelinePosition(row, window) }))
@@ -60,6 +215,10 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
   const annualColumns = Array.from({ length: 12 }, (_, index) =>
     new Date(Date.UTC(year, index + 1, 0)).getUTCDate(),
   )
+  const gridColumns = month
+    ? `repeat(${days.length}, minmax(0, 1fr))`
+    : annualColumns.map((count) => `${count}fr`).join(' ')
+  const gridTicks = month ? days : annualColumns
 
   return (
     <div className="p-5">
@@ -85,7 +244,11 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
         </section>
       )}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-semibold text-foreground">
+        <p
+          ref={focusFallback}
+          tabIndex={-1}
+          className="rounded-control font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+        >
           <span className="capitalize">
             {month ? `${monthName(year, month, 'long')} ${year}` : year}
           </span>{' '}
@@ -134,14 +297,7 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
             <div className="px-3 py-3 font-medium">
               {strings.activitySingular}
             </div>
-            <div
-              className="grid"
-              style={{
-                gridTemplateColumns: month
-                  ? `repeat(${days.length}, minmax(0, 1fr))`
-                  : annualColumns.map((count) => `${count}fr`).join(' '),
-              }}
-            >
+            <div className="grid" style={{ gridTemplateColumns: gridColumns }}>
               {month
                 ? days.map((day) => (
                     <span
@@ -186,95 +342,19 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
             ) : (
               <EmptyContent kind={hasFilters ? 'search' : 'activities'} large />
             ))}
-          {visible.map(({ row, position }) => (
-            <div
+          {visible.map(({ row, position }, index) => (
+            <TimelineActivityRow
               key={row.id}
-              className="grid min-h-16 grid-cols-[17rem_1fr] border-b border-border last:border-0"
-            >
-              <div className="min-w-0 px-3 py-3">
-                <Link
-                  className="block max-h-10 overflow-hidden text-sm font-medium leading-5 text-primary"
-                  to={Urls.activity}
-                  params={{ activityId: row.id }}
-                >
-                  {row.name}
-                </Link>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {row.reference}
-                </p>
-              </div>
-              <div className="relative border-l border-border">
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 grid"
-                  style={{
-                    gridTemplateColumns: month
-                      ? `repeat(${days.length}, minmax(0, 1fr))`
-                      : annualColumns.map((count) => `${count}fr`).join(' '),
-                  }}
-                >
-                  {(month ? days : annualColumns).map((_, index) => (
-                    <span
-                      key={index}
-                      className={`${!month || monthlyTicks.has(index + 1) ? 'border-l border-border' : ''} first:border-l-0`}
-                    />
-                  ))}
-                </div>
-                <Button
-                  type="button"
-                  title={`${row.name} · ${formatDate(row.planned_start)}${row.planned_end ? ` – ${formatDate(row.planned_end)}` : ''}`}
-                  aria-label={`${row.name}, ${strings.fromDate} ${formatDate(row.planned_start)}${row.planned_end ? ` ${strings.toDate} ${formatDate(row.planned_end)}` : `, ${strings.startOnly.toLowerCase()}`}. ${strings.inspectTimeline}`}
-                  variant="unstyled"
-                  className={`absolute top-4 h-8 rounded-card bg-primary text-xs font-medium text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${position.marker ? 'min-w-4 rotate-45' : ''}`}
-                  style={{
-                    left: `${position.left}%`,
-                    width: `${position.width}%`,
-                  }}
-                  onMouseEnter={() => setTip(row)}
-                  onMouseLeave={() => setTip(null)}
-                  onFocus={() => setTip(row)}
-                  onBlur={() => setTip(null)}
-                  onClick={(event) => {
-                    inspectionOpener.current = event.currentTarget
-                    setSelected(row)
-                  }}
-                >
-                  {!position.marker && (
-                    <span className="flex h-full items-center overflow-hidden whitespace-nowrap px-2">
-                      {position.before ? '‹ ' : ''}
-                      {formatTimelineDate(row.planned_start)} –{' '}
-                      {formatTimelineDate(row.planned_end)}
-                      {position.after ? ' ›' : ''}
-                    </span>
-                  )}
-                </Button>
-                {position.marker && (
-                  <span
-                    className="absolute top-12 -translate-x-1/2 text-[0.6875rem] text-muted-foreground"
-                    style={{ left: `${position.left}%` }}
-                  >
-                    {strings.startOnly}
-                  </span>
-                )}
-                {tip?.id === row.id && (
-                  <span
-                    role="tooltip"
-                    className="absolute left-2 top-13 z-10 grid max-w-72 gap-1 rounded-card bg-navy px-3 py-2 text-left text-xs text-white shadow-lg"
-                  >
-                    <strong>{row.name}</strong>
-                    <span>
-                      {formatDate(row.planned_start)}
-                      {row.planned_end
-                        ? ` – ${formatDate(row.planned_end)}`
-                        : ` · ${strings.startOnly}`}
-                    </span>
-                    <span>
-                      {row.agents?.join(', ') || strings.noAssignedAgent}
-                    </span>
-                  </span>
-                )}
-              </div>
-            </div>
+              row={row}
+              position={position}
+              year={year}
+              month={month}
+              gridColumns={gridColumns}
+              gridTicks={gridTicks}
+              monthlyTicks={monthlyTicks}
+              lastRow={index === visible.length - 1}
+              focusFallback={focusFallback}
+            />
           ))}
           <div className="flex flex-wrap gap-6 border-t border-border px-4 py-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-2">
@@ -286,54 +366,6 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
           </div>
         </div>
       </div>
-      <Modal
-        open={Boolean(selected)}
-        onClose={() => setSelected(null)}
-        label={selected?.name || strings.activitySingular}
-        opener={inspectionOpener}
-      >
-        {selected && (
-          <section className="grid gap-5 p-6">
-            <p className="text-xs text-muted-foreground">
-              {selected.reference} · PTA {year}
-            </p>
-            <dl className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <dt className="text-muted-foreground">{strings.start}</dt>
-                <dd>{formatDate(selected.planned_start)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">{strings.end}</dt>
-                <dd>
-                  {selected.planned_end
-                    ? formatDate(selected.planned_end)
-                    : strings.startOnly}
-                </dd>
-              </div>
-            </dl>
-            <p className="text-sm">
-              <span className="block text-muted-foreground">
-                {strings.assignedAgents}
-              </span>
-              {selected.agents?.join(', ') || strings.noAssignedAgent}
-            </p>
-            <div data-ui="modal-actions">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setSelected(null)}
-              >
-                {strings.close}
-              </Button>
-              <Button asChild>
-                <Link to={Urls.activity} params={{ activityId: selected.id }}>
-                  {strings.consult}
-                </Link>
-              </Button>
-            </div>
-          </section>
-        )}
-      </Modal>
     </div>
   )
 }

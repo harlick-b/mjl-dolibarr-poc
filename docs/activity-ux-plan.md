@@ -1655,16 +1655,17 @@ this scope cannot preserve an existing workflow.
 This initial impact map now records completed follow-ups and the boundaries that
 remain outside the authorized slices.
 
-| Area                                     | Audit assessment                                                                                | Proposed follow-up                                                                                                  |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Dashboard invitation link / Access route | The former `invite: true` link opened a modal.                                                  | Complete: links open Users only; its CTA opens the dialog.                                                          |
-| Access submission                        | The former `finally` branch closed forms after correctable errors.                              | Complete: close after success; retain ordinary invalid submissions, errors and input.                               |
-| Timeline Activity preview                | Stores a complete clicked row, so displayed data can become stale.                              | Give the trigger current record props and local visibility; do not replace the snapshot with stored selection IDs.  |
-| Project closure / document withdrawal    | Selected record snapshots can become stale after refresh.                                       | Use current props for display; preserve editable reason/version where required. Handle a removed record explicitly. |
-| Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                   |
-| Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                   |
-| Zero-spending and funding submission     | Some successful actions kept the modal open.                                                    | Zero-spending complete; funding remains outside the authorized slice.                                               |
-| Partner/Project edit dialogs             | Separate open/edit state can be simplified, but editable snapshots are legitimate.              | Remove redundant visibility only; preserve draft/version semantics.                                                 |
+| Area                                     | Audit assessment                                                                                | Proposed follow-up                                                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Dashboard invitation link / Access route | The former `invite: true` link opened a modal.                                                  | Complete: links open Users only; its CTA opens the dialog.                                                             |
+| Access submission                        | The former `finally` branch closed forms after correctable errors.                              | Complete: close after success; retain ordinary invalid submissions, errors and input.                                  |
+| Timeline Activity preview                | Complete: each row owns only tooltip/preview visibility and renders its current Activity prop.  | Query refreshes update an open preview; removing the row closes it without stored record or identifier reconciliation. |
+| Project closure                          | Complete: each closure action owns local visibility and renders its current Project prop.       | Refresh updates the confirmation/version; removing the row closes it and focuses the Projects heading.                 |
+| Document withdrawal                      | The selected document snapshot can become stale after refresh.                                  | Use current props for display while preserving the editable reason, replacement choice and starting version.           |
+| Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                      |
+| Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                      |
+| Zero-spending and funding submission     | Some successful actions kept the modal open.                                                    | Zero-spending complete; funding remains outside the authorized slice.                                                  |
+| Partner/Project edit dialogs             | Separate open/edit state can be simplified, but editable snapshots are legitimate.              | Remove redundant visibility only; preserve draft/version semantics.                                                    |
 
 ### Mechanisms to retain
 
@@ -1813,3 +1814,39 @@ the existing close callback, and removes the repeated inner title. The full
 cleared it after targeted lint, diff and two focused tests. Starting-version
 retention during a simultaneous Query refresh was inspected in code rather than
 exercised by a dedicated test; no browser visual journey was run.
+
+### Activity timeline preview ownership — 2026-11-21
+
+Each timeline row now owns only whether its tooltip and preview are open. The
+preview renders the row supplied by the current Activity list, so a Query refresh
+updates an open preview without storing a copied Activity or selection ID. If the
+Activity disappears from the refreshed list, its row and preview unmount together.
+The timeline layout, navigation and Activity API contracts are unchanged.
+
+Focused evidence covers the open-preview refresh, hidden-content regression,
+removed-row focus fallback and existing date-position calculations. The combined
+Planning run passed 71/71 tests; targeted ESLint and Prettier, `git diff --check`,
+and the production build passed. Review found and corrected hidden closed-modal
+content and missing focus recovery when a refreshed list removes the open row.
+Both independent reviewers cleared the corrected candidate. No browser visual
+journey was run for this state-only slice.
+
+### Project closure modal ownership — 2026-11-21
+
+Each eligible Project row now owns only whether its closure confirmation is open.
+The confirmation renders the current Project supplied by the latest Query result,
+so refreshed names and concurrency versions are used without storing a selected
+Project or identifier. Successful closure uses the existing page mutation and
+shared invalidation. Failure keeps the confirmation open. If refresh removes the
+Project while its confirmation is open, the dialog unmounts and focus moves to
+the stable Projects heading. Project editing remains unchanged because its local
+draft is legitimate editable state.
+
+Review found that a rejected closure left its error behind the modal and that the
+success test stopped at the request payload. The correction displays the safe
+error inside the retained confirmation and supports retry through the same action.
+The affected Planning and timeline run passed 74/74 tests, including refreshed
+version submission, successful refreshed state, failed-then-successful retry and
+removed-row focus recovery. Targeted ESLint passed and the production build
+completed with the existing chunk-size warning. Both independent reviewers
+cleared the corrected candidate. No browser visual journey was run.

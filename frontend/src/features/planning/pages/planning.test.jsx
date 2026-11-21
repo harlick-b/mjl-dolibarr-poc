@@ -3205,6 +3205,168 @@ test('projects check Partner availability before enabling creation', async () =>
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
+function renderProjectsForClosure({ failCloseOnce = false } = {}) {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+  }
+  let project = {
+    id: 'project-1',
+    name: 'Projet initial',
+    reference: 'PRJ-001',
+    partner_name: 'Partenaire',
+    state: 'active',
+    version: 1,
+    allowed_actions: ['edit', 'close'],
+  }
+  const update = vi.fn()
+  let closeAttempts = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = new URL(url, window.location.origin).pathname
+      if (path.endsWith('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'validator',
+              email: 'validator@example.test',
+              role: 'VALIDATEUR_DEFINITIF',
+            },
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/partners'))
+        return new Response(
+          JSON.stringify({
+            data: [{ id: 'partner-1', name: 'Partenaire', active: true }],
+            count: 1,
+            next: null,
+            previous: null,
+          }),
+        )
+      if (path === '/api/v1/projects/project-1') {
+        const body = JSON.parse(options.body)
+        update(body)
+        closeAttempts += 1
+        if (failCloseOnce && closeAttempts === 1)
+          return new Response(
+            JSON.stringify({ message: 'Clôture indisponible.' }),
+            { status: 503 },
+          )
+        project = {
+          ...project,
+          state: 'closed',
+          version: project.version + 1,
+          allowed_actions: [],
+        }
+        return new Response(JSON.stringify(project))
+      }
+      if (path.endsWith('/projects'))
+        return new Response(
+          JSON.stringify({
+            data: [project],
+            count: 1,
+            next: null,
+            previous: null,
+          }),
+        )
+      return new Response('{}', { status: 404 })
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/projects'] }),
+  )
+  render(<App router={router} />)
+  const replaceProjects = (data) => {
+    project = data[0] || project
+    const [entry] = router.options.context.queryClient.getQueriesData({
+      queryKey: ['planning', 'validator', 'projects'],
+    })
+    act(() => {
+      router.options.context.queryClient.setQueryData(entry[0], {
+        data,
+        count: data.length,
+        next: null,
+        previous: null,
+      })
+    })
+  }
+  return { router, update, replaceProjects, project: () => project }
+}
+
+test('Project closure follows the current Query row and submits its version', async () => {
+  const user = userEvent.setup()
+  const { update, replaceProjects, project } = renderProjectsForClosure()
+  await user.click(await screen.findByRole('button', { name: 'Clôturer' }))
+  expect(screen.getByRole('dialog')).toHaveTextContent('Projet initial')
+
+  replaceProjects([{ ...project(), name: 'Projet actualisé', version: 2 }])
+  await waitFor(() =>
+    expect(screen.getByRole('dialog')).toHaveTextContent('Projet actualisé'),
+  )
+
+  await user.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Clôturer',
+    }),
+  )
+  await waitFor(() =>
+    expect(update).toHaveBeenCalledWith({
+      action: 'close',
+      expected_version: 2,
+    }),
+  )
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  expect(await screen.findByText('Clôturé')).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Clôturer' }),
+  ).not.toBeInTheDocument()
+})
+
+test('failed Project closure stays visible with its error and can be retried', async () => {
+  const user = userEvent.setup()
+  const { update } = renderProjectsForClosure({ failCloseOnce: true })
+  await user.click(await screen.findByRole('button', { name: 'Clôturer' }))
+  const dialog = screen.getByRole('dialog')
+
+  await user.click(within(dialog).getByRole('button', { name: 'Clôturer' }))
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Service indisponible. Réessayez plus tard.',
+  )
+  expect(dialog).toBeInTheDocument()
+
+  await user.click(within(dialog).getByRole('button', { name: 'Clôturer' }))
+  await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  expect(await screen.findByText('Clôturé')).toBeVisible()
+})
+
+test('removing the Project being closed returns focus to the Projects heading', async () => {
+  const user = userEvent.setup()
+  const { replaceProjects } = renderProjectsForClosure()
+  const heading = await screen.findByRole('heading', {
+    name: 'Projets',
+    level: 1,
+  })
+  await user.click(screen.getByRole('button', { name: 'Clôturer' }))
+
+  replaceProjects([])
+
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  await waitFor(() => expect(heading).toHaveFocus())
+})
+
 test('new activity loads its context and operation choices without fetching activity lists', async () => {
   const fetch = annualPageFetch()
   vi.stubGlobal('fetch', fetch)
