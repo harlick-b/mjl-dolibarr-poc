@@ -1655,16 +1655,16 @@ this scope cannot preserve an existing workflow.
 This initial impact map now records completed follow-ups and the boundaries that
 remain outside the authorized slices.
 
-| Area                                     | Audit assessment                                                                   | Proposed follow-up                                                                                                  |
-| ---------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Dashboard invitation link / Access route | The former `invite: true` link opened a modal.                                     | Complete: links open Users only; its CTA opens the dialog.                                                          |
-| Access submission                        | The former `finally` branch closed forms after correctable errors.                 | Complete: close after success; retain ordinary invalid submissions, errors and input.                               |
-| Timeline Activity preview                | Stores a complete clicked row, so displayed data can become stale.                 | Give the trigger current record props and local visibility; do not replace the snapshot with stored selection IDs.  |
-| Project closure / document withdrawal    | Selected record snapshots can become stale after refresh.                          | Use current props for display; preserve editable reason/version where required. Handle a removed record explicitly. |
-| Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements. | Complete: current props, local visibility and one close callback retain draft/version protection.                   |
-| Funding request review                   | The modal displays a collection rather than one clicked request.                   | Confirm intended single-request versus collection behavior before altering this separate workflow.                  |
-| Zero-spending and funding submission     | Some successful actions kept the modal open.                                       | Zero-spending complete; funding remains outside the authorized slice.                                               |
-| Partner/Project edit dialogs             | Separate open/edit state can be simplified, but editable snapshots are legitimate. | Remove redundant visibility only; preserve draft/version semantics.                                                 |
+| Area                                     | Audit assessment                                                                                | Proposed follow-up                                                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Dashboard invitation link / Access route | The former `invite: true` link opened a modal.                                                  | Complete: links open Users only; its CTA opens the dialog.                                                          |
+| Access submission                        | The former `finally` branch closed forms after correctable errors.                              | Complete: close after success; retain ordinary invalid submissions, errors and input.                               |
+| Timeline Activity preview                | Stores a complete clicked row, so displayed data can become stale.                              | Give the trigger current record props and local visibility; do not replace the snapshot with stored selection IDs.  |
+| Project closure / document withdrawal    | Selected record snapshots can become stale after refresh.                                       | Use current props for display; preserve editable reason/version where required. Handle a removed record explicitly. |
+| Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                   |
+| Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                   |
+| Zero-spending and funding submission     | Some successful actions kept the modal open.                                                    | Zero-spending complete; funding remains outside the authorized slice.                                               |
+| Partner/Project edit dialogs             | Separate open/edit state can be simplified, but editable snapshots are legitimate.              | Remove redundant visibility only; preserve draft/version semantics.                                                 |
 
 ### Mechanisms to retain
 
@@ -1789,3 +1789,27 @@ Final evidence for this correction: the focused Access and Execution run passed
 the production build completed with only the existing chunk-size warning. Both
 independent reviewers inspected the corrected candidate and reported no remaining
 blocking finding. Per the user's direction, the browser journey was not rerun.
+
+### Funding-request modal follow-up — 2026-11-21
+
+The user confirmed that a funding-request row reviews only that request. Each row
+now owns its local modal visibility and receives the current Query record through
+props; the page stores no selected funding record or identifier. **Nouvelle
+demande** shows only the pending funding increment. Funding history pagination is
+rendered in the Finance card and uses its own Query loading state.
+
+Successful submission, decision, return or cancellation closes through the same
+modal callback. A rejected action keeps the modal, reason and starting Activity
+version available for retry. Opening a row does not issue the available funding
+detail endpoint. No backend, payload, permission or approval rule changed.
+
+Focused evidence: all 52 Execution tests passed, targeted Prettier and ESLint
+passed, `git diff --check` passed, and the production build completed with only
+the existing chunk-size warning. Specification review found no behavior defect.
+Standards review found that actionable funding reviews lacked the shared footer
+and explicit **Annuler** action. The correction uses one bordered action footer,
+the existing close callback, and removes the repeated inner title. The full
+52-test run and build passed after the correction; the same standards reviewer
+cleared it after targeted lint, diff and two focused tests. Starting-version
+retention during a simultaneous Query refresh was inspected in code rather than
+exercised by a dedicated test; no browser visual journey was run.

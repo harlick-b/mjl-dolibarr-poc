@@ -1518,6 +1518,126 @@ test.each([
   },
 )
 
+test('a funding row opens only that current request without another read', async () => {
+  const user = userEvent.setup()
+  const current = detail({ started: true, completed: true })
+  const funding = {
+    object: 'list',
+    count: 2,
+    data: [
+      {
+        id: 'funding-new',
+        amount: '25000',
+        state: 'submitted',
+        snapshot: { old_allocation: '100000', new_allocation: '125000' },
+        submitted_at: '2026-11-02T09:00:00Z',
+        decisions: [],
+        cancellation: null,
+        allowed_actions: ['read'],
+      },
+      {
+        id: 'funding-old',
+        amount: '10000',
+        state: 'approved',
+        snapshot: { old_allocation: '90000', new_allocation: '100000' },
+        submitted_at: '2026-10-20T09:00:00Z',
+        decisions: [],
+        cancellation: null,
+        allowed_actions: ['read'],
+      },
+    ],
+    next: '/api/v1/activities/activity-1/funding-requests?cursor=older-funding',
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+    activity_version: current.version,
+    approved_revision_id: current.approved_revision_id,
+  }
+  const fundingReads = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'supervisor',
+              email: 'supervisor@example.test',
+              role: 'AGENT_VERIFICATEUR',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.includes('/funding-requests')) {
+        fundingReads.push(path)
+        return new Response(JSON.stringify(funding))
+      }
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(current))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      )
+    }),
+  )
+  const router = makeExecutionRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    }),
+  )
+  render(<App router={router} />)
+
+  const requests = await screen.findByRole('region', {
+    name: 'Demandes financières',
+  })
+  const fundingPagination = within(requests).getByRole('navigation', {
+    name: 'Pagination — Financements complémentaires',
+  })
+  await user.click(
+    within(fundingPagination).getByRole('button', { name: 'Suivant' }),
+  )
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(
+      '/execution/activities/activity-1',
+    )
+    expect(router.state.location.search.fundingCursor).toBe('older-funding')
+  })
+  const currentRequests = await screen.findByRole('region', {
+    name: 'Demandes financières',
+  })
+  await user.click(
+    within(currentRequests).getAllByRole('button', { name: 'Consulter' })[0],
+  )
+
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Financement complémentaire',
+  })
+  expect(
+    within(dialog).getByRole('heading', { name: /25.*000.*À prévalider/ }),
+  ).toBeVisible()
+  expect(
+    within(dialog).queryByRole('heading', { name: /10.*000.*Approuvé/ }),
+  ).toBeNull()
+  expect(
+    within(dialog).queryByRole('navigation', {
+      name: 'Pagination — Financements complémentaires',
+    }),
+  ).toBeNull()
+  expect(fundingReads).toHaveLength(2)
+  expect(fundingReads).toEqual([
+    expect.stringMatching(/\/funding-requests$/),
+    expect.stringMatching(/\/funding-requests\?cursor=older-funding$/),
+  ])
+})
+
 test('Agent submits a zero-spending declaration without financial requests', async () => {
   const user = userEvent.setup()
   let current = {
@@ -4624,6 +4744,128 @@ test.each([
     await act(async () => window.dispatchEvent(new Event('online')))
   },
 )
+
+test('a funding review can cancel and keeps a rejected return reason for retry', async () => {
+  const user = userEvent.setup()
+  const current = {
+    ...detail(),
+    execution_paused: true,
+    pause_reason: 'funding_required',
+    mutation_unavailable_reason: 'funding_required',
+  }
+  const request = {
+    id: 'funding-return',
+    amount: '20000',
+    snapshot: {
+      old_allocation: '100000',
+      new_allocation: '120000',
+    },
+    submitted_at: '2026-11-04T09:00:00Z',
+    state: 'submitted',
+    decisions: [],
+    cancellation: null,
+    allowed_actions: ['read', 'prevalidate', 'return'],
+  }
+  const funding = {
+    object: 'list',
+    count: 1,
+    data: [request],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+    activity_version: current.version,
+    approved_revision_id: current.approved_revision_id,
+  }
+  const writes = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'supervisor',
+              email: 'supervisor@example.test',
+              role: 'AGENT_VERIFICATEUR',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (
+        path.endsWith(`/funding-requests/${request.id}/decisions`) &&
+        options.method === 'POST'
+      ) {
+        writes.push(JSON.parse(options.body))
+        if (writes.length === 1)
+          return new Response(
+            JSON.stringify({
+              detail: {
+                code: 'funding_return_invalid',
+                message: 'Précisez le motif du retour.',
+              },
+            }),
+            { status: 422 },
+          )
+        return new Response(JSON.stringify({ ...request, state: 'returned' }), {
+          status: 201,
+        })
+      }
+      if (path.endsWith('/funding-requests'))
+        return new Response(JSON.stringify(funding))
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(JSON.stringify(current))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeExecutionRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+      )}
+    />,
+  )
+
+  let dialog = await openFinancialDrawer(user, 'Examiner')
+  await user.click(within(dialog).getByRole('button', { name: 'Annuler' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+
+  dialog = await openFinancialDrawer(user, 'Examiner')
+  const reason = within(dialog).getByLabelText('Motif')
+  await user.type(reason, 'La hausse doit être justifiée.')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Retourner le complément' }),
+  )
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
+  expect(reason).toHaveValue('La hausse doit être justifiée.')
+  expect(writes[0]).toEqual({
+    expected_version: 5,
+    decision: 'return',
+    reason: 'La hausse doit être justifiée.',
+  })
+
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Retourner le complément' }),
+  )
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(writes).toHaveLength(2)
+})
 
 test('a reasoned execution correction refreshes funding without a redundant pause banner', async () => {
   const user = userEvent.setup()

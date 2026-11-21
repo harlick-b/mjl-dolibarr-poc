@@ -825,6 +825,7 @@ function ExecutionWorkspace({
           })
         }
         zeroSpending={zeroSpending.data}
+        fundingBusy={funding.isFetching}
         financeBusy={finance.isFetching}
         virementBusy={virements.isFetching}
         zeroSpendingBusy={zeroSpending.isFetching}
@@ -1190,7 +1191,6 @@ function FinancialRequestTableRow({
   historicalPage,
   pending,
   mutate,
-  onOpenOther,
   error,
   clearError,
 }) {
@@ -1210,15 +1210,14 @@ function FinancialRequestTableRow({
       : 'Consulter'
   const latestDecision = latestAdministrativeDecision(request)
   const decisionActor = administrativeDecisionActor(latestDecision)
-  const localReview = ['disbursement', 'virement', 'zero'].includes(
-    request.drawer,
-  )
   const modalLabel =
     request.drawer === 'virement'
       ? strings.virementRequest
-      : request.drawer === 'zero'
-        ? strings.zeroSpendingDeclaration
-        : strings.disbursementRequest
+      : request.drawer === 'funding'
+        ? strings.fundingTitle
+        : request.drawer === 'zero'
+          ? strings.zeroSpendingDeclaration
+          : strings.disbursementRequest
   return (
     <>
       <tr className="border-b border-border last:border-0">
@@ -1254,11 +1253,9 @@ function FinancialRequestTableRow({
             type="button"
             variant="outline"
             size="sm"
-            onClick={(event) => {
-              if (localReview) {
-                clearError()
-                setOpen(true)
-              } else onOpenOther(request, event.currentTarget)
+            onClick={() => {
+              clearError()
+              setOpen(true)
             }}
           >
             {actionLabel}
@@ -1284,7 +1281,17 @@ function FinancialRequestTableRow({
                   {error}
                 </p>
               )}
-              {request.drawer === 'disbursement' ? (
+              {request.drawer === 'funding' ? (
+                <FundingSection
+                  fallback={null}
+                  detail={detail}
+                  result={result}
+                  current={request}
+                  pending={pending}
+                  mutate={mutate}
+                  onCancel={close}
+                />
+              ) : request.drawer === 'disbursement' ? (
                 <DisbursementSection
                   fallback={null}
                   detail={detail}
@@ -1340,6 +1347,7 @@ function ExecutionDetail({
   onFinancePage,
   onVirementPage,
   zeroSpending,
+  fundingBusy,
   financeBusy,
   virementBusy,
   zeroSpendingBusy,
@@ -1373,7 +1381,6 @@ function ExecutionDetail({
     progress: detail.progress ?? null,
   }
   const [financialModal, setFinancialModal] = useState(null)
-  const [financialModalMode, setFinancialModalMode] = useState('new')
   const financialModalOpener = useRef(null)
   const closeFinancialModal = () => {
     clearError()
@@ -1446,6 +1453,13 @@ function ExecutionDetail({
   ]
   const financialPages = [
     {
+      key: 'funding',
+      label: 'Financements complémentaires',
+      result: funding,
+      onPage: onFundingPage,
+      busy: fundingBusy,
+    },
+    {
       key: 'disbursement',
       label: 'Décaissements',
       result: finance,
@@ -1467,12 +1481,6 @@ function ExecutionDetail({
       busy: zeroSpendingBusy,
     },
   ].filter(({ result }) => result?.previous || result?.next)
-  const openFinancialRequest = (request, trigger) => {
-    clearError()
-    financialModalOpener.current = trigger
-    setFinancialModalMode('review')
-    setFinancialModal(request.drawer)
-  }
   const newFinancialRequest =
     role === 'AGENT_SAISIE' &&
     detail.works_completed &&
@@ -1493,19 +1501,13 @@ function ExecutionDetail({
     zero: strings.zeroSpendingDeclaration,
   }
   const financialModalLabel =
-    financialModalMode === 'new'
+    financialModal === 'chooser'
       ? strings.newFinancialRequest
-      : financialModalMode === 'create'
-        ? financialModal === 'virement'
-          ? strings.virementRequest
-          : financialModal === 'disbursement'
-            ? strings.disbursementRequest
-            : financialModalLabels[financialModal] || strings.financialRequest
-        : financialModal === 'virement'
-          ? strings.virementRequest
-          : financialModal === 'disbursement'
-            ? strings.disbursementRequest
-            : financialModalLabels[financialModal] || strings.financialRequest
+      : financialModal === 'virement'
+        ? strings.virementRequest
+        : financialModal === 'disbursement'
+          ? strings.disbursementRequest
+          : financialModalLabels[financialModal] || strings.financialRequest
   const unavailableLabels = {
     project_inactive: 'le Projet est inactif',
     activity_withdrawn: 'l’Activité a été retirée',
@@ -1769,7 +1771,6 @@ function ExecutionDetail({
                   onClick={(event) => {
                     clearError()
                     financialModalOpener.current = event.currentTarget
-                    setFinancialModalMode('new')
                     setFinancialModal('chooser')
                   }}
                 >
@@ -1799,13 +1800,15 @@ function ExecutionDetail({
                         request={request}
                         detail={detail}
                         result={
-                          request.drawer === 'disbursement'
-                            ? finance
-                            : request.drawer === 'virement'
-                              ? virements
-                              : request.drawer === 'zero'
-                                ? zeroSpending
-                                : null
+                          request.drawer === 'funding'
+                            ? funding
+                            : request.drawer === 'disbursement'
+                              ? finance
+                              : request.drawer === 'virement'
+                                ? virements
+                                : request.drawer === 'zero'
+                                  ? zeroSpending
+                                  : null
                         }
                         role={role}
                         authorizedAmount={
@@ -1820,7 +1823,6 @@ function ExecutionDetail({
                         }
                         pending={pending}
                         mutate={mutateFinance}
-                        onOpenOther={openFinancialRequest}
                         error={error}
                         clearError={clearError}
                       />
@@ -1928,7 +1930,6 @@ function ExecutionDetail({
                           aria-label={`Créer — ${option.label}`}
                           onClick={() => {
                             clearError()
-                            setFinancialModalMode('create')
                             setFinancialModal(option.key)
                           }}
                         >
@@ -1992,7 +1993,6 @@ function ExecutionDetail({
                   result={funding}
                   pending={pending}
                   mutate={mutateFinance}
-                  onPage={onFundingPage}
                   onCancel={closeFinancialModal}
                 />
               )}
@@ -3084,9 +3084,9 @@ function VirementSection({
 function FundingSection({
   detail,
   result,
+  current = null,
   pending,
   mutate,
-  onPage,
   fallback,
   onCancel,
 }) {
@@ -3102,15 +3102,15 @@ function FundingSection({
   }
   return (
     <Panel
-      aria-labelledby="funding-title"
+      aria-labelledby={current ? undefined : 'funding-title'}
       className="flex min-h-0 flex-1 flex-col"
     >
-      <h2 id="funding-title">{strings.fundingTitle}</h2>
+      {!current && <h2 id="funding-title">{strings.fundingTitle}</h2>}
       <p>{strings.fundingExplanation}</p>
       {detail.pause_reason === 'funding_required' && (
         <p>{strings.fundingCorrection}</p>
       )}
-      {basis && (
+      {!current && basis && (
         <p>
           {strings.fundingOldBudget} : {formatXof(basis.old_allocation)} ·{' '}
           {strings.fundingNewBudget} : {formatXof(basis.new_allocation)} ·{' '}
@@ -3118,56 +3118,61 @@ function FundingSection({
           <strong>{formatXof(basis.amount)}</strong>
         </p>
       )}
-      {result.allowed_actions.includes('submit') && (
+      {!current && result.allowed_actions.includes('submit') && (
         <div data-ui="modal-actions">
           <Button type="button" variant="outline" onClick={onCancel}>
             Annuler
           </Button>
           <Button
             disabled={pending || !currentSnapshot}
-            onClick={() =>
-              mutate('/funding-requests', {
+            onClick={async () => {
+              const submitted = await mutate('/funding-requests', {
                 expected_version: result.activity_version,
                 expected_approved_revision_id: result.approved_revision_id,
               })
-            }
+              if (submitted !== false) onCancel()
+            }}
           >
             {strings.fundingSubmit}
           </Button>
         </div>
       )}
-      {!basis && !result.count && <p>{strings.fundingEmpty}</p>}
-      {result.data.map((row) => (
+      {!current && !basis && !result.count && <p>{strings.fundingEmpty}</p>}
+      {current && (
         <FundingRequest
-          key={`${row.id}:${row.state}`}
-          row={row}
+          row={current}
           version={result.activity_version}
           enabled={currentSnapshot && detail.state === 'approved'}
           pending={pending}
           mutate={mutate}
           states={states}
+          onCancel={onCancel}
+          onSuccess={onCancel}
         />
-      ))}
-      <Pagination
-        label={strings.fundingPagination}
-        canPrevious={Boolean(result.previous)}
-        canNext={Boolean(result.next)}
-        previousLabel={strings.fundingPrevious}
-        nextLabel={strings.fundingNext}
-        onPrevious={() => onPage(result.previous)}
-        onNext={() => onPage(result.next)}
-      />
+      )}
     </Panel>
   )
 }
 
-function FundingRequest({ row, version, enabled, pending, mutate, states }) {
+function FundingRequest({
+  row,
+  version,
+  enabled,
+  pending,
+  mutate,
+  states,
+  onCancel,
+  onSuccess,
+}) {
   const [reason, setReason] = useState('')
   const [editVersion, setEditVersion] = useState(version)
   const disabled = pending || !enabled || editVersion !== version
   const actions = row.allowed_actions
-  const send = (action) =>
-    mutate(
+  const hasActions = ['prevalidate', 'approve', 'return', 'cancel'].some(
+    (action) => actions.includes(action),
+  )
+  const send = async (action) => {
+    const result = await mutate(
       `/funding-requests/${row.id}/${action === 'cancel' ? 'cancellation' : 'decisions'}`,
       {
         expected_version: editVersion,
@@ -3179,6 +3184,8 @@ function FundingRequest({ row, version, enabled, pending, mutate, states }) {
             }),
       },
     )
+    if (result !== false) onSuccess()
+  }
   return (
     <article className="border-l-4 border-l-primary bg-background py-3 px-4">
       <h3>
@@ -3227,34 +3234,6 @@ function FundingRequest({ row, version, enabled, pending, mutate, states }) {
           />
         </label>
       )}
-      {actions.includes('prevalidate') && (
-        <Button disabled={disabled} onClick={() => send('prevalidate')}>
-          {strings.fundingPrevalidate}
-        </Button>
-      )}
-      {actions.includes('approve') && (
-        <Button disabled={disabled} onClick={() => send('approve')}>
-          {strings.fundingApprove}
-        </Button>
-      )}
-      {actions.includes('return') && (
-        <Button
-          variant="outline"
-          disabled={disabled || !reason.trim()}
-          onClick={() => send('return')}
-        >
-          {strings.fundingReturn}
-        </Button>
-      )}
-      {actions.includes('cancel') && (
-        <Button
-          variant="outline"
-          disabled={disabled || !reason.trim()}
-          onClick={() => send('cancel')}
-        >
-          {strings.fundingCancel}
-        </Button>
-      )}
       {editVersion !== version && (
         <p>
           {strings.fundingStale}{' '}
@@ -3268,6 +3247,41 @@ function FundingRequest({ row, version, enabled, pending, mutate, states }) {
             {strings.fundingReload}
           </Button>
         </p>
+      )}
+      {hasActions && (
+        <div data-ui="modal-actions">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Annuler
+          </Button>
+          {actions.includes('return') && (
+            <Button
+              variant="outline"
+              disabled={disabled || !reason.trim()}
+              onClick={() => send('return')}
+            >
+              {strings.fundingReturn}
+            </Button>
+          )}
+          {actions.includes('cancel') && (
+            <Button
+              variant="outline"
+              disabled={disabled || !reason.trim()}
+              onClick={() => send('cancel')}
+            >
+              {strings.fundingCancel}
+            </Button>
+          )}
+          {actions.includes('prevalidate') && (
+            <Button disabled={disabled} onClick={() => send('prevalidate')}>
+              {strings.fundingPrevalidate}
+            </Button>
+          )}
+          {actions.includes('approve') && (
+            <Button disabled={disabled} onClick={() => send('approve')}>
+              {strings.fundingApprove}
+            </Button>
+          )}
+        </div>
       )}
     </article>
   )

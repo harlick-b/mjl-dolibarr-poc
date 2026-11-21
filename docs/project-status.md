@@ -54,6 +54,18 @@ inside their open modal. Access row dialogs now receive current Query records,
 store no selected record or identifier, retain a role draft's starting version,
 and avoid refreshing the list after confirmed validation errors.
 
+Funding requests now follow the same modal ownership rule. A row opens only its
+current request without a page reload, stored selection identifier or detail
+read; **Nouvelle demande** handles only the pending increment. Funding pagination
+remains in the Finance card. Failed actions retain the entered reason and starting
+version, while successful actions close the modal. The focused 52-test Execution
+run, targeted formatting/lint, `git diff --check` and the production build passed
+with only the existing chunk-size warning. Specification review reported no
+behavior finding. Standards review found a missing modal footer; actionable
+funding reviews now use the shared bordered footer with **Annuler** and the same
+close callback. The same reviewer cleared the correction after focused checks.
+No browser visual journey was run for this follow-up.
+
 ## Controlled-browser baseline and auth reconciliation — 2026-11-21
 
 The CI-shaped controlled-browser group was restarted against a freshly built

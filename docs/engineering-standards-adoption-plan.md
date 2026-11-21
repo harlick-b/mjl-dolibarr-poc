@@ -623,6 +623,17 @@ production build with only the existing chunk-size warning. Both independent
 reviewers cleared the corrected candidate. The browser journey was not rerun at
 the user's direction.
 
+The funding follow-up applies the same prop-driven ownership seam: a funding row
+owns only modal visibility, passes its current Query record to the shared dialog,
+and never starts a detail read. The creation dialog renders only the pending
+increment, while shared pagination remains in the Finance card. Correctable
+failures retain the reason and starting version; successful actions close through
+one callback. The focused 52-test Execution run, targeted formatting/lint,
+`git diff --check` and the production build passed. Standards review found and
+then cleared one modal-footer defect: actionable funding reviews now place
+**Annuler** and all decisions in the shared bordered footer and reuse the same
+close callback. Specification review reported no behavior finding.
+
 ## Progress and evidence
 
 | Item                                               | Status                                                                                                                                                                                                                                       |
