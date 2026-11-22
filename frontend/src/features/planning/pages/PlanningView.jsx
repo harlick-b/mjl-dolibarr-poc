@@ -26,7 +26,7 @@ import {
   useSearch,
 } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
-import { Folder, LoaderCircle, X } from 'lucide-react'
+import { Download, Folder, LoaderCircle, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { strings } from '@/locales/fr/PlanningView'
 import { strings as common } from '@/locales/fr/common'
@@ -1611,6 +1611,7 @@ function PTA({
                   setCreatingBrief({ open: true })
                 }}
               >
+                <Plus size={16} aria-hidden="true" />
                 {strings.addActivityToPta}
               </Button>
             ) : (
@@ -1622,6 +1623,7 @@ function PTA({
                     year: String(context.year),
                   }}
                 >
+                  <Plus size={16} aria-hidden="true" />
                   {strings.addActivityToPta}
                 </Link>
               </Button>
@@ -2570,6 +2572,7 @@ function ActivityDetail({
               onDenied={onDenied}
               variant="activityHeader"
             >
+              <Download aria-hidden="true" size={16} />
               {strings.downloadActivityFiche}
             </ProtectedDownload>
           )}

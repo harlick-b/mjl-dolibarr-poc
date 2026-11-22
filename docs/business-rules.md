@@ -159,7 +159,11 @@ This is an editable suggestion; never overwrite a manual end date.
 Validation is per Activity, not for an entire PTA. Submission creates an immutable
 revision. One eligible Supervisor prevalidates, then a distinct eligible Validator
 approves. Either may return with a reason; Validator return goes straight to Agent.
-Fresh submission repeats both stages. Creating an Activity as a Supervisor or Validator does not prevent that person
+The assigned Agent may submit the same valid Activity values again after a return;
+an observation requests a response, not proof that a field changed. That fresh
+submission creates a new immutable revision and repeats both review stages. A
+new amendment still requires an actual change from the approved baseline.
+Creating an Activity as a Supervisor or Validator does not prevent that person
 from performing their normal planning review. Submission and the two distinct
 review stages remain mandatory. The exception concerns creation as a reviewer:
 submitting or subsequently changing Activity content still excludes a person from
@@ -210,7 +214,10 @@ not require completed Tasks. Already-spent cases before finance retain
 truthful spending but pause further work and requests.
 
 Financial and funding reviewers must not be the request submitter, an execution
-author or a contributor to the protected Activity lineage, even after role changes.
+author or a content contributor to the protected Activity lineage, even after
+role changes. Creating only the initial Activity brief as a Supervisor or
+Validator is setup work and does not prevent that person from performing their
+normal financial review step.
 
 All outstanding increments remain due: 100 → 120 → 150 needs 20 and 30 approved.
 Later decreases, return or cancellation cannot erase an outstanding funding

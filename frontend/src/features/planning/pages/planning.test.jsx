@@ -1205,7 +1205,10 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   })
   expect(activitySheet).toBeVisible()
   expect(activitySheet).toHaveClass('rounded-card')
-  expect(activitySheet.querySelector('svg')).toBeNull()
+  const downloadIcon = activitySheet.querySelector('.lucide-download')
+  expect(downloadIcon).toHaveAttribute('aria-hidden', 'true')
+  expect(downloadIcon).toHaveAttribute('width', '16')
+  expect(downloadIcon).toHaveAttribute('height', '16')
   await user.click(
     screen.getByRole('link', { name: 'Pièces justificatives', exact: true }),
   )

@@ -18,6 +18,11 @@ complete; Step 4 structure work remains.
 - Shared `BusinessForm` owns required-field invalid state and inline help styling;
   native forms use the shared invalid/change handlers and `data-value-missing`
   marker so the same help appears only after a missing required value is submitted.
+- Shared form submission context identifies the initiating submit control rather
+  than exposing one form-wide busy boolean. All controls remain locked while the
+  command is pending, but only the used CTA renders the spinner and `aria-busy`;
+  sibling submit actions and Cancel retain their labels without a busy indicator
+  while showing the form lock's disabled state.
 - Focused backend PostgreSQL tests require the repository's disposable
   `TEST_DATABASE_URL`; absence of that variable is recorded as a verification
   gap rather than treated as a behavioral pass.
@@ -749,6 +754,16 @@ existing large-chunk warning. Independent review requested visible refreshed-row
 assertions after successful Partner and Project edits. The corrected tests prove
 both outcomes, and the same reviewer cleared the candidate with no remaining
 blocking finding or verification gap.
+
+### Financial reviewer eligibility correction — 2026-11-22
+
+The financial-request APIs distinguish Activity brief creation from content
+authorship. A shared server helper freezes the request submitter, content authors
+and execution authors for funding, décaissement, virement and zero-spending;
+brief creators retain their normal role-based review step. Migration
+`0041_reviewer_finance` repairs existing frozen exclusions and preserves the
+source exclusions inherited by virement requests. The schema-version safety gate
+and its exact-head assertions require this revision.
 
 ### Administrative modal state cleanup — 2026-11-22
 

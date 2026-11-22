@@ -20,9 +20,9 @@ from app.planning.core.models import (
 from app.planning.core.service import CONTEXT, Cursor, locked_mutation, principal
 from app.planning.finance import actor_display_names
 from app.planning.finance.disbursement import (
-    excluded_reviewers,
     verified_financial_basis,
 )
+from app.planning.finance.reviewer_eligibility import financial_review_exclusions
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
     mark_review_handled,
@@ -263,7 +263,7 @@ def submit(
         total, operations, authors = verified_financial_basis(db, item, allow_zero=True)
         if total != 0:
             raise AuthError(409, "zero_spending_ineligible")
-        excluded = excluded_reviewers(db, item, actor.id) | authors
+        excluded = financial_review_exclusions(db, item.id, actor.id) | authors
         now = auth.now(db)
         declaration = ZeroSpendingDeclaration(
             context_id=CONTEXT,

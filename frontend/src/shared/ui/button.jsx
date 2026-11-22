@@ -1,7 +1,7 @@
 import { Slot } from '@radix-ui/react-slot'
 import { buttonVariants } from './button-variants'
 import { cn } from '@/shared/lib/utils'
-import { useContext } from 'react'
+import { useContext, useId } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { FormSubmitContext } from './form-submit-context'
 
@@ -16,15 +16,20 @@ export function Button({
   ...props
 }) {
   const submitting = useContext(FormSubmitContext)
+  const submitControlId = useId()
   const busy =
     loading ||
-    (submitting && !asChild && (!props.type || props.type === 'submit'))
+    (submitting &&
+      submitting === submitControlId &&
+      !asChild &&
+      (!props.type || props.type === 'submit'))
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
       ref={ref}
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
+      data-business-submit-id={asChild ? undefined : submitControlId}
       disabled={props.disabled || busy}
       aria-busy={busy || props['aria-busy']}
     >

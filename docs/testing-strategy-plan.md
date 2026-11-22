@@ -250,7 +250,7 @@ row; remaining changes are proposals:
 | `planning.test.jsx`, “formats an exact integer amount in F CFA”                                                                                    | Completed 2026-11-19: retired the weak substring-only duplicate and moved its ordinary amount example to `shared/lib/format.test.js` with the full expected value.                                                                                                    |
 | `notification.test.jsx`, assignment notification sentence                                                                                          | Completed 2026-11-19: checks the activity, assigner, PTA and project independently within the notification while retaining navigation and read/unread behavior; punctuation and sentence structure are no longer test requirements.                                   |
 | `test_planning.py`, `test_v14_submission_and_decision_audit_failures_roll_back` and `test_v14_every_workflow_stage_rolls_back_all_failure_classes` | Completed 2026-11-19: the matrix now snapshots contributor count, requires the expected contributor and verifies a successful submission retry plus fresh detail after an audit failure. The narrower duplicate was removed after disposable PostgreSQL verification. |
-| `test_planning.py`, `test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation`                                                    | Completed 2026-11-19: the existing return/correction flow now completes the required fresh Supervisor and Validator review, proves the corrected 350,000 XOF baseline through a fresh read and retains both return reasons in immutable revision evidence.            |
+| `test_planning.py`, `test_v06_v07_returns_allow_unchanged_resubmission_and_require_fresh_prevalidation`                                           | Updated 2026-11-22: the return/correction flow proves unchanged resubmission after both Supervisor and Validator observations, a new immutable revision for each response, fresh two-stage review, final approval and preserved return reasons.                       |
 | Contributor immutability and reviewer-created brief fixtures                                                                                       | Completed 2026-11-19: contributor setup now uses a reviewer-created private draft assigned to both Agents, weighted execution records complete progress, and the used 0029 downgrade guard runs at its exact isolated migration seam.                                 |
 | `test_recovery.py`, concurrent preparation/completion and notification failure                                                                     | Completed 2026-11-19: retired obsolete routine business-audit row expectations while retaining one usable generation, one reset winner, password/recovery persistence, significant completion evidence and truthful notice delivery outcomes.                         |
 | Closure downgrade and PTA-1 operation-tombstone predecessor checks                                                                                 | Completed 2026-11-19: closure evidence now exercises the exact 0014→0015 seam; the shared complete PTA-1 fixture proves 0005→0006 succeeds before four independent tombstone corruptions prove refusal and rollback.                                                  |
@@ -390,15 +390,13 @@ no remaining issue. The isolated containers, network and PostgreSQL volume were
 removed after verification. The known Starlette/httpx deprecation warning remains
 unrelated to this consolidation.
 
-The Activity approval/correction slice completed on 2026-11-19 without adding a
-parallel scenario. The existing initial-revision return flow still proves that an
-unchanged Supervisor return cannot be resubmitted, a changed correction creates a
-new revision, a Validator return carries the requested 350,000 XOF amount and the
-Validator cannot approve the next revision before fresh Supervisor prevalidation.
-It now continues through that required fresh prevalidation and distinct final
-approval, then reads the Activity again to establish the approved revision and
-exact corrected allocation. Fresh revision reads preserve the Supervisor and
-Validator return reasons and show the two decisions on the approved revision.
+The Activity approval/correction scenario was updated on 2026-11-22 for the
+clarified product rule. It proves that an unchanged valid Activity can be
+resubmitted after both Supervisor and Validator returns, each response creates a
+new immutable revision, and the Validator still cannot approve before fresh
+Supervisor prevalidation. It continues through distinct final approval, reads the
+Activity again and preserves both earlier return reasons in revision evidence.
+The separate no-op amendment guard remains in place until a returned review exists.
 
 The initial baseline selection passed the two core review scenarios but had three
 adjacent failures before their intended assertions: assignment administration on

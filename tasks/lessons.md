@@ -240,6 +240,13 @@ implementation boundaries; [README](../README.md) owns setup.
   the approved context-specific appearance. When migrating raw buttons, verify
   every existing variant in its real screen; a shared component call alone does
   not prove that OTP, header and destructive actions kept their design.
+- A form-wide pending boolean cannot own button loading feedback when the form has
+  several submit CTAs. Track the actual submitter, lock the form once, and render
+  `aria-busy` plus the spinner only on the initiating control.
 - When an API field becomes required, audit request helpers and dictionaries
   spread into calls as well as literal JSON bodies. Run the affected test files;
   source searches that inspect only nearby literals miss reusable request bases.
+- Treat contributor kinds as business facts, not one interchangeable permission
+  bucket. Creating a reviewer-owned shell may grant visibility without making
+  that person a content or execution author; freeze review exclusions from the
+  exact authorship kinds named by the rule.

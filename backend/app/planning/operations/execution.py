@@ -523,7 +523,28 @@ def execution_detail(
         ),
         None,
     )
-    current_virement = pending_virement or (
+    confirmed_virement_ids = (
+        set(
+            db.scalars(
+                select(VirementConfirmation.request_id).where(
+                    VirementConfirmation.request_id.in_(
+                        [row.id for row in nonterminal_virements]
+                    )
+                )
+            )
+        )
+        if nonterminal_virements
+        else set()
+    )
+    unconfirmed_virement = next(
+        (
+            row
+            for row in nonterminal_virements
+            if row.state == "approved" and row.id not in confirmed_virement_ids
+        ),
+        None,
+    )
+    current_virement = pending_virement or unconfirmed_virement or (
         nonterminal_virements[0] if nonterminal_virements else None
     )
     approved_virement_by_source: dict[str, int] = {}
@@ -865,7 +886,7 @@ def execution_detail(
             "transferred_amount": (
                 str(approved_virement_total) if approved_virement_total > 0 else None
             ),
-            "current_request_id": pending_virement.id if pending_virement else None,
+            "current_request_id": current_virement.id if current_virement else None,
             "current_state": current_virement.state if current_virement else None,
             "can_submit": can_work
             and available_source is not None

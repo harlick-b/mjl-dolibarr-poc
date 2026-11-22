@@ -3394,7 +3394,7 @@ def submit_activity(
             assert_types(db, normalized)
         except AuthError:
             raise AuthError(409, "activity_incomplete") from None
-        if previous:
+        if item.state == "amendment_draft" and previous:
             previous_operations = cast(
                 list[dict[str, str | int]], previous.snapshot["operations"]
             )

@@ -6,6 +6,37 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## Activity correction resubmission — 2026-11-22
+
+An assigned Agent can resubmit a valid Activity after either the Supervisor or
+Validator returns it with an observation, even when the Activity values are
+unchanged. Each resubmission creates a fresh immutable revision and restarts the
+full Supervisor-then-distinct-Validator review chain. A newly opened no-op
+amendment remains blocked, and transfer/withdrawal request correction rules are
+unchanged.
+
+The focused disposable-PostgreSQL regression failed before the correction with
+`409 correction_unchanged` and passed afterward through both returns and final
+approval. The adjacent amendment test retained its expected no-op rejection; its
+later, unrelated second-Agent edit still fails under the current private-draft
+assignment fixture and is not reported as a passing test.
+
+## Financial review eligibility for Activity brief creators — 2026-11-22
+
+A Supervisor or Validator who only created the initial Activity brief remains
+eligible for their normal financial review step. The request submitter, Activity
+content authors and execution authors remain excluded, and the Supervisor and
+Validator decisions must still be performed by distinct people. The rule is
+shared by funding, décaissement, virement and zero-spending requests.
+
+Migration `0041_reviewer_finance` corrects existing frozen request exclusions
+while retaining real authors and inherited virement exclusions. Focused API
+tests cover Supervisor and Validator brief creators through décaissement and
+virement. Trigger-enabled migration tests cover funding and prevent Alembic from
+claiming the irreversible repair was rolled back. Frontend regression coverage
+confirms that the current row opens a centered local modal and renders the
+Validator action granted by the API.
+
 ## Administrative modal completion behavior — 2026-11-22
 
 Virement and reversement dialogs close after a confirmed successful mutation.
@@ -441,14 +472,11 @@ justified by this baseline alone.
 
 ## Activity approval/correction test strategy slice — completed, 2026-11-19
 
-The existing API flow now covers the complete recovery after both review stages
-return an Activity. An unchanged Supervisor return remains unresubmittable; changed
-content creates a fresh revision; a Validator return preserves its reason and
-requested 350,000 XOF amount; and direct final approval before fresh Supervisor
-prevalidation remains denied. The same scenario now completes the fresh Supervisor
-and Validator decisions, reads the Activity again and proves that revision 3 and
-the exact corrected allocation are the approved baseline. Revision detail retains
-both earlier return reasons and the final two-stage decisions.
+The 2026-11-19 API flow covered complete recovery after both review stages and at
+that time required changed content before resubmission. That content-change
+requirement is superseded by the 2026-11-22 rule above. The retained protections
+still require a fresh revision, Supervisor prevalidation and a distinct Validator
+decision, while revision detail preserves earlier return reasons and decisions.
 
 The strengthened scenario passed alone in 8.53 seconds. Initial approval, the
 corrected return flow, approval/return serialization and duplicate-evidence

@@ -26,6 +26,7 @@ async function openFinancialDrawer(
   expectedAuthorized = null,
   virementAvailable = null,
   requestType = null,
+  disbursementAvailable = true,
 ) {
   const requests = await screen.findByRole('region', {
     name: 'Demandes financières',
@@ -42,11 +43,11 @@ async function openFinancialDrawer(
         within(dialog).getByText('Autorisation de décaissement'),
       ).toBeVisible()
       expect(within(dialog).getByText('Autorisation de virement')).toBeVisible()
-      expect(
-        within(dialog).getByRole('button', {
-          name: 'Créer — Autorisation de décaissement',
-        }),
-      ).toBeEnabled()
+      const disbursementAction = within(dialog).getByRole('button', {
+        name: 'Créer — Autorisation de décaissement',
+      })
+      if (disbursementAvailable) expect(disbursementAction).toBeEnabled()
+      else expect(disbursementAction).toBeDisabled()
       expect(
         within(dialog).getByRole('button', {
           name: 'Créer — Autorisation de virement',
@@ -3159,6 +3160,115 @@ test('financial review opens as a local modal without replacing the Activity pag
   expect(screen.queryByRole('dialog')).toBeNull()
 })
 
+test.each([
+  ['AGENT_VERIFICATEUR', 'submitted', ['read'], 'Consulter', null],
+  [
+    'VALIDATEUR_DEFINITIF',
+    'prevalidated',
+    ['read', 'approve', 'return'],
+    'Examiner',
+    'Autoriser',
+  ],
+])(
+  '%s opens the current disbursement locally and sees the projected decision',
+  async (role, state, allowedActions, rowAction, decisionAction) => {
+    const user = userEvent.setup()
+    const request = {
+      id: '33333333-3333-4333-8333-333333333333',
+      activity_id: 'activity-1',
+      amount: '100000',
+      state,
+      submitted_at: '2026-10-29T09:00:00Z',
+      activity_version: 7,
+      decisions:
+        state === 'prevalidated'
+          ? [
+              {
+                id: 'decision-1',
+                stage: 'supervisor',
+                outcome: 'prevalidated',
+                actor_name: 'Superviseur',
+                decided_at: '2026-10-30T09:00:00Z',
+                reason: 'Dossier vérifié.',
+              },
+            ]
+          : [],
+      cancellation: null,
+      allowed_actions: allowedActions,
+    }
+    const empty = {
+      object: 'list',
+      count: 0,
+      data: [],
+      next: null,
+      previous: null,
+    }
+    const fetch = vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: role === 'AGENT_VERIFICATEUR' ? 'supervisor' : 'validator',
+              email: 'reviewer@example.test',
+              role,
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/activity-1/execution'))
+        return new Response(
+          JSON.stringify(detail({ started: true, completed: true })),
+        )
+      if (path.endsWith('/disbursement-requests'))
+        return new Response(
+          JSON.stringify({ ...empty, count: 1, data: [request] }),
+        )
+      if (path.includes('/funding-requests'))
+        return new Response(
+          JSON.stringify({
+            ...empty,
+            pending: [],
+            allowed_actions: [],
+            activity_version: 7,
+            approved_revision_id: null,
+          }),
+        )
+      return new Response(JSON.stringify(empty))
+    })
+    vi.stubGlobal('fetch', fetch)
+    const history = createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    })
+    render(<App router={makeExecutionRouter(history)} />)
+
+    const requests = await screen.findByRole('region', {
+      name: 'Demandes financières',
+    })
+    await user.click(
+      await within(requests).findByRole('button', { name: rowAction }),
+    )
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Demande de décaissement',
+    })
+    expect(dialog).toBeVisible()
+    expect(dialog).not.toHaveClass('h-dvh')
+    expect(history.location.pathname).toBe('/execution/activities/activity-1')
+    expect(history.location.search).toBe('')
+    expect(fetch).not.toHaveBeenCalledWith(
+      `/api/v1/activities/activity-1/disbursement-requests/${request.id}`,
+      expect.anything(),
+    )
+    if (decisionAction)
+      expect(
+        within(dialog).getByRole('button', { name: decisionAction }),
+      ).toBeVisible()
+  },
+)
+
 test('virement review uses the shared decision composition and submits its observation', async () => {
   const user = userEvent.setup()
   const requestId = '44444444-4444-4444-8444-444444444444'
@@ -3476,17 +3586,34 @@ test('virement review displays the total of previously authorized virements', as
   ).toBeVisible()
 })
 
-test('Agent enters a virement amount within the approved disbursement', async () => {
+test('Agent sees the next partial-virement form while the approved one remains confirmable', async () => {
   const user = userEvent.setup()
   const sourceId = '33333333-3333-4333-8333-333333333333'
   const requestId = '44444444-4444-4444-8444-444444444444'
-  let virement = null
+  const approvedRequestId = '44444444-4444-4444-8444-444444444443'
+  const approvedVirement = {
+    id: approvedRequestId,
+    activity_id: 'activity-1',
+    disbursement_request_id: sourceId,
+    amount: '25000',
+    state: 'approved',
+    submitter_id: 'agent',
+    submitted_at: '2026-10-28T09:00:00Z',
+    cancellation: null,
+    decisions: [],
+    allowed_actions: ['read', 'declare_confirmation'],
+    current_confirmation: null,
+    activity_version: 7,
+  }
+  let virement = approvedVirement
   const execution = detail({ started: true, completed: true })
+  execution.disbursement_can_submit = false
   execution.virement_context = {
     disbursement_request_id: sourceId,
     amount: '100000',
-    current_request_id: null,
-    current_state: null,
+    transferred_amount: '25000',
+    current_request_id: approvedRequestId,
+    current_state: 'approved',
     can_submit: true,
     unavailable_reason: null,
   }
@@ -3570,6 +3697,24 @@ test('Agent enters a virement amount within the approved disbursement', async ()
       }
       return Promise.resolve(new Response(JSON.stringify(virement)))
     }
+    if (
+      path.endsWith(
+        `/virement-requests/${approvedRequestId}/confirmation/history`,
+      )
+    )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 0,
+            data: [],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    if (path.endsWith(`/virement-requests/${approvedRequestId}`))
+      return Promise.resolve(new Response(JSON.stringify(approvedVirement)))
     if (path.endsWith(`/virement-requests/${requestId}`))
       return Promise.resolve(new Response(JSON.stringify(virement)))
     if (path.endsWith('/virement-requests'))
@@ -3604,39 +3749,26 @@ test('Agent enters a virement amount within the approved disbursement', async ()
     null,
     true,
     'Autorisation de virement',
+    false,
   )
   expect(within(requestDialog).getByText('Budget prévu')).toBeVisible()
   expect(
-    within(requestDialog).getByText('Total actuellement autorisé'),
+    within(requestDialog).getByText('Virements déjà autorisés'),
+  ).toBeVisible()
+  expect(
+    within(
+      within(requestDialog).getByText('Virements déjà autorisés').parentElement,
+    ).getByText('25 000 F CFA'),
   ).toBeVisible()
   expect(
     within(requestDialog).getByRole('textbox', {
       name: 'Montant total demandé (F CFA)',
     }),
   ).toHaveValue('100\u202f000')
-  await user.click(
-    await screen.findByRole('button', {
-      name: 'Faire la demande',
-    }),
-  )
   await waitFor(() =>
     expect(
-      within(
-        screen.getByRole('region', { name: 'Demandes financières' }),
-      ).getByText('À prévalider'),
-    ).toBeVisible(),
-  )
-  expect(fetch).toHaveBeenCalledWith(
-    '/api/v1/activities/activity-1/virement-requests',
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({
-        expected_version: 7,
-        expected_disbursement_request_id: sourceId,
-        amount: '100000',
-        observation: '',
-      }),
-    }),
+      within(requestDialog).getByRole('button', { name: 'Faire la demande' }),
+    ).toBeEnabled(),
   )
 })
 
@@ -3809,12 +3941,16 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     await openAdministrativeDrawer(
       user,
       'Enregistrer le virement',
-      'Virement externe',
+      'Confirmer le virement effectué',
     ),
   )
+  expect(await virementDialog.findByText('Former les équipes')).toBeVisible()
   expect(
-    await virementDialog.findByText(/MJL enregistre la déclaration/i),
-  ).toBeVisible()
+    virementDialog.getByLabelText('Montant réellement viré (F CFA)'),
+  ).toHaveValue('100 000')
+  expect(
+    virementDialog.getByLabelText('Montant réellement viré (F CFA)'),
+  ).toHaveAttribute('readonly')
   await user.click(
     virementDialog.getByRole('button', {
       name: /Date effective du virement/,
@@ -3846,7 +3982,9 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   expect(await virementDialog.findByRole('alert')).toHaveTextContent(
     'Vérification refusée. Vérifiez les informations saisies.',
   )
-  expect(screen.getByRole('dialog', { name: 'Virement externe' })).toBeVisible()
+  expect(
+    screen.getByRole('dialog', { name: 'Confirmer le virement effectué' }),
+  ).toBeVisible()
   expect(
     virementDialog.getByRole('button', {
       name: 'Date effective du virement : 28 octobre 2026',
@@ -3875,7 +4013,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     await openAdministrativeDrawer(
       user,
       'Modifier le virement',
-      'Virement externe',
+      'Modifier le virement effectué',
     ),
   )
   await virementPanel.findByRole('button', {
@@ -3902,14 +4040,14 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   )
   await waitFor(() =>
     expect(
-      screen.queryByRole('dialog', { name: 'Virement externe' }),
+      screen.queryByRole('dialog', { name: 'Modifier le virement effectué' }),
     ).not.toBeInTheDocument(),
   )
   virementPanel = within(
     await openAdministrativeDrawer(
       user,
       'Modifier le virement',
-      'Virement externe',
+      'Modifier le virement effectué',
     ),
   )
   expect(
@@ -3932,25 +4070,25 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   )
   await waitFor(() =>
     expect(
-      screen.queryByRole('dialog', { name: 'Virement externe' }),
+      screen.queryByRole('dialog', { name: 'Modifier le virement effectué' }),
     ).not.toBeInTheDocument(),
   )
   virementPanel = within(
     await openAdministrativeDrawer(
       user,
       'Modifier le virement',
-      'Virement externe',
+      'Modifier le virement effectué',
     ),
   )
-  await waitFor(() =>
-    expect(
-      virementPanel.getByText('Historique des déclarations (3)'),
-    ).toBeVisible(),
+  const recordedTransfer = within(
+    await virementPanel.findByRole('region', { name: 'Virement enregistré' }),
   )
-  await user.click(virementPanel.getByText('Historique des déclarations (3)'))
-  expect(virementPanel.getAllByText('Déclaration corrigée')).toHaveLength(2)
-  expect(virementPanel.getByText('Déclaration initiale')).toBeVisible()
-  expect(virementPanel.getAllByText(/Yoann Agent/)).toHaveLength(3)
+  expect(recordedTransfer.getByText(/100.*000 F CFA/)).toBeVisible()
+  expect(recordedTransfer.getByText('27 octobre 2026')).toBeVisible()
+  expect(recordedTransfer.getByText('TEST-003')).toBeVisible()
+  expect(
+    virementPanel.queryByText(/Historique des déclarations/),
+  ).not.toBeInTheDocument()
   expect(virementPanel.queryByText(/^Version /)).not.toBeInTheDocument()
 }, 15000)
 

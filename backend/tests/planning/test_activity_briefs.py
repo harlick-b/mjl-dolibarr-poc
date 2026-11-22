@@ -346,7 +346,8 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         "email": validator["email"],
         "full_name": validator["full_name"],
     }
-    # The same reviewer remains excluded from financial approval.
+    # Creating the brief is setup work. It does not make the reviewer a
+    # financial author or prevent their normal review step.
     from tests.execution.test_execution import execution_path
 
     detail = planning["agent"].get(url + "/execution").json()
@@ -388,7 +389,7 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
         )
         assert prevalidated.status_code == 201, prevalidated.text
         request = prevalidated.json()
-    denied = post(
+    reviewed_finance = post(
         planning[creator],
         url + f"/disbursement-requests/{request['id']}/decisions",
         {
@@ -396,7 +397,272 @@ def test_reviewer_brief_completed_by_assigned_agent_then_reviewed_by_creator(
             "expected_version": request["activity_version"],
         },
     )
-    assert denied.status_code == 409, denied.text
+    assert reviewed_finance.status_code == 201, reviewed_finance.text
+    assert reviewed_finance.json()["state"] == (
+        "prevalidated" if creator == "supervisor" else "approved"
+    )
+    if creator == "supervisor":
+        approved_finance = post(
+            planning["validator"],
+            url + f"/disbursement-requests/{reviewed_finance.json()['id']}/decisions",
+            {
+                "decision": "approve",
+                "expected_version": reviewed_finance.json()["activity_version"],
+            },
+        )
+        assert approved_finance.status_code == 201, approved_finance.text
+        source = approved_finance.json()
+    else:
+        source = reviewed_finance.json()
+
+    # The same rule continues into the next financial step: creating the brief
+    # does not prevent the reviewer from authorizing the external transfer.
+    virement = post(
+        planning["agent"],
+        url + "/virement-requests",
+        {
+            "expected_version": source["activity_version"],
+            "expected_disbursement_request_id": source["id"],
+            "amount": source["amount"],
+        },
+    )
+    assert virement.status_code == 201, virement.text
+    transfer = virement.json()
+    transfer_prevalidation = post(
+        planning["supervisor"],
+        url + f"/virement-requests/{transfer['id']}/decisions",
+        {
+            "decision": "prevalidate",
+            "expected_version": transfer["activity_version"],
+        },
+    )
+    assert transfer_prevalidation.status_code == 201, transfer_prevalidation.text
+    transfer_approval = post(
+        planning["validator"],
+        url + f"/virement-requests/{transfer['id']}/decisions",
+        {
+            "decision": "approve",
+            "expected_version": transfer_prevalidation.json()["activity_version"],
+        },
+    )
+    assert transfer_approval.status_code == 201, transfer_approval.text
+    assert transfer_approval.json()["state"] == "approved"
+
+
+@pytest.mark.parametrize("creator_kind", ["supervisor_creation", "validator_creation"])
+def test_reviewer_creator_financial_exclusion_migration_preserves_real_authors(
+    monkeypatch, creator_kind
+):
+    import json
+    import os
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    base = make_url(os.environ["TEST_DATABASE_URL"])
+    assert (base.database or "").startswith("mjl_test_")
+    database_name = "mjl_test_" + uuid4().hex
+    admin_engine = create_engine(base, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as db:
+        db.execute(text(f"CREATE DATABASE {database_name}"))
+    url = base.set(database=database_name).render_as_string(hide_password=False)
+    migration_engine = create_engine(url)
+    monkeypatch.setenv("DATABASE_URL", url)
+    config = Config("alembic.ini")
+    activity_id = str(uuid4())
+    revision_id = str(uuid4())
+    request_id = str(uuid4())
+    submitter_id = str(uuid4())
+    virement_id = str(uuid4())
+    virement_submitter_id = str(uuid4())
+    content_author_id = str(uuid4())
+    brief_creator_id = str(uuid4())
+    historical_exclusion_id = str(uuid4())
+    funding_request_id = str(uuid4())
+    funding_decision_id = str(uuid4())
+    try:
+        command.upgrade(config, "0040_financial_request_details")
+        with migration_engine.begin() as db:
+            db.execute(text("SET session_replication_role = replica"))
+            db.execute(
+                text(
+                    "INSERT INTO auth_user "
+                    "(id,email,role,state,password_hash,version) VALUES "
+                    "(:id,:email,'AGENT_VERIFICATEUR','active','fixture',1)"
+                ),
+                {
+                    "id": brief_creator_id,
+                    "email": f"{brief_creator_id}@example.test",
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_activity_contributor "
+                    "(id,context_id,activity_id,user_id,kind,contributed_at) VALUES "
+                    "(:brief_id,'MJL',:activity_id,:brief_creator_id,"
+                    ":creator_kind,now()),"
+                    "(:content_id,'MJL',:activity_id,:content_author_id,"
+                    "'content',now())"
+                ),
+                {
+                    "brief_id": str(uuid4()),
+                    "content_id": str(uuid4()),
+                    "activity_id": activity_id,
+                    "brief_creator_id": brief_creator_id,
+                    "creator_kind": creator_kind,
+                    "content_author_id": content_author_id,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_disbursement_request "
+                    "(id,context_id,activity_id,approved_revision_id,snapshot,amount,"
+                    "submitter_id,submitted_at,state) VALUES "
+                    "(:request_id,'MJL',:activity_id,:revision_id,"
+                    "CAST(:snapshot AS jsonb),100,:submitter_id,now(),'submitted')"
+                ),
+                {
+                    "request_id": request_id,
+                    "activity_id": activity_id,
+                    "revision_id": revision_id,
+                    "snapshot": json.dumps(
+                        {
+                            "allocation": "100",
+                            "operations": [],
+                            "excluded_reviewer_ids": [
+                                submitter_id,
+                                content_author_id,
+                                brief_creator_id,
+                                historical_exclusion_id,
+                            ],
+                        }
+                    ),
+                    "submitter_id": submitter_id,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_funding_request "
+                    "(id,context_id,activity_id,approved_revision_id,snapshot,amount,"
+                    "submitter_id,submitted_at,state) VALUES "
+                    "(:id,'MJL',:activity_id,:revision_id,CAST(:snapshot AS jsonb),"
+                    "100,:submitter_id,now(),'submitted')"
+                ),
+                {
+                    "id": funding_request_id,
+                    "activity_id": activity_id,
+                    "revision_id": revision_id,
+                    "snapshot": json.dumps(
+                        {
+                            "old_allocation": "100",
+                            "new_allocation": "200",
+                            "excluded_reviewer_ids": [
+                                submitter_id,
+                                brief_creator_id,
+                                historical_exclusion_id,
+                            ],
+                        }
+                    ),
+                    "submitter_id": submitter_id,
+                },
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_virement_request "
+                    "(id,context_id,activity_id,disbursement_request_id,"
+                    "excluded_reviewer_ids,submitter_id,submitted_at,state,amount) "
+                    "VALUES (:virement_id,'MJL',:activity_id,:request_id,"
+                    "CAST(:exclusions AS jsonb),:submitter_id,now(),'submitted',50)"
+                ),
+                {
+                    "virement_id": virement_id,
+                    "activity_id": activity_id,
+                    "request_id": request_id,
+                    "exclusions": json.dumps(
+                        [
+                            submitter_id,
+                            virement_submitter_id,
+                            content_author_id,
+                            brief_creator_id,
+                            historical_exclusion_id,
+                        ]
+                    ),
+                    "submitter_id": virement_submitter_id,
+                },
+            )
+            db.execute(text("SET session_replication_role = origin"))
+        command.upgrade(config, "head")
+        # With normal triggers restored, the brief creator can perform the
+        # funding review because the repaired frozen snapshot no longer treats
+        # setup work as financial authorship.
+        with migration_engine.begin() as db:
+            db.execute(
+                text(
+                    "UPDATE pta_funding_request SET state='prevalidated' WHERE id=:id"
+                ),
+                {"id": funding_request_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO pta_funding_decision "
+                    "(id,activity_id,request_id,stage,outcome,actor_id,actor_role,"
+                    "decided_at,reason,prevalidation_decision_id) VALUES "
+                    "(:id,:activity_id,:request_id,'supervisor','prevalidated',"
+                    ":actor_id,'AGENT_VERIFICATEUR',now(),NULL,NULL)"
+                ),
+                {
+                    "id": funding_decision_id,
+                    "activity_id": activity_id,
+                    "request_id": funding_request_id,
+                    "actor_id": brief_creator_id,
+                },
+            )
+        with migration_engine.connect() as db:
+            snapshot = db.execute(
+                text(
+                    "SELECT snapshot FROM pta_disbursement_request WHERE id=:request_id"
+                ),
+                {"request_id": request_id},
+            ).scalar_one()
+            virement_exclusions = db.execute(
+                text(
+                    "SELECT excluded_reviewer_ids FROM pta_virement_request "
+                    "WHERE id=:virement_id"
+                ),
+                {"virement_id": virement_id},
+            ).scalar_one()
+            funding_snapshot = db.execute(
+                text("SELECT snapshot FROM pta_funding_request WHERE id=:id"),
+                {"id": funding_request_id},
+            ).scalar_one()
+        assert set(snapshot["excluded_reviewer_ids"]) == {
+            submitter_id,
+            content_author_id,
+            historical_exclusion_id,
+        }
+        assert set(virement_exclusions) == {
+            submitter_id,
+            virement_submitter_id,
+            content_author_id,
+            historical_exclusion_id,
+        }
+        assert set(funding_snapshot["excluded_reviewer_ids"]) == {
+            submitter_id,
+            historical_exclusion_id,
+        }
+        with pytest.raises(RuntimeError, match="eligibility repair is irreversible"):
+            command.downgrade(config, "0040_financial_request_details")
+        with migration_engine.connect() as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "0041_reviewer_finance"
+            )
+    finally:
+        migration_engine.dispose()
+        with admin_engine.connect() as db:
+            db.execute(text(f"DROP DATABASE {database_name} WITH (FORCE)"))
+        admin_engine.dispose()
 
 
 def test_used_decision_observation_migration_refuses_destructive_downgrade(

@@ -13,4 +13,6 @@
   is independent of expenditure, validation and closure.
 - **Weight**: an exact percentage contribution. Task weights total 100% inside
   an Activity; Subtask weights total 100% inside their Task at submission.
+- **Brief creator**: a Supervisor or Validator who creates an Activity shell and
+  assigns its Agents. Brief creation alone is setup work, not content authorship.
 

@@ -1010,7 +1010,7 @@ def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0040_financial_request_details"
+                "0041_reviewer_finance"
             )
             columns = {row["name"] for row in inspect(db).get_columns("pta_activity")}
             assert {"closed_at", "closed_by_id"} <= columns

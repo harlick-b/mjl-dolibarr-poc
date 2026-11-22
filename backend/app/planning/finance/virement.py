@@ -23,7 +23,6 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.core.models import (
     Activity,
-    ActivityContributor,
     DisbursementRequest,
     Project,
     ReversementDeclaration,
@@ -48,6 +47,7 @@ from app.planning.finance.request_attachments import (
     attachment_values,
     read_request_attachment,
 )
+from app.planning.finance.reviewer_eligibility import financial_review_exclusions
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
     mark_review_handled,
@@ -615,14 +615,7 @@ def _submit(
         excluded = set(
             cast(list[str], source.snapshot.get("excluded_reviewer_ids", []))
         )
-        excluded.update(
-            db.scalars(
-                select(ActivityContributor.user_id).where(
-                    ActivityContributor.activity_id == item.id
-                )
-            )
-        )
-        excluded.add(actor.id)
+        excluded.update(financial_review_exclusions(db, item.id, actor.id))
         now = auth.now(db)
         created = VirementRequest(
             context_id=CONTEXT,

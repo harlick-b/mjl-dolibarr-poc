@@ -343,7 +343,7 @@ def test_category_migration_refuses_to_discard_an_incomplete_draft(planning, aut
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0040_financial_request_details"
+                == "0041_reviewer_finance"
             )
             assert (
                 connection.scalar(
@@ -575,7 +575,7 @@ def test_v04_v05_assigned_submission_and_exact_revision_approval(planning, auth_
         )
 
 
-def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
+def test_v06_v07_returns_allow_unchanged_resubmission_and_require_fresh_prevalidation(
     planning,
 ):
     _partner, operation_type, project = references(planning)
@@ -604,41 +604,8 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
         f"/api/v1/activities/{created['id']}/submissions",
         {"expected_version": returned.json()["activity_version"]},
     )
-    assert unchanged.status_code == 409
-
-    detail = planning["agent"].get(f"/api/v1/activities/{created['id']}").json()
-    corrected_body = plan(
-        operation_type,
-        description="Planification corrigée et complète",
-        tasks=[
-            {
-                key: value
-                for key, value in {
-                    **detail["tasks"][0],
-                    "allocation": "120000",
-                }.items()
-                if key != "position"
-            },
-            {
-                key: value
-                for key, value in {
-                    **detail["tasks"][1],
-                    "allocation": "180000",
-                }.items()
-                if key != "position"
-            },
-        ],
-        expected_version=detail["version"],
-    )
-    corrected = patch(
-        planning["agent"], f"/api/v1/activities/{created['id']}", corrected_body
-    )
-    assert corrected.status_code == 200, corrected.text
-    second = post(
-        planning["agent"],
-        f"/api/v1/activities/{created['id']}/submissions",
-        {"expected_version": corrected.json()["version"]},
-    )
+    assert unchanged.status_code == 201, unchanged.text
+    second = unchanged
     assert second.status_code == 201, second.text
     assert second.json()["revision_number"] == 2
     prevalidated = post(
@@ -657,45 +624,13 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
             "expected_version": prevalidated.json()["activity_version"],
             "decision": "return",
             "reason": "Réviser le budget proposé.",
-            "requested_amount": "350000",
         },
     )
     assert validator_return.status_code == 201, validator_return.text
-
-    detail = planning["agent"].get(f"/api/v1/activities/{created['id']}").json()
-    revised = patch(
-        planning["agent"],
-        f"/api/v1/activities/{created['id']}",
-        plan(
-            operation_type,
-            description="Nouvelle correction budgétaire",
-            allocation="350000",
-            tasks=[
-                {
-                    key: value
-                    for key, value in {
-                        **detail["tasks"][0],
-                        "allocation": "150000",
-                    }.items()
-                    if key != "position"
-                },
-                {
-                    key: value
-                    for key, value in {
-                        **detail["tasks"][1],
-                        "allocation": "200000",
-                    }.items()
-                    if key != "position"
-                },
-            ],
-            expected_version=detail["version"],
-        ),
-    )
-    assert revised.status_code == 200, revised.text
     third = post(
         planning["agent"],
         f"/api/v1/activities/{created['id']}/submissions",
-        {"expected_version": revised.json()["version"]},
+        {"expected_version": validator_return.json()["activity_version"]},
     )
     assert third.status_code == 201, third.text
     third_revision = third.json()
@@ -730,7 +665,7 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
     approved_detail = approved_detail_response.json()
     assert approved_detail["state"] == "approved"
     assert approved_detail["approved_revision_id"] == third_revision["id"]
-    assert approved_detail["approved_allocation"] == "350000"
+    assert approved_detail["approved_allocation"] == "300000"
 
     first_evidence_response = planning["agent"].get(
         f"/api/v1/activities/{created['id']}/revisions/{first['id']}"
@@ -759,7 +694,7 @@ def test_v06_v07_returns_require_changed_resubmission_and_fresh_prevalidation(
         for row in second_evidence["decisions"]
     ] == [
         ("supervisor", "prevalidated", None, None),
-        ("validator", "returned", "Réviser le budget proposé.", "350000"),
+        ("validator", "returned", "Réviser le budget proposé.", None),
     ]
     assert [(row["stage"], row["outcome"]) for row in third_evidence["decisions"]] == [
         ("supervisor", "prevalidated"),

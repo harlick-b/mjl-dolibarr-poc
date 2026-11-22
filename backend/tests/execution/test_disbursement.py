@@ -126,6 +126,13 @@ def test_agent_submits_and_distinct_reviewers_authorize_disbursement(planning):
         },
     )
     assert prevalidated.status_code == 201, prevalidated.text
+    validator_view = planning["validator"].get(collection(activity))
+    assert validator_view.status_code == 200, validator_view.text
+    assert validator_view.json()["data"][0]["allowed_actions"] == [
+        "read",
+        "approve",
+        "return",
+    ]
     approved = post(
         planning["validator"],
         f"{collection(activity)}/{request['id']}/decisions",

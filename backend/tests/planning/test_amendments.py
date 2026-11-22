@@ -439,7 +439,7 @@ def test_m04_editable_amendments_can_clear_dates_and_keep_audit_history(
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0040_financial_request_details"
+                "0041_reviewer_finance"
             )
     finally:
         engine.dispose()

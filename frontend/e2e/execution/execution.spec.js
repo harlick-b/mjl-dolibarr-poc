@@ -1062,27 +1062,6 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     }
     if (
       virement &&
-      path.endsWith(`/virement-requests/${virement.id}/confirmation/history`)
-    ) {
-      const older = new URL(incoming.url()).searchParams.has('cursor')
-      return route.fulfill({
-        json: {
-          object: 'list',
-          count: confirmations.length,
-          data: older ? confirmations.slice(1) : confirmations.slice(0, 1),
-          next:
-            !older && confirmations.length > 1
-              ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/confirmation/history?cursor=older`
-              : null,
-          previous:
-            older && confirmations.length > 1
-              ? `/api/v1/activities/activity-1/virement-requests/${virement.id}/confirmation/history?cursor=newer`
-              : null,
-        },
-      })
-    }
-    if (
-      virement &&
       path.endsWith(
         `/virement-requests/${virement.id}/reversement/corrections`,
       ) &&
@@ -1517,8 +1496,8 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   role = 'AGENT_SAISIE'
   await page.reload()
   await page.getByRole('button', { name: 'Enregistrer le virement' }).click()
-  const externalTransferDialog = page.getByRole('dialog', {
-    name: 'Virement externe',
+  let externalTransferDialog = page.getByRole('dialog', {
+    name: 'Confirmer le virement effectué',
   })
   await externalTransferDialog
     .getByRole('button', {
@@ -1539,11 +1518,19 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
     .getByRole('button', { name: 'Confirmer la déclaration' })
     .click()
   await page.getByRole('button', { name: 'Modifier le virement' }).click()
+  externalTransferDialog = page.getByRole('dialog', {
+    name: 'Modifier le virement effectué',
+  })
+  let recordedTransfer = externalTransferDialog.getByRole('region', {
+    name: 'Virement enregistré',
+  })
+  await expect(recordedTransfer.getByText(/100.*000 F CFA/)).toBeVisible()
+  await expect(recordedTransfer.getByText('28 octobre 2026')).toBeVisible()
+  await expect(recordedTransfer.getByText('BANQUE-001')).toBeVisible()
   await expect(
-    externalTransferDialog
-      .getByRole('definition')
-      .filter({ hasText: 'BANQUE-001' }),
+    recordedTransfer.getByText('Enregistré', { exact: true }),
   ).toBeVisible()
+  await expect(recordedTransfer.locator('time')).toBeVisible()
   await externalTransferDialog
     .getByRole('button', {
       name: /Date effective du virement : 28 octobre 2026/,
@@ -1565,28 +1552,20 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
   await externalTransferDialog
     .getByRole('button', { name: 'Corriger la déclaration' })
     .click()
-  await expect(
-    externalTransferDialog
-      .getByRole('definition')
-      .filter({ hasText: 'BANQUE-002' }),
-  ).toBeVisible()
-  await externalTransferDialog
-    .getByText('Historique des déclarations (2)')
-    .click()
-  await externalTransferDialog
-    .getByRole('navigation', {
-      name: 'Pagination des déclarations de virement',
-    })
-    .getByRole('button', { name: 'Suivant' })
-    .click()
-  await expect(page).toHaveURL(/confirmationCursor=older/)
   await page.getByRole('button', { name: 'Modifier le virement' }).click()
-  await externalTransferDialog
-    .getByText('Historique des déclarations (2)')
-    .click()
-  await expect(externalTransferDialog.getByText('BANQUE-001')).toBeVisible()
-  await page.goBack()
-  await expect(page).not.toHaveURL(/confirmationCursor=older/)
+  recordedTransfer = externalTransferDialog.getByRole('region', {
+    name: 'Virement enregistré',
+  })
+  await expect(recordedTransfer.getByText(/100.*000 F CFA/)).toBeVisible()
+  await expect(recordedTransfer.getByText('27 octobre 2026')).toBeVisible()
+  await expect(recordedTransfer.getByText('BANQUE-002')).toBeVisible()
+  await expect(
+    recordedTransfer.getByText('Enregistré', { exact: true }),
+  ).toBeVisible()
+  await expect(recordedTransfer.locator('time')).toBeVisible()
+  await expect(
+    externalTransferDialog.getByText(/Historique des déclarations/),
+  ).toHaveCount(0)
 
   await expect(
     externalTransferDialog.getByRole('button', {

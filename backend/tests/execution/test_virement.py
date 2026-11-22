@@ -145,6 +145,12 @@ def approved_virement(clients, *, amounts=(100_000, 200_000), allocations=None):
 
 def test_agent_declares_exact_external_transfer_and_corrects_with_history(planning):
     activity, _source, request = approved_virement(planning)
+    execution = planning["agent"].get(
+        f"/api/v1/activities/{activity['id']}/execution"
+    )
+    assert execution.status_code == 200, execution.text
+    assert execution.json()["virement_context"]["current_request_id"] == request["id"]
+    assert execution.json()["virement_context"]["current_state"] == "approved"
     transfer = planning["validator"].get(
         f"/api/v1/ptas/{activity['pta_id']}/execution",
         params={"state": "transfer"},
@@ -190,6 +196,70 @@ def test_agent_declares_exact_external_transfer_and_corrects_with_history(planni
         "Test User",
     ]
     assert history.json()["data"][1]["note"] == "Référence banque TEST-001"
+
+
+def test_execution_advances_external_confirmation_across_partial_virements(planning):
+    activity, source = approved_disbursement(planning)
+
+    def approve_request(amount: str, version: int) -> dict:
+        submitted = post(
+            planning["agent"],
+            virement_collection(activity),
+            {
+                "expected_version": version,
+                "expected_disbursement_request_id": source["id"],
+                "amount": amount,
+            },
+        )
+        assert submitted.status_code == 201, submitted.text
+        prevalidated = post(
+            planning["supervisor"],
+            f"{virement_collection(activity)}/{submitted.json()['id']}/decisions",
+            {
+                "expected_version": submitted.json()["activity_version"],
+                "decision": "prevalidate",
+            },
+        )
+        assert prevalidated.status_code == 201, prevalidated.text
+        approved = post(
+            planning["validator"],
+            f"{virement_collection(activity)}/{submitted.json()['id']}/decisions",
+            {
+                "expected_version": prevalidated.json()["activity_version"],
+                "decision": "approve",
+            },
+        )
+        assert approved.status_code == 201, approved.text
+        return approved.json()
+
+    first = approve_request("100000", source["activity_version"])
+    projected = planning["agent"].get(
+        f"/api/v1/activities/{activity['id']}/execution"
+    ).json()
+    assert projected["virement_context"]["current_request_id"] == first["id"]
+    assert projected["virement_context"]["can_submit"] is True
+
+    second = approve_request("200000", first["activity_version"])
+    confirmed = post(
+        planning["agent"],
+        f"{virement_collection(activity)}/{second['id']}/confirmation",
+        {
+            "expected_version": second["activity_version"],
+            "transfer_date": "2026-10-28",
+            "note": "Deuxième virement effectué en premier.",
+        },
+    )
+    assert confirmed.status_code == 201, confirmed.text
+
+    projected = planning["agent"].get(
+        f"/api/v1/activities/{activity['id']}/execution"
+    ).json()
+    assert projected["virement_context"]["current_request_id"] == first["id"]
+    first_detail = planning["agent"].get(
+        f"{virement_collection(activity)}/{first['id']}"
+    )
+    assert first_detail.status_code == 200, first_detail.text
+    assert "declare_confirmation" in first_detail.json()["allowed_actions"]
 
 
 def test_agent_enters_virement_no_greater_than_approved_disbursement(planning):

@@ -10,6 +10,7 @@ import { strings } from '@/locales/fr/ListFilters'
 import { strings as common } from '@/locales/fr/common'
 import { AgentSearchPanel } from './AgentSearchPanel'
 import * as Popover from '@radix-ui/react-popover'
+import { UsersRound } from 'lucide-react'
 
 export function QueryFilterSelect({
   kind,
@@ -103,6 +104,7 @@ export function QueryFilterSelect({
               >
                 {compact ? (
                   <>
+                    <UsersRound size={16} aria-hidden="true" />
                     {strings.agentTrigger}
                     {value ? ' · 1' : ''}
                   </>

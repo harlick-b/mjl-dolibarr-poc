@@ -24,7 +24,6 @@ from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.core.models import (
     Activity,
-    ActivityContributor,
     ActivityRevision,
     ActivityRevisionDecision,
     DisbursementDecision,
@@ -49,6 +48,7 @@ from app.planning.finance.request_attachments import (
     attachment_values,
     read_request_attachment,
 )
+from app.planning.finance.reviewer_eligibility import financial_review_exclusions
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
     mark_review_handled,
@@ -246,37 +246,6 @@ def decisions(db: Session, request_id: str) -> list[DisbursementDecision]:
             .order_by(DisbursementDecision.decided_at, DisbursementDecision.id)
         )
     )
-
-
-def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[str]:
-    result = {submitter_id}
-    result.update(
-        db.scalars(
-            select(ActivityContributor.user_id).where(
-                ActivityContributor.activity_id == item.id
-            )
-        )
-    )
-    audits = list(
-        db.scalars(
-            select(Audit).where(
-                Audit.action.in_(
-                    {
-                        "operation.execution_started",
-                        "operation.execution_recorded",
-                        "operation.execution_corrected",
-                        "subtask.execution_recorded",
-                        "subtask.execution_corrected",
-                    }
-                ),
-                Audit.business["activity_id"].as_string() == item.id,
-            )
-        )
-    )
-    if not audits:
-        raise AuthError(409, "execution_history_unverified")
-    result.update(row.actor for row in audits)
-    return result
 
 
 def verified_financial_basis(
@@ -798,7 +767,7 @@ def _submit(
             raise AuthError(409, "disbursement_fully_authorized")
         if amount > remaining:
             raise AuthError(422, "disbursement_amount_exceeds_spending")
-        excluded = excluded_reviewers(db, item, actor.id) | authors
+        excluded = financial_review_exclusions(db, item.id, actor.id) | authors
         now = auth.now(db)
         created = DisbursementRequest(
             context_id=CONTEXT,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ListFilter, Search, X } from 'lucide-react'
 import * as Popover from '@radix-ui/react-popover'
 import { formatDate } from '@/shared/lib/format'
 import { Button } from './button'
@@ -114,6 +114,7 @@ export function ActivityExplorerFilters({
               disabled={disabled}
               className="px-3 text-[0.8125rem] font-normal data-[state=open]:border-primary data-[state=open]:bg-selected"
             >
+              <ListFilter size={16} aria-hidden="true" />
               {strings.filters}
             </Button>
           </Popover.Trigger>

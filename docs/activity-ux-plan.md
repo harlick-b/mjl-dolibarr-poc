@@ -1664,7 +1664,7 @@ remain outside the authorized slices.
 | Document withdrawal                      | Complete: each document row owns withdrawal visibility and renders its current Query record.    | Refresh updates document facts while the reason and optional replacement choice remain in the open form.               |
 | Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                      |
 | Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                      |
-| Zero-spending and funding submission     | Complete: successful actions close through the shared callback.                                 | Failed submissions keep the modal, entered reason and starting Activity version available for retry.                  |
+| Zero-spending and funding submission     | Complete: successful actions close through the shared callback.                                 | Failed submissions keep the modal, entered reason and starting Activity version available for retry.                   |
 | Partner/Project edit dialogs             | Complete: each editable row owns its dialog and renders the current Query record.               | Draft values and the opening concurrency baseline remain stable through refresh; removed rows close with safe focus.   |
 
 ### Mechanisms to retain
@@ -1897,6 +1897,22 @@ one missing visible-row assertion after successful refetch. Both Partner and
 Project tests now prove that final outcome; the same reviewer reran the corrected
 tests and cleared the candidate with no remaining blocking finding or gap.
 
+### Reviewer-created Activity financial eligibility — 2026-11-22
+
+Creating an Activity brief is setup work and no longer excludes that Supervisor
+or Validator from later financial review. Financial exclusion remains frozen for
+the request submitter, Activity content authors and execution authors. One shared
+backend helper supplies that rule to funding, décaissement, virement and
+zero-spending requests. Virement continues to inherit the corrected exclusions
+from its approved décaissement source.
+
+Migration `0041_reviewer_finance` corrects existing request facts so an open
+request created under the former broad contributor rule becomes reviewable while
+real authors remain excluded. Focused API coverage exercises both reviewer roles
+through décaissement and virement. Trigger-enabled migration coverage proves
+funding review, preserves historical and inherited exclusions, and refuses a
+misleading downgrade after the irreversible repair.
+
 ### Administrative modal completion and state cleanup — 2026-11-22
 
 Successful virement declarations/corrections now close their dialog after the
@@ -1910,3 +1926,102 @@ The unused page-wide dialog flag and unconsumed `authBusy` marker were removed.
 `AdministrativeStep` is a centered-dialog composition with one close handler;
 obsolete status, default-open and drawer properties were removed from callers.
 The full 54-test Execution file and all 21 Access tests pass.
+
+### New financial request chooser correction — 2026-11-22
+
+The Agent chooser now keeps the approved décaissement row visible when a
+virement becomes available, matching `activity-agent-new-demand-modal.png`.
+The first request state contains only the décaissement row; the next state
+contains décaissement and virement rows. A fully authorized décaissement remains
+visible as financial context but its **Créer** action stays disabled when the
+server reports that no additional décaissement can be submitted. This
+presentation correction does not change request amounts or server permissions.
+
+### Financial request row status simplification — 2026-11-22
+
+Every row in **Demandes financières** now presents only its workflow status
+badge in the **Statut** column. Decision type, actor and timestamp remain
+available in the request modal history and are no longer repeated beneath the
+badge in the table.
+
+The virement modal labels the cumulative value as **Virements déjà autorisés**.
+When no earlier virement has received definitive approval, it displays
+**0 F CFA** instead of suggesting that information is missing.
+
+### Temporary PTA export action visibility — 2026-11-22
+
+The three PTA-table export actions (CSV, Excel and PDF) are temporarily hidden.
+Their existing mutation and rendering implementation remain in place; the JSX
+rendering block is commented so it can be restored without rebuilding the export
+workflow. The export interaction tests remain skipped while no user-facing
+control can start those actions, and a focused page test verifies that all three
+buttons stay absent.
+
+### PTA Activity status rows — 2026-11-22
+
+The **Validation** column now displays only the Activity's status badge. Secondary
+lines such as **Prévalidation attendue**, **Décision finale attendue** and
+**Correction attendue** are removed from every row; the review or consultation
+action remains available in the adjacent action column. Returned Activities use
+the compact badge **Correction demandée** in this list; the reviewer-specific
+wording remains available in the Activity detail and its decision history.
+
+### Task execution modal period layout — 2026-11-22
+
+The execution modal gives the planned period more of the summary row while the
+planned amount keeps a smaller share. Both columns may shrink, and long localized
+dates may wrap normally. This prevents the period from widening the modal and
+removes the unnecessary horizontal scrollbar; narrow screens retain the existing
+single-column layout.
+
+### Submit-button loading ownership — 2026-11-22
+
+Loading feedback in every shared business form belongs to the CTA that initiated
+the command. Forms with several submit actions no longer put a spinner on every
+CTA while one action is pending. The enclosing form still locks all controls to
+prevent duplicate or conflicting commands; sibling CTAs and **Annuler** retain
+their labels without a loading indicator while showing the locked form's
+disabled state.
+
+### Approved-virement external confirmation handoff — 2026-11-22
+
+After definitive virement approval, the execution projection now identifies that
+approved request as the current virement instead of exposing an approved state
+with no request identifier. The Agent can therefore see **Enregistrer le
+virement**, load the server-authorized declaration action, and continue to the
+external-transfer confirmation without another financial request.
+
+The centered confirmation follows
+`activity-finance-tab-2.png` and `activity-confirm-virement-modal.png`: its title
+is **Confirmer le virement effectué**, it names the Activity, shows the exact
+approved amount as read-only, and retains the effective date, optional note,
+confirmation checkbox and **Confirmer la déclaration** action. The amount remains
+immutable under the approved financial rules; the reference image's editable
+amount and optional evidence control are not adopted because the API records the
+exact approved amount and supports only the optional note for this declaration.
+The new-request chooser remains independent from that settlement selection, so
+an approved partial virement can stay available for external confirmation while
+the Agent opens the form for the next permitted partial request. With several
+approved virements, the projection advances through unconfirmed requests before
+falling back to a confirmed request; pending review still takes precedence.
+Existing correction history and reversement sequencing remain unchanged.
+
+The recorded-virement modal uses the same compact administrative summary
+language as the Activity finance cards: Activity identity and an **Enregistré**
+badge lead the content, the exact amount receives the strongest emphasis, the
+effective date and reference use responsive bordered facts, and the recorded
+timestamp is secondary metadata. The declaration-history accordion and its
+frontend history request are removed from this modal; immutable correction
+records remain preserved by the backend audit/history contract. When correction
+is still allowed, the existing reasoned correction form remains available below
+the summary.
+
+### Activity correction resubmission — 2026-11-22
+
+After a Supervisor or Validator returns an Activity with an observation, the
+assigned Agent may submit the still-valid Activity again even when no field value
+changed. The submission creates a fresh immutable revision and restarts review
+with Supervisor prevalidation followed by a distinct Validator decision. Version,
+assignment, completeness and no-self-review protections remain unchanged. A new
+amendment without any change from the approved baseline remains invalid; transfer
+and withdrawal correction rules are outside this correction.

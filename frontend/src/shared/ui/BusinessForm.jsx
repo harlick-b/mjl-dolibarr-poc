@@ -17,6 +17,7 @@ export function BusinessForm({
 }) {
   const [edited, setEdited] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [submitter, setSubmitter] = useState(null)
   const [validationAttempted, setValidationAttempted] = useState(false)
   return (
     <form
@@ -44,6 +45,9 @@ export function BusinessForm({
       onSubmit={async (event) => {
         event.preventDefault()
         setSaving(true)
+        setSubmitter(
+          event.nativeEvent.submitter?.dataset.businessSubmitId || null,
+        )
         try {
           const result = await onSubmit(event)
           if (result !== false) {
@@ -54,10 +58,11 @@ export function BusinessForm({
           // The command's existing error handler owns feedback; retain the draft.
         } finally {
           setSaving(false)
+          setSubmitter(null)
         }
       }}
     >
-      <FormSubmitContext.Provider value={saving}>
+      <FormSubmitContext.Provider value={saving ? submitter : null}>
         {validationAttempted && (
           <p className="sr-only" role="alert">
             Vérifiez les champs obligatoires signalés.

@@ -10,12 +10,9 @@ from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.auth.dto import ErrorResponse
-from app.auth.models import Audit
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
 from app.planning.core.models import (
-    Activity,
-    ActivityContributor,
     FundingDecision,
     FundingRequest,
     Project,
@@ -28,6 +25,7 @@ from app.planning.core.service import (
     principal,
 )
 from app.planning.finance import actor_display_names
+from app.planning.finance.reviewer_eligibility import financial_review_exclusions
 from app.planning.notifications.financial_notifications import (
     deliver_financial_notification,
     mark_review_handled,
@@ -148,35 +146,6 @@ def decisions(db: Session, request_id: str) -> list[FundingDecision]:
             .order_by(FundingDecision.decided_at, FundingDecision.id)
         )
     )
-
-
-def excluded_reviewers(db: Session, item: Activity, submitter_id: str) -> set[str]:
-    result = {submitter_id}
-    result.update(
-        db.scalars(
-            select(ActivityContributor.user_id).where(
-                ActivityContributor.activity_id == item.id
-            )
-        )
-    )
-    audits = list(
-        db.scalars(
-            select(Audit).where(
-                Audit.action.in_(
-                    {
-                        "operation.execution_started",
-                        "operation.execution_recorded",
-                        "operation.execution_corrected",
-                        "subtask.execution_recorded",
-                        "subtask.execution_corrected",
-                    }
-                ),
-                Audit.business["activity_id"].as_string() == item.id,
-            )
-        )
-    )
-    result.update(row.actor for row in audits)
-    return result
 
 
 def allowed_actions(
@@ -338,7 +307,7 @@ def submit(
             )
         ):
             raise AuthError(409, "funding_exists")
-        excluded = excluded_reviewers(db, item, actor.id)
+        excluded = financial_review_exclusions(db, item.id, actor.id)
         now = auth.now(db)
         created = FundingRequest(
             context_id=CONTEXT,
@@ -426,8 +395,6 @@ def decide(
         )
         if reason:
             raise AuthError(409, reason)
-        if actor.id in excluded_reviewers(db, item, financial.submitter_id):
-            raise AuthError(409, "decision_ineligible")
         rows = decisions(db, financial.id)
         actions = allowed_actions(actor.role, actor.id, financial, rows)
         if body.decision not in actions:
