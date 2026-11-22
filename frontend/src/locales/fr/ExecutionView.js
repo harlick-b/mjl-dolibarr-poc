@@ -163,6 +163,7 @@ export const strings = new LocalizedStrings({
     financialRequest: 'Demande financière',
     requestedTotal: 'Total demandé',
     currentAuthorizedTotal: 'Total actuellement autorisé',
+    authorizedVirementsTotal: 'Virements déjà autorisés',
     chooseFile: 'Choisir un fichier',
     noFileSelected: 'Aucun fichier sélectionné',
     disbursementReturned:

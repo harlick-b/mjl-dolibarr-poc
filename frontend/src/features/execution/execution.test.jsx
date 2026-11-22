@@ -3118,6 +3118,11 @@ test('financial review opens as a local modal without replacing the Activity pag
     }),
   )
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(
+    within(currentFinancialRequests).queryByText(
+      /^Prévalidation · Superviseur/,
+    ),
+  ).not.toBeInTheDocument()
 
   await act(async () =>
     history.push(
@@ -3373,8 +3378,13 @@ test.each([
   },
 )
 
-test('virement review names a missing authorization amount from the loaded row', async () => {
+test('virement review displays the total of previously authorized virements', async () => {
   const execution = detail({ started: true, completed: true })
+  execution.virement_context = {
+    ...execution.virement_context,
+    authorized_amount: '100000',
+    transferred_amount: '25000',
+  }
   const request = {
     id: 'virement-missing',
     activity_version: execution.version,
@@ -3437,8 +3447,8 @@ test('virement review names a missing authorization amount from the loaded row',
   })
   expect(
     within(
-      within(dialog).getByText('Total actuellement autorisé').parentElement,
-    ).getByText('Non renseigné'),
+      within(dialog).getByText('Virements déjà autorisés').parentElement,
+    ).getByText('25 000 F CFA'),
   ).toBeVisible()
 })
 

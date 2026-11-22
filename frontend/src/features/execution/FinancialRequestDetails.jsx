@@ -38,7 +38,12 @@ export function FinancialRequestSummary({
   )
 }
 
-export function FinancialRequestCreationContext({ budget, authorized }) {
+export function FinancialRequestCreationContext({
+  budget,
+  authorized,
+  authorizedLabel = 'Total actuellement autorisé',
+  unavailableLabel = 'Non renseigné',
+}) {
   return (
     <dl className="grid grid-cols-2 gap-8 text-sm max-[520px]:grid-cols-1">
       <div>
@@ -46,11 +51,9 @@ export function FinancialRequestCreationContext({ budget, authorized }) {
         <dd className="mt-1 text-base font-medium">{formatXof(budget)}</dd>
       </div>
       <div>
-        <dt className="text-xs text-muted-foreground">
-          Total actuellement autorisé
-        </dt>
+        <dt className="text-xs text-muted-foreground">{authorizedLabel}</dt>
         <dd className="mt-1 text-base font-medium">
-          {authorized === null ? 'Non renseigné' : formatXof(authorized)}
+          {authorized === null ? unavailableLabel : formatXof(authorized)}
         </dd>
       </div>
     </dl>

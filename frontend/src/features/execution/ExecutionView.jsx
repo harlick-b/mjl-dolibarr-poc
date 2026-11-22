@@ -89,13 +89,6 @@ const administrativeStates = {
   cancelled: 'Annulée',
 }
 
-const administrativeDecisionLabels = {
-  prevalidated: 'Prévalidation',
-  approved: 'Autorisation définitive',
-  returned: 'Retournée',
-  cancelled: 'Annulée',
-}
-
 const closureBlockerLabels = {
   planning_not_approved:
     'L’Activité doit être approuvée sans demande en cours.',
@@ -125,24 +118,6 @@ function administrativeStateClass(state) {
   if (state === 'returned' || state === 'cancelled')
     return 'bg-warning-soft text-warning'
   return 'bg-selected text-primary'
-}
-
-function latestAdministrativeDecision(request) {
-  return (request.decisions || []).reduce((latest, decision) => {
-    if (!latest) return decision
-    return new Date(decision.decided_at || 0) > new Date(latest.decided_at || 0)
-      ? decision
-      : latest
-  }, null)
-}
-
-function administrativeDecisionActor(decision) {
-  return (
-    decision?.actor_name ||
-    decision?.actor_display_name ||
-    decision?.actor_email ||
-    (decision ? 'Utilisateur indisponible' : null)
-  )
 }
 
 function FinancialDecisionForm({
@@ -1216,8 +1191,6 @@ function FinancialRequestTableRow({
     : request.state === 'returned' && role === 'AGENT_SAISIE'
       ? 'Reprendre'
       : 'Consulter'
-  const latestDecision = latestAdministrativeDecision(request)
-  const decisionActor = administrativeDecisionActor(latestDecision)
   const modalLabel =
     request.drawer === 'virement'
       ? strings.virementRequest
@@ -1244,16 +1217,6 @@ function FinancialRequestTableRow({
           <StatusBadge className={administrativeStateClass(request.state)}>
             {administrativeStates[request.state] || request.state}
           </StatusBadge>
-          {latestDecision && (
-            <span className="mt-1 block text-xs text-muted-foreground">
-              {administrativeDecisionLabels[latestDecision.outcome] ||
-                latestDecision.outcome}
-              {decisionActor ? ` · ${decisionActor}` : ''}
-              {latestDecision.decided_at
-                ? ` · ${formatDateTime(latestDecision.decided_at)}`
-                : ''}
-            </span>
-          )}
         </td>
         <td className="p-3 text-right">
           <Button
@@ -3006,16 +2969,17 @@ function VirementSection({
       {current ? (
         <FinancialRequestSummary
           requested={current.amount}
-          authorized={authorizedAmount}
+          authorized={authorizedAmount ?? '0'}
           budget={detail.approved_allocation}
           spending={detail.spending_total}
           requestedLabel={strings.requestedTotal}
-          authorizedLabel={strings.currentAuthorizedTotal}
+          authorizedLabel={strings.authorizedVirementsTotal}
           unavailableLabel={strings.notProvided}
         />
       ) : (
         <FinancialRequestCreationContext
-          authorized={context.amount ?? null}
+          authorized={authorizedAmount ?? '0'}
+          authorizedLabel={strings.authorizedVirementsTotal}
           budget={detail.approved_allocation}
         />
       )}
