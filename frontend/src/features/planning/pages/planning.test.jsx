@@ -3363,7 +3363,155 @@ test('projects check Partner availability before enabling creation', async () =>
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
-function renderProjectsForClosure({ failCloseOnce = false } = {}) {
+function renderPartnersForEdit({ failEditOnce = false } = {}) {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+  }
+  let partner = {
+    id: 'partner-1',
+    name: 'Partenaire initial',
+    description: 'Description initiale',
+    active: true,
+    project_count: 1,
+    allowed_actions: ['edit'],
+  }
+  const update = vi.fn()
+  let editAttempts = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url, options = {}) => {
+      const path = new URL(url, window.location.origin).pathname
+      if (path.endsWith('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'validator',
+              email: 'validator@example.test',
+              role: 'VALIDATEUR_DEFINITIF',
+            },
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+          }),
+        )
+      if (path === '/api/v1/partners/partner-1') {
+        const body = JSON.parse(options.body)
+        update(body)
+        editAttempts += 1
+        if (failEditOnce && editAttempts === 1)
+          return new Response(
+            JSON.stringify({ message: 'Modification indisponible.' }),
+            { status: 503 },
+          )
+        partner = { ...partner, ...body }
+        delete partner.expected
+        return new Response(JSON.stringify(partner))
+      }
+      if (path.endsWith('/partners'))
+        return new Response(
+          JSON.stringify({
+            data: [partner],
+            count: 1,
+            next: null,
+            previous: null,
+          }),
+        )
+      return new Response('{}', { status: 404 })
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/partners'] }),
+  )
+  render(<App router={router} />)
+  const replacePartners = (data) => {
+    if (data[0]) partner = data[0]
+    const [entry] = router.options.context.queryClient.getQueriesData({
+      queryKey: ['planning', 'validator', 'partners'],
+    })
+    act(() => {
+      router.options.context.queryClient.setQueryData(entry[0], {
+        data,
+        count: data.length,
+        next: null,
+        previous: null,
+      })
+    })
+  }
+  return { update, replacePartners, partner: () => partner }
+}
+
+test('failed Partner edit keeps the draft visible and retries with its starting values', async () => {
+  const user = userEvent.setup()
+  const { update, replacePartners, partner } = renderPartnersForEdit({
+    failEditOnce: true,
+  })
+  await user.click(await screen.findByRole('button', { name: 'Modifier' }))
+  const dialog = screen.getByRole('dialog')
+  const name = within(dialog).getByRole('textbox', { name: 'Nom *' })
+  const description = within(dialog).getByRole('textbox', {
+    name: 'Description',
+  })
+  await user.clear(name)
+  await user.type(name, 'Partenaire saisi')
+  await user.clear(description)
+  await user.type(description, 'Description saisie')
+
+  replacePartners([
+    {
+      ...partner(),
+      name: 'Partenaire actualisé',
+      description: 'Description actualisée',
+    },
+  ])
+  expect(name).toHaveValue('Partenaire saisi')
+  expect(description).toHaveValue('Description saisie')
+
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Service indisponible. Réessayez plus tard.',
+  )
+  expect(name).toHaveValue('Partenaire saisi')
+
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
+  await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
+  expect(update).toHaveBeenLastCalledWith({
+    name: 'Partenaire saisi',
+    description: 'Description saisie',
+    expected: {
+      name: 'Partenaire initial',
+      description: 'Description initiale',
+    },
+  })
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  expect(await screen.findByText('Partenaire saisi')).toBeVisible()
+})
+
+test('removing the Partner being edited closes the dialog and focuses the heading', async () => {
+  const user = userEvent.setup()
+  const { replacePartners } = renderPartnersForEdit()
+  const heading = await screen.findByRole('heading', {
+    name: 'Partenaires',
+    level: 1,
+  })
+  await user.click(screen.getByRole('button', { name: 'Modifier' }))
+
+  replacePartners([])
+
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  await waitFor(() => expect(heading).toHaveFocus())
+})
+
+function renderProjectsForClosure({
+  failCloseOnce = false,
+  failEditOnce = false,
+} = {}) {
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true
   }
@@ -3374,6 +3522,7 @@ function renderProjectsForClosure({ failCloseOnce = false } = {}) {
     id: 'project-1',
     name: 'Projet initial',
     reference: 'PRJ-001',
+    partner_id: 'partner-1',
     partner_name: 'Partenaire',
     state: 'active',
     version: 1,
@@ -3381,6 +3530,7 @@ function renderProjectsForClosure({ failCloseOnce = false } = {}) {
   }
   const update = vi.fn()
   let closeAttempts = 0
+  let editAttempts = 0
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url, options = {}) => {
@@ -3410,17 +3560,31 @@ function renderProjectsForClosure({ failCloseOnce = false } = {}) {
       if (path === '/api/v1/projects/project-1') {
         const body = JSON.parse(options.body)
         update(body)
-        closeAttempts += 1
-        if (failCloseOnce && closeAttempts === 1)
-          return new Response(
-            JSON.stringify({ message: 'Clôture indisponible.' }),
-            { status: 503 },
-          )
-        project = {
-          ...project,
-          state: 'closed',
-          version: project.version + 1,
-          allowed_actions: [],
+        if (body.action === 'edit') {
+          editAttempts += 1
+          if (failEditOnce && editAttempts === 1)
+            return new Response(
+              JSON.stringify({ message: 'Modification indisponible.' }),
+              { status: 503 },
+            )
+          project = {
+            ...project,
+            name: body.name,
+            version: project.version + 1,
+          }
+        } else {
+          closeAttempts += 1
+          if (failCloseOnce && closeAttempts === 1)
+            return new Response(
+              JSON.stringify({ message: 'Clôture indisponible.' }),
+              { status: 503 },
+            )
+          project = {
+            ...project,
+            state: 'closed',
+            version: project.version + 1,
+            allowed_actions: [],
+          }
         }
         return new Response(JSON.stringify(project))
       }
@@ -3456,6 +3620,56 @@ function renderProjectsForClosure({ failCloseOnce = false } = {}) {
   }
   return { router, update, replaceProjects, project: () => project }
 }
+
+test('failed Project edit keeps the draft and retries with its starting version', async () => {
+  const user = userEvent.setup()
+  const { update, replaceProjects, project } = renderProjectsForClosure({
+    failEditOnce: true,
+  })
+  await user.click(await screen.findByRole('button', { name: 'Modifier' }))
+  const dialog = screen.getByRole('dialog')
+  const name = within(dialog).getByRole('textbox', { name: 'Nom *' })
+  await user.clear(name)
+  await user.type(name, 'Projet saisi')
+
+  replaceProjects([{ ...project(), name: 'Projet actualisé', version: 2 }])
+  expect(name).toHaveValue('Projet saisi')
+
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Service indisponible. Réessayez plus tard.',
+  )
+  expect(name).toHaveValue('Projet saisi')
+
+  await user.click(within(dialog).getByRole('button', { name: 'Enregistrer' }))
+  await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
+  expect(update).toHaveBeenLastCalledWith({
+    action: 'edit',
+    name: 'Projet saisi',
+    expected_version: 1,
+  })
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  expect(await screen.findByText('Projet saisi')).toBeVisible()
+})
+
+test('removing the Project being edited closes the dialog and focuses the heading', async () => {
+  const user = userEvent.setup()
+  const { replaceProjects } = renderProjectsForClosure()
+  const heading = await screen.findByRole('heading', {
+    name: 'Projets',
+    level: 1,
+  })
+  await user.click(screen.getByRole('button', { name: 'Modifier' }))
+
+  replaceProjects([])
+
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+  )
+  await waitFor(() => expect(heading).toHaveFocus())
+})
 
 test('Project closure follows the current Query row and submits its version', async () => {
   const user = userEvent.setup()

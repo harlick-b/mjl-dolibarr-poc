@@ -564,13 +564,13 @@ function Workspace({ screen, session, onDenied }) {
             label="name"
             cursorKey="partnerCursor"
             navigate={navigate}
-            onEdit={(row, values) =>
+            onEdit={(row, values, expected) =>
               mutation.mutateAsync({
                 path: `/partners/${row.id}`,
                 method: 'PATCH',
                 body: {
                   ...values,
-                  expected: { name: row.name, description: row.description },
+                  expected,
                 },
               })
             }
@@ -588,11 +588,15 @@ function Workspace({ screen, session, onDenied }) {
           canCreate={user.role === 'VALIDATEUR_DEFINITIF'}
           onSubmit={submitProject}
           navigate={navigate}
-          onEdit={(row, name) =>
+          onEdit={(row, name, expectedVersion) =>
             mutation.mutateAsync({
               path: `/projects/${row.id}`,
               method: 'PATCH',
-              body: { action: 'edit', name, expected_version: row.version },
+              body: {
+                action: 'edit',
+                name,
+                expected_version: expectedVersion,
+              },
             })
           }
           onClose={(row) =>
@@ -746,6 +750,102 @@ function Workspace({ screen, session, onDenied }) {
   )
 }
 
+const PartnerEditAction = ({ partner, onEdit, focusFallback }) => {
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState('')
+  const opener = useRef(null)
+  const openRef = useRef(false)
+  const expected = useRef(null)
+  const close = () => {
+    setOpen(false)
+    setError('')
+  }
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  useEffect(
+    () => () => {
+      if (openRef.current) focusFallback.current?.focus()
+    },
+    [focusFallback],
+  )
+
+  return (
+    <>
+      <Button
+        ref={opener}
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          expected.current = {
+            name: partner.name,
+            description: partner.description,
+          }
+          setError('')
+          setOpen(true)
+        }}
+      >
+        {strings.modify}
+      </Button>
+      {open && (
+        <Modal
+          open
+          onClose={close}
+          label={strings.modifyPartner}
+          opener={opener}
+        >
+          <BusinessForm
+            onSubmit={async (event) => {
+              const data = new FormData(event.currentTarget)
+              try {
+                await onEdit(
+                  partner,
+                  {
+                    name: data.get('name'),
+                    description: data.get('description') || null,
+                  },
+                  expected.current,
+                )
+                close()
+              } catch (problem) {
+                setError(problem.message)
+              }
+            }}
+          >
+            {error && <p role="alert">{error}</p>}
+            <label>
+              {strings.name} *
+              <input
+                name="name"
+                required
+                maxLength="200"
+                defaultValue={partner.name}
+              />
+            </label>
+            <label>
+              {strings.description}
+              <textarea
+                name="description"
+                maxLength={4000}
+                defaultValue={partner.description || ''}
+              />
+            </label>
+            <div data-ui="modal-actions">
+              <Button type="button" variant="outline" onClick={close}>
+                {strings.cancel}
+              </Button>
+              <Button type="submit">{strings.save}</Button>
+            </div>
+          </BusinessForm>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 function ReferenceList({
   title,
   result,
@@ -756,81 +856,63 @@ function ReferenceList({
   cursorKey,
   navigate,
 }) {
-  const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const opener = useRef(null)
-  const [editing, setEditing] = useState(null)
+  const focusFallback = useRef(null)
   const rows = result?.data || []
   return (
     <Panel as="div" className="border-0 bg-transparent p-0 gap-6">
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         {title === strings.partners ? (
-          <h1 className="text-2xl font-semibold text-navy">{title}</h1>
+          <h1
+            ref={focusFallback}
+            tabIndex={-1}
+            className="rounded-control text-2xl font-semibold text-navy focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+          >
+            {title}
+          </h1>
         ) : (
           <h2>{title}</h2>
         )}
         {onSubmit && (
-          <Button
-            ref={opener}
-            type="button"
-            onClick={() => {
-              setEditing(null)
-              setOpen(true)
-            }}
-          >
+          <Button ref={opener} type="button" onClick={() => setCreating(true)}>
             {title === strings.partners ? strings.createPartner : strings.add}
           </Button>
         )}
       </div>
       {onSubmit && (
         <Modal
-          open={open}
-          onClose={() => setOpen(false)}
+          open={creating}
+          onClose={() => setCreating(false)}
           label={
             title === strings.partners
-              ? editing
-                ? strings.modifyPartner
-                : strings.createPartner
+              ? strings.createPartner
               : strings.formatString(strings.addTo, title)
           }
           opener={opener}
         >
           <BusinessForm
-            key={`${open}:${editing?.id || 'new'}`}
+            key={String(creating)}
             onSubmit={async (event) => {
-              if (editing) {
-                const data = new FormData(event.currentTarget)
-                await onEdit(editing, {
-                  name: data.get('name'),
-                  description: data.get('description') || null,
-                })
-              } else await onSubmit(event)
-              setOpen(false)
+              await onSubmit(event)
+              setCreating(false)
             }}
           >
             <label>
               {inputLabel} *
-              <input
-                name={label}
-                required
-                maxLength="200"
-                defaultValue={editing?.name}
-              />
+              <input name={label} required maxLength="200" />
             </label>
             {title === strings.partners && (
               <label>
                 {strings.description}
-                <textarea
-                  name="description"
-                  maxLength={4000}
-                  defaultValue={editing?.description || ''}
-                />
+                <textarea name="description" maxLength={4000} />
               </label>
             )}
             <div data-ui="modal-actions">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={() => setCreating(false)}
               >
                 {strings.cancel}
               </Button>
@@ -886,18 +968,11 @@ function ReferenceList({
                       </td>
                       <td className="px-3 py-4">
                         {row.allowed_actions?.includes('edit') && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={(event) => {
-                              opener.current = event.currentTarget
-                              setEditing(row)
-                              setOpen(true)
-                            }}
-                          >
-                            {strings.modify}
-                          </Button>
+                          <PartnerEditAction
+                            partner={row}
+                            onEdit={onEdit}
+                            focusFallback={focusFallback}
+                          />
                         )}
                       </td>
                     </>
@@ -1180,9 +1255,115 @@ const DocumentWithdrawalAction = ({
   )
 }
 
-function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
+const ProjectEditAction = ({
+  project,
+  partners,
+  partnerResult,
+  navigate,
+  onEdit,
+  focusFallback,
+}) => {
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
+  const [error, setError] = useState('')
+  const opener = useRef(null)
+  const openRef = useRef(false)
+  const expectedVersion = useRef(null)
+  const close = () => {
+    setOpen(false)
+    setError('')
+  }
+
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  useEffect(
+    () => () => {
+      if (openRef.current) focusFallback.current?.focus()
+    },
+    [focusFallback],
+  )
+
+  return (
+    <>
+      <Button
+        ref={opener}
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          expectedVersion.current = project.version
+          setError('')
+          setOpen(true)
+        }}
+      >
+        {strings.modify}
+      </Button>
+      {open && (
+        <Modal
+          open
+          onClose={close}
+          label={strings.modifyProject}
+          opener={opener}
+        >
+          <BusinessForm
+            onSubmit={async (event) => {
+              try {
+                await onEdit(
+                  project,
+                  new FormData(event.currentTarget).get('name'),
+                  expectedVersion.current,
+                )
+                close()
+              } catch (problem) {
+                setError(problem.message)
+              }
+            }}
+          >
+            {error && <p role="alert">{error}</p>}
+            <label>
+              {strings.name} *
+              <input
+                name="name"
+                required
+                maxLength="200"
+                defaultValue={project.name}
+              />
+            </label>
+            <label>
+              {strings.partner} *
+              <Select
+                name="partner_id"
+                required
+                defaultValue={project.partner_id}
+                disabled
+              >
+                {partners.map((partner) => (
+                  <option value={partner.id} key={partner.id}>
+                    {partner.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <Pager
+              result={partnerResult}
+              cursorKey="partnerCursor"
+              navigate={navigate}
+            />
+            <div data-ui="modal-actions">
+              <Button type="button" variant="outline" onClick={close}>
+                {strings.cancel}
+              </Button>
+              <Button type="submit">{strings.save}</Button>
+            </div>
+          </BusinessForm>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
+  const [creating, setCreating] = useState(false)
   const focusFallback = useRef(null)
   const { api } = useAPI()
   const session = useSessionQuery()
@@ -1216,37 +1397,29 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
             ref={opener}
             type="button"
             disabled={!partners.length}
-            onClick={() => {
-              setEditing(null)
-              setOpen(true)
-            }}
+            onClick={() => setCreating(true)}
           >
             {strings.createProject}
           </Button>
         )}
       </div>
-      {canCreate && partnerChoices.isError && !open && (
+      {canCreate && partnerChoices.isError && !creating && (
         <RetryableError onRetry={() => void partnerChoices.refetch()}>
           {strings.unavailablePlanning}
         </RetryableError>
       )}
       {canCreate && (
         <Modal
-          open={open}
-          onClose={() => setOpen(false)}
-          label={editing ? strings.modifyProject : strings.createProject}
+          open={creating}
+          onClose={() => setCreating(false)}
+          label={strings.createProject}
           opener={opener}
         >
           <BusinessForm
-            key={`${open}:${editing?.id || 'new'}`}
+            key={String(creating)}
             onSubmit={async (event) => {
-              if (editing)
-                await onEdit(
-                  editing,
-                  new FormData(event.currentTarget).get('name'),
-                )
-              else await onSubmit(event)
-              setOpen(false)
+              await onSubmit(event)
+              setCreating(false)
             }}
           >
             {partnerChoices.isError && (
@@ -1256,21 +1429,11 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
             )}
             <label>
               {strings.name} *
-              <input
-                name="name"
-                required
-                maxLength="200"
-                defaultValue={editing?.name}
-              />
+              <input name="name" required maxLength="200" />
             </label>
             <label>
               {strings.partner} *
-              <Select
-                name="partner_id"
-                required
-                defaultValue={editing?.partner_id}
-                disabled={Boolean(editing) || !partnerResult}
-              >
+              <Select name="partner_id" required disabled={!partnerResult}>
                 {!partnerResult && (
                   <option value="" disabled>
                     {common.loading}
@@ -1292,16 +1455,13 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={() => setCreating(false)}
               >
                 {strings.cancel}
               </Button>
               <Button
                 type="submit"
-                disabled={
-                  !editing &&
-                  !partners.some((partner) => partner.active !== false)
-                }
+                disabled={!partners.some((partner) => partner.active !== false)}
               >
                 {strings.save}
               </Button>
@@ -1357,17 +1517,14 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
                   <td className="p-4">
                     <div className="flex flex-wrap gap-2">
                       {row.allowed_actions.includes('edit') && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(event) => {
-                            opener.current = event.currentTarget
-                            setEditing(row)
-                            setOpen(true)
-                          }}
-                        >
-                          {strings.modify}
-                        </Button>
+                        <ProjectEditAction
+                          project={row}
+                          partners={partners}
+                          partnerResult={partnerResult}
+                          navigate={navigate}
+                          onEdit={onEdit}
+                          focusFallback={focusFallback}
+                        />
                       )}
                       <Button asChild variant="outline" size="sm">
                         <Link to={Urls.planning} search={{ project: row.id }}>

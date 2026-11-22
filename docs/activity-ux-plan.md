@@ -1665,7 +1665,7 @@ remain outside the authorized slices.
 | Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                      |
 | Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                      |
 | Zero-spending and funding submission     | Some successful actions kept the modal open.                                                    | Zero-spending complete; funding remains outside the authorized slice.                                                  |
-| Partner/Project edit dialogs             | Separate open/edit state can be simplified, but editable snapshots are legitimate.              | Remove redundant visibility only; preserve draft/version semantics.                                                    |
+| Partner/Project edit dialogs             | Complete: each editable row owns its dialog and renders the current Query record.               | Draft values and the opening concurrency baseline remain stable through refresh; removed rows close with safe focus.   |
 
 ### Mechanisms to retain
 
@@ -1874,3 +1874,25 @@ Targeted ESLint and Prettier passed, `git diff --check` was clean, and the
 production build passed with the existing chunk-size warning. The same
 independent reviewer verified both corrected outcomes and reported no remaining
 blocking finding. No browser journey was run.
+
+### Partner and Project edit-dialog ownership — 2026-11-22
+
+Partner and Project creation keep one page-owned creation flag. Editing is owned
+by the current table row: the page no longer stores a selected record or its
+identifier merely to open an edit dialog. An open form therefore receives the
+latest Query row through props while keeping the user's unsaved fields and the
+concurrency baseline captured when editing began. This preserves conflict
+detection instead of silently rebasing an in-progress edit.
+
+A failed edit remains open, displays its safe error inside the dialog and keeps
+the entered values for retry. Success, Cancel and the close control use the same
+local close path. If refresh removes the edited row or its edit permission, its
+dialog unmounts and focus returns to the stable page heading. Partner/Project
+permissions, relationships, API paths and payload fields are unchanged.
+
+Final evidence: the complete Planning unit file passed 74/74 tests, targeted
+ESLint and Prettier passed, `git diff --check` was clean, and the production build
+completed with only the existing large-chunk warning. Independent review found
+one missing visible-row assertion after successful refetch. Both Partner and
+Project tests now prove that final outcome; the same reviewer reran the corrected
+tests and cleared the candidate with no remaining blocking finding or gap.

@@ -1,6 +1,6 @@
 # Project status
 
-Updated 2026-11-21. MJL is under development; implemented does not mean accepted
+Updated 2026-11-22. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
@@ -65,6 +65,19 @@ behavior finding. Standards review found a missing modal footer; actionable
 funding reviews now use the shared bordered footer with **Annuler** and the same
 close callback. The same reviewer cleared the correction after focused checks.
 No browser visual journey was run for this follow-up.
+
+Partner and Project edit dialogs now belong to their current list row rather than
+to a selected record copied into page state. Background refreshes can update the
+list without replacing typed form values or the concurrency baseline captured
+when editing started. Failures remain visible in the open dialog for retry;
+successful edits close and refresh through the existing page mutation. If the
+row disappears, the dialog closes with focus returned to the page heading.
+Creation, permissions, Partner/Project relationships and API contracts are
+unchanged. The full Planning unit file passed 74/74 tests, targeted lint and
+formatting checks passed, `git diff --check` was clean, and the production build
+passed with the existing large-chunk warning. Independent review requested and
+then cleared visible refreshed-row assertions for both successful edit flows;
+there is no remaining blocking finding or verification gap in this slice.
 
 The Activity calendar preview now follows the same ownership boundary. A timeline
 row stores only whether its tooltip and preview are open and renders the current

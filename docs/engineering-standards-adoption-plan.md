@@ -726,3 +726,26 @@ existing chunk-size warning. Review initially found missing ordinary-success
 coverage and an overstated conflict invalidation note. The correction separately
 proves 201 success and 409 reconciliation; the same reviewer cleared the final
 candidate. No API or backend contract changed, and no browser journey was run.
+
+### Partner and Project edit-dialog ownership — 2026-11-22
+
+Partner and Project lists now separate creation state from row-owned editing.
+Each editable row supplies its current Query record to a local edit action and
+stores only whether its dialog is visible. No selected record or identifier is
+copied into page state. The editable form remains an intentional client snapshot:
+typed values and the starting Partner values or Project version stay fixed while
+background refreshes update the surrounding list.
+
+The existing page mutation still owns the PATCH request and Query invalidation.
+Rejected writes render a safe error in the retained dialog; successful writes
+close through the same callback used by Cancel and the close control. Row removal
+or permission loss unmounts the dialog and restores focus to the list heading.
+The slice adds no generic modal manager, API call, backend behavior or permission
+change.
+
+Final evidence is the 74/74 Planning unit run, passing targeted ESLint and
+Prettier, clean `git diff --check`, and a successful production build with the
+existing large-chunk warning. Independent review requested visible refreshed-row
+assertions after successful Partner and Project edits. The corrected tests prove
+both outcomes, and the same reviewer cleared the candidate with no remaining
+blocking finding or verification gap.
