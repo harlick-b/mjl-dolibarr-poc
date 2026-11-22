@@ -297,21 +297,21 @@ export function TaskEditor({
         : `${formatDate(target.planned_start)} → ${formatDate(target.planned_end)}`
       : '—'
   return (
-    <div className="grid gap-6 p-6">
+    <div className="grid min-w-0 gap-6 p-6">
       <p className="text-sm text-muted-foreground">
         {activity.name}
         {isSubtask ? ` · ${task.name}` : ''}
       </p>
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm max-[520px]:grid-cols-1">
-        <div>
+      <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-8 gap-y-4 text-sm max-[520px]:grid-cols-1">
+        <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">Montant prévu</dt>
           <dd className="mt-1 text-base font-medium text-foreground">
             {formatXof(target.approved_allocation)}
           </dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">Période prévue</dt>
-          <dd className="mt-1 whitespace-nowrap text-sm font-medium text-foreground">
+          <dd className="mt-1 min-w-0 whitespace-normal break-words text-sm font-medium text-foreground">
             {period}
           </dd>
         </div>

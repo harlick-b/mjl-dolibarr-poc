@@ -220,6 +220,30 @@ test('a spending correction preserves completion for a legacy unweighted Task', 
   expect(mutate.mock.calls[0][2]).not.toHaveProperty('progress')
 })
 
+test('the Task editor shows its localized planned period', () => {
+  const activity = detail({ started: true })
+  const task = {
+    ...activity.tasks[0],
+    planned_start: '2026-10-28',
+    planned_end: '2026-12-31',
+  }
+
+  render(
+    <TaskEditor
+      activity={activity}
+      task={task}
+      target={task}
+      isSubtask={false}
+      pending={false}
+      mutate={vi.fn()}
+      onCancel={() => {}}
+    />,
+  )
+
+  const period = screen.getByText(/28 octobre 2026.*31 décembre 2026/)
+  expect(period).toBeVisible()
+})
+
 test.each([
   ['Task', false],
   ['Subtask', true],

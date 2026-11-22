@@ -642,6 +642,172 @@ test('reviewer sees pause, resume and paginated history without mutation control
   await expect(page.getByText(/uniquement la consultation/)).toBeVisible()
 })
 
+test('the Task execution modal keeps its planned period inside the viewport', async ({
+  page,
+}) => {
+  const activity = {
+    id: 'activity-layout',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    project_name: 'Justice des mineurs',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    placement_year: 2026,
+    reference: 'ACT-000010',
+    name: 'Former les équipes',
+    description: '',
+    planned_start: '2026-10-28',
+    planned_end: '2026-12-31',
+    allocation: '120000',
+    state: 'approved',
+    version: 7,
+    current_revision_id: '11111111-1111-4111-8111-111111111111',
+    approved_revision_id: '11111111-1111-4111-8111-111111111111',
+    approved_allocation: '120000',
+    approved: {
+      planned_start: '2026-10-28',
+      planned_end: '2026-12-31',
+    },
+    candidate: null,
+    amendment: null,
+    withdrawal: null,
+    transfer: null,
+    closure: null,
+    correction: null,
+    execution_paused: false,
+    tasks: [],
+    agent_ids: ['agent'],
+    agents: [
+      {
+        id: 'agent',
+        email: 'agent@example.test',
+        full_name: 'Agent de test',
+      },
+    ],
+    creator: {
+      id: 'agent',
+      email: 'agent@example.test',
+      full_name: 'Agent de test',
+    },
+    allowed_actions: ['read'],
+  }
+  const execution = {
+    id: activity.id,
+    pta_id: activity.pta_id,
+    project_id: activity.project_id,
+    project_name: activity.project_name,
+    partner_name: activity.partner_name,
+    pta_name: activity.pta_name,
+    agents: ['Agent de test'],
+    reference: activity.reference,
+    name: activity.name,
+    planned_start: activity.planned_start,
+    planned_end: activity.planned_end,
+    approved_allocation: activity.approved_allocation,
+    approved_revision_id: activity.approved_revision_id,
+    version: activity.version,
+    closure: null,
+    closure_blockers: ['financial_validation_required'],
+    execution_paused: false,
+    pause_reason: null,
+    mutation_unavailable_reason: null,
+    completed_tasks: 1,
+    task_count: 1,
+    progress: '100.00',
+    works_completed: true,
+    spending_total: '100000',
+    realization_status: 'completed_pending_validation',
+    disbursement_can_submit: true,
+    disbursement_remaining_amount: '100000',
+    virement_context: {
+      disbursement_request_id: null,
+      disbursement_state: null,
+      amount: null,
+      authorized_amount: null,
+      transferred_amount: null,
+      current_request_id: null,
+      current_state: null,
+      can_submit: false,
+      unavailable_reason: 'disbursement_required',
+    },
+    allowed_actions: ['read'],
+    tasks: [
+      {
+        id: 'task-1',
+        type_id: 'type-1',
+        type_label: 'Formation',
+        name: 'Préparer la session',
+        approved_allocation: '120000',
+        planned_start: '2026-10-28',
+        planned_end: '2026-12-31',
+        weight: '100.00',
+        progress: '100.00',
+        position: 1,
+        execution_started_at: '2026-10-28T09:00:00Z',
+        execution_completed: true,
+        actual_spent: '100000',
+        execution_observation: 'Travaux terminés.',
+        variance: '-20000',
+        allowed_actions: ['record'],
+        subtasks: [],
+      },
+    ],
+  }
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/v1/auth/session')
+      return route.fulfill({
+        json: {
+          state: 'verified',
+          csrf: 'csrf',
+          user: {
+            id: 'agent',
+            email: 'agent@example.test',
+            role: 'AGENT_SAISIE',
+          },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        },
+      })
+    if (path.endsWith('/activities/activity-layout/execution'))
+      return route.fulfill({ json: execution })
+    if (path.endsWith('/activities/activity-layout'))
+      return route.fulfill({ json: activity })
+    if (path.endsWith('/funding-requests'))
+      return route.fulfill({ json: emptyFunding })
+    return route.fulfill({ json: emptyCollection })
+  })
+
+  await page.setViewportSize({ width: 1280, height: 844 })
+  await page.goto(
+    '/activities/activity-layout?tab=realization&origin=execution&review=all&mine=own&view=table',
+  )
+  await page
+    .getByRole('button', {
+      name: 'Modifier la réalisation Préparer la session',
+    })
+    .click()
+  const taskDialog = page.getByRole('dialog', { name: 'Préparer la session' })
+  const period = taskDialog.getByText(/28 octobre 2026.*31 décembre 2026/)
+  await expect(period).toBeVisible()
+  await expect
+    .poll(() =>
+      taskDialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    )
+    .toBe(true)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(period).toBeVisible()
+  await expect
+    .poll(() =>
+      taskDialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    )
+    .toBe(true)
+})
+
 test('PTA-3B through PTA-3E administrative settlement journey', async ({
   page,
 }) => {
