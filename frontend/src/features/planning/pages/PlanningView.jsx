@@ -1562,8 +1562,8 @@ function PTA({
   context,
   result,
   navigate,
-  exportPending,
-  onExport,
+  // exportPending,
+  // onExport,
   projects,
   onDenied,
 }) {
@@ -1762,6 +1762,8 @@ function PTA({
       {search.view !== 'calendar' && (
         <Pager result={result} cursorKey="activityCursor" navigate={navigate} />
       )}
+      {/* PTA exports are temporarily hidden. Keep this rendering block ready
+      to restore when the export actions are approved for display again.
       {context.pta && (
         <div className="flex flex-wrap gap-2">
           {['csv', 'xlsx', 'pdf'].map((format) => (
@@ -1784,7 +1786,7 @@ function PTA({
             </Button>
           ))}
         </div>
-      )}
+      )} */}
     </div>
   )
 }

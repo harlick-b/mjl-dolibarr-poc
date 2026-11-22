@@ -330,28 +330,7 @@ test('the annual plan stays in page loading until its Activity list is ready', a
 })
 
 test('the annual plan shows whole-PTA planning counts and approved budget', async () => {
-  const user = userEvent.setup()
-  const createObjectURL = vi.fn(() => 'blob:pta-export')
-  const revokeObjectURL = vi.fn()
-  const anchorClick = vi
-    .spyOn(HTMLAnchorElement.prototype, 'click')
-    .mockImplementation(() => {})
-  vi.stubGlobal('URL', {
-    ...URL,
-    createObjectURL,
-    revokeObjectURL,
-  })
-  const fetch = annualPageFetch(() =>
-    Promise.resolve(
-      new Response('csv', {
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': 'attachment; filename="pta-2027-test.csv"',
-        },
-      }),
-    ),
-  )
-  vi.stubGlobal('fetch', fetch)
+  vi.stubGlobal('fetch', annualPageFetch(vi.fn()))
   renderAnnualPage()
 
   const metrics = await screen.findByRole('region', {
@@ -362,24 +341,22 @@ test('the annual plan shows whole-PTA planning counts and approved budget', asyn
   expect(within(metrics).getByText('Approuvées')).toBeVisible()
   expect(within(metrics).getByText('5')).toBeVisible()
   expect(within(metrics).getByText(/9.*200.*000/)).toBeVisible()
-  await user.click(
-    screen.getByRole('button', { name: 'Exporter le PTA en CSV' }),
-  )
-  await waitFor(() => expect(anchorClick).toHaveBeenCalledOnce())
-  const exportCall = fetch.mock.calls.find(([url]) =>
-    String(url).endsWith('/ptas/pta-1/exports'),
-  )
-  expect(exportCall[1]).toEqual(
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ format: 'csv' }),
-      headers: expect.objectContaining({ 'X-CSRF-Token': 'csrf' }),
-    }),
-  )
-  expect(createObjectURL).toHaveBeenCalledOnce()
-  await waitFor(() =>
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:pta-export'),
-  )
+})
+
+test('the annual plan temporarily hides its export actions', async () => {
+  vi.stubGlobal('fetch', annualPageFetch(vi.fn()))
+  renderAnnualPage()
+
+  await screen.findByRole('region', { name: 'Synthèse du PTA' })
+  expect(
+    screen.queryByRole('button', { name: 'Exporter le PTA en CSV' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Rapport de travail Excel' }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Rapport de travail PDF' }),
+  ).not.toBeInTheDocument()
 })
 
 test('a Supervisor starts with the full Activity list and two review shortcuts', async () => {
@@ -414,7 +391,7 @@ test('a Supervisor starts with the full Activity list and two review shortcuts',
   )
 })
 
-test('the PTA list names the pending decision and exposes the matching review action', async () => {
+test('the PTA list keeps only the status badge and matching review action', async () => {
   const baseFetch = annualPageFetch(vi.fn(), 'VALIDATEUR_DEFINITIF')
   vi.stubGlobal(
     'fetch',
@@ -449,7 +426,10 @@ test('the PTA list names the pending decision and exposes the matching review ac
   )
   renderAnnualPage()
 
-  expect(await screen.findByText('Décision finale attendue')).toBeVisible()
+  expect(
+    await screen.findAllByText('Validation définitive attendue'),
+  ).not.toHaveLength(0)
+  expect(screen.queryByText('Décision finale attendue')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Valider' })).toBeVisible()
 })
 
@@ -488,9 +468,53 @@ test('the PTA list keeps an ineligible prevalidated Activity read-only', async (
   )
   renderAnnualPage()
 
-  expect(await screen.findByText('Décision finale attendue')).toBeVisible()
+  expect(
+    await screen.findAllByText('Validation définitive attendue'),
+  ).not.toHaveLength(0)
+  expect(screen.queryByText('Décision finale attendue')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Consulter' })).toBeVisible()
   expect(screen.queryByRole('link', { name: 'Valider' })).toBeNull()
+})
+
+test('the PTA list uses a compact correction badge', async () => {
+  const baseFetch = annualPageFetch(vi.fn())
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url, options) => {
+      if (String(url).includes('/ptas/pta-1/activities'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              object: 'list',
+              count: 1,
+              data: [
+                {
+                  id: 'activity-returned',
+                  name: 'Formation à corriger',
+                  reference: 'ACT-2027-005',
+                  planned_start: '2027-03-01',
+                  planned_end: '2027-03-31',
+                  allocation: '250000',
+                  operation_count: 2,
+                  agents: ['Aïcha Agent'],
+                  state: 'returned_supervisor',
+                  review_action: null,
+                },
+              ],
+              next: null,
+              previous: null,
+            }),
+          ),
+        )
+      return baseFetch(url, options)
+    }),
+  )
+  renderAnnualPage()
+
+  expect(await screen.findByText('Correction demandée')).toBeVisible()
+  expect(
+    screen.queryByText('Correction demandée par le Superviseur'),
+  ).not.toBeInTheDocument()
 })
 
 test('an Agent filter from the URL resolves its label beside Filters', async () => {
@@ -518,7 +542,9 @@ test('an Agent filter from the URL resolves its label beside Filters', async () 
   ).toBeVisible()
 })
 
-test.each([
+// Temporarily skipped with the hidden PTA export controls. Restore these UI
+// interaction checks when the commented rendering block is enabled again.
+test.skip.each([
   ['xlsx', 'Excel'],
   ['pdf', 'PDF'],
 ])(
@@ -560,7 +586,7 @@ test.each([
   },
 )
 
-test('an offline annual export is neither sent nor replayed', async () => {
+test.skip('an offline annual export is neither sent nor replayed', async () => {
   const user = userEvent.setup()
   const online = vi.spyOn(window.navigator, 'onLine', 'get')
   const createObjectURL = vi.fn()
@@ -619,7 +645,7 @@ test('an offline annual export is neither sent nor replayed', async () => {
   online.mockRestore()
 })
 
-test('a denied annual export does not invalidate the session', async () => {
+test.skip('a denied annual export does not invalidate the session', async () => {
   const user = userEvent.setup()
   const createObjectURL = vi.fn()
   vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })

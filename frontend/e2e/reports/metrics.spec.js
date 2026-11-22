@@ -81,25 +81,25 @@ test('current annual metrics remain visible on desktop and mobile', async ({
   await expect(metrics).toContainText('1 activité(s) clôturée(s) sur 5')
   await expect(metrics).toContainText('9 200 000 XOF')
 
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Exporter le PTA en CSV' }).click(),
-  ])
-  expect(download.suggestedFilename()).toBe('pta-2027-test.csv')
-
-  const excel = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Rapport de travail Excel' }).click()
-  expect((await excel).suggestedFilename()).toBe('pta-2027-test.xlsx')
-  const pdf = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Rapport de travail PDF' }).click()
-  expect((await pdf).suggestedFilename()).toBe('pta-2027-test.pdf')
+  await expect(
+    page.getByRole('button', { name: 'Exporter le PTA en CSV' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Rapport de travail Excel' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Rapport de travail PDF' }),
+  ).toHaveCount(0)
   await page.setViewportSize({ width: 390, height: 844 })
-  const mobilePdf = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Rapport de travail PDF' }).click()
-  expect((await mobilePdf).suggestedFilename()).toBe('pta-2027-test.pdf')
-  const mobileExcel = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Rapport de travail Excel' }).click()
-  expect((await mobileExcel).suggestedFilename()).toBe('pta-2027-test.xlsx')
+  await expect(
+    page.getByRole('button', { name: 'Exporter le PTA en CSV' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Rapport de travail Excel' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Rapport de travail PDF' }),
+  ).toHaveCount(0)
   await expect(metrics.getByText('Exécution physique')).toBeVisible()
   await expect(metrics.getByText('Exécution financière')).toBeVisible()
 })
