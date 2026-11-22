@@ -3631,6 +3631,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
     activity_version: 7,
   }
   let confirmations = []
+  let confirmationAttempts = 0
   const empty = {
     object: 'list',
     count: 0,
@@ -3701,6 +3702,19 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       path.endsWith(`/virement-requests/${requestId}/confirmation`) &&
       options.method === 'POST'
     ) {
+      confirmationAttempts += 1
+      if (confirmationAttempts === 1)
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              detail: {
+                code: 'version_conflict',
+                message: 'La demande a changé. Réessayez.',
+              },
+            }),
+            { status: 409 },
+          ),
+        )
       const body = JSON.parse(options.body)
       const declared = {
         id: 'confirmation-1',
@@ -3788,6 +3802,30 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       name: 'Confirmer la déclaration',
     }),
   )
+  await waitFor(() =>
+    expect(
+      virementDialog.getByRole('button', {
+        name: 'Confirmer la déclaration',
+      }),
+    ).toBeEnabled(),
+  )
+  expect(await virementDialog.findByRole('alert')).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
+  expect(screen.getByRole('dialog', { name: 'Virement externe' })).toBeVisible()
+  expect(
+    virementDialog.getByRole('button', {
+      name: 'Date effective du virement : 28 octobre 2026',
+    }),
+  ).toBeVisible()
+  expect(virementDialog.getByLabelText(/Référence ou commentaire/)).toHaveValue(
+    'TEST-001',
+  )
+  await user.click(
+    virementDialog.getByRole('button', {
+      name: 'Confirmer la déclaration',
+    }),
+  )
   expect(fetch).toHaveBeenCalledWith(
     `/api/v1/activities/activity-1/virement-requests/${requestId}/confirmation`,
     expect.objectContaining({
@@ -3799,7 +3837,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
       }),
     }),
   )
-  const virementPanel = within(
+  let virementPanel = within(
     await openAdministrativeDrawer(
       user,
       'Modifier le virement',
@@ -3830,8 +3868,15 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   )
   await waitFor(() =>
     expect(
-      virementPanel.getByLabelText('Motif de la correction *'),
-    ).toHaveValue(''),
+      screen.queryByRole('dialog', { name: 'Virement externe' }),
+    ).not.toBeInTheDocument(),
+  )
+  virementPanel = within(
+    await openAdministrativeDrawer(
+      user,
+      'Modifier le virement',
+      'Virement externe',
+    ),
   )
   expect(
     virementPanel.getByRole('button', {
@@ -3853,8 +3898,15 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   )
   await waitFor(() =>
     expect(
-      virementPanel.getByLabelText(/Référence ou commentaire/),
-    ).toHaveValue('TEST-003'),
+      screen.queryByRole('dialog', { name: 'Virement externe' }),
+    ).not.toBeInTheDocument(),
+  )
+  virementPanel = within(
+    await openAdministrativeDrawer(
+      user,
+      'Modifier le virement',
+      'Virement externe',
+    ),
   )
   await waitFor(() =>
     expect(
@@ -3866,7 +3918,7 @@ test('Agent declares the fixed approved virement amount without retyping it', as
   expect(virementPanel.getByText('Déclaration initiale')).toBeVisible()
   expect(virementPanel.getAllByText(/Yoann Agent/)).toHaveLength(3)
   expect(virementPanel.queryByText(/^Version /)).not.toBeInTheDocument()
-})
+}, 15000)
 
 test('Agent records the exact reversement and preserves reasoned corrections', async () => {
   const user = userEvent.setup()
@@ -3894,6 +3946,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     correction_reason: null,
   }
   let declarations = []
+  let reversementDeclarationAttempts = 0
   let reversementEvidence = []
   let reversementUploadAttempts = 0
   let resolveEvidenceUpload
@@ -3991,6 +4044,19 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       path.endsWith(`/virement-requests/${requestId}/reversement`) &&
       options.method === 'POST'
     ) {
+      reversementDeclarationAttempts += 1
+      if (reversementDeclarationAttempts === 1)
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              detail: {
+                code: 'version_conflict',
+                message: 'La demande a changé. Réessayez.',
+              },
+            }),
+            { status: 409 },
+          ),
+        )
       const body = JSON.parse(options.body)
       const declared = {
         id: 'reversement-1',
@@ -4139,6 +4205,33 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     dialog.getByRole('button', { name: 'Enregistrer le reversement' }),
   )
   await waitFor(() =>
+    expect(
+      dialog.getByRole('button', { name: 'Enregistrer le reversement' }),
+    ).toBeEnabled(),
+  )
+  expect(await dialog.findByRole('alert')).toHaveTextContent(
+    'Vérification refusée. Vérifiez les informations saisies.',
+  )
+  expect(
+    screen.getByRole('dialog', {
+      name: 'Reversement des fonds non utilisés',
+    }),
+  ).toBeVisible()
+  expect(
+    dialog.getByRole('button', {
+      name: 'Date effective du reversement : 28 octobre 2026',
+    }),
+  ).toBeVisible()
+  expect(
+    dialog.getByLabelText(/Référence ou commentaire du reversement/),
+  ).toHaveValue('REVERSEMENT-001')
+  expect(
+    dialog.getByLabelText(/Pièce justificative du reversement/).files[0],
+  ).toBe(evidence)
+  await user.click(
+    dialog.getByRole('button', { name: 'Enregistrer le reversement' }),
+  )
+  await waitFor(() =>
     expect(fetch).toHaveBeenCalledWith(
       `/api/v1/activities/activity-1/virement-requests/${requestId}/reversement`,
       expect.objectContaining({
@@ -4166,7 +4259,7 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
         String(path).endsWith(`/virement-requests/${requestId}/reversement`) &&
         options.method === 'POST',
     ),
-  ).toHaveLength(1)
+  ).toHaveLength(2)
   await user.click(
     screen.getByRole('button', { name: 'Réessayer l’ajout de la pièce' }),
   )
@@ -4185,7 +4278,13 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
     ),
   ).not.toBeInTheDocument()
   expect(reversementEvidence).toHaveLength(1)
-  await user.click(dialog.getByRole('button', { name: 'Fermer' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', {
+        name: 'Reversement des fonds non utilisés',
+      }),
+    ).not.toBeInTheDocument(),
+  )
   await user.click(
     await screen.findByRole('button', { name: 'Modifier le reversement' }),
   )
@@ -4230,11 +4329,27 @@ test('Agent records the exact reversement and preserves reasoned corrections', a
       }),
     ),
   )
-  await user.click(await screen.findByText('Historique des reversements (2)'))
-  expect(screen.getByText('Reversement corrigé')).toBeVisible()
-  expect(screen.getByText('Reversement initial')).toBeVisible()
-  expect(screen.getAllByText(/Yoann Agent/)).toHaveLength(2)
-  expect(screen.queryByText(/^Version /)).not.toBeInTheDocument()
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', {
+        name: 'Reversement des fonds non utilisés',
+      }),
+    ).not.toBeInTheDocument(),
+  )
+  const historyDialog = within(
+    await openAdministrativeDrawer(
+      user,
+      'Modifier le reversement',
+      'Reversement des fonds non utilisés',
+    ),
+  )
+  await user.click(
+    await historyDialog.findByText('Historique des reversements (2)'),
+  )
+  expect(historyDialog.getByText('Reversement corrigé')).toBeVisible()
+  expect(historyDialog.getByText('Reversement initial')).toBeVisible()
+  expect(historyDialog.getAllByText(/Yoann Agent/)).toHaveLength(2)
+  expect(historyDialog.queryByText(/^Version /)).not.toBeInTheDocument()
 }, 15000)
 
 test('a related virement uses the Activity reversement owner for history and correction', async () => {
@@ -4388,6 +4503,13 @@ test('a related virement uses the Activity reversement owner for history and cor
       `/api/v1/activities/${activityId}/virement-requests/${ownerId}/reversement/corrections`,
       expect.objectContaining({ method: 'POST' }),
     ),
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', {
+        name: 'Reversement des fonds non utilisés',
+      }),
+    ).not.toBeInTheDocument(),
   )
 })
 

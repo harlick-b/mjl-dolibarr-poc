@@ -749,3 +749,12 @@ existing large-chunk warning. Independent review requested visible refreshed-row
 assertions after successful Partner and Project edits. The corrected tests prove
 both outcomes, and the same reviewer cleared the candidate with no remaining
 blocking finding or verification gap.
+
+### Administrative modal state cleanup — 2026-11-22
+
+Execution administrative actions share one dialog-only composition and one
+close callback. Confirmed virement/reversement success closes the dialog, while
+a failed optional reversement evidence upload keeps its actionable retry state.
+Access dialogs no longer coordinate a second page-wide visibility flag or write
+an unused document marker; each invitation or account-row dialog owns its open
+state and delegates only message cleanup to the page.

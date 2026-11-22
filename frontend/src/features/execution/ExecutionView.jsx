@@ -251,11 +251,20 @@ function AdministrativeStep({
   actionTo,
   secondaryActionLabel,
   onSecondaryAction,
-  modalVariant = 'drawer',
+  error,
+  clearError,
   children,
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const opener = useRef(null)
+  const close = () => {
+    clearError?.()
+    setIsOpen(false)
+  }
+  const open = () => {
+    clearError?.()
+    setIsOpen(true)
+  }
   return (
     <section
       id={id}
@@ -289,7 +298,7 @@ function AdministrativeStep({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setIsOpen(true)}
+                onClick={open}
               >
                 {actionLabel}
               </Button>
@@ -303,20 +312,19 @@ function AdministrativeStep({
       </div>
       <Modal
         open={isOpen && !actionTo}
-        onClose={() => setIsOpen(false)}
+        onClose={close}
         label={title}
         opener={opener}
-        variant={modalVariant}
-        className={
-          modalVariant === 'drawer'
-            ? 'w-[min(640px,100%)]'
-            : 'w-[min(560px,calc(100%-32px))]'
-        }
+        variant="dialog"
+        className="w-[min(560px,calc(100%-32px))]"
       >
         <div className="grid gap-5 p-6 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:shadow-none">
-          {typeof children === 'function'
-            ? children(() => setIsOpen(false))
-            : children}
+          {error && (
+            <p role="alert" className="border-l-4 border-l-danger bg-white p-3">
+              {error}
+            </p>
+          )}
+          {typeof children === 'function' ? children(close) : children}
         </div>
       </Modal>
     </section>
@@ -2022,6 +2030,8 @@ function ExecutionDetail({
                     history={confirmationHistory}
                     pending={pending}
                     mutate={mutateFinance}
+                    error={error}
+                    clearError={clearError}
                     onPage={onConfirmationPage}
                   />
                   {currentVirement.reversement && (
@@ -2031,6 +2041,8 @@ function ExecutionDetail({
                       history={reversementHistory}
                       pending={pending}
                       mutate={mutateFinance}
+                      error={error}
+                      clearError={clearError}
                       uploadEvidence={uploadReversementEvidence}
                       file={reversementFile}
                       setFile={setReversementFile}
@@ -2044,7 +2056,6 @@ function ExecutionDetail({
                 <AdministrativeStep
                   title={strings.externalTransfer}
                   description={strings.notConfirmed}
-                  status="À venir"
                   actionLabel={null}
                 >
                   <p>{strings.previousStepsIncomplete}</p>
@@ -2062,15 +2073,12 @@ function ExecutionDetail({
                       ? 'Confirmer que l’activité et son règlement sont terminés.'
                       : strings.finishRealization
               }
-              status={detail.closure ? 'Terminée' : 'À venir'}
               completed={Boolean(detail.closure)}
-              defaultOpen={detail.allowed_actions?.includes('close')}
               actionLabel={
                 !detail.closure && detail.allowed_actions?.includes('close')
                   ? 'Clôturer l’activité'
                   : null
               }
-              modalVariant="dialog"
             >
               {(close) =>
                 detail.works_completed ? (
@@ -2476,6 +2484,8 @@ function ExternalTransferStep({
   history: confirmationHistory,
   pending,
   mutate,
+  error,
+  clearError,
   onPage: onConfirmationPage,
 }) {
   const version = current.activity_version
@@ -2491,8 +2501,9 @@ function ExternalTransferStep({
           ? `${formatXof(current.current_confirmation.amount)} · ${formatDate(current.current_confirmation.transfer_date)}`
           : 'Non enregistré'
       }
-      status={current.current_confirmation ? 'Confirmé' : 'À confirmer'}
       completed={Boolean(current.current_confirmation)}
+      error={error}
+      clearError={clearError}
       actionLabel={
         current.current_confirmation
           ? current.allowed_actions.includes('correct_confirmation')
@@ -2502,16 +2513,6 @@ function ExternalTransferStep({
             ? 'Enregistrer le virement'
             : null
       }
-      defaultOpen={
-        !current.current_confirmation ||
-        current.allowed_actions.some((action) =>
-          ['declare_confirmation', 'correct_confirmation'].includes(action),
-        ) ||
-        current.reversement?.allowed_actions?.some((action) =>
-          ['declare', 'correct'].includes(action),
-        )
-      }
-      modalVariant="dialog"
     >
       {(close) => (
         <>
@@ -2548,11 +2549,11 @@ function ExternalTransferStep({
             <BusinessForm
               key={current.current_confirmation?.revision || 'initial'}
               className="grid gap-5 [&_>_label]:w-full"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault()
                 const data = new FormData(event.currentTarget)
                 const correcting = Boolean(current.current_confirmation)
-                return mutate(
+                const saved = await mutate(
                   `/virement-requests/${current.id}/confirmation${
                     correcting ? '/corrections' : ''
                   }`,
@@ -2565,6 +2566,7 @@ function ExternalTransferStep({
                       : {}),
                   },
                 )
+                if (saved !== false) close()
               }}
             >
               <label>
@@ -2663,6 +2665,8 @@ function ReversementStep({
   history: reversementHistory,
   pending,
   mutate,
+  error,
+  clearError,
   uploadEvidence: uploadReversementEvidence,
   file: reversementFile,
   setFile: setReversementFile,
@@ -2680,16 +2684,12 @@ function ReversementStep({
     <AdministrativeStep
       title={strings.unusedFundsReturn}
       description={`${formatXof(current.reversement.required_amount)} · ${current.reversement.status === 'not_required' ? strings.noReturnRequired : strings.returnRequired}`}
-      status={
-        current.reversement.current_declaration ||
-        current.reversement.status === 'not_required'
-          ? strings.completedMasculine
-          : 'À confirmer'
-      }
       completed={
         Boolean(current.reversement.current_declaration) ||
         current.reversement.status === 'not_required'
       }
+      error={error}
+      clearError={clearError}
       actionLabel={
         current.reversement.current_declaration
           ? current.reversement.allowed_actions.includes('correct')
@@ -2699,10 +2699,6 @@ function ReversementStep({
             ? 'Enregistrer le reversement'
             : null
       }
-      defaultOpen={current.reversement.allowed_actions.some((action) =>
-        ['declare', 'correct'].includes(action),
-      )}
-      modalVariant="dialog"
     >
       {(close) => (
         <>
@@ -2730,6 +2726,7 @@ function ReversementStep({
                       setReversementUploadError(null)
                       setReversementFile(null)
                       toast.success('Pièce justificative ajoutée.')
+                      close()
                     } catch (error) {
                       if (error.name === 'AbortError') return
                       setReversementUploadError(
@@ -2848,6 +2845,7 @@ function ReversementStep({
                     return
                   }
                 }
+                close()
               }}
             >
               <p className="border-l-4 border-l-primary bg-background py-3 px-4">

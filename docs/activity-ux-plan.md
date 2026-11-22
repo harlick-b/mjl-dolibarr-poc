@@ -1664,7 +1664,7 @@ remain outside the authorized slices.
 | Document withdrawal                      | Complete: each document row owns withdrawal visibility and renders its current Query record.    | Refresh updates document facts while the reason and optional replacement choice remain in the open form.               |
 | Task/Subtask execution                   | The page stored separate Task/Subtask selection IDs and repeated close statements.              | Complete: current props, local visibility and one close callback retain draft/version protection.                      |
 | Funding request review                   | Complete: each row opens only its current request; creation handles only the pending increment. | Pagination remains in the Finance card and opening a row performs no detail read.                                      |
-| Zero-spending and funding submission     | Some successful actions kept the modal open.                                                    | Zero-spending complete; funding remains outside the authorized slice.                                                  |
+| Zero-spending and funding submission     | Complete: successful actions close through the shared callback.                                 | Failed submissions keep the modal, entered reason and starting Activity version available for retry.                  |
 | Partner/Project edit dialogs             | Complete: each editable row owns its dialog and renders the current Query record.               | Draft values and the opening concurrency baseline remain stable through refresh; removed rows close with safe focus.   |
 
 ### Mechanisms to retain
@@ -1896,3 +1896,17 @@ completed with only the existing large-chunk warning. Independent review found
 one missing visible-row assertion after successful refetch. Both Partner and
 Project tests now prove that final outcome; the same reviewer reran the corrected
 tests and cleared the candidate with no remaining blocking finding or gap.
+
+### Administrative modal completion and state cleanup — 2026-11-22
+
+Successful virement declarations/corrections now close their dialog after the
+refreshed server result is accepted. Reversement creation/correction follows the
+same rule; when an optional evidence upload fails, the dialog remains open with
+the retry state, then closes after a successful retry. Failed mutations continue
+to preserve the open form.
+
+Access invitation and account-row dialogs now use only their actual open state.
+The unused page-wide dialog flag and unconsumed `authBusy` marker were removed.
+`AdministrativeStep` is a centered-dialog composition with one close handler;
+obsolete status, default-open and drawer properties were removed from callers.
+The full 54-test Execution file and all 21 Access tests pass.

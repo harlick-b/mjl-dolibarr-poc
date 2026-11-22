@@ -147,7 +147,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const navigate = useNavigate()
   const search = useSearch({ from: Urls.accessUsers })
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [dialogVisible, setDialogVisible] = useState(false)
   const [notice, setNotice] = useState('')
   const [dialogError, setDialogError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -174,14 +173,6 @@ function Accounts({ session, onDenied = () => {}, checking }) {
       reset()
     }
   }, [client, reset])
-  useEffect(() => {
-    document.documentElement.dataset.authBusy = String(
-      dialogVisible || mutation.isPending,
-    )
-    return () => {
-      delete document.documentElement.dataset.authBusy
-    }
-  }, [dialogVisible, mutation.isPending])
   const denied = (status) => {
     void client.cancelQueries({ queryKey: ['access'] })
     client.removeQueries({ queryKey: ['access'] })
@@ -221,16 +212,17 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   })
   const changeSearch = (values) =>
     navigate({ to: Urls.accessUsers, search: { ...search, ...values } })
-  const prepareDialog = () => {
+  const clearDialogMessages = () => {
     setNotice('')
     setDialogError('')
-    setDialogVisible(true)
   }
-  const closeDialog = (close) => {
+  const finishDialog = () => {
     setDialogError('')
-    close()
-    setDialogVisible(false)
     reset()
+  }
+  const closeInvite = () => {
+    setInviteOpen(false)
+    finishDialog()
   }
   const refreshAccess = async () => {
     await client.invalidateQueries({ queryKey: ['access', session.user.id] })
@@ -349,7 +341,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
             <div className="flex items-center gap-3">
               <Button
                 onClick={() => {
-                  prepareDialog()
+                  clearDialogMessages()
                   setInviteOpen(true)
                 }}
               >
@@ -357,7 +349,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               </Button>
             </div>
           </div>
-          {notice && !dialogVisible && (
+          {notice && (
             <p
               role="status"
               className="p-4 border border-border rounded-card bg-white mb-4"
@@ -530,8 +522,8 @@ function Accounts({ session, onDenied = () => {}, checking }) {
                             pending={submitting || users.isFetching}
                             error={dialogError}
                             submit={submit}
-                            prepareDialog={prepareDialog}
-                            finishClose={closeDialog}
+                            onOpen={clearDialogMessages}
+                            onClose={finishDialog}
                           />
                         </td>
                       </tr>
@@ -552,7 +544,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
               dialog={{ kind: 'invite' }}
               pending={submitting}
               notice={dialogError}
-              close={() => closeDialog(() => setInviteOpen(false))}
+              close={closeInvite}
               submit={submit}
             />
           )}
@@ -568,16 +560,17 @@ function AccountActions({
   pending,
   error,
   submit,
-  prepareDialog,
-  finishClose,
+  onOpen,
+  onClose,
 }) {
   const [kind, setKind] = useState(null)
   const open = (nextKind) => {
-    prepareDialog()
+    onOpen()
     setKind(nextKind)
   }
   const close = () => {
-    finishClose(() => setKind(null))
+    setKind(null)
+    onClose()
   }
   const item = ['resend', 'revoke'].includes(kind)
     ? { ...user.invitation, email: user.email }

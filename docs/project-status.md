@@ -6,6 +6,15 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## Administrative modal completion behavior — 2026-11-22
+
+Virement and reversement dialogs close after a confirmed successful mutation.
+Reversement stays open only when an optional evidence upload still needs review
+or retry, and closes after a successful retry. Access dialogs now have one
+visibility owner, and the shared administrative step uses one centered-dialog
+variant and one close handler. Execution and Access regression suites cover the
+changed interactions.
+
 ## Activity header and financial review flow — 2026-11-21
 
 Activity-header actions now use a shared Activity-specific Button variant, and
