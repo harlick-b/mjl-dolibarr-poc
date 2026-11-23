@@ -48,6 +48,17 @@ test('unverified or unknown roles never receive navigation or page access', () =
   }
 })
 
+test('only internal business roles can open the Notifications inbox', () => {
+  for (const role of [
+    'AGENT_SAISIE',
+    'AGENT_VERIFICATEUR',
+    'VALIDATEUR_DEFINITIF',
+  ])
+    expect(authorization(session(role)).can('notifications')).toBe(true)
+  for (const role of ['ADMIN_PLATEFORME', 'PARTENAIRE'])
+    expect(authorization(session(role)).can('notifications')).toBe(false)
+})
+
 test('catalog management is Validator only and Partner exports are scoped', () => {
   for (const role of ['AGENT_SAISIE', 'AGENT_VERIFICATEUR']) {
     const access = authorization(session(role))

@@ -7,6 +7,7 @@ import { readCalendar } from '../lib/calendar'
 import { PlanningActivities } from '../components/PlanningActivities'
 import { PlanningSummary } from '../components/PlanningSummary'
 import { ActivityTimeline } from '@/features/audit/ActivityTimeline'
+import { activityRegisterEvents } from '@/features/audit/auditPresentation'
 import { activityStatusClass } from '../lib/activity-status'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent, EmptyTable } from '@/shared/ui/EmptyContent'
@@ -2199,6 +2200,7 @@ function ActivityDetail({
     ['realization', 'finance'].includes(requestedSection)
       ? 'programming'
       : requestedSection
+  const historyEvents = activityRegisterEvents(revisions?.data || [])
   const [editing, setEditing] = useState(false)
   const [workflowAction, setWorkflowAction] = useState('')
   const workflowOpener = useRef(null)
@@ -2877,10 +2879,10 @@ function ActivityDetail({
           <h3 id="activity-history-title">{strings.revisionHistory}</h3>
           {historyFailed ? null : historyLoading && !revisions ? (
             <LoadingPlaceholder label={strings.historyLoading} />
-          ) : !revisions?.data?.length ? (
+          ) : !historyEvents.length ? (
             <EmptyContent kind="activityHistory" />
           ) : (
-            <ActivityTimeline events={revisions.data} />
+            <ActivityTimeline events={historyEvents} />
           )}
           {revisions && <Pager result={revisions} onPage={onHistoryPage} />}
         </section>

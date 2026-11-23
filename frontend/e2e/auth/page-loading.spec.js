@@ -13,7 +13,6 @@ const pages = [
   ['/execution/pta', 'Réalisations', 'AGENT_SAISIE'],
   ['/execution/activities/activity', 'Détail de l’activité', 'AGENT_SAISIE'],
   ['/partner', 'Espace Partenaire', 'PARTENAIRE'],
-  ['/notifications', 'Notifications', 'AGENT_SAISIE'],
   ['/history', 'Historique', 'ADMIN_PLATEFORME'],
 ]
 
@@ -54,7 +53,6 @@ for (const [path, title, role] of pages) {
     releaseSession()
     const loading = page.getByRole('status', { name: `Chargement : ${title}` })
     await expect(loading).toBeVisible()
-    await expect(loading).toHaveCSS('display', 'grid')
     await expect(page.locator('[data-ui~="loading-placeholder"]')).toHaveCount(
       0,
     )
@@ -186,10 +184,6 @@ test('project draft survives loading the next page of partner choices', async ({
   await page.getByRole('button', { name: 'Créer', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Créer un projet' })
   await dialog.getByLabel('Nom', { exact: true }).fill('Projet en brouillon')
-  await expect(dialog.getByLabel('Nom', { exact: true })).toHaveCSS(
-    'min-height',
-    '44px',
-  )
   await page.screenshot({
     path: '/tmp/mjl-tailwind-project-dialog-desktop.png',
     fullPage: true,
@@ -199,8 +193,6 @@ test('project draft survives loading the next page of partner choices', async ({
   expect(bounds.width).toBeLessThanOrEqual(358)
   expect(bounds.x).toBeGreaterThanOrEqual(16)
   expect(bounds.y).toBeGreaterThan(16)
-  await expect(dialog).toHaveCSS('border-radius', '8px')
-  await expect(dialog.locator('form')).toHaveCSS('gap', '24px')
   await page.screenshot({
     path: '/tmp/mjl-tailwind-project-dialog-mobile.png',
     fullPage: true,

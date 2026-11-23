@@ -1,16 +1,11 @@
-import { Urls } from '@/app/urls'
 import { formatDate, formatDateTime } from '@/shared/lib/format'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
-import { Panel } from '@/shared/ui/layout'
 import { useSessionQuery } from '@/features/auth/session/SessionProvider'
 import { authorization } from '@/features/auth/session/authorization'
-import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/NotificationView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
-import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { useAPI } from '@/shared/api/RestClientProvider'
@@ -18,8 +13,28 @@ import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { Pagination } from '@/shared/ui/Pagination'
 import { activityLocation } from '@/shared/lib/activity-navigation'
+import { notificationAPIPath, notificationPath } from './notification-path'
+import { LoaderCircle } from 'lucide-react'
 
 const notificationRoot = ['notifications']
+
+function NotificationLoading() {
+  return (
+    <div
+      data-ui="notification-loading"
+      className="min-h-45 grid place-content-center text-primary"
+      role="status"
+      aria-label={strings.loading}
+      aria-busy="true"
+    >
+      <LoaderCircle
+        className="animate-spin [animation-duration:0.8s]"
+        size={22}
+        aria-hidden="true"
+      />
+    </div>
+  )
+}
 
 function financialRequestLabel(kind) {
   return {
@@ -38,6 +53,21 @@ function notificationPresentation(item) {
   }
   const activityDestination = (section = 'programming') =>
     activityLocation(activity, section)
+  if (
+    item.handled_at &&
+    ['activity_review', 'financial_review'].includes(item.kind)
+  )
+    return {
+      title:
+        item.kind === 'financial_review'
+          ? strings.handledRequestTitle
+          : strings.handledActivityTitle,
+      description: strings.handledDescription,
+      location: activityDestination(
+        item.kind === 'financial_review' ? 'finance' : 'programming',
+      ),
+      action: strings.consultActivity,
+    }
   if (item.kind === 'assignment')
     return {
       title: strings.assignmentTitle,
@@ -47,6 +77,7 @@ function notificationPresentation(item) {
         project: item.project_name,
       }),
       location: activityDestination(),
+      action: strings.viewActivity,
     }
   if (item.kind === 'activity_review')
     return {
@@ -59,6 +90,7 @@ function notificationPresentation(item) {
           ? strings.reviewSupervisor
           : strings.reviewValidator,
       location: activityDestination(),
+      action: strings.viewRealization,
     }
   if (item.kind === 'activity_correction')
     return {
@@ -67,12 +99,14 @@ function notificationPresentation(item) {
         reason: item.reason,
       }),
       location: activityDestination(),
+      action: strings.correctActivity,
     }
   if (item.kind === 'activity_approved')
     return {
       title: strings.approvedTitle,
       description: strings.approved,
       location: activityDestination(),
+      action: strings.viewActivity,
     }
   if (financial) {
     const request = financialRequestLabel(item.request_kind)
@@ -89,6 +123,7 @@ function notificationPresentation(item) {
           { request },
         ),
         location: activityDestination('finance'),
+        action: strings.openRequest,
       }
     if (item.kind === 'financial_correction')
       return {
@@ -98,11 +133,13 @@ function notificationPresentation(item) {
           reason: item.reason,
         }),
         location: activityDestination('finance'),
+        action: strings.correctRequest,
       }
     return {
       title: strings.financialApprovedTitle,
       description: strings.formatString(strings.financialApproved, { request }),
       location: activityDestination('finance'),
+      action: strings.consultActivity,
     }
   }
   return {
@@ -111,42 +148,43 @@ function notificationPresentation(item) {
       date: formatDate(item.planned_end),
     }),
     location: activityDestination(),
+    action: strings.viewActivity,
   }
 }
 
-export function NotificationView({ embedded = false, onSelect }) {
+export function NotificationView({ onSelect }) {
   const session = useSessionQuery()
-  if (session.isPending) return <NotificationsLoading />
+  if (session.isPending) return <NotificationLoading />
   if (!authorization(session.data).can('notifications'))
     return <AccessDeniedState role={session.data?.user?.role} />
   return (
     <NotificationWorkspace
       session={session.data}
       onDenied={() => {}}
-      embedded={embedded}
       onSelect={onSelect}
     />
   )
 }
 
-function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
+function NotificationWorkspace({ session, onDenied, onSelect }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const navigate = useNavigate()
   const generation = useRef(0)
   const mutationController = useRef(null)
   const [cursor, setCursor] = useState('')
-  const path = `/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`
+  const path = `${notificationAPIPath}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`
   const notifications = useQuery({
     queryKey: [...notificationRoot, session.user.id, 'all', cursor, 60],
     queryFn: async ({ signal }) => {
       try {
-        return await api.request(`/api/v1${path}`, { signal })
+        return await api.request(path, { signal })
       } catch (error) {
         if (error.status === 401) onDenied()
         throw error
       }
     },
+    refetchOnMount: 'always',
   })
   useEffect(
     () => () => {
@@ -163,7 +201,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
       const current = generation.current
       const controller = new AbortController()
       mutationController.current = controller
-      const result = await api.request(`/api/v1/notifications/${item.id}`, {
+      const result = await api.request(`${notificationAPIPath}/${item.id}`, {
         method: 'PATCH',
         csrf: session.csrf,
         body: { expected_version: item.version },
@@ -183,43 +221,21 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
     },
   })
 
-  if (notifications.isPending)
-    return (
-      <PageLoading
-        title={strings.notificationsTitle || 'Notifications'}
-        className={embedded ? 'min-h-45' : undefined}
-      />
-    )
+  if (notifications.isPending) return <NotificationLoading />
   if (notifications.isError)
     return (
-      <RetryableError page onRetry={() => void notifications.refetch()}>
+      <RetryableError onRetry={() => void notifications.refetch()}>
         {strings.unavailable}
       </RetryableError>
     )
 
-  const move = (link) => setCursor(cursorFrom(link, Urls.notifications))
+  const move = (link) => setCursor(cursorFrom(link, notificationPath))
   return (
-    <section className="grid gap-6" aria-busy={notifications.isFetching}>
-      {!embedded && (
-        <>
-          <Helmet>
-            <title>Notifications - MJL</title>
-          </Helmet>
-          <div
-            className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
-            data-ui="planning-heading"
-          >
-            <RefreshIndicator active={notifications.isFetching} />
-            <div>
-              <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-                Suivi administratif
-              </p>
-              <h1>Notifications</h1>
-            </div>
-          </div>
-        </>
-      )}
-      <Panel as="div" className={embedded ? 'border-0 p-0 gap-0' : undefined}>
+    <section
+      className="flex min-h-0 flex-col overflow-y-auto overscroll-contain"
+      aria-busy={notifications.isFetching}
+    >
+      <div className="min-h-0">
         {notifications.data.data.length === 0 ? (
           <div className="min-h-45 grid items-center">
             <EmptyContent kind="notifications" />
@@ -229,38 +245,40 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
             {notifications.data.data.map((item) => {
               const presentation = notificationPresentation(item)
               return (
-                <li key={item.id} className="px-6 py-5">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span
-                      className={item.read_at ? '' : 'font-medium text-primary'}
-                    >
-                      {!item.read_at && <span aria-hidden="true">● </span>}
-                      {item.handled_at
-                        ? item.read_at
-                          ? strings.handled
-                          : strings.handledUnread
-                        : item.read_at
-                          ? strings.read
-                          : strings.unread}
-                    </span>
-                    <time dateTime={item.created_at}>
-                      {formatDateTime(item.created_at)}
-                    </time>
-                  </div>
-                  <h3 className="mb-2 text-sm font-semibold text-navy">
+                <li
+                  key={item.id}
+                  className={
+                    item.read_at ? 'px-5 py-4' : 'bg-selected px-5 py-4'
+                  }
+                >
+                  <span className="sr-only">
+                    {item.handled_at
+                      ? item.read_at
+                        ? strings.handled
+                        : strings.handledUnread
+                      : item.read_at
+                        ? strings.read
+                        : strings.unread}
+                  </span>
+                  <h3 className="text-sm font-semibold text-navy">
                     {presentation.title}
                   </h3>
-                  <p className="text-sm text-navy">{item.activity_name}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-1 text-[0.8125rem] text-navy">
+                    {item.activity_name}
+                  </p>
+                  <p className="mt-1 text-[0.8125rem] leading-5 text-muted-foreground">
+                    {item.activity_reference && `${item.activity_reference} : `}
                     {presentation.description}
                   </p>
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <span className="text-muted-foreground">
-                      {item.activity_reference}
-                      {item.pta_year ? ` · PTA ${item.pta_year}` : ''}
-                    </span>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <time
+                      dateTime={item.created_at}
+                      className="text-muted-foreground"
+                    >
+                      {formatDateTime(item.created_at)}
+                    </time>
                     <Link
-                      className="inline-flex items-center gap-2 font-medium text-primary"
+                      className="inline-flex min-h-8 items-center font-medium text-primary hover:underline"
                       {...presentation.location}
                       aria-disabled={read.isPending}
                       onClick={async (event) => {
@@ -295,10 +313,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                         }
                       }}
                     >
-                      {item.handled_at
-                        ? strings.consultActivity
-                        : strings.openActivity}
-                      <ArrowRight size={14} aria-hidden="true" />
+                      {presentation.action}
                     </Link>
                   </div>
                 </li>
@@ -313,14 +328,12 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
           busy={notifications.isFetching}
           previousLabel={strings.previous}
           nextLabel={strings.next}
+          size="sm"
+          className="border-t border-border px-5 py-3"
           onPrevious={() => move(notifications.data.previous)}
           onNext={() => move(notifications.data.next)}
         />
-      </Panel>
+      </div>
     </section>
   )
-}
-
-export function NotificationsLoading() {
-  return <PageLoading title={strings.notificationsTitle} />
 }

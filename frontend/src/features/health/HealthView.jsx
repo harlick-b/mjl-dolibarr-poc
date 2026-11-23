@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity } from 'lucide-react'
 import { healthQuery } from './health'
 import { Button } from '@/shared/ui/button'
+import { Helmet } from 'react-helmet-async'
 
 function subscribe(callback) {
   window.addEventListener('online', callback)
@@ -30,31 +31,36 @@ export function HealthView() {
         : 'Erreur de vérification'
 
   return (
-    <section className="rounded-card border border-border bg-white p-8">
-      <h1 className="flex items-center gap-3 text-2xl font-semibold text-navy">
-        <Activity aria-hidden="true" /> État du service
-      </h1>
-      {online && (query.isPending || query.isFetching) ? (
-        <LoadingPlaceholder label={strings.healthLoading} variant="form" />
-      ) : (
-        <p role="status" aria-live="polite" className="mt-6 font-semibold">
-          {message}
-        </p>
-      )}
-      {online && query.isSuccess && !query.isFetching && (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Dernière vérification :{' '}
-          {new Date(query.dataUpdatedAt).toLocaleTimeString('fr-FR')}.
-          Vérification toutes les 10 secondes.
-        </p>
-      )}
-      <Button
-        className="mt-6"
-        onClick={() => query.refetch()}
-        disabled={!online || query.isFetching}
-      >
-        Vérifier maintenant
-      </Button>
-    </section>
+    <>
+      <Helmet>
+        <title>{strings.title}</title>
+      </Helmet>
+      <section className="rounded-card border border-border bg-white p-8">
+        <h1 className="flex items-center gap-3 text-2xl font-semibold text-navy">
+          <Activity aria-hidden="true" /> {strings.title}
+        </h1>
+        {online && (query.isPending || query.isFetching) ? (
+          <LoadingPlaceholder label={strings.healthLoading} variant="form" />
+        ) : (
+          <p role="status" aria-live="polite" className="mt-6 font-semibold">
+            {message}
+          </p>
+        )}
+        {online && query.isSuccess && !query.isFetching && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Dernière vérification :{' '}
+            {new Date(query.dataUpdatedAt).toLocaleTimeString('fr-FR')}.
+            Vérification toutes les 10 secondes.
+          </p>
+        )}
+        <Button
+          className="mt-6"
+          onClick={() => query.refetch()}
+          disabled={!online || query.isFetching}
+        >
+          Vérifier maintenant
+        </Button>
+      </section>
+    </>
   )
 }

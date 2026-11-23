@@ -652,9 +652,10 @@ draft visibility and immutable audit records remain unchanged.
 
 ### Outcome and boundaries
 
-- The Activity timeline omits the routine draft-to-submission event and does not
-  present a creation snapshot as a long list of artificial before/after changes.
-  The underlying audit records remain available to the authorized global audit.
+- The Activity register keeps meaningful submissions and every nonempty
+  programming change. It omits only empty/no-op Draft records and does not present
+  a creation snapshot as a long list of artificial before/after changes. The
+  underlying audit records remain available to the authorized global audit.
 - Planning and Execution hold their page loading state until all data needed for
   the first complete view is ready. A missing annual PTA is explained with a
   compact status alert.
@@ -687,10 +688,11 @@ independent review-only agent.
 
 ### Progress — focused Activity reading and entry, 2026-11-12
 
-The Activity timeline now removes routine submission before pagination and keeps
-creation as a valid dated event without rendering its stored snapshot as invented
-before/after changes. The authorized global audit still retains both the complete
-creation detail and submission event.
+The Activity register keeps submission and creation as valid dated events without
+rendering stored snapshots as invented before/after changes. Initial execution and
+financial records show direct values, while genuine corrections and programming
+changes use aligned comparison columns. Repeated facts inside one event are shown
+once. The authorized global audit retains its complete existing presentation.
 
 Planning and Execution now wait for every enabled first-view read before revealing
 their page. Planning opens with the complete authorized Activity list for every
@@ -2068,3 +2070,20 @@ from that same approved baseline, rather than from whether the pending action is
 a planning or financial action. The pending action independently selects the
 relevant Activity section, so approved planning corrections open Programming on
 the Execution route while financial actions open Finance.
+
+### Activity administrative register — 2026-11-23
+
+The Activity History tab replaces its decorative timeline with the approved flat
+administrative register. The existing Activity audit response remains the sole
+source: the frontend presents meaningful events newest first, uses action-specific
+French attribution, preserves correction text verbatim, formats recorded financial
+facts and aligns significant changes under **Avant** and **Après**. Empty Draft
+edits and redundant state transitions are omitted from this Activity view without
+removing their underlying audit records or changing the global History page.
+Rows keep the reference's 20 px content inset and recorded business facts remain
+stacked as full-width lines; only significant before/after comparisons use columns.
+
+This slice is frontend-only. The current audit response does not contain a safe
+financial-request destination, nor every example date or reference shown in the
+visual prototype. Those unavailable facts and **Ouvrir la demande** are omitted
+instead of being reconstructed or invented.

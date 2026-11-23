@@ -199,8 +199,10 @@ dialog. Saving selects the category without submitting or resetting the Activity
 draft. Category management does not appear on Partners. Execution lists show period, progress,
 current assigned names and administrative stage from server facts.
 
-The workspace has no horizontal navigation/header. Relances sits above sidebar
-identity and opens the administrative reminder modal from `docs/inspiration/relances/`.
+The workspace has no horizontal navigation/header. Notifications sits above the
+sidebar identity and opens the compact inbox modal from
+`docs/inspiration/notifications/notifications-box.png`. Its fixed header owns
+the close and mark-all-read actions; the notification list scrolls independently.
 Not-found content uses the application sidebar when verified and the decorative
 auth frame otherwise. Logout links target `/logout`. Session-service failure returns
 to login, clears the unusable session automatically once per page load and never
@@ -264,8 +266,16 @@ both floating panels are 300 px wide, align their right edge with their trigger
 and use the supplied 13 px labels, 12–16 px spacing and titled search composition.
 All searchable Agent lists reuse that composition.
 Canonical state wording prevents duplicate review chips. Activity History uses the
-supplied compact vertical timeline with event, date, actor and reason; it shows
-before/after values only for facts that changed and omits raw snapshots and metadata.
+supplied chronological administrative register: one white container, flat rows and
+subtle separators, newest first. Each meaningful event shows its natural French
+title, date, action-specific attribution and recorded business facts. Significant
+changes use one compact **Information / Avant / Après** comparison. A first
+recording shows its values directly without an artificial **Après** label. Facts
+and changes within the same event are deduplicated without removing the evidence
+from another event. Every nonempty Activity programming change remains visible;
+only empty/no-op Draft records are omitted. Correction reasons preserve their
+recorded line breaks. The register omits timeline decoration, raw snapshots,
+internal field names and redundant technical state transitions.
 Calendars use horizontal spans and a distinct start-only marker.
 
 The Activity editor follows `docs/inspiration/activities/edit`: retain the

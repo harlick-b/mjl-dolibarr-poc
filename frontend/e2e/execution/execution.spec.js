@@ -147,10 +147,7 @@ test('PTA-7A Agent submits the zero-spending path without payment controls', asy
     fullPage: true,
   })
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.getByLabel('Motif de l’absence de dépense')).toHaveCSS(
-    'min-height',
-    '110px',
-  )
+  await expect(page.getByLabel('Motif de l’absence de dépense')).toBeVisible()
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

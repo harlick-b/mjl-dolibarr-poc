@@ -47,24 +47,17 @@ for (const [path, role, title] of [
   ['/execution', 'AGENT_SAISIE', 'Aucune activité'],
   ['/dashboard', 'AGENT_SAISIE', 'Aucune action en attente'],
 ])
-  test(`${path} uses the centered empty block`, async ({ page }) => {
+  test(`${path} exposes its empty state`, async ({ page }) => {
     await setup(page, role)
     await page.setViewportSize({ width: 1846, height: 970 })
     await page.goto(path)
     const heading = page.getByRole('heading', { name: title, exact: true })
     await expect(heading).toBeVisible()
-    const block = heading.locator('..')
-    await expect(block).toHaveCSS('text-align', 'center')
-    const content = await block.boundingBox(),
-      text = await heading.boundingBox()
-    expect(
-      Math.abs(content.x + content.width / 2 - text.x - text.width / 2),
-    ).toBeLessThan(2)
     await page.screenshot({
       path: `/tmp/mjl-empty-${path.replaceAll('/', '-')}.png`,
     })
   })
-test('reminders open in a dialog without changing the page and center the empty message', async ({
+test('Notifications open in a responsive dialog without changing the page', async ({
   page,
 }) => {
   await setup(page, 'AGENT_SAISIE')
@@ -74,16 +67,61 @@ test('reminders open in a dialog without changing the page and center the empty 
   await expect(
     dialog.getByText('Aucune notification pour le moment.'),
   ).toBeVisible()
-  await expect(dialog.locator('[data-ui="empty-content"]')).toHaveCSS(
-    'text-align',
-    'center',
-  )
   await expect(page).toHaveURL(/\/dashboard$/)
-  await page.screenshot({ path: '/tmp/mjl-empty-reminders.png' })
+  await page.screenshot({ path: '/tmp/mjl-empty-notifications.png' })
   await page.keyboard.press('Escape')
   await expect(
     page.getByRole('button', { name: 'Notifications', exact: true }),
   ).toBeFocused()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+  const mobileDialog = await dialog.boundingBox()
+  expect(mobileDialog.x).toBeGreaterThanOrEqual(16)
+  expect(mobileDialog.x + mobileDialog.width).toBeLessThanOrEqual(374)
+  expect(mobileDialog.y).toBeGreaterThanOrEqual(16)
+  expect(mobileDialog.y + mobileDialog.height).toBeLessThanOrEqual(828)
+})
+
+test('a long Notifications list scrolls below its fixed header', async ({
+  page,
+}) => {
+  await setup(page, 'AGENT_SAISIE')
+  const notifications = Array.from({ length: 12 }, (_, index) => ({
+    kind: 'deadline',
+    id: `notice-${index}`,
+    activity_id: `activity-${index}`,
+    activity_reference: `ACT-${String(index + 1).padStart(3, '0')}`,
+    activity_name: `Activité ${index + 1}`,
+    planned_end: '2026-12-31',
+    created_at: '2026-11-23T09:00:00Z',
+    read_at: null,
+    handled_at: null,
+    version: 1,
+  }))
+  await page.route('**/api/v1/notifications**', (route) =>
+    route.fulfill({
+      json: { ...empty, count: notifications.length, data: notifications },
+    }),
+  )
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/dashboard')
+  await page.getByRole('button', { name: /^Notifications/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Notifications' })
+  const header = dialog.locator('header').first()
+  const list = dialog.locator('section')
+  const before = await header.boundingBox()
+
+  expect(
+    await list.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    ),
+  ).toBe(true)
+  await list.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  const after = await header.boundingBox()
+  expect(Math.abs(after.y - before.y)).toBeLessThan(1)
+  await expect(dialog.getByText('Activité 12', { exact: true })).toBeVisible()
 })
 test('Agent can open a year with no PTA and reach first activity creation', async ({
   page,

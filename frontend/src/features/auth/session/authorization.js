@@ -103,14 +103,6 @@ const pages = [
     matches: /^\/history$/,
   },
   {
-    id: 'notifications',
-    hidden: true,
-    path: Urls.notifications,
-    capability: 'notifications',
-    icon: 'notifications',
-    matches: /^\/notifications$/,
-  },
-  {
     id: 'identity',
     path: Urls.profile,
     capability: 'identity',

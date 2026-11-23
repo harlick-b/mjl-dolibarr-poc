@@ -13,8 +13,6 @@ export const strings = new LocalizedStrings({
     notifications: 'Notifications',
     partner: 'Mes projets',
     exports: 'Exports',
-    reminders: 'Notifications',
-    remindersTitle: 'Notifications',
     identity: 'Mon profil',
     workspace: 'Espace de travail',
     administration: 'Administration',

@@ -1,6 +1,6 @@
 # Project status
 
-Updated 2026-11-22. MJL is under development; implemented does not mean accepted
+Updated 2026-11-23. MJL is under development; implemented does not mean accepted
 or production-ready. This file describes the current boundary, not authorization
 for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
@@ -2675,3 +2675,66 @@ permissions or business workflows.
 Resolver failures now render retryable errors instead of empty screens, and
 Partner resolver denials follow the existing protected-data cleanup. Browser
 coverage uses the canonical fragments and local-pagination contract.
+
+### Activity administrative history — 2026-11-23
+
+Activity History now uses one white administrative register with flat rows and
+subtle separators. It retains the existing newest-first audit source and Activity
+permissions while showing natural action attribution, recorded facts, exact
+multiline correction reasons and aligned before/after changes. The presentation
+removes the timeline line, dots, decorative separators, empty/no-op Draft events
+and redundant state changes. Global History and backend audit generation are
+unchanged.
+The final visual correction uses a consistent 20 px row inset and keeps business
+facts on separate full-width lines, matching the supplied register composition.
+Known first recordings now show their values directly; genuine corrections use a
+single aligned **Information / Avant / Après** comparison. Repeated amount facts
+inside the same event are displayed once, unchanged execution-budget context is
+omitted, and every nonempty `activity.replace` remains visible. Submission labels
+stay as recorded because the current payload cannot reliably prove resubmission.
+
+The audit response does not currently provide financial-request destinations or
+all visual-example references and dates. The Activity register therefore omits
+those unavailable controls and facts rather than fabricating them.
+
+Focused Activity audit units passed 13/13 across two files, the affected Planning
+page passed 77 tests with four existing skips, targeted ESLint and Prettier passed,
+and the production build passed with the existing large-chunk warning. The focused
+Playwright audit journey passed both global-History and Activity-History cases at
+desktop and mobile widths. No backend tests ran because this slice changes no API
+or audit-generation behavior.
+
+### Router ownership simplification — 2026-11-23
+
+The application shell now selects protected, authentication, health and unknown
+route presentation through one centralized branch. Auth routes retain control of
+post-login navigation during identity changes, and Health remains directly
+available while session recovery is pending. Auth proof loading now belongs to
+the Auth feature. Existing URLs, flat route identifiers, API contracts, roles and
+business workflows are unchanged.
+
+The affected frontend run passed 196 tests with four existing skips; targeted
+lint, formatting and the production build passed. The build retains the known
+large-chunk warning. Three separately run PTA metadata tests remain a verification
+gap because they stay in their pending state after mocked responses; the router
+work retains their previous route declarations.
+After the final navigation-ownership correction, the 19 router tests, targeted
+lint and formatting, the production build and `git diff --check` passed again.
+
+### Notifications modal — 2026-11-23
+
+The workspace sidebar is now the only Notifications entry point. Its compact
+modal uses a fixed header, a scrollable list, subtle unread emphasis, contextual
+Activity/finance/correction/reminder destinations and an existing-API
+**Tout marquer comme lu** action. Handled review requests remain readable without
+appearing to require another decision. The old standalone Notifications route and
+Relances UI wording are removed; reminder notifications themselves remain
+available. This frontend slice changes no backend API, database or authorization
+rule.
+
+Focused evidence: 39 notification, route and role-policy unit checks passed,
+including unread notifications across two cursor pages. Six focused browser
+checks passed across responsive layout, long-list scrolling with a fixed header,
+pending read cleanup, session revocation and logout return navigation. Targeted ESLint, Prettier,
+`git diff --check` and the production build passed; the build retains the existing
+large-chunk warning.

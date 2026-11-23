@@ -105,6 +105,7 @@ for (const pendingStage of ['patch', 'refresh']) {
     let release
     let patched = false
     const item = {
+      kind: 'deadline',
       id: 'reminder-one',
       activity_id: 'activity-one',
       activity_reference: 'ACT-2026-001',
@@ -151,10 +152,11 @@ for (const pendingStage of ['patch', 'refresh']) {
     const dialog = page.getByRole('dialog', {
       name: 'Notifications',
     })
-    await expect(dialog.getByText('ACT-2026-001 · PTA 2026')).toBeVisible()
+    await expect(dialog.getByText('Formation des équipes')).toBeVisible()
+    await expect(dialog.getByText(/ACT-2026-001/)).toBeVisible()
     if (pendingStage === 'patch')
-      await page.screenshot({ path: '/tmp/mjl-relances-modal.png' })
-    await dialog.getByRole('link', { name: 'Ouvrir l’activité' }).click()
+      await page.screenshot({ path: '/tmp/mjl-notifications-modal.png' })
+    await dialog.getByRole('link', { name: 'Voir l’activité' }).click()
     await expect.poll(() => Boolean(release)).toBe(true)
     await dialog.getByRole('button', { name: 'Fermer' }).click()
     release()

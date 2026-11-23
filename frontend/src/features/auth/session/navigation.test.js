@@ -7,7 +7,6 @@ const session = (id, role = 'AGENT_SAISIE') => ({
 test('return destinations are scoped to identity and current role', () => {
   const agent = session('return-agent')
   rememberPage(agent, '/planning')
-  rememberPage(agent, '/notifications')
   expect(loginDestination(agent)).toBe('/planning')
   expect(loginDestination(session('other-agent'))).toBe('/dashboard')
   expect(loginDestination(session('return-agent', 'ADMIN_PLATEFORME'))).toBe(

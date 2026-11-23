@@ -69,10 +69,21 @@ test('a cross-tab revocation removes protected data and requires a fresh sign-in
     }
     if (path === '/api/v1/notifications' && method === 'GET')
       return route.fulfill({ json: notifications })
+    if (method === 'GET')
+      return route.fulfill({
+        json: {
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        },
+      })
     throw new Error(`Unexpected API request: ${method} ${path}`)
   })
 
-  await page.goto('/notifications')
+  await page.goto('/dashboard')
+  await page.getByRole('button', { name: /^Notifications/ }).click()
   await expect(
     page.getByText('Activité confidentielle', { exact: true }),
   ).toBeVisible()

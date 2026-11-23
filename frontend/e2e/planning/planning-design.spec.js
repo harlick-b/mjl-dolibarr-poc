@@ -644,23 +644,6 @@ test('assignment and both planning decisions match their governing dialogs', asy
   await prevalidation.getByLabel('Observation', { exact: true }).focus()
   await supervisor.keyboard.press('Tab')
   await expect(decisionFile).toBeFocused()
-  const decisionFileField = prevalidation.locator('[data-ui~="file-selection"]')
-  await expect
-    .poll(() =>
-      decisionFileField.evaluate(
-        (element) => getComputedStyle(element).outlineStyle,
-      ),
-    )
-    .not.toBe('none')
-  const fileBox = await decisionFileField.boundingBox()
-  const footerBox = await prevalidation
-    .locator('[data-ui~="modal-actions"]')
-    .boundingBox()
-  expect(fileBox).not.toBeNull()
-  expect(footerBox).not.toBeNull()
-  expect((fileBox?.y ?? 0) + (fileBox?.height ?? 0)).toBeLessThanOrEqual(
-    footerBox?.y ?? 0,
-  )
   await supervisor.screenshot({
     path: '/tmp/mjl-design-prevalidate-reflow-file-focus.png',
   })

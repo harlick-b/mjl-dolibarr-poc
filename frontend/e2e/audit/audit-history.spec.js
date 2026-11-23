@@ -185,16 +185,17 @@ test('Agent reads Activity history changes on desktop and mobile', async ({
   const events = history.getByRole('listitem')
   await expect(events).toHaveCount(2)
   await expect(events.nth(0)).toContainText('Brouillon d’activité modifié')
-  await expect(events.nth(0)).toContainText('Agent de test')
-  const descriptionChange = events
-    .nth(0)
-    .getByText('Description : Ancienne description → Description corrigée', {
-      exact: true,
-    })
-  await expect(descriptionChange).toBeVisible()
+  await expect(events.nth(0)).toContainText('Responsable : Agent de test')
+  await expect(
+    events.nth(0).getByText('Description', { exact: true }),
+  ).toBeVisible()
+  await expect(events.nth(0).getByText('Avant')).toBeVisible()
+  await expect(events.nth(0).getByText('Ancienne description')).toBeVisible()
+  await expect(events.nth(0).getByText('Après')).toBeVisible()
+  await expect(events.nth(0).getByText('Description corrigée')).toBeVisible()
   await expect(events.nth(1)).toContainText('Activité créée')
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(events.nth(0)).toBeVisible()
-  await expect(descriptionChange).toBeVisible()
+  await expect(events.nth(0).getByText('Description corrigée')).toBeVisible()
 })

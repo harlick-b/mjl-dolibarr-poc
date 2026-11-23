@@ -31,6 +31,7 @@ import {
   AuthView,
   ServiceUnavailableLogin,
 } from '@/features/auth/pages/AuthView'
+import { loadAuthProof } from '@/features/auth/route-loader'
 import {
   AccessVerificationState,
   AuthFrame,
@@ -53,10 +54,6 @@ import {
   PlanningView,
   PlanningLoading,
 } from '@/features/planning/pages/PlanningView'
-import {
-  NotificationView,
-  NotificationsLoading,
-} from '@/features/notifications/NotificationView'
 import {
   AuditHistoryView,
   HistoryLoading,
@@ -167,85 +164,52 @@ function Shell() {
   const access = useAccess()
   const logout = useLogout()
   const handledIdentityVersion = useRef(0)
+  const { identityVersion, reason, session, status, verify } = access
   useEffect(() => {
-    if (access.status === 'verified') rememberPage(access.session, path)
-  }, [access.status, access.session, path])
+    if (status === 'verified') rememberPage(session, path)
+  }, [path, session, status])
   useEffect(() => {
-    if (
-      path !== Urls.health &&
-      path !== Urls.logout &&
-      access.status === 'unknown'
-    )
-      void access.verify().catch(() => null)
-  }, [access, path])
+    if (path !== Urls.health && path !== Urls.logout && status === 'unknown')
+      void verify().catch(() => null)
+  }, [path, status, verify])
   useEffect(() => {
     if (
-      access.status !== 'verified' ||
-      access.identityVersion <= handledIdentityVersion.current
+      status !== 'verified' ||
+      identityVersion <= handledIdentityVersion.current
     )
       return
-    handledIdentityVersion.current = access.identityVersion
-    const destination = loginDestination(access.session)
+    handledIdentityVersion.current = identityVersion
+    if (!pageForPath(path)) return
+    const destination = loginDestination(session)
     if (path !== destination) void navigate({ to: destination, replace: true })
-  }, [access, navigate, path])
-  if (access.reason === 'service-unavailable' && !logout.busy)
+  }, [identityVersion, navigate, path, session, status])
+  if (path === Urls.health) return <Outlet />
+  if (reason === 'service-unavailable' && !logout.busy)
     return <ServiceUnavailableLogin />
-  if (logout.busy || logout.error || access.reason === 'logout')
+  if (logout.busy || logout.error || reason === 'logout')
     return <LogoutScreen />
-  const protectedPath = Boolean(pageForPath(path))
-  const knownPath =
-    protectedPath ||
-    [Urls.home, Urls.health, Urls.logout, ...AuthUrls].includes(path)
-  if (
-    !knownPath &&
-    (access.status === 'unknown' || access.status === 'checking')
-  )
-    return <AccessVerificationState />
-  if (!knownPath && access.status === 'verified')
+  const page = pageForPath(path)
+  if (page) {
+    const canManageAccounts =
+      path === Urls.accessUsers &&
+      status === 'verified' &&
+      authorization(session).can('accounts')
     return (
-      <ProtectedGate path={path}>
-        <WorkspaceShell />
+      <ProtectedGate>
+        {canManageAccounts ? <Outlet /> : <WorkspaceShell />}
       </ProtectedGate>
-    )
-  if (
-    path === Urls.accessUsers &&
-    access.status === 'verified' &&
-    access.session.user.role !== 'ADMIN_PLATEFORME'
-  )
-    return (
-      <ProtectedGate path={path}>
-        <WorkspaceShell />
-      </ProtectedGate>
-    )
-  if (
-    [
-      Urls.home,
-      Urls.login,
-      Urls.logout,
-      Urls.invitation,
-      Urls.verification,
-      Urls.identity,
-      Urls.forgotPassword,
-      Urls.resetPassword,
-      Urls.accessUsers,
-    ].includes(path)
-  ) {
-    const content = <Outlet />
-    return protectedPath ? (
-      <ProtectedGate path={path}>{content}</ProtectedGate>
-    ) : (
-      content
     )
   }
-  if (protectedPath)
+  if ([Urls.home, Urls.logout, ...AuthUrls].includes(path)) return <Outlet />
+  if (status === 'unknown' || status === 'checking')
+    return <AccessVerificationState />
+  if (status === 'verified')
     return (
-      <ProtectedGate path={path}>
+      <ProtectedGate>
         <WorkspaceShell />
       </ProtectedGate>
     )
-  return access.status === 'verified' ? (
-    <WorkspaceShell />
-  ) : (
+  return (
     <AuthFrame title={strings.notFound} loading>
       <Outlet />
     </AuthFrame>
@@ -269,7 +233,7 @@ function LogoutRoute() {
   )
 }
 
-function NotFound() {
+function NotFoundContent() {
   const access = useAccess()
   const destination =
     access.status === 'verified'
@@ -286,6 +250,20 @@ function NotFound() {
     >
       <p>{strings.notFoundMessage}</p>
     </FallbackState>
+  )
+}
+
+const listSearchKeys = ['q', 'state', 'agent', 'from', 'to']
+
+function activityListSearch(search) {
+  return Object.fromEntries(
+    listSearchKeys.map((key) => [
+      key,
+      String(search[key] || '').slice(
+        0,
+        key === 'q' ? 200 : ['from', 'to'].includes(key) ? 10 : 36,
+      ),
+    ]),
   )
 }
 
@@ -325,7 +303,7 @@ export function makeRouter(history, componentOverrides = {}) {
           ),
       ],
     },
-    notFoundComponent: NotFound,
+    notFoundComponent: NotFoundContent,
     errorComponent: RouteFailure,
   })
   const home = createRoute({
@@ -334,35 +312,36 @@ export function makeRouter(history, componentOverrides = {}) {
     component: componentOverrides.auth || AuthView,
     errorComponent: AuthRouteFailure,
   })
-  const overviewRoutes = [
-    [Urls.dashboard, 'dashboard'],
-    [Urls.planning, 'planning'],
-    [Urls.execution, 'execution'],
-  ].map(([path, screen]) =>
-    createRoute({
-      getParentRoute: () => root,
-      path,
-      validateSearch: (search) => ({
-        ...(screen === 'execution'
-          ? Object.fromEntries(
-              ['q', 'state', 'agent', 'from', 'to'].map((key) => [
-                key,
-                String(search[key] || '').slice(
-                  0,
-                  key === 'q' ? 200 : ['from', 'to'].includes(key) ? 10 : 36,
-                ),
-              ]),
-            )
-          : {}),
-        project: String(search.project || '').slice(0, 36),
-        ...(screen !== 'planning'
-          ? { pta: String(search.pta || '').slice(0, 36) }
-          : {}),
-      }),
-      component: () => <WorkspaceOverview screen={screen} />,
-      errorComponent: RouteFailure,
+  const dashboard = createRoute({
+    getParentRoute: () => root,
+    path: Urls.dashboard,
+    validateSearch: (search) => ({
+      project: String(search.project || '').slice(0, 36),
+      pta: String(search.pta || '').slice(0, 36),
     }),
-  )
+    component: () => <WorkspaceOverview screen="dashboard" />,
+    errorComponent: RouteFailure,
+  })
+  const planningOverview = createRoute({
+    getParentRoute: () => root,
+    path: Urls.planning,
+    validateSearch: (search) => ({
+      project: String(search.project || '').slice(0, 36),
+    }),
+    component: () => <WorkspaceOverview screen="planning" />,
+    errorComponent: RouteFailure,
+  })
+  const executionOverview = createRoute({
+    getParentRoute: () => root,
+    path: Urls.execution,
+    validateSearch: (search) => ({
+      ...activityListSearch(search),
+      project: String(search.project || '').slice(0, 36),
+      pta: String(search.pta || '').slice(0, 36),
+    }),
+    component: () => <WorkspaceOverview screen="execution" />,
+    errorComponent: RouteFailure,
+  })
   const logoutRoute = createRoute({
     getParentRoute: () => root,
     path: Urls.logout,
@@ -385,41 +364,7 @@ export function makeRouter(history, componentOverrides = {}) {
       pendingMinMs: 0,
       gcTime: 0,
       loader: [Urls.invitation, Urls.resetPassword].includes(path)
-        ? async ({ context, abortController }) => {
-            let proof
-            if (window.location.hash) {
-              const fragment = new URLSearchParams(
-                window.location.hash.slice(1),
-              )
-              proof = {
-                selector: fragment.get('selector') || '',
-                verifier: fragment.get('verifier') || '',
-              }
-              window.history.replaceState(
-                window.history.state,
-                '',
-                window.location.pathname,
-              )
-            }
-            try {
-              const session = await context.access.verify()
-              if (proof) {
-                const endpoint =
-                  path === Urls.invitation
-                    ? 'invitations/inspect'
-                    : 'password-reset/inspect'
-                const invited = await context.api.auth(endpoint, {
-                  csrf: session.csrf,
-                  body: proof,
-                  signal: abortController.signal,
-                })
-                return { proof, email: invited.email }
-              }
-            } catch {
-              /* The view offers a deliberate retry or an invalid-link message. */
-            }
-            return null
-          }
+        ? (loaderContext) => loadAuthProof(path, loaderContext)
         : undefined,
     }),
   )
@@ -529,43 +474,18 @@ export function makeRouter(history, componentOverrides = {}) {
           : {},
     }),
   )
-  const executionRoutes = [[Urls.executionPta, 'list']].map(([path, screen]) =>
-    createRoute({
-      getParentRoute: () => root,
-      path,
-      component: componentOverrides.execution
-        ? () => componentOverrides.execution(screen)
-        : () => <ExecutionView screen={screen} />,
-      errorComponent: RouteFailure,
-      pendingComponent: () => <ExecutionLoading screen={screen} />,
-      pendingMs: 0,
-      pendingMinMs: 0,
-      gcTime: 0,
-      validateSearch: (search) => ({
-        ...(screen === 'list'
-          ? Object.fromEntries(
-              ['q', 'state', 'agent', 'from', 'to'].map((key) => [
-                key,
-                String(search[key] || '').slice(
-                  0,
-                  key === 'q' ? 200 : ['from', 'to'].includes(key) ? 10 : 36,
-                ),
-              ]),
-            )
-          : {}),
-      }),
-    }),
-  )
-  const notifications = createRoute({
+  const executionPta = createRoute({
     getParentRoute: () => root,
-    path: Urls.notifications,
-    component: NotificationView,
+    path: Urls.executionPta,
+    component: componentOverrides.execution
+      ? () => componentOverrides.execution('list')
+      : () => <ExecutionView screen="list" />,
     errorComponent: RouteFailure,
-    pendingComponent: NotificationsLoading,
+    pendingComponent: () => <ExecutionLoading screen="list" />,
     pendingMs: 0,
     pendingMinMs: 0,
     gcTime: 0,
-    validateSearch: () => ({}),
+    validateSearch: activityListSearch,
   })
   const historyRoute = createRoute({
     getParentRoute: () => root,
@@ -606,6 +526,19 @@ export function makeRouter(history, componentOverrides = {}) {
       ),
     }),
   })
+  const profile = createRoute({
+    getParentRoute: () => root,
+    path: Urls.profile,
+    component: ProfileView,
+    errorComponent: RouteFailure,
+  })
+  const identity = createRoute({
+    getParentRoute: () => root,
+    path: Urls.identity,
+    beforeLoad: () => {
+      throw redirect({ to: Urls.profile, replace: true })
+    },
+  })
   const accessCoordinator = createAccessCoordinator({
     queryClient,
     readSession: ({ signal }) => api.auth('session', { signal }),
@@ -616,27 +549,17 @@ export function makeRouter(history, componentOverrides = {}) {
       home,
       logoutRoute,
       health,
-      createRoute({
-        getParentRoute: () => root,
-        path: Urls.profile,
-        component: ProfileView,
-        errorComponent: RouteFailure,
-      }),
-      createRoute({
-        getParentRoute: () => root,
-        path: Urls.identity,
-        beforeLoad: () => {
-          throw redirect({ to: Urls.profile, replace: true })
-        },
-      }),
-      ...overviewRoutes,
       ...authRoutes,
       access,
+      dashboard,
+      planningOverview,
+      executionOverview,
+      profile,
+      identity,
       partnerPortal,
       partnerExports,
       ...planningRoutes,
-      ...executionRoutes,
-      notifications,
+      executionPta,
       historyRoute,
     ]),
     context: { queryClient, api, access: accessCoordinator },

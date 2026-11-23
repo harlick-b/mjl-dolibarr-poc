@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { BusinessForm } from './BusinessForm'
 import {
   requiredFieldFeedbackHandlers,
-  requiredFieldFeedbackStyles,
   missingRequiredFieldProps,
 } from './required-field-feedback'
 import { RequiredFieldError } from './RequiredFieldError'
@@ -27,7 +26,6 @@ describe('required field feedback', () => {
     fireEvent.invalid(input)
     expect(input).toHaveAttribute('data-value-missing', 'true')
     expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(requiredFieldFeedbackStyles.join(' ')).toContain('border-danger')
 
     fireEvent.change(input, { target: { value: 'incorrect' } })
     expect(input).not.toHaveAttribute('data-value-missing')

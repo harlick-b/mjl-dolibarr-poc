@@ -846,3 +846,66 @@ prioritizes the concrete closure blocker over the broad financial-editing freeze
 and groups review substates into a concise next step. Shared `StatusBadge`
 variants own the matching semantic colors. The API contract and financial
 workflow remain unchanged.
+
+### Activity audit presentation adaptation — 2026-11-23
+
+The Activity History tab keeps Query-owned server data and the existing bounded
+audit list. Its feature renderer now projects that response into the approved
+administrative register without copying server state or changing the shared global
+History renderer. The current audit API owns the public French event and field
+labels; the frontend locale owns only the surrounding presentation text added by
+this register. Activity-specific formatting currently recognizes some literal API
+labels, so a backend wording change must be coordinated with this renderer until
+the API exposes stable field codes. Recorded XOF and dates reuse shared formatters,
+and absent request links or business facts are not inferred from internal
+identifiers. The renderer classifies only event semantics established by the
+action: known initial recordings use direct values, while genuine corrections use
+one aligned comparison. Nonempty programming edits remain visible, and duplicate
+facts inside one event are removed without comparing or merging separate events.
+
+### Router ownership simplification — 2026-11-23
+
+The root router now makes one decision for each route category: protected pages
+use the workspace shell, authentication pages own their navigation, `/health`
+renders directly, and unknown paths use the shell matching the verified session.
+Route-specific authorization continues through the centralized capability helper.
+The established flat route identifiers remain unchanged because feature hooks use
+them as part of their Router contract.
+
+Invitation and password-reset proof loading moved to the Auth feature, while the
+router retains only route composition. Shared Activity list search parsing removes
+duplicate declarations without introducing a configurable route registry. Effects
+remain only for external session verification, remembered-page persistence,
+identity changes and logout lifecycle work; derived routing stays synchronous.
+
+Focused evidence: 196 affected frontend tests passed with four existing skips.
+Targeted ESLint and Prettier passed, and the production build passed with the
+existing large-chunk warning. Three separately run PTA metadata checks remain an
+explicit verification gap: they render the pending state after their mocked detail
+and Activity responses even with the prior PTA route declarations retained.
+After the final navigation-ownership correction, the 19 router tests, targeted
+lint and formatting, the production build and `git diff --check` passed again.
+
+### Notifications inbox consolidation — 2026-11-23
+
+Notifications now have one frontend entry point in the verified workspace
+sidebar. It opens the compact, fixed-header inbox modal from the approved
+reference; the list scrolls inside the modal and retains concise contextual
+links. The former standalone route and obsolete Relances UI wording are removed.
+Internal business roles retain the existing notification capability, while Admin
+and Partner visibility remains unchanged.
+
+Individual read actions and the unread counter continue to use the existing
+notification endpoints. **Tout marquer comme lu** applies those same existing
+per-notification writes to the current user's unread pages and refreshes the
+shared Query cache; no API, schema, persistence, authentication or notification
+generation contract changed. A notification for an already handled review keeps
+its independent unread state but uses neutral copy and a consultation link rather
+than asking for another decision.
+
+Focused evidence: 39 notification, route and role-policy unit checks passed,
+including unread notifications across two cursor pages. Six focused Playwright
+checks passed for desktop/mobile bounds, long-list scrolling with a fixed header,
+close/focus behavior, pending read cleanup, session revocation and logout return navigation. Targeted
+ESLint, Prettier, `git diff --check` and the production build passed; the build
+retains the existing large-chunk warning.

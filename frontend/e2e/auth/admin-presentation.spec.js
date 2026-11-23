@@ -32,11 +32,6 @@ test('invitation Select supports keyboard, required validation and FormData insi
   await dialog.getByLabel('Prénom *', { exact: true }).fill('Anne')
   await dialog.getByLabel('Nom de famille').fill('Martin')
   await dialog.getByLabel('Adresse e-mail').fill('anne@example.test')
-  const first = await dialog
-    .getByLabel('Prénom *', { exact: true })
-    .boundingBox()
-  const last = await dialog.getByLabel('Nom de famille').boundingBox()
-  expect(first.y).toBe(last.y)
   await dialog.getByRole('combobox', { name: 'Rôle', exact: true }).focus()
   await page.keyboard.press('ArrowDown')
   await page.getByRole('option', { name: 'Partenaire', exact: true }).click()

@@ -7,11 +7,10 @@ import {
   Building2,
   Users,
   History,
-  Bell,
   Download,
 } from 'lucide-react'
 import { authorization, pageForPath } from '../session/authorization'
-import { ReminderMenu } from '@/features/notifications/ReminderMenu'
+import { NotificationMenu } from '@/features/notifications/NotificationMenu'
 import { AccountMenu } from './AccountMenu'
 import { strings } from '@/locales/fr/Navigation'
 const icons = {
@@ -22,7 +21,6 @@ const icons = {
   projects: Folder,
   accounts: Users,
   audit: History,
-  notifications: Bell,
   exports: Download,
 }
 export function ApplicationSidebar({ user }) {
@@ -87,7 +85,7 @@ export function ApplicationSidebar({ user }) {
         })}
       </nav>
       <div className="mt-auto min-w-0 px-4 pb-4 pt-6">
-        <ReminderMenu />
+        <NotificationMenu />
         <AccountMenu user={user} />
       </div>
     </aside>

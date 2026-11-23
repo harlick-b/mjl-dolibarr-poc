@@ -37,7 +37,6 @@ async function openFinancialDrawer(
   const dialog = await screen.findByRole('dialog')
   if (action === 'Nouvelle demande') {
     expect(dialog).toHaveAccessibleName('Nouvelle demande')
-    expect(dialog).not.toHaveClass('h-dvh')
     if (virementAvailable === true) {
       expect(
         within(dialog).getByText('Autorisation de décaissement'),
@@ -1186,7 +1185,7 @@ test('execution explorer searches assigned Agents and shows readable active filt
   ).toBeVisible()
   expect(
     screen.getByRole('button', { name: 'Du : Choisir une date' }),
-  ).toHaveClass('min-h-9')
+  ).toBeVisible()
   expect(
     screen.queryByRole('button', { name: 'Voir les résultats' }),
   ).not.toBeInTheDocument()
@@ -3194,7 +3193,6 @@ test('financial review opens as a local modal without replacing the Activity pag
 
   const dialog = await openFinancialDrawer(user, 'Examiner')
   expect(dialog).toHaveAccessibleName('Demande de décaissement')
-  expect(dialog).not.toHaveClass('h-dvh')
   expect(history.location.search).toBe('')
   expect(currentFinancialRequests).toBeInTheDocument()
   expect(within(dialog).queryByLabelText(/montant/i)).toBeNull()
@@ -3382,7 +3380,6 @@ test.each([
       name: 'Demande de décaissement',
     })
     expect(dialog).toBeVisible()
-    expect(dialog).not.toHaveClass('h-dvh')
     expect(history.location.pathname).toBe('/execution/activities/activity-1')
     expect(history.location.search).toBe('')
     expect(fetch).not.toHaveBeenCalledWith(
@@ -3482,7 +3479,6 @@ test('virement review uses the shared decision composition and submits its obser
 
   const dialog = await openFinancialDrawer(user, 'Examiner')
   expect(dialog).toHaveAccessibleName('Demande de virement')
-  expect(dialog).not.toHaveClass('h-dvh')
   expect(within(dialog).getByText('À prévalider')).toBeVisible()
   expect(within(dialog).getByText('virement · 29 octobre 2026')).toBeVisible()
   expect(

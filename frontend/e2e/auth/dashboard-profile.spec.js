@@ -86,7 +86,7 @@ test('Dashboard and planning share cached projects, and tab changes preserve the
   expect(calls.filter((path) => path === '/api/v1/projects')).toHaveLength(1)
 })
 
-test('legacy identity redirects to centered editable profile and saves exact names', async ({
+test('legacy identity redirects to the editable profile and saves exact names', async ({
   page,
 }) => {
   await fixture(page)
@@ -95,11 +95,6 @@ test('legacy identity redirects to centered editable profile and saves exact nam
   await expect(page).toHaveURL(/\/profile$/)
   await expect(page.getByLabel('Prénoms')).toHaveValue('Jean Paul')
   await expect(page.getByLabel('Adresse email')).toHaveAttribute('readonly', '')
-  const form = page.locator('form')
-  const box = await form.boundingBox()
-  expect(
-    Math.abs(box.x + box.width / 2 - (256 + (1848 - 256) / 2)),
-  ).toBeLessThan(2)
   await page.getByLabel('Nom', { exact: true }).fill('de Souza Martin')
   await page
     .getByRole('button', { name: 'Enregistrer les modifications' })

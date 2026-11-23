@@ -1,4 +1,4 @@
-import { waitFor, render, screen } from '@testing-library/react'
+import { act, waitFor, render, screen } from '@testing-library/react'
 import { test, expect, vi } from 'vitest'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { App, makeRouter } from './router.jsx'
@@ -39,7 +39,7 @@ test('navigates to health and displays loading then the verified result', async 
   const router = makeRouter(
     createMemoryHistory({ initialEntries: ['/health'] }),
   )
-  render(<App router={router} />)
+  const { container } = render(<App router={router} />)
   expect(
     await screen.findByRole('status', {
       name: 'Chargement de l’état du service',
@@ -47,7 +47,30 @@ test('navigates to health and displays loading then the verified result', async 
   ).toBeVisible()
   finish(new Response(JSON.stringify({ status: 'ok' }), { status: 200 }))
   expect(await screen.findByText('Service disponible')).toBeVisible()
+  expect(document.title).toBe('État du service')
+  expect(container.querySelector('[data-ui~="auth-layout"]')).toBeNull()
   expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test('health remains directly available during session-service recovery', async () => {
+  sessionStorage.setItem('mjl.logout-pending', 'login')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ status: 'ok' }), { status: 200 }),
+      ),
+    ),
+  )
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/health'] }),
+  )
+  const { container } = render(<App router={router} />)
+
+  expect(await screen.findByText('Service disponible')).toBeVisible()
+  expect(router.state.location.pathname).toBe('/health')
+  expect(container.querySelector('[data-ui~="auth-layout"]')).toBeNull()
+  sessionStorage.removeItem('mjl.logout-pending')
 })
 
 test.each([
@@ -121,6 +144,42 @@ test('the removed generic Activity route is not accepted', async () => {
   expect(
     await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
+})
+
+test('notifications are available from the sidebar modal, not a standalone page', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'fixture',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+          }),
+        ),
+      ),
+    ),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/notifications'] }),
+      )}
+    />,
+  )
+
+  expect(
+    await screen.findByRole('heading', { name: 'Page introuvable' }),
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('heading', { name: 'Notifications' }),
+  ).not.toBeInTheDocument()
 })
 
 test('an unknown route waits for session verification before choosing its shell', async () => {
@@ -213,6 +272,108 @@ test.each([
 function ThrowingRoute() {
   throw new Error('private framework diagnostic')
 }
+
+function StaticAuthRoute() {
+  return <p>Transition d’authentification</p>
+}
+
+function StaticProtectedRoute() {
+  return <p>Espace protégé</p>
+}
+
+test('an authentication route keeps navigation ownership after an identity change', async () => {
+  let userId = 'first-agent'
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input) => {
+      if (String(input).endsWith('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'fixture',
+              user: {
+                id: userId,
+                email: `${userId}@example.test`,
+                role: 'AGENT_SAISIE',
+              },
+              expires_at: new Date(Date.now() + 60_000).toISOString(),
+            }),
+          ),
+        )
+      return Promise.resolve(new Response('{}'))
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/planning/activities/activity-fixture'],
+    }),
+    { auth: StaticAuthRoute, planning: StaticProtectedRoute },
+  )
+  render(<App router={router} />)
+
+  expect(await screen.findByText('Espace protégé')).toBeVisible()
+  await act(() => router.navigate({ to: '/login' }))
+  expect(await screen.findByText('Transition d’authentification')).toBeVisible()
+
+  userId = 'second-agent'
+  await act(() =>
+    router.options.context.access.verify({
+      manual: true,
+      reason: 'credentials',
+    }),
+  )
+
+  await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+})
+
+test('the health route keeps navigation ownership after an identity change', async () => {
+  let userId = 'first-agent'
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input) => {
+      if (String(input).endsWith('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'fixture',
+              user: {
+                id: userId,
+                email: `${userId}@example.test`,
+                role: 'AGENT_SAISIE',
+              },
+              expires_at: new Date(Date.now() + 60_000).toISOString(),
+            }),
+          ),
+        )
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: 'ok' }), { status: 200 }),
+      )
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/planning/activities/activity-fixture'],
+    }),
+    { planning: StaticProtectedRoute },
+  )
+  render(<App router={router} />)
+
+  expect(await screen.findByText('Espace protégé')).toBeVisible()
+  await act(() => router.navigate({ to: '/health' }))
+  expect(await screen.findByText('Service disponible')).toBeVisible()
+
+  userId = 'second-agent'
+  await act(() =>
+    router.options.context.access.verify({
+      manual: true,
+      reason: 'credentials',
+    }),
+  )
+
+  await waitFor(() => expect(router.state.location.pathname).toBe('/health'))
+})
 
 test('an authentication route failure retains the authentication frame', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})

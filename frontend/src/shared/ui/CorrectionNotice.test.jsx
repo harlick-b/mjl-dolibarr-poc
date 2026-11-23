@@ -22,15 +22,12 @@ test('shows an attributed multiline correction without rewriting it', () => {
   expect(notice).toHaveTextContent(
     'Retour demandé par Clarisse AKPON (Validateur définitif) le 7 août 2026 à 15:20.',
   )
-  expect(notice).toHaveClass(
-    'border-correction-border',
-    'bg-correction-surface',
-  )
-  expect(screen.getByText(/Préciser les communes couvertes/)).toHaveTextContent(
+  const reason = screen.getByText(/Préciser les communes couvertes/)
+  expect(reason).toHaveTextContent(
     'Préciser les communes couvertes. Distinguer les frais de mobilisation.',
   )
-  expect(screen.getByText(/Préciser les communes couvertes/)).toHaveClass(
-    'whitespace-pre-wrap',
+  expect(reason.textContent).toBe(
+    'Préciser les communes couvertes.\n\nDistinguer les frais de mobilisation.',
   )
 })
 

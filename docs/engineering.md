@@ -407,6 +407,9 @@ Playwright, Ruff, mypy, pytest/PostgreSQL and generated OpenAPI checks according
 to changed behavior. CI enforces relevant checks; hooks alone are insufficient.
 Test observable rules, exact money, authorization, replay/stale denial, audit
 rollback, adjacent workflows and maximum valid inputs, not implementation wording.
+Persistent tests verify behavior, semantics and accessibility, not CSS class names,
+spacing utilities or other styling implementation details. Temporary visual checks
+used while implementing a screen must be removed from the maintained test suite.
 Record tested source/artifact with actual commands/results. Independently review
 the final candidate; fix accepted findings and obtain focused re-review.
 

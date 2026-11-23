@@ -229,9 +229,6 @@ test('Activity realization and finance follow the approved detail composition', 
   await expect(
     taskDialog.getByRole('button', { name: 'Annuler' }),
   ).toBeVisible()
-  const taskDialogBox = await taskDialog.boundingBox()
-  expect(taskDialogBox.width).toBeLessThanOrEqual(570)
-  expect(taskDialogBox.x).toBeGreaterThan(500)
   await page.screenshot({
     path: '/tmp/mjl-activity-task-modal.png',
     fullPage: true,
@@ -267,18 +264,6 @@ test('Activity realization and finance follow the approved detail composition', 
   const financialSituation = page.getByRole('region', {
     name: 'Situation financière',
   })
-  const financialFactLabels = [
-    'Montant prévu',
-    'Montant autorisé',
-    'Dépenses enregistrées',
-    'Dépenses acceptées',
-  ]
-  const desktopFactBoxes = await Promise.all(
-    financialFactLabels.map((label) =>
-      financialSituation.getByText(label, { exact: true }).boundingBox(),
-    ),
-  )
-  expect(new Set(desktopFactBoxes.map((box) => Math.round(box.y))).size).toBe(1)
   await expect(financialSituation.getByText(/^Réalisation\s*:/)).toHaveCount(0)
   await expect(
     financialSituation.getByText('Autorisation à obtenir'),
@@ -304,12 +289,6 @@ test('Activity realization and finance follow the approved detail composition', 
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390)
-  const mobileFactBoxes = await Promise.all(
-    financialFactLabels.map((label) =>
-      financialSituation.getByText(label, { exact: true }).boundingBox(),
-    ),
-  )
-  expect(new Set(mobileFactBoxes.map((box) => Math.round(box.y))).size).toBe(4)
   await page.screenshot({
     path: '/tmp/mjl-activity-finance-mobile.png',
     fullPage: true,
@@ -355,11 +334,6 @@ test('Activity realization and finance follow the approved detail composition', 
     name: 'Autorisation de décaissement',
   })
   await expect(requestDialog).toBeVisible()
-  const requestDialogBox = await requestDialog.boundingBox()
-  expect(requestDialogBox.width).toBeLessThanOrEqual(650)
-  expect(requestDialogBox.x + requestDialogBox.width).toBeGreaterThanOrEqual(
-    1845,
-  )
   await page.screenshot({
     path: '/tmp/mjl-activity-request-drawer.png',
     fullPage: true,

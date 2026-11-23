@@ -1,23 +1,5 @@
 import { strings } from '@/locales/fr/AuditHistoryView'
-import { formatDate, formatDateTime, formatXof } from '@/shared/lib/format'
-
-const dateFields = new Set([
-  'Début prévu',
-  'Fin prévue',
-  'Date effective',
-  'Date du virement',
-  'Date du reversement',
-])
-
-function readable(value, field) {
-  if (!value) return '—'
-  if (field.includes('(F CFA)') && /^-?[0-9]+$/.test(value))
-    return formatXof(value)
-  if (dateFields.has(field) && /^\d{4}-\d{2}-\d{2}$/.test(value))
-    return formatDate(value)
-  if (field === 'Début de réalisation') return formatDateTime(value)
-  return value
-}
+import { formatAuditValue } from './auditPresentation'
 
 export function EventDetails({ event, inline = false, changesOnly = false }) {
   if (
@@ -36,13 +18,13 @@ export function EventDetails({ event, inline = false, changesOnly = false }) {
       {!changesOnly &&
         event.facts?.map((fact) => (
           <p key={fact.field}>
-            {fact.field} : {readable(fact.after, fact.field)}
+            {fact.field} : {formatAuditValue(fact.after, fact.field)}
           </p>
         ))}
       {event.changes?.map((change) => (
         <p key={change.field}>
-          {change.field} : {readable(change.before, change.field)} →{' '}
-          {readable(change.after, change.field)}
+          {change.field} : {formatAuditValue(change.before, change.field)} →{' '}
+          {formatAuditValue(change.after, change.field)}
         </p>
       ))}
     </div>

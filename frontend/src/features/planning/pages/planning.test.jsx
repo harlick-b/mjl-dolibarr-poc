@@ -1414,11 +1414,6 @@ test('an Agent manages Activity documents without losing modal state', async () 
     name: 'Fiche récapitulative',
   })
   expect(activitySheet).toBeVisible()
-  expect(activitySheet).toHaveClass('rounded-card')
-  const downloadIcon = activitySheet.querySelector('.lucide-download')
-  expect(downloadIcon).toHaveAttribute('aria-hidden', 'true')
-  expect(downloadIcon).toHaveAttribute('width', '16')
-  expect(downloadIcon).toHaveAttribute('height', '16')
   await user.click(
     screen.getByRole('link', { name: 'Pièces justificatives', exact: true }),
   )
@@ -2211,7 +2206,6 @@ test('assignment edits retain their base version and can discard a stale draft',
     name: 'Affectations',
   })
   expect(editOwners).toHaveTextContent('Affectations')
-  expect(editOwners).toHaveClass('rounded-card')
   expect(editOwners.querySelector('svg')).toBeNull()
   await user.click(editOwners)
   await user.click(

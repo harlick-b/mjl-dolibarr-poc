@@ -12,6 +12,7 @@ export function Modal({
   onClose,
   label,
   subtitle,
+  headerAction,
   children,
   opener,
   className,
@@ -91,16 +92,19 @@ export function Modal({
             </p>
           )}
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          className="size-8 min-h-8 shrink-0 p-0"
-          aria-label={strings.close}
-          disabled={closeDisabled}
-          onClick={requestClose}
-        >
-          <X size={18} aria-hidden="true" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-3">
+          {headerAction}
+          <Button
+            type="button"
+            variant="ghost"
+            className="size-8 min-h-8 shrink-0 p-0"
+            aria-label={strings.close}
+            disabled={closeDisabled}
+            onClick={requestClose}
+          >
+            <X size={18} aria-hidden="true" />
+          </Button>
+        </div>
       </header>
       {children}
     </dialog>

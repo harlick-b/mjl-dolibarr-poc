@@ -15,7 +15,6 @@ export const Urls = Object.freeze({
   execution: '/execution',
   partner: '/partner',
   partnerExports: '/partner/exports',
-  notifications: '/notifications',
   history: '/history',
   partners: '/partners',
   projects: '/projects',
