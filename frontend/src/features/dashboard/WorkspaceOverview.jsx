@@ -4,7 +4,7 @@ import { ExecutionList } from '@/features/execution/ExecutionView'
 import { Select } from '@/shared/ui/select'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Helmet } from 'react-helmet-async'
 import { ArrowRight } from 'lucide-react'
 import { useAccess } from '@/features/auth/session/access-verification'
@@ -15,8 +15,47 @@ import { Pagination } from '@/shared/ui/Pagination'
 import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { formatPercentage, formatXof } from '@/shared/lib/format'
-import { cursorFrom } from '@/shared/lib/pagination'
+import { cursorFrom, findPaginatedItem } from '@/shared/lib/pagination'
+import { activityLocationForModule } from '@/shared/lib/activity-navigation'
 import { strings } from '@/locales/fr/WorkspaceOverview'
+import { useState } from 'react'
+import { useScopedPagination } from '@/shared/hooks/useScopedPagination'
+
+async function findPlanningSelection({
+  api,
+  client,
+  userId,
+  resolverQueryKey,
+  onDenied,
+  onResolved,
+  ...selection
+}) {
+  try {
+    const item = await findPaginatedItem({ api, ...selection })
+    onResolved()
+    return item
+  } catch (error) {
+    if ([403, 404].includes(error?.status)) {
+      onDenied()
+      const planningData = {
+        queryKey: ['planning', userId],
+        predicate: (query) =>
+          query.queryKey.length !== resolverQueryKey.length ||
+          query.queryKey.some(
+            (value, index) => value !== resolverQueryKey[index],
+          ),
+      }
+      const executionData = { queryKey: ['execution', userId] }
+      await Promise.all([
+        client.cancelQueries(planningData),
+        client.cancelQueries(executionData),
+      ])
+      client.removeQueries(planningData)
+      client.removeQueries(executionData)
+    }
+    throw error
+  }
+}
 
 export function WorkspaceOverview({ screen = 'dashboard' }) {
   const policy = useAccess()
@@ -136,14 +175,13 @@ function AdminOverview({ user }) {
 }
 function BusinessOverview({ screen, user }) {
   const { api } = useAPI()
+  const client = useQueryClient()
   const search = useSearch({ strict: false })
   const navigate = useNavigate()
-  const projectCursor = search.projectCursor || ''
-  const ptaCursor = search.ptaCursor || ''
+  const [projectCursor, setProjectCursor] = useState('')
+  const [selectionDenied, setSelectionDenied] = useState(false)
   const selectedProject = search.project || ''
   const selectedPta = search.pta || ''
-  const change = (values) =>
-    void navigate({ to: Urls[screen], search: { ...search, ...values } })
   const projects = useQuery({
     queryKey: ['planning', user.id, 'projects', projectCursor],
     queryFn: ({ signal }) =>
@@ -151,10 +189,36 @@ function BusinessOverview({ screen, user }) {
         `/api/v1/projects${projectCursor ? `?cursor=${encodeURIComponent(projectCursor)}` : ''}`,
         { signal },
       ),
+    enabled: !selectionDenied,
   })
-  const project =
-    projects.data?.data.find((p) => p.id === selectedProject) ||
-    projects.data?.data[0]
+  const projectOnPage = projects.data?.data.find(
+    (row) => row.id === selectedProject,
+  )
+  const selectedProjectKey = ['planning', user.id, 'project', selectedProject]
+  const selectedProjectQuery = useQuery({
+    queryKey: selectedProjectKey,
+    queryFn: ({ signal }) =>
+      findPlanningSelection({
+        api,
+        client,
+        userId: user.id,
+        resolverQueryKey: selectedProjectKey,
+        onDenied: () => setSelectionDenied(true),
+        onResolved: () => setSelectionDenied(false),
+        path: '/projects',
+        id: selectedProject,
+        signal,
+        firstPage: projectCursor ? undefined : projects.data,
+      }),
+    enabled: Boolean(
+      !selectionDenied && selectedProject && projects.data && !projectOnPage,
+    ),
+    retry: false,
+  })
+  const project = selectedProject
+    ? projectOnPage || selectedProjectQuery.data
+    : projects.data?.data[0]
+  const [ptaCursor, setPtaCursor] = useScopedPagination(project?.id || '', '')
   const ptas = useQuery({
     queryKey: ['planning', user.id, 'ptas', project?.id, ptaCursor],
     queryFn: ({ signal }) =>
@@ -162,22 +226,66 @@ function BusinessOverview({ screen, user }) {
         `/api/v1/projects/${project.id}/ptas${ptaCursor ? `?cursor=${encodeURIComponent(ptaCursor)}` : ''}`,
         { signal },
       ),
-    enabled: Boolean(project),
+    enabled: Boolean(!selectionDenied && project),
   })
-  const pta =
-    ptas.data?.data.find((p) => p.id === selectedPta) || ptas.data?.data[0]
+  const ptaOnPage = ptas.data?.data.find((row) => row.id === selectedPta)
+  const selectedPtaKey = [
+    'planning',
+    user.id,
+    'project-pta',
+    project?.id,
+    selectedPta,
+  ]
+  const selectedPtaQuery = useQuery({
+    queryKey: selectedPtaKey,
+    queryFn: ({ signal }) =>
+      findPlanningSelection({
+        api,
+        client,
+        userId: user.id,
+        resolverQueryKey: selectedPtaKey,
+        onDenied: () => setSelectionDenied(true),
+        onResolved: () => setSelectionDenied(false),
+        path: `/projects/${project.id}/ptas`,
+        id: selectedPta,
+        signal,
+        firstPage: ptaCursor ? undefined : ptas.data,
+      }),
+    enabled: Boolean(
+      !selectionDenied && project && selectedPta && ptas.data && !ptaOnPage,
+    ),
+    retry: false,
+  })
+  const pta = selectedPta
+    ? ptaOnPage || selectedPtaQuery.data
+    : ptas.data?.data[0]
   const metrics = useQuery({
     queryKey: ['planning', user.id, 'pta-dashboard', pta?.id],
     queryFn: ({ signal }) =>
       api.request(`/api/v1/ptas/${pta.id}/dashboard`, { signal }),
-    enabled: screen === 'dashboard' && Boolean(pta),
+    enabled: !selectionDenied && screen === 'dashboard' && Boolean(pta),
   })
   const executionFilters = Object.fromEntries(
-    ['q', 'state', 'agent']
+    ['q', 'state', 'agent', 'from', 'to']
       .filter((key) => search[key])
       .map((key) => [key, search[key]]),
   )
   const executionFilterKey = new URLSearchParams(executionFilters).toString()
+  const [listCursor, setListCursor] = useScopedPagination(
+    `${pta?.id || ''}?${executionFilterKey}`,
+    '',
+  )
+  const change = ({
+    projectCursor: nextProjectCursor,
+    ptaCursor: nextPtaCursor,
+    cursor,
+    ...values
+  }) => {
+    if (nextProjectCursor !== undefined) setProjectCursor(nextProjectCursor)
+    if (nextPtaCursor !== undefined) setPtaCursor(nextPtaCursor)
+    if (cursor !== undefined) setListCursor(cursor)
+    void navigate({ to: Urls[screen], search: { ...search, ...values } })
+  }
   const execution = useQuery({
     placeholderData: (previous, query) =>
       query?.queryKey[1] === user.id && query?.queryKey[3] === pta?.id
@@ -188,23 +296,33 @@ function BusinessOverview({ screen, user }) {
       user.id,
       'list',
       pta?.id,
-      search.cursor || '',
+      listCursor,
       executionFilterKey,
     ],
     queryFn: ({ signal }) =>
       api.request(
-        `/api/v1/ptas/${pta.id}/execution${executionFilterKey || search.cursor ? '?' + new URLSearchParams({ ...executionFilters, ...(search.cursor ? { cursor: search.cursor } : {}) }) : ''}`,
+        `/api/v1/ptas/${pta.id}/execution${executionFilterKey || listCursor ? '?' + new URLSearchParams({ ...executionFilters, ...(listCursor ? { cursor: listCursor } : {}) }) : ''}`,
         { signal },
       ),
-    enabled: screen === 'execution' && Boolean(pta),
+    enabled: !selectionDenied && screen === 'execution' && Boolean(pta),
   })
-  if (projects.isPending) return <PageLoading title={strings[screen]} />
-  if (projects.isError)
+  const selectionError = selectedProjectQuery.isError
+    ? selectedProjectQuery
+    : selectedPtaQuery.isError
+      ? selectedPtaQuery
+      : null
+  const projectError = projects.isError ? projects : selectionError
+  if (projectError)
     return (
-      <RetryableError onRetry={() => void projects.refetch()}>
+      <RetryableError onRetry={() => void projectError.refetch()}>
         {strings.unavailable}
       </RetryableError>
     )
+  if (
+    projects.isPending ||
+    (selectedProject && !projectOnPage && selectedProjectQuery.isFetching)
+  )
+    return <PageLoading title={strings[screen]} />
   if (!project)
     return screen === 'dashboard' ? (
       <EmptyDashboard />
@@ -243,6 +361,12 @@ function BusinessOverview({ screen, user }) {
               })
             }}
           >
+            {project &&
+              !projects.data.data.some((row) => row.id === project.id) && (
+                <option value={project.id}>
+                  {project.reference} — {project.name}
+                </option>
+              )}
             {projects.data.data.map((row) => (
               <option key={row.id} value={row.id}>
                 {row.reference} — {row.name}
@@ -263,6 +387,9 @@ function BusinessOverview({ screen, user }) {
                 }
               >
                 {!pta && <option value="">{strings.selectPta}</option>}
+                {pta && !ptas.data?.data.some((row) => row.id === pta.id) && (
+                  <option value={pta.id}>{pta.year}</option>
+                )}
                 {ptas.data?.data.map((row) => (
                   <option key={row.id} value={row.id}>
                     {row.year}
@@ -285,11 +412,13 @@ function BusinessOverview({ screen, user }) {
               project: '',
               ptaCursor: '',
               pta: '',
+              cursor: '',
             })
           }}
         />
       </Panel>
-      {ptas.isPending ? (
+      {ptas.isPending ||
+      (selectedPta && !ptaOnPage && selectedPtaQuery.isFetching) ? (
         <PageLoading title={strings.planning} className="min-h-48" />
       ) : ptas.isError ? (
         <RetryableError onRetry={() => void ptas.refetch()}>
@@ -384,7 +513,7 @@ function BusinessOverview({ screen, user }) {
             busy={ptas.isFetching}
             path={`/projects/${project.id}/ptas`}
             onMove={(cursor) => {
-              change({ ptaCursor: cursor, pta: '' })
+              change({ ptaCursor: cursor, pta: '', cursor: '' })
             }}
           />
         </>
@@ -413,14 +542,11 @@ function AttentionSummary({ attention }) {
       {attention.items.length ? (
         <ul className="px-5">
           {attention.items.map((item) => {
-            const destination = {
-              to: Urls.activity,
-              params: { activityId: item.activity_id },
-              search:
-                item.destination === 'planning'
-                  ? undefined
-                  : { tab: 'finance', origin: 'execution' },
-            }
+            const destination = activityLocationForModule(
+              item.activity_id,
+              item.destination,
+              item.destination === 'planning' ? 'programming' : 'finance',
+            )
             return (
               <li
                 key={item.activity_id}

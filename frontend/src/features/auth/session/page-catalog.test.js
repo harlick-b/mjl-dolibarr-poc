@@ -27,16 +27,19 @@ test.each([
 )
 test('Admin and Partner cannot open internal planning via a direct URL', () => {
   for (const role of ['ADMIN_PLATEFORME', 'PARTENAIRE'])
-    expect(authorization(session(role)).canVisit('/activities/fixture')).toBe(
-      false,
-    )
+    expect(
+      authorization(session(role)).canVisit('/planning/activities/fixture'),
+    ).toBe(false)
   expect(
-    authorization(session('AGENT_SAISIE')).canVisit('/activities/fixture'),
+    authorization(session('AGENT_SAISIE')).canVisit(
+      '/planning/activities/fixture',
+    ),
   ).toBe(true)
   expect(authorization(session('AGENT_SAISIE')).canVisit('/history')).toBe(
     false,
   )
   expect(pageForPath('/execution/activities/fixture').id).toBe('execution')
+  expect(pageForPath('/planning/activities/fixture').id).toBe('planning')
 })
 test('unverified or unknown roles never receive navigation or page access', () => {
   for (const input of [null, { state: 'pending' }, session('unknown')]) {

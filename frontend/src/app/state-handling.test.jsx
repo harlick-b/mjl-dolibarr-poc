@@ -109,9 +109,7 @@ test.each(['saved', 'absent'])(
       <App
         router={makeRouter(
           createMemoryHistory({
-            initialEntries: [
-              '/activities/activity-upload?tab=files&documentCursor=older',
-            ],
+            initialEntries: ['/planning/activities/activity-upload#files'],
           }),
         )}
       />,

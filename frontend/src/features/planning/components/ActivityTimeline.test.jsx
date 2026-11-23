@@ -46,11 +46,20 @@ function renderTimeline(rows) {
   })
   const activityRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/activities/$activityId',
+    path: '/planning/activities/$activityId',
+    component: () => null,
+  })
+  const executionActivityRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/execution/activities/$activityId',
     component: () => null,
   })
   const router = createRouter({
-    routeTree: rootRoute.addChildren([timelineRoute, activityRoute]),
+    routeTree: rootRoute.addChildren([
+      timelineRoute,
+      activityRoute,
+      executionActivityRoute,
+    ]),
     history: createMemoryHistory({ initialEntries: ['/'] }),
   })
   const view = () => (
@@ -116,4 +125,14 @@ test('an open Activity preview follows the current timeline result', async () =>
   renderRows([])
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(timelinePeriod).toHaveFocus()
+})
+
+test('an Activity with an approved baseline links directly to Execution', async () => {
+  renderTimeline([
+    { ...initialActivity, approved_revision_id: 'approved-revision-1' },
+  ])
+
+  expect(
+    await screen.findByRole('link', { name: 'Formation initiale' }),
+  ).toHaveAttribute('href', '/execution/activities/activity-1')
 })

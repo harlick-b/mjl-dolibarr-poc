@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -91,6 +91,7 @@ test('validator browses the sanitized global history', async () => {
                   id: 'activity-1',
                   reference: 'ACT-001',
                   name: 'Formation',
+                  approved_revision_id: 'revision-1',
                 },
               },
               {
@@ -110,11 +111,10 @@ test('validator browses the sanitized global history', async () => {
       )
     }),
   )
-  render(
-    <App
-      router={makeRouter(createMemoryHistory({ initialEntries: ['/history'] }))}
-    />,
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/history'] }),
   )
+  render(<App router={router} />)
   await screen.findByText('Activité clôturée')
   expect(screen.getByRole('heading', { name: 'Historique' })).toBeVisible()
   expect(screen.getByText('Activité clôturée')).toBeVisible()
@@ -122,7 +122,7 @@ test('validator browses the sanitized global history', async () => {
   expect(screen.getByText('Résultat enregistré')).toBeVisible()
   expect(screen.getByRole('link', { name: /ACT-001/ })).toHaveAttribute(
     'href',
-    '/activities/activity-1',
+    '/execution/activities/activity-1',
   )
   expect(screen.queryByRole('button', { name: /Exporter/ })).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: 'Filtres' }))
@@ -172,6 +172,30 @@ test('validator browses the sanitized global history', async () => {
       true,
     ),
   )
+  await act(async () => {
+    await router.navigate({
+      to: '/history',
+      search: { action: 'activity.closed' },
+    })
+  })
+  await waitFor(() =>
+    expect(
+      calls.some(
+        ([path]) =>
+          path.includes('action=activity.closed') &&
+          !path.includes('cursor=next-page'),
+      ),
+    ).toBe(true),
+  )
+  expect(
+    calls.some(
+      ([path]) =>
+        path.includes('action=activity.closed') &&
+        path.includes('cursor=next-page'),
+    ),
+  ).toBe(false)
+  expect(router.state.location.search).toEqual({ action: 'activity.closed' })
+  expect(router.state.location.search.cursor).toBeUndefined()
   window.dispatchEvent(new Event('offline'))
   expect(
     await screen.findByRole('heading', { name: 'Connexion indisponible' }),

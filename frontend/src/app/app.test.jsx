@@ -94,7 +94,7 @@ test('network failure is unavailable and retry can recover', async () => {
   expect(fetch).toHaveBeenCalledTimes(2)
 })
 
-test('unknown routes offer a real return to home', async () => {
+test('the removed generic Activity route is not accepted', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
@@ -106,18 +106,108 @@ test('unknown routes offer a real return to home', async () => {
   const { default: userEvent } = await import('@testing-library/user-event')
   render(
     <App
-      router={makeRouter(createMemoryHistory({ initialEntries: ['/absent'] }))}
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/activities/fixture'] }),
+      )}
     />,
   )
   expect(
     await screen.findByRole('heading', { name: 'Page introuvable' }),
   ).toBeVisible()
+  expect(document.querySelector('[data-ui~="auth-card"]')).toBeNull()
   await userEvent.click(
     screen.getByRole('link', { name: 'Retour à mon espace' }),
   )
   expect(
     await screen.findByRole('heading', { name: 'Connexion' }),
   ).toBeVisible()
+})
+
+test('an unknown route waits for session verification before choosing its shell', async () => {
+  let finishSession
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      (input) =>
+        new Promise((resolve) => {
+          if (String(input).endsWith('/auth/session')) {
+            finishSession = () =>
+              resolve(
+                new Response(
+                  JSON.stringify({
+                    state: 'verified',
+                    csrf: 'fixture',
+                    user: {
+                      id: 'unknown-route-agent',
+                      email: 'agent@example.test',
+                      role: 'AGENT_SAISIE',
+                    },
+                    expires_at: new Date(Date.now() + 60_000).toISOString(),
+                  }),
+                ),
+              )
+            return
+          }
+          resolve(
+            new Response(
+              JSON.stringify({
+                object: 'list',
+                data: [],
+                count: 0,
+                next: null,
+                previous: null,
+              }),
+            ),
+          )
+        }),
+    ),
+  )
+  const { container } = render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/adresse-inconnue'] }),
+      )}
+    />,
+  )
+
+  await waitFor(() => expect(finishSession).toBeTypeOf('function'))
+  expect(screen.queryByRole('heading', { name: 'Page introuvable' })).toBeNull()
+
+  finishSession()
+  expect(
+    await screen.findByRole('heading', { name: 'Page introuvable' }),
+  ).toBeVisible()
+  expect(
+    container.querySelector('[data-ui~="workspace-shell"]'),
+  ).toBeInTheDocument()
+  expect(container.querySelector('[data-ui~="auth-layout"]')).toBeNull()
+})
+
+test.each([
+  '/projects/projet-inconnu',
+  '/partner/page-inconnue',
+  '/execution/page-inconnue/extra',
+])('an anonymous unknown route at %s retains the auth shell', async (path) => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ state: 'anonymous', csrf: 'fixture' })),
+      ),
+    ),
+  )
+  const router = makeRouter(createMemoryHistory({ initialEntries: [path] }))
+  const { container } = render(<App router={router} />)
+
+  expect(
+    await screen.findByRole('heading', { name: 'Page introuvable' }),
+  ).toBeVisible()
+  expect(router.state.location.pathname).toBe(path)
+  expect(
+    container.querySelector('[data-ui~="auth-layout"]'),
+  ).toBeInTheDocument()
+  expect(container.querySelector('[data-ui~="auth-brand"]')).toBeInTheDocument()
+  expect(container.querySelector('[data-ui~="auth-card"]')).toBeNull()
 })
 
 function ThrowingRoute() {
@@ -176,7 +266,9 @@ test('a protected route failure retains the verified workspace frame', async () 
   const { container } = render(
     <App
       router={makeRouter(
-        createMemoryHistory({ initialEntries: ['/activities/fixture'] }),
+        createMemoryHistory({
+          initialEntries: ['/projects/project/ptas/2026'],
+        }),
         { planning: ThrowingRoute },
       )}
     />,
@@ -254,15 +346,23 @@ test('Agent login and OTP reach the default Dashboard without a refresh', async 
   expect(screen.queryByText('Accès refusé')).not.toBeInTheDocument()
 })
 
-test('workspace navigation omits empty parameters while retaining selected filters', async () => {
+test('workspace navigation keeps only filters that belong to the page', async () => {
   const router = makeRouter(
     createMemoryHistory({ initialEntries: ['/health'] }),
   )
   const link = router.buildLocation({
     to: '/projects',
-    search: { projectCursor: '', revision: 'selected' },
+    search: {
+      tab: 'finance',
+      origin: 'execution',
+      review: 'all',
+      mine: 'own',
+      view: 'table',
+      cursor: 'older',
+      page: 4,
+    },
   })
-  expect(link.href).toBe('/projects?revision=selected')
+  expect(link.href).toBe('/projects')
 })
 
 test('sidebar account opens a menu without changing the current page', async () => {

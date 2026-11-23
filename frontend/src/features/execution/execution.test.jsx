@@ -328,7 +328,7 @@ test('equivalent progress formatting does not require a correction reason', asyn
   ).not.toBeInTheDocument()
 })
 
-test('legacy execution detail URLs enter the canonical activity shell', async () => {
+test('execution Activity URLs discard obsolete query state', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url) => {
@@ -359,14 +359,11 @@ test('legacy execution detail URLs enter the canonical activity shell', async ()
   render(<App router={router} />)
 
   expect(await screen.findByText('Canonical activity shell')).toBeVisible()
-  expect(router.state.location.pathname).toBe('/activities/activity-1')
-  expect(router.state.location.search).toMatchObject({
-    tab: 'realization',
-    origin: 'execution',
-    financeCursor: 'older',
-  })
-  expect(router.state.location.search.financeRequest).toBeUndefined()
-  expect(router.state.location.search.virementRequest).toBeUndefined()
+  expect(router.state.location.pathname).toBe(
+    '/execution/activities/activity-1',
+  )
+  expect(router.state.location.search).toEqual({})
+  expect(router.state.location.hash).toBe('')
 })
 
 test('financial summary keeps the current authorization state on older history pages', async () => {
@@ -430,9 +427,7 @@ test('financial summary keeps the current authorization state on older history p
     <App
       router={makeExecutionRouter(
         createMemoryHistory({
-          initialEntries: [
-            '/execution/activities/activity-1?financeCursor=older',
-          ],
+          initialEntries: ['/execution/activities/activity-1'],
         }),
       )}
     />,
@@ -570,9 +565,9 @@ test('activity tabs keep one header and preserve the execution sidebar context',
       return new Response(JSON.stringify(empty))
     }),
   )
-  const router = makeExecutionRouter(
+  const router = makeRouter(
     createMemoryHistory({
-      initialEntries: ['/activities/activity-1?tab=finance&origin=execution'],
+      initialEntries: ['/execution/activities/activity-1'],
     }),
   )
   render(<App router={router} />)
@@ -590,6 +585,7 @@ test('activity tabs keep one header and preserve the execution sidebar context',
       screen.getByRole('navigation', { name: 'Espace de travail' }),
     ).getByRole('link', { name: 'Réalisation' }),
   ).toHaveAttribute('aria-current', 'page')
+  await user.click(await screen.findByRole('link', { name: 'Finance' }))
   expect(await screen.findByText('Montant autorisé')).toBeVisible()
   const financialRequests = screen.getByRole('region', {
     name: 'Demandes financières',
@@ -601,9 +597,11 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     within(financialRequests).getByRole('button', { name: 'Suivant' }),
   )
   await waitFor(() => {
-    expect(router.state.location.pathname).toBe('/activities/activity-1')
-    expect(router.state.location.search.tab).toBe('finance')
-    expect(router.state.location.search.financeCursor).toBe('older')
+    expect(router.state.location.pathname).toBe(
+      '/execution/activities/activity-1',
+    )
+    expect(router.state.location.hash).toBe('finance')
+    expect(router.state.location.search).toEqual({})
   })
   expect(
     await screen.findByRole('region', { name: 'Demandes financières' }),
@@ -618,15 +616,14 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     'Dépenses acceptées',
   ])
     expect(financialFacts.getByText(label)).toBeVisible()
-  expect(
-    screen.queryByRole('button', { name: 'Demander une modification' }),
-  ).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', { name: 'Retirer l’activité' }),
-  ).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', { name: 'Transférer vers un autre PTA' }),
-  ).not.toBeInTheDocument()
+  for (const action of [
+    'Demander une modification',
+    'Retirer l’activité',
+    'Transférer vers un autre PTA',
+  ])
+    expect(
+      screen.queryByRole('button', { name: action }),
+    ).not.toBeInTheDocument()
   const activitySheet = screen.getByRole('button', {
     name: 'Fiche récapitulative',
   })
@@ -653,15 +650,12 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     ).getByRole('link', { name: 'Réalisation' }),
   ).toHaveAttribute('aria-current', 'page')
   expect(screen.queryByText('Montant autorisé')).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', { name: 'Demander une modification' }),
-  ).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', { name: 'Retirer l’activité' }),
-  ).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', { name: 'Transférer vers un autre PTA' }),
-  ).not.toBeInTheDocument()
+  for (const action of [
+    'Demander une modification',
+    'Retirer l’activité',
+    'Transférer vers un autre PTA',
+  ])
+    expect(screen.getByRole('button', { name: action })).toBeVisible()
 
   for (const tab of ['Historique', 'Pièces justificatives', 'Programmation']) {
     await user.click(screen.getByRole('link', { name: tab }))
@@ -682,7 +676,11 @@ test('activity tabs keep one header and preserve the execution sidebar context',
       'Retirer l’activité',
       'Transférer vers un autre PTA',
     ]) {
-      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+      if (tab === 'Programmation') {
+        expect(screen.getByRole('button', { name })).toBeVisible()
+      } else {
+        expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+      }
     }
   }
 
@@ -691,6 +689,27 @@ test('activity tabs keep one header and preserve the execution sidebar context',
     header,
   )
   expect(await screen.findByText('Montant autorisé')).toBeVisible()
+
+  await act(async () => {
+    await router.navigate({
+      to: '/execution/activities/$activityId',
+      params: { activityId: 'activity-1' },
+      search: {},
+      hash: 'realization',
+    })
+  })
+  await user.click(
+    await screen.findByRole('link', { name: 'Consulter la demande' }),
+  )
+  await waitFor(() => expect(router.state.location.hash).toBe('finance'))
+  expect(router.state.location.pathname).toBe(
+    '/execution/activities/activity-1',
+  )
+  expect(
+    within(
+      screen.getByRole('navigation', { name: 'Espace de travail' }),
+    ).getByRole('link', { name: 'Réalisation' }),
+  ).toHaveAttribute('aria-current', 'page')
 })
 
 test('agent records tasks before the collapsed financial workflow', async () => {
@@ -782,6 +801,92 @@ test('agent records tasks before the collapsed financial workflow', async () => 
   )
   expect(administration.getByText('Aucune demande financière.')).toBeVisible()
   expect(administration.queryByText('Déclaration sans dépense')).toBeNull()
+})
+
+test('shows an active realization correction to a read-only reviewer', async () => {
+  const current = detail({ started: true, completed: true })
+  const returned = {
+    id: 'disbursement-returned',
+    state: 'returned',
+    submitted_at: '2026-08-01T10:00:00+01:00',
+    decisions: [
+      {
+        id: 'decision-returned',
+        outcome: 'returned',
+        actor_name: 'Clarisse AKPON',
+        actor_role: 'VALIDATEUR_DEFINITIF',
+        decided_at: '2026-08-07T15:20:00+01:00',
+        reason:
+          'Préciser les dépenses enregistrées.\n\nJoindre les éléments attendus.',
+      },
+    ],
+  }
+  const empty = {
+    object: 'list',
+    count: 0,
+    data: [],
+    next: null,
+    previous: null,
+    pending: [],
+    allowed_actions: [],
+  }
+  const fetch = vi.fn(async (url) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return new Response(
+        JSON.stringify({
+          state: 'verified',
+          csrf: 'csrf',
+          user: {
+            id: 'supervisor',
+            email: 'supervisor@example.test',
+            role: 'AGENT_VERIFICATEUR',
+          },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        }),
+      )
+    if (path.endsWith('/activities/activity-1/execution'))
+      return new Response(JSON.stringify(current))
+    if (path.endsWith('/activities/activity-1/disbursement-requests'))
+      return new Response(
+        JSON.stringify({ ...empty, count: 1, data: [returned] }),
+      )
+    return new Response(JSON.stringify(empty))
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/activity-1'],
+        }),
+        {
+          execution: () => (
+            <ExecutionView screen="detail" section="realization" />
+          ),
+        },
+      )}
+    />,
+  )
+
+  const notice = await screen.findByRole('status', {
+    name: 'Réalisation retournée pour correction',
+  })
+  expect(notice).toHaveTextContent(
+    'Retour demandé par Clarisse AKPON (Validateur définitif) le 7 août 2026 à 15:20.',
+  )
+  expect(notice).toHaveTextContent(
+    'Préciser les dépenses enregistrées. Joindre les éléments attendus.',
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/disbursement-requests',
+    expect.any(Object),
+  )
+  expect(fetch).toHaveBeenCalledWith(
+    '/api/v1/activities/activity-1/zero-spending-declarations',
+    expect.any(Object),
+  )
+  expect(screen.getAllByText('En correction').length).toBeGreaterThan(0)
 })
 
 test('agent completes a subtask and keeps the draft after a failed save', async () => {
@@ -1633,7 +1738,7 @@ test('a funding row opens only that current request without another read', async
     expect(router.state.location.pathname).toBe(
       '/execution/activities/activity-1',
     )
-    expect(router.state.location.search.fundingCursor).toBe('older-funding')
+    expect(router.state.location.search).toEqual({})
   })
   const currentRequests = await screen.findByRole('region', {
     name: 'Demandes financières',
@@ -2143,9 +2248,7 @@ test('historical zero-spending page points to the active declaration', async () 
     <App
       router={makeExecutionRouter(
         createMemoryHistory({
-          initialEntries: [
-            '/execution/activities/activity-1?zeroSpendingCursor=older',
-          ],
+          initialEntries: ['/execution/activities/activity-1'],
         }),
       )}
     />,
@@ -2576,7 +2679,10 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
           id: 'decision-1',
           stage: 'supervisor',
           outcome: 'returned',
-          reason: 'Vérifier le dossier.',
+          actor_name: 'Yoann Superviseur',
+          actor_role: 'AGENT_VERIFICATEUR',
+          decided_at: '2026-11-22T18:16:00+01:00',
+          reason: 'Vérifier le dossier.\n\nPréciser le montant demandé.',
         },
       ],
     }
@@ -2680,12 +2786,23 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
     )
     if (flow === 'zero-spending') {
       await openFinancialDrawer(user, 'Reprendre')
-      expect(await screen.findByText('Vérifier le dossier.')).toBeVisible()
+      expect(
+        await screen.findByRole('status', {
+          name: 'Demande retournée pour correction',
+        }),
+      ).toHaveTextContent(
+        'Retour demandé par Yoann Superviseur (Superviseur) le 22 novembre 2026 à 18:16.',
+      )
       await user.click(screen.getByRole('button', { name: 'Fermer' }))
       await openFinancialDrawer(user)
     } else {
       await openFinancialDrawer(user, 'Reprendre')
-      expect(await screen.findByText('Vérifier le dossier.')).toBeVisible()
+      expect(
+        await screen.findByRole('status', {
+          name: 'Demande retournée pour correction',
+        }),
+      ).toHaveTextContent('Préciser le montant demandé.')
+      expect(screen.getAllByText(/Vérifier le dossier/)).toHaveLength(1)
     }
     expect(
       screen.queryByRole('button', { name: 'Annuler la demande' }),
@@ -2726,6 +2843,13 @@ test.each(['disbursement', 'virement', 'zero-spending'])(
     )
     expect(requests[1]).toBe(returned)
     expect(returned.state).toBe('returned')
+    await openFinancialDrawer(user, 'Reprendre')
+    expect(
+      screen.queryByRole('status', {
+        name: 'Demande retournée pour correction',
+      }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/Vérifier le dossier/)).toBeVisible()
   },
 )
 
@@ -3046,9 +3170,7 @@ test('financial review opens as a local modal without replacing the Activity pag
   await user.click(
     within(financialRequests).getByRole('button', { name: 'Suivant' }),
   )
-  await waitFor(() =>
-    expect(history.location.search).toContain('financeCursor=older'),
-  )
+  await waitFor(() => expect(history.location.search).toBe(''))
   const olderFinancialRequests = await screen.findByRole('region', {
     name: 'Demandes financières',
   })

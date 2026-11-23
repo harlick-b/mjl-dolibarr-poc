@@ -192,7 +192,7 @@ test('Activity realization and finance follow the approved detail composition', 
   })
 
   await page.setViewportSize({ width: 1846, height: 970 })
-  await page.goto('/activities/activity-1?tab=realization&origin=execution')
+  await page.goto('/execution/activities/activity-1#realization')
   await expect(page.getByRole('heading', { name: activity.name })).toBeVisible()
   await expect(page.getByText('Révision', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Avancement physique')).toBeVisible()
@@ -385,7 +385,7 @@ test('Activity realization and finance follow the approved detail composition', 
   ).toBeVisible()
 
   await page.setViewportSize({ width: 1846, height: 970 })
-  await page.goto('/activities/activity-1?tab=programming&origin=execution')
+  await page.goto('/execution/activities/activity-1')
   await expect(
     page.getByRole('heading', { name: 'Programmation' }),
   ).toBeVisible()
@@ -406,7 +406,7 @@ test('Activity realization and finance follow the approved detail composition', 
   })
 
   executionFails = true
-  await page.goto('/activities/activity-1?tab=programming&origin=execution')
+  await page.goto('/execution/activities/activity-1')
   await expect(
     page.getByText('Le suivi de réalisation est temporairement indisponible.'),
   ).toBeVisible()

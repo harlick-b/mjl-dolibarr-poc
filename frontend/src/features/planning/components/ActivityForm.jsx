@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Urls } from '@/app/urls'
+import { activityLocation } from '@/shared/lib/activity-navigation'
 import { toast } from 'sonner'
 import { DatePicker } from '@/shared/ui/DatePicker'
 import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
@@ -18,8 +19,8 @@ import {
   addThreeMonths,
 } from '@/shared/lib/format'
 import { strings } from '@/locales/fr/PlanningView'
+import { strings as executionStrings } from '@/locales/fr/ExecutionView'
 import { CategoryCreator } from './CategoryCreator'
-import { cursorFrom } from '@/shared/lib/pagination'
 import { CompactAllocationTable } from './CompactAllocationTable'
 import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
 import { missingRequiredFieldProps } from '@/shared/ui/required-field-feedback'
@@ -324,21 +325,14 @@ function SubtaskDrawer({ task, index, submissionAttempted, onClose, onSave }) {
   )
 }
 
-function CategoryPager({ result, navigate }) {
-  const move = (link) =>
-    navigate({
-      search: (current) => ({
-        ...current,
-        typeCursor: cursorFrom(link, '/task-categories'),
-      }),
-    })
+function CategoryPager({ result, onPage }) {
   return (
     <Pagination
       label={strings.categoryPages}
       canPrevious={Boolean(result?.previous)}
       canNext={Boolean(result?.next)}
-      onPrevious={() => move(result.previous)}
-      onNext={() => move(result.next)}
+      onPrevious={() => onPage(result.previous)}
+      onNext={() => onPage(result.next)}
       previousLabel={strings.previousPage}
       nextLabel={strings.nextPage}
       size="sm"
@@ -353,7 +347,7 @@ function TaskEditor({
   pending,
   categoriesUnavailable,
   typeResult,
-  navigate,
+  onTypePage,
   onReturnToActivity,
   onCreateType,
   onCancel,
@@ -407,26 +401,32 @@ function TaskEditor({
       <Breadcrumbs
         label={strings.breadcrumb}
         items={[
-          { label: strings.planningIndex, to: Urls.planning },
-          activity.projectId
-            ? {
-                label: `PTA ${activity.year}`,
-                to: Urls.pta,
-                params: {
-                  projectId: activity.projectId,
-                  year: String(activity.year),
-                },
-              }
-            : { label: `PTA ${activity.year}` },
+          ...(activity.approved_revision_id
+            ? [{ label: executionStrings.listTitle, to: Urls.execution }]
+            : [
+                { label: strings.planningIndex, to: Urls.planning },
+                activity.projectId
+                  ? {
+                      label: `PTA ${activity.year}`,
+                      to: Urls.pta,
+                      params: {
+                        projectId: activity.projectId,
+                        year: String(activity.year),
+                      },
+                    }
+                  : { label: `PTA ${activity.year}` },
+              ]),
           {
             label: strings.activitySingular,
-            to: activity.id ? Urls.activity : Urls.newActivity,
-            params: activity.id
-              ? { activityId: activity.id }
+            ...(activity.id
+              ? activityLocation(activity)
               : {
-                  projectId: activity.projectId,
-                  year: String(activity.year),
-                },
+                  to: Urls.newActivity,
+                  params: {
+                    projectId: activity.projectId,
+                    year: String(activity.year),
+                  },
+                }),
             onClick: (event) => {
               event.preventDefault()
               onReturnToActivity()
@@ -523,8 +523,8 @@ function TaskEditor({
                 }
               />
             )}
-            {navigate && (
-              <CategoryPager result={typeResult} navigate={navigate} />
+            {onTypePage && (
+              <CategoryPager result={typeResult} onPage={onTypePage} />
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -719,7 +719,7 @@ export function ActivityForm({
   onCreateType,
   types = [],
   typeResult,
-  navigate,
+  onTypePage,
   pending,
   optionsUnavailable = false,
   initial,
@@ -797,12 +797,13 @@ export function ActivityForm({
           start,
           end,
           year,
+          approved_revision_id: initial?.approved_revision_id,
         }}
         types={types}
         pending={pending}
         categoriesUnavailable={optionsUnavailable}
         typeResult={typeResult}
-        navigate={navigate}
+        onTypePage={onTypePage}
         onReturnToActivity={() => {
           setTaskEditor(null)
           restoreActivityEditorFocus()

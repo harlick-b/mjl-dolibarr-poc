@@ -1,4 +1,4 @@
-import { Urls } from '@/app/urls'
+import { activityLocation } from '@/shared/lib/activity-navigation'
 import { Link } from '@tanstack/react-router'
 import { strings } from '@/locales/fr/PlanningView'
 import { formatDate, formatXof } from '@/shared/lib/format'
@@ -149,8 +149,7 @@ export function PlanningActivities({
                   <td className="min-w-0 px-3 py-3">
                     <Link
                       className="block break-words font-medium text-primary"
-                      to={Urls.activity}
-                      params={{ activityId: row.id }}
+                      {...activityLocation(row)}
                       title={row.name}
                     >
                       {row.name}
@@ -186,7 +185,7 @@ export function PlanningActivities({
                   </td>
                   <td className="px-3 py-3 text-right">
                     <Button asChild variant="outline" size="sm">
-                      <Link to={Urls.activity} params={{ activityId: row.id }}>
+                      <Link {...activityLocation(row)}>
                         {row.review_action === 'approve'
                           ? strings.validate
                           : strings.consult}

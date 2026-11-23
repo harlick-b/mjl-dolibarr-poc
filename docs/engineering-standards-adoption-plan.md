@@ -573,8 +573,9 @@ production readiness or authorization for additional work.
 Financial-request table rows own only a local open/closed boolean. The latest
 Query record and Activity context flow into the shared centered `Modal` through
 props; the UI stores neither a request ID nor a server-record copy to select the
-modal. URLs and notification links identify the Activity page or tab only. Legacy
-request search parameters are discarded and cannot open a modal.
+modal. URLs and notification links identify the Activity page and optional
+section fragment only. Request search parameters are unsupported, stripped and
+cannot open a modal.
 
 Décaissement and virement review reuse one row/modal composition and the existing
 page mutation. Successful mutations invalidate the established Query data and
@@ -607,7 +608,7 @@ while later server facts continue to render.
 
 Financial history navigation remains page-owned. Décaissement, virement and
 zero-spending controls reuse shared `Pagination` outside the modal and store only
-validated cursor strings in Router search. No backend, schema, payload,
+validated cursor strings in local page state. No backend, schema, payload,
 authorization or financial decision rule changed.
 
 Independent review found one hidden zero-spending creation error. The shared

@@ -1,8 +1,6 @@
 import { Urls } from '@/app/urls'
 import { PTAModal } from '../components/PTAModal'
 import { ActivityBriefModal } from '../components/ActivityBriefModal'
-import { DatePicker } from '@/shared/ui/DatePicker'
-import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { strings as ptaStrings } from '@/locales/fr/PTAModal'
 import { readCalendar } from '../lib/calendar'
@@ -21,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Navigate,
   Link,
+  useLocation,
   useNavigate,
   useParams,
   useSearch,
@@ -50,6 +49,17 @@ import { activitySubmissionProblems } from '../lib/activity-submission-validatio
 import { Pagination } from '@/shared/ui/Pagination'
 import { Breadcrumbs } from '@/shared/ui/Breadcrumbs'
 import { ProtectedFilePreview } from '@/shared/ui/ProtectedFilePreview'
+import { cursorFrom } from '@/shared/lib/pagination'
+import { deliverBlobDownload } from '@/shared/lib/download'
+import { CorrectionNotice } from '@/shared/ui/CorrectionNotice'
+import { ActivityWorkflowDialog } from '../components/ActivityWorkflowDialog'
+import { useScopedPagination } from '@/shared/hooks/useScopedPagination'
+import {
+  activityLocation,
+  activityRoute,
+  activitySection,
+  activitySource,
+} from '@/shared/lib/activity-navigation'
 
 export { ActivityForm } from '../components/ActivityForm'
 
@@ -106,36 +116,6 @@ function cursorPath(path, token) {
   return token ? `${path}?cursor=${encodeURIComponent(token)}` : path
 }
 
-function cursorFrom(link) {
-  return link ? new URL(link).searchParams.get('cursor') || '' : ''
-}
-
-function shiftTransferDate(value, dayDelta) {
-  if (!value) return null
-  const shifted = new Date(`${value}T00:00:00Z`)
-  shifted.setUTCDate(shifted.getUTCDate() + dayDelta)
-  return shifted.toISOString().slice(0, 10)
-}
-
-function shiftedTransferTasks(tasks, sourceStart, targetStart) {
-  if (!sourceStart || !targetStart) return []
-  const dayDelta = Math.round(
-    (Date.parse(`${targetStart}T00:00:00Z`) -
-      Date.parse(`${sourceStart}T00:00:00Z`)) /
-      86400000,
-  )
-  return (tasks || []).map((task) => ({
-    id: task.id,
-    planned_start: shiftTransferDate(task.planned_start, dayDelta),
-    planned_end: shiftTransferDate(task.planned_end, dayDelta),
-    subtasks: (task.subtasks || []).map((child) => ({
-      id: child.id,
-      planned_start: shiftTransferDate(child.planned_start, dayDelta),
-      planned_end: shiftTransferDate(child.planned_end, dayDelta),
-    })),
-  }))
-}
-
 function workflowActivityId(path) {
   return path.match(
     /^\/activities\/([^/]+)\/(?:submissions|amendments(?:\/[^/]+\/cancellation)?|withdrawals(?:\/[^/]+\/cancellation)?|transfers(?:\/[^/]+\/cancellation)?|revisions\/[^/]+\/decisions)$/,
@@ -177,10 +157,25 @@ function Workspace({ screen, session, onDenied }) {
   const client = useQueryClient()
   const params = useParams({ strict: false })
   const search = useSearch({ strict: false })
+  const location = useLocation()
+  const requestedSection = activitySection(location.hash)
+  const source = activitySource(location.pathname)
   const navigate = useNavigate()
   const user = session.user
   const [error, setError] = useState('')
   const [workflowReconciliation, setWorkflowReconciliation] = useState(null)
+  const [cursors, setCursors] = useState({
+    partner: '',
+    project: '',
+    type: '',
+    revision: '',
+    document: '',
+  })
+  const setCursor = (key, link, path) =>
+    setCursors((current) => ({
+      ...current,
+      [key]: link ? cursorFrom(link, path) : '',
+    }))
   const authGeneration = useRef(0)
   const mutationController = useRef(null)
   const exportController = useRef(null)
@@ -282,14 +277,7 @@ function Workspace({ screen, session, onDenied }) {
       )
       if (generation !== authGeneration.current)
         throw new DOMException('Stale authorization', 'AbortError')
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = filename
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+      deliverBlobDownload({ blob, filename })
     },
     onError: (problem) => {
       if (problem.name === 'AbortError') return
@@ -310,8 +298,8 @@ function Workspace({ screen, session, onDenied }) {
     ...planningQuery(
       api,
       user.id,
-      ['partners', search.partnerCursor],
-      cursorPath('/partners', search.partnerCursor),
+      ['partners', cursors.partner],
+      cursorPath('/partners', cursors.partner),
       onDenied,
     ),
     enabled: screen === 'partners',
@@ -320,8 +308,8 @@ function Workspace({ screen, session, onDenied }) {
     ...planningQuery(
       api,
       user.id,
-      ['projects', search.projectCursor],
-      cursorPath('/projects', search.projectCursor),
+      ['projects', cursors.project],
+      cursorPath('/projects', cursors.project),
       onDenied,
     ),
     enabled: ['projects', 'pta'].includes(screen),
@@ -352,16 +340,13 @@ function Workspace({ screen, session, onDenied }) {
   const historyActive =
     screen === 'activity' &&
     Boolean(params.activityId) &&
-    search.tab === 'history'
+    requestedSection === 'history'
   const revisions = useQuery({
     ...planningQuery(
       api,
       user.id,
-      ['activity-history', params.activityId, search.revisionCursor],
-      cursorPath(
-        `/activities/${params.activityId}/history`,
-        search.revisionCursor,
-      ),
+      ['activity-history', params.activityId, cursors.revision],
+      cursorPath(`/activities/${params.activityId}/history`, cursors.revision),
       onDenied,
     ),
     enabled: historyActive,
@@ -378,6 +363,28 @@ function Workspace({ screen, session, onDenied }) {
           revisions.dataUpdatedAt <=
             workflowReconciliation.revisionsUpdatedAt))),
   )
+  const canonicalActivityRoute = activity.data
+    ? activityRoute(activity.data)
+    : null
+  const currentActivityRoute =
+    source === 'execution' ? Urls.executionActivity : Urls.planningActivity
+  const canonicalSection =
+    activity.data?.approved_revision_id ||
+    !['realization', 'finance'].includes(requestedSection)
+      ? requestedSection
+      : 'programming'
+  const activityRouteMismatch = Boolean(
+    screen === 'activity' &&
+    canonicalActivityRoute &&
+    canonicalActivityRoute !== currentActivityRoute,
+  )
+  useEffect(() => {
+    if (!activityRouteMismatch || !activity.data) return
+    void navigate({
+      ...activityLocation(activity.data, canonicalSection),
+      replace: true,
+    })
+  }, [activity.data, activityRouteMismatch, canonicalSection, navigate])
   const calendarView = search.view === 'calendar'
   const reviewerState =
     user.role === 'AGENT_VERIFICATEUR'
@@ -402,6 +409,19 @@ function Workspace({ screen, session, onDenied }) {
     review: reviewMine ? 'mine' : '',
     agent: search.agent || '',
   }
+  const activityPageScope = new URLSearchParams({
+    pta: context.data?.pta?.id || '',
+    q: search.q || '',
+    state: effectiveState || '',
+    review: reviewMine ? 'mine' : '',
+    agent: effectiveAgent || '',
+    from: search.from || '',
+    to: search.to || '',
+  }).toString()
+  const [activityCursor, setActivityCursor] = useScopedPagination(
+    activityPageScope,
+    '',
+  )
   const list = useQuery({
     ...planningQuery(
       api,
@@ -409,7 +429,7 @@ function Workspace({ screen, session, onDenied }) {
       [
         'activities',
         context.data?.pta?.id,
-        calendarView ? 'calendar' : search.activityCursor,
+        calendarView ? 'calendar' : activityCursor,
         search.q,
         effectiveState,
         reviewMine,
@@ -418,7 +438,7 @@ function Workspace({ screen, session, onDenied }) {
         search.to,
       ],
       `/ptas/${context.data?.pta?.id}/activities?${new URLSearchParams({
-        ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
+        ...(activityCursor ? { cursor: activityCursor } : {}),
         ...(search.q ? { q: search.q } : {}),
         ...(effectiveState ? { state: effectiveState } : {}),
         ...(reviewMine ? { review: 'mine' } : {}),
@@ -438,8 +458,8 @@ function Workspace({ screen, session, onDenied }) {
     ...planningQuery(
       api,
       user.id,
-      ['task-categories', search.typeCursor],
-      cursorPath('/task-categories', search.typeCursor),
+      ['task-categories', cursors.type],
+      cursorPath('/task-categories', cursors.type),
       onDenied,
     ),
     enabled:
@@ -562,8 +582,7 @@ function Workspace({ screen, session, onDenied }) {
             title={strings.partners}
             result={partners.data}
             label="name"
-            cursorKey="partnerCursor"
-            navigate={navigate}
+            onPage={(link) => setCursor('partner', link, '/partners')}
             onEdit={(row, values, expected) =>
               mutation.mutateAsync({
                 path: `/partners/${row.id}`,
@@ -587,7 +606,7 @@ function Workspace({ screen, session, onDenied }) {
           result={projects.data}
           canCreate={user.role === 'VALIDATEUR_DEFINITIF'}
           onSubmit={submitProject}
-          navigate={navigate}
+          onProjectPage={(link) => setCursor('project', link, '/projects')}
           onEdit={(row, name, expectedVersion) =>
             mutation.mutateAsync({
               path: `/projects/${row.id}`,
@@ -619,6 +638,13 @@ function Workspace({ screen, session, onDenied }) {
               : ''
           }
           onDenied={denyWorkspace}
+          onProjectPage={(link) => setCursor('project', link, '/projects')}
+          onActivityPage={(link) =>
+            setActivityCursor(
+              cursorFrom(link, `/ptas/${context.data?.pta?.id}/activities`),
+            )
+          }
+          resetActivityPage={() => setActivityCursor('')}
           projects={projects}
           context={context.data}
           result={list.data}
@@ -670,7 +696,7 @@ function Workspace({ screen, session, onDenied }) {
             }
             types={types.data?.data || []}
             typeResult={types.data}
-            navigate={navigate}
+            onTypePage={(link) => setCursor('type', link, '/task-categories')}
             pending={mutation.isPending}
             optionsUnavailable={
               types.isFetching || !types.data || types.isError
@@ -695,8 +721,7 @@ function Workspace({ screen, session, onDenied }) {
                 } catch {
                   toast.error(strings.draftSavedUploadFailed)
                   await navigate({
-                    to: Urls.activity,
-                    params: { activityId: row.id },
+                    ...activityLocation(row),
                   })
                   return
                 }
@@ -709,21 +734,19 @@ function Workspace({ screen, session, onDenied }) {
                   })
                 } finally {
                   await navigate({
-                    to: Urls.activity,
-                    params: { activityId: row.id },
+                    ...activityLocation(row),
                   })
                 }
                 return
               }
               await navigate({
-                to: Urls.activity,
-                params: { activityId: row.id },
+                ...activityLocation(row),
               })
             }}
           />
         </div>
       )}
-      {screen === 'activity' && !activity.data && (
+      {screen === 'activity' && (!activity.data || activityRouteMismatch) && (
         <LoadingPlaceholder
           label={strings.formatString(common.pageLoading, {
             page: strings.activityDetail,
@@ -731,19 +754,34 @@ function Workspace({ screen, session, onDenied }) {
           variant="detail"
         />
       )}
-      {screen === 'activity' && activity.data && (
+      {screen === 'activity' && activity.data && !activityRouteMismatch && (
         <ActivityDetail
           item={activity.data}
           user={user}
           csrf={session.csrf}
-          documentCursor={search.documentCursor}
-          navigate={navigate}
+          documentCursor={cursors.document}
           mutation={mutation}
           mutationBlocked={mutation.isPending || reconciliationBlocked}
           revisions={revisions.data}
           historyLoading={historyActive && revisions.isFetching}
           historyFailed={historyActive && revisions.isError && !revisions.data}
+          section={requestedSection}
+          source={source}
           onDenied={denyWorkspace}
+          onDocumentPage={(link) =>
+            setCursor(
+              'document',
+              link,
+              `/activities/${activity.data.id}/documents`,
+            )
+          }
+          onHistoryPage={(link) =>
+            setCursor(
+              'revision',
+              link,
+              `/activities/${activity.data.id}/history`,
+            )
+          }
         />
       )}
     </section>
@@ -853,8 +891,7 @@ function ReferenceList({
   inputLabel = strings.name,
   onEdit,
   onSubmit,
-  cursorKey,
-  navigate,
+  onPage,
 }) {
   const [creating, setCreating] = useState(false)
   const opener = useRef(null)
@@ -990,7 +1027,7 @@ function ReferenceList({
       ) : (
         <EmptyContent kind="operationTypes" />
       )}
-      <Pager result={result} cursorKey={cursorKey} navigate={navigate} />
+      <Pager result={result} onPage={onPage} />
     </Panel>
   )
 }
@@ -1167,11 +1204,19 @@ const DocumentWithdrawalModal = ({
           canNext={Boolean(replacementDocuments.data?.next)}
           onPrevious={() =>
             setReplacementCursor(
-              cursorFrom(replacementDocuments.data?.previous),
+              cursorFrom(
+                replacementDocuments.data?.previous,
+                `/activities/${activityId}/documents`,
+              ),
             )
           }
           onNext={() =>
-            setReplacementCursor(cursorFrom(replacementDocuments.data?.next))
+            setReplacementCursor(
+              cursorFrom(
+                replacementDocuments.data?.next,
+                `/activities/${activityId}/documents`,
+              ),
+            )
           }
         />
         <div data-ui="modal-actions">
@@ -1259,7 +1304,7 @@ const ProjectEditAction = ({
   project,
   partners,
   partnerResult,
-  navigate,
+  onPartnerPage,
   onEdit,
   focusFallback,
 }) => {
@@ -1344,11 +1389,7 @@ const ProjectEditAction = ({
                 ))}
               </Select>
             </label>
-            <Pager
-              result={partnerResult}
-              cursorKey="partnerCursor"
-              navigate={navigate}
-            />
+            <Pager result={partnerResult} onPage={onPartnerPage} />
             <div data-ui="modal-actions">
               <Button type="button" variant="outline" onClick={close}>
                 {strings.cancel}
@@ -1362,18 +1403,25 @@ const ProjectEditAction = ({
   )
 }
 
-function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
+function Projects({
+  result,
+  canCreate,
+  onSubmit,
+  onEdit,
+  onClose,
+  onProjectPage,
+}) {
   const [creating, setCreating] = useState(false)
   const focusFallback = useRef(null)
   const { api } = useAPI()
   const session = useSessionQuery()
-  const search = useSearch({ strict: false })
+  const [partnerCursor, setPartnerCursor] = useState('')
   const partnerChoices = useQuery({
     ...planningQuery(
       api,
       session.data.user.id,
-      ['partners', search.partnerCursor],
-      cursorPath('/partners', search.partnerCursor),
+      ['partners', partnerCursor],
+      cursorPath('/partners', partnerCursor),
       () => {},
     ),
     enabled: canCreate,
@@ -1448,8 +1496,7 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
             </label>
             <Pager
               result={partnerResult}
-              cursorKey="partnerCursor"
-              navigate={navigate}
+              onPage={(link) => setPartnerCursor(cursorFrom(link, '/partners'))}
             />
             <div data-ui="modal-actions">
               <Button
@@ -1521,7 +1568,9 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
                           project={row}
                           partners={partners}
                           partnerResult={partnerResult}
-                          navigate={navigate}
+                          onPartnerPage={(link) =>
+                            setPartnerCursor(cursorFrom(link, '/partners'))
+                          }
                           onEdit={onEdit}
                           focusFallback={focusFallback}
                         />
@@ -1551,7 +1600,7 @@ function Projects({ result, canCreate, onSubmit, onEdit, onClose, navigate }) {
           columns={['project', 'partner', 'state', 'actionsColumn']}
         />
       )}
-      <Pager result={result} cursorKey="projectCursor" navigate={navigate} />
+      <Pager result={result} onPage={onProjectPage} />
     </Panel>
   )
 }
@@ -1566,6 +1615,9 @@ function PTA({
   // onExport,
   projects,
   onDenied,
+  onProjectPage,
+  onActivityPage,
+  resetActivityPage,
 }) {
   const search = useSearch({ strict: false })
   const [editing, setEditing] = useState(false)
@@ -1710,11 +1762,7 @@ function PTA({
         <p className="pb-2 text-[0.8125rem] text-primary">
           {context.project.partner_name}
         </p>
-        <Pager
-          result={projects.data}
-          cursorKey="projectCursor"
-          navigate={navigate}
-        />
+        <Pager result={projects.data} onPage={onProjectPage} />
         {projects.isError && (
           <RetryableError onRetry={() => projects.refetch()}>
             {strings.unavailablePlanning}
@@ -1743,18 +1791,24 @@ function PTA({
           month={search.month}
           filters={activityFilters}
           reviewLabel={reviewLabel}
-          onFilter={(values) =>
-            navigate({
+          onFilter={(values) => {
+            resetActivityPage()
+            return navigate({
               search: (current) => ({
                 ...current,
                 ...values,
-                activityCursor: '',
               }),
             })
-          }
+          }}
           view={search.view || 'table'}
           onView={(view) =>
-            navigate({ search: (current) => ({ ...current, view }) })
+            navigate({
+              search: (current) => ({
+                ...current,
+                view: view === 'calendar' ? 'calendar' : undefined,
+                month: view === 'calendar' ? current.month : undefined,
+              }),
+            })
           }
           onMonth={(month) =>
             navigate({ search: (current) => ({ ...current, month }) })
@@ -1762,7 +1816,7 @@ function PTA({
         />
       )}
       {search.view !== 'calendar' && (
-        <Pager result={result} cursorKey="activityCursor" navigate={navigate} />
+        <Pager result={result} onPage={onActivityPage} />
       )}
       {/* PTA exports are temporarily hidden. Keep this rendering block ready
       to restore when the export actions are approved for display again.
@@ -1793,18 +1847,14 @@ function PTA({
   )
 }
 
-function Pager({ result, cursorKey, navigate }) {
-  const move = (link) =>
-    navigate({
-      search: (current) => ({ ...current, [cursorKey]: cursorFrom(link) }),
-    })
+function Pager({ result, onPage }) {
   return (
     <Pagination
       label="Pagination"
       canPrevious={Boolean(result?.previous)}
       canNext={Boolean(result?.next)}
-      onPrevious={() => move(result.previous)}
-      onNext={() => move(result.next)}
+      onPrevious={() => onPage(result.previous)}
+      onNext={() => onPage(result.next)}
     />
   )
 }
@@ -2028,9 +2078,15 @@ function AssignmentModal({
                     canPrevious={Boolean(choices.data?.previous)}
                     canNext={Boolean(choices.data?.next)}
                     onPrevious={() =>
-                      setCursor(cursorFrom(choices.data.previous))
+                      setCursor(
+                        cursorFrom(choices.data.previous, '/assignment-agents'),
+                      )
                     }
-                    onNext={() => setCursor(cursorFrom(choices.data.next))}
+                    onNext={() =>
+                      setCursor(
+                        cursorFrom(choices.data.next, '/assignment-agents'),
+                      )
+                    }
                   />
                 </>
               }
@@ -2121,27 +2177,29 @@ function ActivityDetail({
   user,
   csrf,
   documentCursor,
-  navigate,
   mutation,
   mutationBlocked,
   revisions,
   historyLoading,
   historyFailed,
+  section: requestedSection,
+  source,
   onDenied,
+  onDocumentPage,
+  onHistoryPage,
 }) {
+  const section =
+    !item.approved_revision_id &&
+    ['realization', 'finance'].includes(requestedSection)
+      ? 'programming'
+      : requestedSection
   const [editing, setEditing] = useState(false)
   const [workflowAction, setWorkflowAction] = useState('')
-  const [transferTargetYear, setTransferTargetYear] = useState(
-    item.transfer?.target_year || '',
-  )
-  const [transferStart, setTransferStart] = useState('')
-  const [transferEnd, setTransferEnd] = useState('')
-  const [transferTasks, setTransferTasks] = useState([])
-  const [requestedAmount, setRequestedAmount] = useState('')
   const workflowOpener = useRef(null)
   const assignmentOpener = useRef(null)
   const [assignmentDraft, setAssignmentDraft] = useState(null)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
+  const [typeCursor, setTypeCursor] = useState('')
   const closeAssignment = () => {
     setAssignmentDraft(null)
     setAssignmentOpen(false)
@@ -2151,7 +2209,6 @@ function ActivityDetail({
     ['AGENT_VERIFICATEUR', 'VALIDATEUR_DEFINITIF'].includes(user.role) &&
     item.allowed_actions.includes('assign_agents')
   const { api } = useAPI()
-  const search = useSearch({ strict: false })
   const executionSummary = useQuery({
     queryKey: ['execution', user.id, 'activity', item.id],
     queryFn: async ({ signal }) => {
@@ -2171,123 +2228,14 @@ function ActivityDetail({
     ...planningQuery(
       api,
       user.id,
-      ['task-categories', search.typeCursor],
-      cursorPath('/task-categories', search.typeCursor),
+      ['task-categories', typeCursor],
+      cursorPath('/task-categories', typeCursor),
       onDenied,
     ),
     enabled: editing,
   })
   const types = typeChoices.data?.data || []
   const typeResult = typeChoices.data
-  const closeDecision = () => {
-    setTransferStart('')
-    setTransferEnd('')
-    setTransferTasks([])
-    setRequestedAmount('')
-    setWorkflowAction('')
-  }
-  const submitWorkflow = async (event) => {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const submission = workflowAction === 'submit'
-    const opening = workflowAction === 'open_amendment'
-    const cancellation = workflowAction === 'cancel_amendment'
-    const withdrawal = workflowAction === 'request_withdrawal'
-    const withdrawalCancellation = workflowAction === 'cancel_withdrawal'
-    const transfer = workflowAction === 'request_transfer'
-    const transferCancellation = workflowAction === 'cancel_transfer'
-    await mutation.mutateAsync({
-      path: opening
-        ? `/activities/${item.id}/amendments`
-        : cancellation
-          ? `/activities/${item.id}/amendments/${item.amendment.id}/cancellation`
-          : withdrawal
-            ? `/activities/${item.id}/withdrawals`
-            : withdrawalCancellation
-              ? `/activities/${item.id}/withdrawals/${item.withdrawal.id}/cancellation`
-              : transfer
-                ? `/activities/${item.id}/transfers`
-                : transferCancellation
-                  ? `/activities/${item.id}/transfers/${item.transfer.id}/cancellation`
-                  : submission
-                    ? `/activities/${item.id}/submissions`
-                    : `/activities/${item.id}/revisions/${item.current_revision_id}/decisions`,
-      method: 'POST',
-      body:
-        opening ||
-        cancellation ||
-        withdrawal ||
-        withdrawalCancellation ||
-        transfer ||
-        transferCancellation
-          ? {
-              expected_version: item.version,
-              expected_approved_revision_id: item.approved_revision_id,
-              reason: data.get('reason'),
-              ...(withdrawal && item.withdrawal
-                ? {
-                    withdrawal_id: item.withdrawal.id,
-                    expected_revision_id: item.current_revision_id,
-                  }
-                : {}),
-              ...(withdrawalCancellation
-                ? { expected_revision_id: item.current_revision_id }
-                : {}),
-              ...(transfer
-                ? {
-                    planned_start: data.get('planned_start'),
-                    planned_end: data.get('planned_end'),
-                    tasks: transferTasks,
-                    ...(item.transfer
-                      ? {
-                          transfer_id: item.transfer.id,
-                          expected_revision_id: item.current_revision_id,
-                        }
-                      : {}),
-                  }
-                : {}),
-              ...(transferCancellation
-                ? { expected_revision_id: item.current_revision_id }
-                : {}),
-            }
-          : submission
-            ? { expected_version: item.version }
-            : {
-                expected_version: item.version,
-                decision: workflowAction,
-                ...(data.get('reason') ? { reason: data.get('reason') } : {}),
-                ...(workflowAction === 'return'
-                  ? {
-                      ...(data.get('requested_amount')
-                        ? { requested_amount: data.get('requested_amount') }
-                        : {}),
-                    }
-                  : {}),
-              },
-    })
-    closeDecision()
-  }
-  const transferDatesValid = transferTasks.every((task) => {
-    if (!task.planned_start && !task.planned_end)
-      return task.subtasks.every(
-        (child) => !child.planned_start && !child.planned_end,
-      )
-    if (
-      !task.planned_start ||
-      !task.planned_end ||
-      task.planned_start < transferStart ||
-      task.planned_end > transferEnd
-    )
-      return false
-    return task.subtasks.every(
-      (child) =>
-        (!child.planned_start && !child.planned_end) ||
-        (child.planned_start &&
-          child.planned_end &&
-          child.planned_start >= task.planned_start &&
-          child.planned_end <= task.planned_end),
-    )
-  })
   if (editing)
     return (
       <Panel
@@ -2297,19 +2245,22 @@ function ActivityDetail({
         <Breadcrumbs
           label={strings.breadcrumb}
           items={[
-            { label: strings.planningIndex, to: Urls.planning },
-            {
-              label: item.pta_name,
-              to: Urls.pta,
-              params: {
-                projectId: item.project_id,
-                year: String(item.placement_year),
-              },
-            },
+            ...(item.approved_revision_id
+              ? [{ label: executionStrings.listTitle, to: Urls.execution }]
+              : [
+                  { label: strings.planningIndex, to: Urls.planning },
+                  {
+                    label: item.pta_name,
+                    to: Urls.pta,
+                    params: {
+                      projectId: item.project_id,
+                      year: String(item.placement_year),
+                    },
+                  },
+                ]),
             {
               label: item.reference,
-              to: Urls.activity,
-              params: { activityId: item.id },
+              ...activityLocation(item),
             },
             { label: strings.modify },
           ]}
@@ -2342,7 +2293,9 @@ function ActivityDetail({
           }
           types={types}
           typeResult={typeResult}
-          navigate={navigate}
+          onTypePage={(link) =>
+            setTypeCursor(cursorFrom(link, '/task-categories'))
+          }
           pending={mutationBlocked}
           optionsUnavailable={
             typeChoices.isFetching || !typeResult || typeChoices.isError
@@ -2404,7 +2357,7 @@ function ActivityDetail({
         })
       : []
   const programmingIncomplete = programmingProblems.length > 0
-  const executionContext = search.origin === 'execution'
+  const executionContext = source === 'execution'
   const execution = executionSummary.data
   const administrativeSituation = execution?.closure
     ? executionStrings.closedLabel
@@ -2613,81 +2566,70 @@ function ActivityDetail({
           />
         </div>
       )}
-      {item.correction && (
-        <div className="border-l-4 border-l-danger p-3 bg-white" role="status">
-          <strong>{strings.returned}</strong>
-          <p>{item.correction.reason}</p>
-          {item.correction.requested_amount && (
-            <p>
-              {strings.requestedAmount}:{' '}
-              {formatXof(item.correction.requested_amount)}
-            </p>
-          )}
-        </div>
-      )}
       <nav
         aria-label={strings.activitySections}
         className="flex flex-wrap gap-5 border-b border-border text-sm"
       >
-        {[['programming', strings.programming]].map(([tab, label]) => (
-          <Link
-            key={tab}
-            to={Urls.activity}
-            params={{ activityId: item.id }}
-            search={(current) => ({
-              ...current,
-              tab,
-              revision: undefined,
-              amendment: undefined,
-            })}
-            activeOptions={{ exact: true, includeSearch: true }}
-            className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
-          >
-            {label}
-          </Link>
-        ))}
+        {[['programming', strings.programming]].map(([tab, label]) => {
+          const destination = activityLocation(item, tab)
+          return (
+            <Link
+              key={tab}
+              {...destination}
+              activeOptions={{ exact: true, includeHash: true }}
+              className={`border-b-2 px-1 py-2.5 ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+            >
+              {label}
+            </Link>
+          )
+        })}
         {item.approved_revision_id &&
           [
             ['realization', strings.realizationTab],
             ['finance', strings.financeTab],
-          ].map(([tab, label]) => (
-            <Link
-              key={tab}
-              className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
-              to={Urls.activity}
-              params={{ activityId: item.id }}
-              search={(current) => ({
-                ...current,
-                tab,
-                revision: undefined,
-                amendment: undefined,
-              })}
-            >
-              {label}
-            </Link>
-          ))}
+          ].map(([tab, label]) => {
+            const destination = activityLocation(item, tab)
+            return (
+              <Link
+                key={tab}
+                className={`border-b-2 px-1 py-2.5 ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+                {...destination}
+                activeOptions={{ exact: true, includeHash: true }}
+              >
+                {label}
+              </Link>
+            )
+          })}
         {[
           ['history', strings.historyTab],
           ['files', strings.filesTab],
-        ].map(([tab, label]) => (
-          <Link
-            key={tab}
-            to={Urls.activity}
-            params={{ activityId: item.id }}
-            search={(current) => ({
-              ...current,
-              tab,
-              revision: undefined,
-              amendment: undefined,
-            })}
-            activeOptions={{ exact: true, includeSearch: true }}
-            className={`border-b-2 px-1 py-2.5 ${(search.tab || 'programming') === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
-          >
-            {label}
-          </Link>
-        ))}
+        ].map(([tab, label]) => {
+          const destination = activityLocation(item, tab)
+          return (
+            <Link
+              key={tab}
+              {...destination}
+              activeOptions={{ exact: true, includeHash: true }}
+              className={`border-b-2 px-1 py-2.5 ${section === tab ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}
+            >
+              {label}
+            </Link>
+          )
+        })}
       </nav>
-      <div hidden={search.tab && search.tab !== 'programming'}>
+      <div hidden={section !== 'programming'}>
+        <CorrectionNotice
+          title="Programmation retournée pour correction"
+          correction={
+            item.correction
+              ? {
+                  ...item.correction,
+                  actor_name: item.latest_decision_actor?.full_name,
+                }
+              : null
+          }
+          className="mb-6"
+        />
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
           <div className="grid gap-6">
             <Panel className="gap-0 overflow-hidden p-0">
@@ -2825,29 +2767,28 @@ function ActivityDetail({
                   )}
                 </div>
               )}
-              {!executionContext &&
-                administrativeActions.some(([action]) =>
-                  item.allowed_actions.includes(action),
-                ) && (
-                  <div className="grid gap-3 border-t border-border p-5">
-                    {administrativeActions.map(([action, label]) =>
-                      item.allowed_actions.includes(action) ? (
-                        <Button
-                          type="button"
-                          key={action}
-                          variant="outline"
-                          disabled={mutationBlocked}
-                          onClick={(event) => {
-                            workflowOpener.current = event.currentTarget
-                            setWorkflowAction(action)
-                          }}
-                        >
-                          {label}
-                        </Button>
-                      ) : null,
-                    )}
-                  </div>
-                )}
+              {administrativeActions.some(([action]) =>
+                item.allowed_actions.includes(action),
+              ) && (
+                <div className="grid gap-3 border-t border-border p-5">
+                  {administrativeActions.map(([action, label]) =>
+                    item.allowed_actions.includes(action) ? (
+                      <Button
+                        type="button"
+                        key={action}
+                        variant="outline"
+                        disabled={mutationBlocked}
+                        onClick={(event) => {
+                          workflowOpener.current = event.currentTarget
+                          setWorkflowAction(action)
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    ) : null,
+                  )}
+                </div>
+              )}
             </Panel>
             {administrativeReminder && (
               <Panel as="aside" className="gap-0 overflow-hidden p-0">
@@ -2901,13 +2842,13 @@ function ActivityDetail({
             </div>
           )}
       </div>
-      {search.tab === 'realization' && (
+      {section === 'realization' && (
         <ExecutionView screen="detail" embedded section="realization" />
       )}
-      {search.tab === 'finance' && (
+      {section === 'finance' && (
         <ExecutionView screen="detail" embedded section="finance" />
       )}
-      {search.tab === 'files' && (
+      {section === 'files' && (
         <div>
           <ActivityDocuments
             activityId={item.id}
@@ -2915,13 +2856,13 @@ function ActivityDetail({
             user={user}
             csrf={csrf}
             cursor={documentCursor}
-            navigate={navigate}
+            onPage={onDocumentPage}
             blocked={mutationBlocked}
             onDenied={onDenied}
           />
         </div>
       )}
-      {search.tab === 'history' && (
+      {section === 'history' && (
         <section
           aria-labelledby="activity-history-title"
           className="max-w-[86rem] rounded-panel border border-border bg-white [&>h3]:border-b [&>h3]:border-border [&>h3]:px-5 [&>h3]:py-4 [&>h3]:font-semibold"
@@ -2934,13 +2875,7 @@ function ActivityDetail({
           ) : (
             <ActivityTimeline events={revisions.data} />
           )}
-          {revisions && (
-            <Pager
-              result={revisions}
-              cursorKey="revisionCursor"
-              navigate={navigate}
-            />
-          )}
+          {revisions && <Pager result={revisions} onPage={onHistoryPage} />}
         </section>
       )}
       <AssignmentModal
@@ -2968,219 +2903,16 @@ function ActivityDetail({
           )
         }
       />
-      <Modal
-        open={Boolean(workflowAction)}
-        className="[&>header]:sticky [&>header]:top-0 [&>header]:z-10 [&>header]:bg-white"
-        onClose={closeDecision}
-        label={
-          workflowAction === 'prevalidate'
-            ? strings.prevalidationConfirmation
-            : workflowAction === 'approve'
-              ? strings.approvalConfirmation
-              : strings.workflowConfirmation
-        }
+      <ActivityWorkflowDialog
+        key={workflowAction}
+        action={workflowAction}
+        item={item}
+        user={user}
+        blocked={mutationBlocked}
         opener={workflowOpener}
-      >
-        <BusinessForm
-          className="grid gap-4 min-w-[min(520px,_calc(100vw_-_40px))] p-6 [@media(min-height:601px)]:[&_footer]:sticky [@media(min-height:601px)]:[&_footer]:bottom-0 [&_footer]:z-10 [&_footer]:bg-white [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2"
-          onSubmit={submitWorkflow}
-        >
-          {!['prevalidate', 'approve'].includes(workflowAction) && (
-            <p>{strings.workflowExactRevision}</p>
-          )}
-          {['prevalidate', 'approve'].includes(workflowAction) && (
-            <>
-              <p className="font-medium">{item.name}</p>
-              <div className="flex items-center justify-between gap-6 border-b border-border pb-4 text-sm">
-                <span className="text-muted-foreground">
-                  {strings.plannedAmountSummary}
-                </span>
-                <strong>{formatXof(item.allocation)}</strong>
-              </div>
-              <label>
-                {strings.observation}
-                <textarea name="reason" maxLength="4000" autoFocus />
-              </label>
-            </>
-          )}
-          {[
-            'return',
-            'open_amendment',
-            'cancel_amendment',
-            'request_withdrawal',
-            'cancel_withdrawal',
-            'request_transfer',
-            'cancel_transfer',
-          ].includes(workflowAction) && (
-            <>
-              {[
-                'cancel_amendment',
-                'cancel_withdrawal',
-                'cancel_transfer',
-              ].includes(workflowAction) && (
-                <p>{strings.cancellationWarning}</p>
-              )}
-              <label>
-                {workflowAction === 'open_amendment'
-                  ? strings.amendmentReason
-                  : [
-                        'cancel_amendment',
-                        'cancel_withdrawal',
-                        'cancel_transfer',
-                      ].includes(workflowAction)
-                    ? strings.cancellationReason
-                    : workflowAction === 'request_withdrawal'
-                      ? strings.withdrawalReason
-                      : workflowAction === 'request_transfer'
-                        ? strings.transferReason
-                        : strings.reason}
-                {' *'}
-                <textarea name="reason" required maxLength="4000" autoFocus />
-              </label>
-              {workflowAction === 'request_transfer' && (
-                <>
-                  <div className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
-                    <div>
-                      <strong>{strings.sourceAnnualPlan}</strong>{' '}
-                      {item.placement_year}
-                    </div>
-                    <div>
-                      <strong>{strings.targetAnnualPlan}</strong>{' '}
-                      {transferTargetYear || strings.chooseStartDate}
-                    </div>
-                    <div>
-                      <strong>{strings.unchangedBudget}</strong>{' '}
-                      {formatXof(item.allocation)}
-                    </div>
-                  </div>
-                  <p>{strings.unchangedOperations}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {ptaStrings.required}
-                  </p>
-                  <ul
-                    className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
-                    data-ui="planning-list"
-                  >
-                    {(item.tasks || []).map((operation) => (
-                      <li key={operation.id}>
-                        {operation.name}
-                        <span>{formatXof(operation.allocation)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_18rem),_1fr))] gap-4 my-5">
-                    <label>
-                      {strings.targetStart} *
-                      <DatePicker
-                        name="planned_start"
-                        label={strings.targetStart}
-                        value={transferStart}
-                        onChange={(value) => {
-                          setTransferStart(value)
-                          setTransferTasks(
-                            shiftedTransferTasks(
-                              item.tasks,
-                              item.planned_start,
-                              value,
-                            ),
-                          )
-                          setTransferTargetYear(
-                            value ? Number(value.slice(0, 4)) : '',
-                          )
-                        }}
-                      />
-                      <input
-                        type="hidden"
-                        name="planned_start"
-                        value={transferStart}
-                      />
-                    </label>
-                    <label>
-                      {strings.targetEnd} *
-                      <DatePicker
-                        label={strings.targetEnd}
-                        value={transferEnd}
-                        min={transferStart || undefined}
-                        onChange={setTransferEnd}
-                      />
-                      <input
-                        type="hidden"
-                        name="planned_end"
-                        value={transferEnd}
-                      />
-                    </label>
-                  </div>
-                  {transferStart && (
-                    <ul className="grid gap-3 p-0 list-none">
-                      {(item.tasks || []).map((task, taskIndex) => {
-                        const dates = transferTasks[taskIndex]
-                        return (
-                          <li key={task.id} className="rounded-card border p-3">
-                            <strong>{task.name}</strong>
-                            <p className="text-sm text-muted-foreground">
-                              {dates?.planned_start && dates?.planned_end
-                                ? `${formatDate(dates.planned_start)} – ${formatDate(dates.planned_end)}`
-                                : strings.dateUnknown}
-                            </p>
-                            {(task.subtasks || []).map((child, childIndex) => {
-                              const childDates = dates?.subtasks[childIndex]
-                              return (
-                                <p key={child.id} className="text-sm">
-                                  {child.name}:{' '}
-                                  {childDates?.planned_start &&
-                                  childDates?.planned_end
-                                    ? `${formatDate(childDates.planned_start)} – ${formatDate(childDates.planned_end)}`
-                                    : strings.dateUnknown}
-                                </p>
-                              )
-                            })}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </>
-              )}
-              {workflowAction === 'return' &&
-                user.role === 'VALIDATEUR_DEFINITIF' &&
-                !item.withdrawal &&
-                !item.transfer && (
-                  <label>
-                    {strings.requestedAmount}
-                    <ExactNumberInput
-                      name="requested_amount"
-                      value={requestedAmount}
-                      onChange={setRequestedAmount}
-                      suffix="F CFA"
-                    />
-                  </label>
-                )}
-            </>
-          )}
-          <footer data-ui="modal-actions">
-            <Button type="button" variant="outline" onClick={closeDecision}>
-              {strings.cancel}
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                mutationBlocked ||
-                (workflowAction === 'request_transfer' &&
-                  (!transferStart ||
-                    !transferEnd ||
-                    transferEnd < transferStart ||
-                    !transferDatesValid))
-              }
-            >
-              {workflowAction === 'prevalidate'
-                ? strings.prevalidateAndSend
-                : workflowAction === 'approve'
-                  ? strings.approveActivity
-                  : strings.confirm}
-            </Button>
-          </footer>
-        </BusinessForm>
-      </Modal>
+        onClose={() => setWorkflowAction('')}
+        onSubmit={(request) => mutation.mutateAsync(request)}
+      />
     </div>
   )
 }
@@ -3191,7 +2923,7 @@ export function ActivityDocuments({
   user,
   csrf,
   cursor,
-  navigate,
+  onPage,
   blocked,
   onDenied,
 }) {
@@ -3469,10 +3201,7 @@ export function ActivityDocuments({
             }
             onClick={async (event) => {
               opener.current = event.currentTarget
-              if (cursor)
-                await navigate({
-                  search: (current) => ({ ...current, documentCursor: '' }),
-                })
+              if (cursor) onPage(null)
               setUploadUncertain(false)
               setUploadFile(null)
               uploadAttempt.current = null
@@ -3599,11 +3328,7 @@ export function ActivityDocuments({
             ))}
         </ul>
       )}
-      <Pager
-        result={documents.data}
-        cursorKey="documentCursor"
-        navigate={navigate}
-      />
+      <Pager result={documents.data} onPage={onPage} />
       <Modal
         open={open}
         onClose={() => {

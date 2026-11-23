@@ -158,16 +158,17 @@ test('an approved Activity shows its due administrative reminder without repeati
       )
     }),
   )
-  render(
-    <App
-      router={makeRouter(
-        createMemoryHistory({
-          initialEntries: ['/activities/reminder-activity'],
-        }),
-      )}
-    />,
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/planning/activities/reminder-activity'],
+    }),
   )
-
+  render(<App router={router} />)
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe(
+      '/execution/activities/reminder-activity',
+    ),
+  )
   const reminder = await screen.findByRole('heading', {
     name: 'Relance administrative',
   })
@@ -182,6 +183,94 @@ test('an approved Activity shows its due administrative reminder without repeati
     .closest('section')
   expect(within(programmingCard).queryByText('Début prévu')).toBeNull()
   expect(within(programmingCard).queryByText('Fin prévue')).toBeNull()
+})
+
+test('a returned Activity presents the existing correction in the shared notice', async () => {
+  const activity = {
+    id: 'returned-activity',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    project_name: 'Projet enfance',
+    partner_name: 'UNICEF',
+    pta_name: 'PTA 2026',
+    placement_year: 2026,
+    reference: 'ACT-RETURNED',
+    name: 'Forums communautaires',
+    description: 'Renforcer l’accès à la justice.',
+    planned_start: '2026-10-05',
+    planned_end: '2027-01-05',
+    allocation: '4200000',
+    state: 'returned_supervisor',
+    version: 3,
+    tasks: [],
+    correction: {
+      actor_role: 'VALIDATEUR_DEFINITIF',
+      reason:
+        'Préciser les communes couvertes.\n\nDistinguer les frais de mobilisation.',
+    },
+    latest_decision_actor: {
+      id: 'validator',
+      full_name: 'Clarisse AKPON',
+    },
+    agent_ids: ['agent'],
+    agents: [],
+    creator: null,
+    allowed_actions: ['read'],
+  }
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'csrf',
+            user: {
+              id: 'agent',
+              email: 'agent@example.test',
+              role: 'AGENT_SAISIE',
+            },
+            expires_at: new Date(Date.now() + 60000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/activities/returned-activity'))
+        return new Response(JSON.stringify(activity))
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          count: 0,
+          data: [],
+          next: null,
+          previous: null,
+        }),
+      )
+    }),
+  )
+  const router = makeRouter(
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/returned-activity#finance'],
+    }),
+  )
+  render(<App router={router} />)
+
+  const notice = await screen.findByRole('status', {
+    name: 'Programmation retournée pour correction',
+  })
+  expect(screen.getByRole('heading', { name: 'Programmation' })).toBeVisible()
+  expect(screen.queryByText('Montant autorisé')).not.toBeInTheDocument()
+  expect(notice).toHaveTextContent(
+    'Retour demandé par Clarisse AKPON (Validateur définitif).',
+  )
+  expect(notice).toHaveTextContent(
+    'Préciser les communes couvertes. Distinguer les frais de mobilisation.',
+  )
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe(
+      '/planning/activities/returned-activity',
+    )
+    expect(router.state.location.hash).toBe('')
+  })
 })
 
 function annualPageFetch(exportReply, role = 'AGENT_SAISIE') {
@@ -775,7 +864,9 @@ test('an eligible Agent confirms submission of the current Activity version', as
   })
   vi.stubGlobal('fetch', fetch)
   const router = makeRouter(
-    createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
+    createMemoryHistory({
+      initialEntries: ['/planning/activities/activity-1'],
+    }),
   )
   render(<App router={router} />)
   await user.click(
@@ -800,7 +891,218 @@ test('an eligible Agent confirms submission of the current Activity version', as
   ).not.toBeInTheDocument()
 })
 
-test('an Agent opens and cancels an amendment while the approved version stays visible', async () => {
+function renderActivityWorkflowPage(action) {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
+  const approved = {
+    name: 'Atelier approuvé',
+    description: 'Version approuvée',
+    planned_start: '2027-01-10',
+    planned_end: '2027-04-10',
+    allocation: '100000',
+    tasks: [
+      {
+        id: 'task-1',
+        type_id: 'type-1',
+        name: 'Préparer',
+        allocation: '100000',
+        weight: '100.00',
+        planned_start: '2027-01-10',
+        planned_end: '2027-04-10',
+        subtasks: [],
+      },
+    ],
+  }
+  let activity = {
+    id: 'workflow-activity',
+    pta_id: 'pta-1',
+    project_id: 'project-1',
+    reference: 'ACT-WORKFLOW',
+    ...approved,
+    state: 'approved',
+    version: 4,
+    current_revision_id: 'revision-1',
+    approved_revision_id: 'revision-1',
+    approved_allocation: '100000',
+    approved,
+    candidate: null,
+    amendment: null,
+    withdrawal: null,
+    transfer: null,
+    placement_year: 2027,
+    execution_paused: false,
+    correction: null,
+    agent_ids: ['agent'],
+    allowed_actions: ['read', action],
+  }
+  const fetch = vi.fn(async (url, options = {}) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return new Response(
+        JSON.stringify({
+          state: 'verified',
+          csrf: 'csrf',
+          user: {
+            id: 'agent',
+            email: 'agent@example.test',
+            role: 'AGENT_SAISIE',
+          },
+          expires_at: new Date(Date.now() + 60000).toISOString(),
+        }),
+      )
+    if (
+      path.endsWith('/activities/workflow-activity/amendments') &&
+      options.method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'amendment_draft',
+        version: 5,
+        amendment: { id: 'amendment-1', reason: 'Adapter.' },
+        candidate: approved,
+        execution_paused: true,
+        allowed_actions: ['read', 'edit', 'submit', 'cancel_amendment'],
+      }
+      return new Response(JSON.stringify(activity), { status: 201 })
+    }
+    if (
+      path.endsWith('/activities/workflow-activity/withdrawals') &&
+      options.method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'submitted',
+        version: 5,
+        current_revision_id: 'withdrawal-revision',
+        withdrawal: { id: 'withdrawal-1', reason: 'Retirer.' },
+        execution_paused: true,
+        allowed_actions: ['read', 'cancel_withdrawal'],
+      }
+      return new Response(
+        JSON.stringify({ id: 'withdrawal-revision', activity_version: 5 }),
+        { status: 201 },
+      )
+    }
+    if (
+      path.endsWith('/activities/workflow-activity/transfers') &&
+      options.method === 'POST'
+    ) {
+      activity = {
+        ...activity,
+        state: 'submitted',
+        version: 5,
+        current_revision_id: 'transfer-revision',
+        transfer: {
+          id: 'transfer-1',
+          reason: 'Reporter.',
+          source_pta: { id: 'pta-1', year: 2027 },
+          target_year: 2028,
+        },
+        execution_paused: true,
+        allowed_actions: ['read', 'cancel_transfer'],
+      }
+      return new Response(
+        JSON.stringify({ id: 'transfer-revision', activity_version: 5 }),
+        { status: 201 },
+      )
+    }
+    if (path.endsWith('/activities/workflow-activity'))
+      return new Response(JSON.stringify(activity))
+    return new Response(
+      JSON.stringify({
+        object: 'list',
+        count: 0,
+        data: [],
+        next: null,
+        previous: null,
+      }),
+    )
+  })
+  vi.stubGlobal('fetch', fetch)
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/execution/activities/workflow-activity'],
+        }),
+      )}
+    />,
+  )
+  return fetch
+}
+
+test('an amendment request refreshes the Activity into amendment preparation', async () => {
+  const user = userEvent.setup()
+  renderActivityWorkflowPage('open_amendment')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Demander une modification' }),
+  )
+  await user.type(
+    screen.getByLabelText('Motif de la modification *'),
+    'Adapter.',
+  )
+  await user.click(screen.getByRole('button', { name: 'Confirmer' }))
+
+  expect(
+    await screen.findByText(/exécution de cette activité est suspendue/i),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('region', { name: 'Modification en préparation' }),
+  ).toBeVisible()
+  const breadcrumb = screen.getByRole('navigation', {
+    name: 'Fil d’Ariane de l’activité',
+  })
+  expect(
+    within(breadcrumb).getByRole('link', { name: 'Réalisation' }),
+  ).toHaveAttribute('href', '/execution')
+  expect(within(breadcrumb).queryByText('Prévisions (PTA)')).toBeNull()
+})
+
+test('a withdrawal request refreshes the Activity into withdrawal review', async () => {
+  const user = userEvent.setup()
+  renderActivityWorkflowPage('request_withdrawal')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Retirer l’activité' }),
+  )
+  await user.type(screen.getByLabelText('Motif du retrait *'), 'Retirer.')
+  await user.click(screen.getByRole('button', { name: 'Confirmer' }))
+
+  expect(await screen.findByText('Demande de retrait en cours')).toBeVisible()
+})
+
+test('a transfer request refreshes the Activity into transfer review', async () => {
+  const user = userEvent.setup()
+  renderActivityWorkflowPage('request_transfer')
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Transférer vers un autre PTA',
+    }),
+  )
+  await user.type(screen.getByLabelText('Motif du transfert *'), 'Reporter.')
+  await user.click(
+    screen.getByRole('button', { name: /Nouvelle date de début/ }),
+  )
+  fireEvent.change(screen.getByLabelText('Nouvelle date de début'), {
+    target: { value: '2028-02-01' },
+  })
+  await user.click(screen.getByRole('button', { name: /Nouvelle date de fin/ }))
+  fireEvent.change(screen.getByLabelText('Nouvelle date de fin'), {
+    target: { value: '2028-08-31' },
+  })
+  await user.click(screen.getByRole('button', { name: 'Confirmer' }))
+
+  expect(await screen.findByText('Demande de transfert en cours')).toBeVisible()
+})
+
+test('an Agent manages Activity documents without losing modal state', async () => {
   const user = userEvent.setup()
   const createObjectURL = vi.fn(() => 'blob:preview')
   const revokeObjectURL = vi.fn()
@@ -848,7 +1150,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
       },
     ],
   }
-  let activity = {
+  const activity = {
     id: 'activity-1',
     pta_id: 'pta-1',
     project_id: 'project-1',
@@ -869,12 +1171,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
     tasks: approved.tasks,
     correction: null,
     agent_ids: ['agent'],
-    allowed_actions: [
-      'read',
-      'open_amendment',
-      'request_withdrawal',
-      'request_transfer',
-    ],
+    allowed_actions: ['read'],
   }
   let documents = []
   let previewStatus = 200
@@ -986,7 +1283,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
                 allowed_actions: ['withdraw'],
               },
             ],
-            next: 'https://mjl.test/api/v1/activities/activity-1/documents?limit=60&cursor=candidate-next',
+            next: '/api/v1/activities/activity-1/documents?limit=60&cursor=candidate-next',
             previous: null,
           }),
         ),
@@ -1003,8 +1300,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
             count: 2,
             data: documents.filter((document) => document.id === 'document-1'),
             next: null,
-            previous:
-              'https://mjl.test/api/v1/activities/activity-1/documents?limit=60',
+            previous: '/api/v1/activities/activity-1/documents?limit=60',
           }),
         ),
       )
@@ -1067,105 +1363,11 @@ test('an Agent opens and cancels an amendment while the approved version stays v
             object: 'list',
             count: documents.length,
             data: documents,
-            next: null,
+            next: '/api/v1/activities/activity-1/documents?cursor=older',
             previous: null,
           }),
         ),
       )
-    }
-    if (
-      path.endsWith('/activities/activity-1/amendments') &&
-      options.method === 'POST'
-    ) {
-      activity = {
-        ...activity,
-        state: 'amendment_draft',
-        version: 5,
-        amendment: {
-          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          reason: 'Adapter.',
-        },
-        candidate: { ...approved, description: 'Version candidate' },
-        execution_paused: true,
-        allowed_actions: ['read', 'edit', 'submit', 'cancel_amendment'],
-      }
-      return Promise.resolve(
-        new Response(JSON.stringify(activity), { status: 201 }),
-      )
-    }
-    if (
-      path.endsWith('/activities/activity-1/withdrawals') &&
-      options.method === 'POST'
-    ) {
-      activity = {
-        ...activity,
-        state: 'submitted',
-        version: 7,
-        current_revision_id: 'revision-withdrawal',
-        withdrawal: {
-          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-          reason: 'Retrait justifié.',
-        },
-        execution_paused: true,
-        allowed_actions: ['read', 'cancel_withdrawal'],
-      }
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            id: 'revision-withdrawal',
-            activity_version: 7,
-          }),
-          { status: 201 },
-        ),
-      )
-    }
-    if (
-      path.endsWith('/activities/activity-1/transfers') &&
-      options.method === 'POST'
-    ) {
-      activity = {
-        ...activity,
-        state: 'submitted',
-        version: 9,
-        current_revision_id: 'revision-transfer',
-        transfer: {
-          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-          reason: 'Calendrier 2028.',
-          source_pta: { id: 'pta-1', year: 2027 },
-          target_year: 2028,
-        },
-        execution_paused: true,
-        allowed_actions: ['read', 'cancel_transfer'],
-      }
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({ id: 'revision-transfer', activity_version: 9 }),
-          { status: 201 },
-        ),
-      )
-    }
-    if (path.includes('/cancellation') && options.method === 'POST') {
-      const withdrawalCancellation = path.includes('/withdrawals/')
-      const transferCancellation = path.includes('/transfers/')
-      activity = {
-        ...activity,
-        state: 'approved',
-        version: transferCancellation ? 10 : withdrawalCancellation ? 8 : 6,
-        current_revision_id: 'revision-1',
-        amendment: null,
-        withdrawal: null,
-        transfer: null,
-        candidate: null,
-        tasks: approved.tasks.map((task) => ({ ...task, subtasks: [] })),
-        execution_paused: false,
-        allowed_actions: [
-          'read',
-          'open_amendment',
-          'request_withdrawal',
-          'request_transfer',
-        ],
-      }
-      return Promise.resolve(new Response(JSON.stringify(activity)))
     }
     if (path.endsWith('/activities/activity-1'))
       return Promise.resolve(new Response(JSON.stringify(activity)))
@@ -1195,7 +1397,9 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   })
   vi.stubGlobal('fetch', fetch)
   const router = makeRouter(
-    createMemoryHistory({ initialEntries: ['/activities/activity-1'] }),
+    createMemoryHistory({
+      initialEntries: ['/execution/activities/activity-1'],
+    }),
   )
   const accessKey = ['access', 'admin', 'users', {}]
   router.options.context.queryClient.setQueryData(accessKey, { items: [] })
@@ -1288,13 +1492,12 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   )
   expect(preview).not.toBeVisible()
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview')
-  await act(async () => {
-    await router.navigate({
-      to: '/activities/$activityId',
-      params: { activityId: 'activity-1' },
-      search: (previous) => ({ ...previous, documentCursor: 'older' }),
-    })
-  })
+  await user.click(
+    within(screen.getByRole('navigation', { name: 'Pagination' })).getByRole(
+      'button',
+      { name: 'Suivant' },
+    ),
+  )
   await waitFor(() => expect(screen.queryByText('preuve.png')).toBeNull())
   const pdfRow = screen.getByText('preuve.pdf').closest('li')
   expect(within(pdfRow).queryByRole('button', { name: /Aperçu/ })).toBeNull()
@@ -1435,13 +1638,12 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     screen.queryByRole('dialog', { name: 'Retirer la pièce' }),
   ).not.toBeInTheDocument()
-  await act(async () => {
-    await router.navigate({
-      to: '/activities/$activityId',
-      params: { activityId: 'activity-1' },
-      search: (previous) => ({ ...previous, documentCursor: '' }),
-    })
-  })
+  await user.click(
+    within(screen.getByRole('navigation', { name: 'Pagination' })).getByRole(
+      'button',
+      { name: 'Précédent' },
+    ),
+  )
   const reconciledRow = (await screen.findByText('archive.pdf')).closest('li')
   await user.click(
     within(reconciledRow).getByRole('button', { name: 'Retirer la pièce' }),
@@ -1469,245 +1671,7 @@ test('an Agent opens and cancels an amendment while the approved version stays v
   expect(
     screen.getByRole('heading', { name: 'Pièces justificatives' }),
   ).toHaveFocus()
-  await act(async () => {
-    await router.navigate({
-      to: '/activities/$activityId',
-      params: { activityId: 'activity-1' },
-      search: (previous) => ({
-        ...previous,
-        tab: 'programming',
-        documentCursor: undefined,
-      }),
-    })
-  })
-  const amendmentButton = await screen.findByRole('button', {
-    name: 'Demander une modification',
-  })
-  const activityHeader = screen
-    .getByRole('heading', { name: 'Atelier approuvé' })
-    .closest('[data-ui="activity-header"]')
-  expect(
-    within(activityHeader).queryByRole('button', {
-      name: 'Demander une modification',
-    }),
-  ).not.toBeInTheDocument()
-  await user.click(amendmentButton)
-  await user.type(
-    screen.getByLabelText('Motif de la modification *'),
-    'Adapter.',
-  )
-  await user.click(
-    screen.getByRole('dialog').querySelector('button[type="submit"]'),
-  )
-  expect(
-    await screen.findByText(/exécution de cette activité est suspendue/i),
-  ).toBeVisible()
-  const approvedRegion = screen.getByRole('region', {
-    name: 'Informations approuvées',
-  })
-  const candidateRegion = screen.getByRole('region', {
-    name: 'Modification en préparation',
-  })
-  for (const region of [approvedRegion, candidateRegion]) {
-    expect(region).toBeVisible()
-    expect(
-      within(region).queryByText('Préparer la logistique complète.'),
-    ).not.toBeInTheDocument()
-    expect(
-      within(region).queryByText('Réserver la salle'),
-    ).not.toBeInTheDocument()
-    expect(within(region).getByText('100 %')).toBeVisible()
-    expect(
-      within(region).getByText('10 janvier 2027 – 10 avril 2027'),
-    ).toBeVisible()
-  }
-  expect(screen.queryByText('Prochaine étape')).not.toBeInTheDocument()
-  activity = { ...activity, state: 'returned_validator' }
-  await act(async () => {
-    router.options.context.queryClient.setQueryData(
-      ['planning', 'agent', 'activity', 'activity-1'],
-      activity,
-    )
-  })
-  expect(screen.queryByText('Prochaine étape')).not.toBeInTheDocument()
-  await user.click(
-    screen.getByRole('button', { name: 'Annuler la modification' }),
-  )
-  await user.type(
-    screen.getByLabelText('Motif de l’annulation *'),
-    'Retour au socle.',
-  )
-  await user.click(
-    screen.getByRole('dialog').querySelector('button[type="submit"]'),
-  )
-  await waitFor(() =>
-    expect(
-      screen.queryByText(/exécution de cette activité est suspendue/i),
-    ).not.toBeInTheDocument(),
-  )
-  expect(fetch).toHaveBeenCalledWith(
-    '/api/v1/activities/activity-1/amendments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/cancellation',
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({
-        expected_version: 5,
-        expected_approved_revision_id: 'revision-1',
-        reason: 'Retour au socle.',
-      }),
-    }),
-  )
-  await user.click(screen.getByRole('button', { name: 'Retirer l’activité' }))
-  await user.type(
-    screen.getByLabelText('Motif du retrait *'),
-    'Retrait justifié.',
-  )
-  await user.click(
-    screen.getByRole('dialog').querySelector('button[type="submit"]'),
-  )
-  await waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/activities/activity-1/withdrawals',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          expected_version: 6,
-          expected_approved_revision_id: 'revision-1',
-          reason: 'Retrait justifié.',
-        }),
-      }),
-    ),
-  )
-  expect(await screen.findByText('Demande de retrait en cours')).toBeVisible()
-  expect(screen.queryByText('Prochaine étape')).not.toBeInTheDocument()
-  expect(
-    router.options.context.queryClient.getQueryState(accessKey)?.isInvalidated,
-  ).toBeUndefined()
-  await user.click(
-    screen.getByRole('button', { name: 'Annuler la demande de retrait' }),
-  )
-  await user.type(
-    screen.getByLabelText('Motif de l’annulation *'),
-    'Conserver l’activité.',
-  )
-  await user.click(
-    screen.getByRole('dialog').querySelector('button[type="submit"]'),
-  )
-  await waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/activities/activity-1/withdrawals/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/cancellation',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          expected_version: 7,
-          expected_approved_revision_id: 'revision-1',
-          reason: 'Conserver l’activité.',
-          expected_revision_id: 'revision-withdrawal',
-        }),
-      }),
-    ),
-  )
-  expect(
-    screen.queryByText('Demande de retrait en cours'),
-  ).not.toBeInTheDocument()
-  await user.click(
-    screen.getByRole('button', { name: 'Transférer vers un autre PTA' }),
-  )
-  expect(screen.getByText('PTA source :').parentElement).toHaveTextContent(
-    '2027',
-  )
-  expect(screen.getByText(/Budget approuvé inchangé/)).toBeVisible()
-  expect(screen.getByText(/Les tâches et leurs montants/)).toBeVisible()
-  await user.type(
-    screen.getByLabelText('Motif du transfert *'),
-    'Calendrier 2028.',
-  )
-  await user.click(
-    screen.getByRole('button', { name: /Nouvelle date de début/ }),
-  )
-  fireEvent.change(screen.getByLabelText('Nouvelle date de début'), {
-    target: { value: '2028-02-01' },
-  })
-  expect(screen.getByText('PTA cible :').parentElement).toHaveTextContent(
-    '2028',
-  )
-  await user.click(screen.getByRole('button', { name: /Nouvelle date de fin/ }))
-  fireEvent.change(screen.getByLabelText('Nouvelle date de fin'), {
-    target: { value: '2028-08-31' },
-  })
-  await user.click(
-    screen.getByRole('dialog').querySelector('button[type="submit"]'),
-  )
-  await waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/activities/activity-1/transfers',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          expected_version: 8,
-          expected_approved_revision_id: 'revision-1',
-          reason: 'Calendrier 2028.',
-          planned_start: '2028-02-01',
-          planned_end: '2028-08-31',
-          tasks: [
-            {
-              id: 'operation-1',
-              planned_start: '2028-02-01',
-              planned_end: '2028-05-01',
-              subtasks: [],
-            },
-          ],
-        }),
-      }),
-    ),
-  )
-  expect(await screen.findByText('Demande de transfert en cours')).toBeVisible()
-  activity = { ...activity, state: 'returned_supervisor' }
-  await act(async () => {
-    router.options.context.queryClient.setQueryData(
-      ['planning', 'agent', 'activity', 'activity-1'],
-      activity,
-    )
-  })
-  expect(screen.queryByText('Prochaine étape')).not.toBeInTheDocument()
-  await user.click(
-    screen.getByRole('button', { name: 'Annuler la demande de transfert' }),
-  )
-  await user.type(
-    screen.getByLabelText('Motif de l’annulation *'),
-    'Maintenir 2027.',
-  )
-  await user.click(
-    screen.getByRole('dialog').querySelector('button[type="submit"]'),
-  )
-  await waitFor(() =>
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/activities/activity-1/transfers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/cancellation',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          expected_version: 9,
-          expected_approved_revision_id: 'revision-1',
-          reason: 'Maintenir 2027.',
-          expected_revision_id: 'revision-transfer',
-        }),
-      }),
-    ),
-  )
-  await user.click(screen.getByRole('link', { name: 'Pièces justificatives' }))
-  await screen.findByText('preuve.png')
-  previewStatus = 403
-  await user.click(
-    within(screen.getByText('preuve.png').closest('li')).getByRole('button', {
-      name: 'Aperçu de preuve.png',
-    }),
-  )
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Cette pièce n’est plus accessible.',
-  )
-  expect(
-    screen.getByRole('heading', { name: 'Atelier approuvé' }),
-  ).toBeVisible()
-}, 10000)
+})
 
 function amendmentHistoryFetch({ failed = false, historyFailed = false } = {}) {
   const activity = {
@@ -1816,9 +1780,7 @@ test('Activity History ignores obsolete amendment detail links', async () => {
     <App
       router={makeRouter(
         createMemoryHistory({
-          initialEntries: [
-            '/activities/activity-1?tab=history&amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          ],
+          initialEntries: ['/execution/activities/activity-1#history'],
         }),
       )}
     />,
@@ -1835,9 +1797,7 @@ test('an obsolete amendment detail failure does not block Activity History', asy
     <App
       router={makeRouter(
         createMemoryHistory({
-          initialEntries: [
-            '/activities/activity-1?tab=history&amendment=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          ],
+          initialEntries: ['/execution/activities/activity-1#history'],
         }),
       )}
     />,
@@ -1852,7 +1812,7 @@ test('a failed Activity History request does not also show the empty state', asy
     <App
       router={makeRouter(
         createMemoryHistory({
-          initialEntries: ['/activities/activity-1?tab=history'],
+          initialEntries: ['/execution/activities/activity-1#history'],
         }),
       )}
     />,
@@ -2211,7 +2171,9 @@ test('assignment edits retain their base version and can discard a stale draft',
     }),
   )
   const router = makeRouter(
-    createMemoryHistory({ initialEntries: ['/activities/assignment-1'] }),
+    createMemoryHistory({
+      initialEntries: ['/planning/activities/assignment-1'],
+    }),
   )
   render(<App router={router} />)
   await screen.findByRole('heading', { name: 'Coordination' })
@@ -2435,7 +2397,9 @@ test.each([['is unavailable', false]])(
       }),
     )
     const router = makeRouter(
-      createMemoryHistory({ initialEntries: ['/activities/review-1'] }),
+      createMemoryHistory({
+        initialEntries: ['/planning/activities/review-1'],
+      }),
     )
     const notificationKey = ['notifications', 'supervisor', 'all', '', 60]
     const ptaSummaryKey = ['planning', 'supervisor', 'pta', 'project-1', 2027]
@@ -2556,6 +2520,39 @@ test.each([
     ).not.toBeInTheDocument()
   },
 )
+
+test('an approved Activity Task editor keeps the Execution breadcrumb', async () => {
+  const user = userEvent.setup()
+  render(
+    <ActivityForm
+      year={2027}
+      projectId="project-1"
+      initial={{
+        id: 'activity-1',
+        approved_revision_id: 'revision-1',
+        version: 1,
+        name: 'Activité approuvée',
+        description: '',
+        planned_start: '2027-01-01',
+        planned_end: '2027-01-31',
+        allocation: '100',
+        tasks: [],
+      }}
+      types={[]}
+      pending={false}
+      onSubmit={vi.fn()}
+    />,
+  )
+
+  await user.click(screen.getByRole('button', { name: 'Ajouter une tâche' }))
+  const breadcrumb = screen.getByRole('navigation', {
+    name: 'Fil d’Ariane de l’activité',
+  })
+  expect(
+    within(breadcrumb).getByRole('link', { name: 'Réalisation' }),
+  ).toBeVisible()
+  expect(within(breadcrumb).queryByText('Prévisions (PTA)')).toBeNull()
+})
 
 test('Draft validation reports entered Task and Subtask bounds before saving', async () => {
   const submit = vi.fn()
@@ -3272,7 +3269,7 @@ test.each(['success', 'failure'])(
     vi.stubGlobal('fetch', fetch)
     const router = makeRouter(
       createMemoryHistory({
-        initialEntries: ['/activities/activity-uncertain'],
+        initialEntries: ['/planning/activities/activity-uncertain'],
       }),
     )
     render(<App router={router} />)
@@ -3327,7 +3324,7 @@ test.each(['success', 'failure'])(
     }
     await act(async () => {
       await router.navigate({
-        to: '/activities/$activityId',
+        to: '/planning/activities/$activityId',
         params: { activityId: 'activity-next' },
       })
     })
@@ -3902,7 +3899,7 @@ test('unavailable Categories still allow Draft saving but block submission', asy
 
 test('the Task editor can reach later Category pages', async () => {
   const user = userEvent.setup()
-  const navigate = vi.fn()
+  const onTypePage = vi.fn()
   render(
     <ActivityForm
       year={2027}
@@ -3912,7 +3909,7 @@ test('the Task editor can reach later Category pages', async () => {
         previous: null,
         next: '/api/v1/task-categories?cursor=second-page',
       }}
-      navigate={navigate}
+      onTypePage={onTypePage}
       pending={false}
       onSubmit={vi.fn()}
     />,
@@ -3921,12 +3918,9 @@ test('the Task editor can reach later Category pages', async () => {
   await user.click(screen.getByRole('button', { name: 'Ajouter une tâche' }))
   await user.click(screen.getByRole('button', { name: 'Suivant' }))
 
-  expect(navigate).toHaveBeenCalledOnce()
-  const updateSearch = navigate.mock.calls[0][0].search
-  expect(updateSearch({ q: 'formation' })).toEqual({
-    q: 'formation',
-    typeCursor: 'second-page',
-  })
+  expect(onTypePage).toHaveBeenCalledWith(
+    '/api/v1/task-categories?cursor=second-page',
+  )
 })
 
 test('a failed background project refresh preserves the open draft and offers local retry', async () => {

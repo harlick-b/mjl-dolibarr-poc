@@ -75,7 +75,7 @@ test('an approved Activity exposes its guarded Fiche download on mobile', async 
   })
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/activities/activity-1')
+  await page.goto('/planning/activities/activity-1')
   const action = page.getByRole('button', {
     name: 'Fiche récapitulative',
   })

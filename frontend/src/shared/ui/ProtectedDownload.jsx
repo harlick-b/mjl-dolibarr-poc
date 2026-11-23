@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useAPI } from '@/shared/api/RestClientProvider'
+import { deliverBlobDownload } from '@/shared/lib/download'
 import { Button } from './button'
 
 export function ProtectedDownload({
@@ -44,14 +45,7 @@ export function ProtectedDownload({
       scopeSignal: requestScope,
     }) => {
       if (deliverySignal.aborted || requestScope?.aborted) return
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = filename
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+      deliverBlobDownload({ blob, filename })
     },
   })
   return (

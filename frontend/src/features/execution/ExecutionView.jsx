@@ -1,4 +1,3 @@
-import { Urls } from '@/app/urls'
 import { ActivityExplorerFilters } from '@/shared/ui/ActivityExplorerFilters'
 import { strings as filterText } from '@/locales/fr/ListFilters'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
@@ -31,12 +30,15 @@ import {
   formatExactPercentage,
 } from '@/shared/lib/format'
 import { cursorFrom } from '@/shared/lib/pagination'
+import { activityLocation } from '@/shared/lib/activity-navigation'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { AgentNames } from '@/shared/ui/AgentNames'
 import { FileSelection } from '@/shared/ui/FileSelection'
 import { Pagination } from '@/shared/ui/Pagination'
+import { CorrectionNotice } from '@/shared/ui/CorrectionNotice'
+import { useScopedPagination } from '@/shared/hooks/useScopedPagination'
 import {
   FinancialCancellationForm,
   FinancialDecisionHistory,
@@ -48,6 +50,20 @@ import {
 
 function cursorPath(path, cursor) {
   return cursor ? `${path}?cursor=${encodeURIComponent(cursor)}` : path
+}
+
+function activeCorrection(request) {
+  if (request?.state !== 'returned') return null
+  const decision = [...(request.decisions || [])]
+    .reverse()
+    .find((entry) => entry.outcome === 'returned' && entry.reason)
+  return decision
+    ? {
+        ...decision,
+        actor_name: decision.actor_name,
+        actor_role: decision.actor_role,
+      }
+    : null
 }
 
 function submitFinancialRequest(mutate, path, body, file) {
@@ -81,36 +97,10 @@ function submitFinancialRequest(mutate, path, body, file) {
   })
 }
 
-const administrativeStates = {
-  submitted: 'À prévalider',
-  prevalidated: 'À valider',
-  returned: 'À corriger',
-  approved: 'Approuvée',
-  cancelled: 'Annulée',
-}
-
-const closureBlockerLabels = {
-  planning_not_approved:
-    'L’Activité doit être approuvée sans demande en cours.',
-  execution_ineligible: 'Les tâches approuvées ne peuvent pas être vérifiées.',
-  execution_incomplete:
-    'Toutes les tâches doivent être terminées et chiffrées.',
-  execution_history_unverified: 'L’historique de réalisation est incomplet.',
-  spending_ineligible: 'Le total final des dépenses ne peut pas être réglé.',
-  disbursement_not_settled: 'Le décaissement demandé doit être approuvé.',
-  virement_not_settled: 'Le virement demandé doit être approuvé.',
-  virement_confirmation_required: 'Le virement externe doit être confirmé.',
-  reversement_not_settled: 'Le reversement exact doit être enregistré.',
-  financial_insufficiency_unresolved:
-    'Les dépenses dépassent le montant approuvé.',
-  zero_spending_not_approved: 'La déclaration sans dépense doit être validée.',
-}
+const administrativeStates = strings.administrativeStates
 
 function closureBlockerLabel(blocker) {
-  return (
-    closureBlockerLabels[blocker] ||
-    'Une étape administrative reste à terminer.'
-  )
+  return strings.closureBlockers[blocker] || strings.closureBlockers.fallback
 }
 
 function administrativeStateClass(state) {
@@ -362,6 +352,18 @@ function ExecutionWorkspace({
   const [reversementFile, setReversementFile] = useState(null)
   const [reversementUploadError, setReversementUploadError] = useState(null)
   const [uploadPending, setUploadPending] = useState(false)
+  const [cursors, setCursors] = useState({
+    funding: '',
+    finance: '',
+    zeroSpending: '',
+    virement: '',
+    reversement: '',
+  })
+  const moveCursor = (key, link, path) =>
+    setCursors((current) => ({
+      ...current,
+      [key]: cursorFrom(link, path),
+    }))
   const financeSection = section !== 'realization'
   const uploadController = useRef(null)
   const generation = useRef(0)
@@ -381,10 +383,10 @@ function ExecutionWorkspace({
     ...executionQuery(
       api,
       session.user.id,
-      ['funding', params.activityId, search.fundingCursor],
+      ['funding', params.activityId, cursors.funding],
       cursorPath(
         `/activities/${params.activityId}/funding-requests`,
-        search.fundingCursor,
+        cursors.funding,
       ),
       onDenied,
     ),
@@ -395,42 +397,48 @@ function ExecutionWorkspace({
     ...executionQuery(
       api,
       session.user.id,
-      ['finance', params.activityId, search.financeCursor],
+      [
+        'finance',
+        params.activityId,
+        financeSection ? cursors.finance : undefined,
+      ],
       cursorPath(
         `/activities/${params.activityId}/disbursement-requests`,
-        search.financeCursor,
+        financeSection ? cursors.finance : undefined,
       ),
       onDenied,
     ),
-    enabled:
-      financeSection && screen === 'detail' && Boolean(params.activityId),
+    enabled: screen === 'detail' && Boolean(params.activityId),
   })
   const zeroSpending = useQuery({
     ...executionQuery(
       api,
       session.user.id,
-      ['zero-spending', params.activityId, search.zeroSpendingCursor],
+      [
+        'zero-spending',
+        params.activityId,
+        financeSection ? cursors.zeroSpending : undefined,
+      ],
       cursorPath(
         `/activities/${params.activityId}/zero-spending-declarations`,
-        search.zeroSpendingCursor,
+        financeSection ? cursors.zeroSpending : undefined,
       ),
       onDenied,
     ),
     enabled:
-      financeSection &&
       screen === 'detail' &&
       Boolean(params.activityId) &&
-      detail.data?.works_completed &&
-      detail.data?.spending_total === '0',
+      (section === 'realization' ||
+        (detail.data?.works_completed && detail.data?.spending_total === '0')),
   })
   const virements = useQuery({
     ...executionQuery(
       api,
       session.user.id,
-      ['virements', params.activityId, search.virementCursor],
+      ['virements', params.activityId, cursors.virement],
       cursorPath(
         `/activities/${params.activityId}/virement-requests`,
-        search.virementCursor,
+        cursors.virement,
       ),
       onDenied,
     ),
@@ -462,11 +470,11 @@ function ExecutionWorkspace({
         'reversement-history',
         params.activityId,
         reversementRequestId,
-        search.reversementCursor,
+        cursors.reversement,
       ],
       cursorPath(
         `/activities/${params.activityId}/virement-requests/${reversementRequestId}/reversement/history`,
-        search.reversementCursor,
+        cursors.reversement,
       ),
       onDenied,
     ),
@@ -482,9 +490,11 @@ function ExecutionWorkspace({
       .filter((key) => search[key])
       .map((key) => [key, search[key]]),
   )
+  const listScope = `${params.ptaId || ''}?${new URLSearchParams(filters)}`
+  const [listCursor, setListCursor] = useScopedPagination(listScope, '')
   const listParams = new URLSearchParams({
     ...filters,
-    ...(search.cursor ? { cursor: search.cursor } : {}),
+    ...(listCursor ? { cursor: listCursor } : {}),
   }).toString()
   const list = useQuery({
     ...executionQuery(
@@ -554,7 +564,7 @@ function ExecutionWorkspace({
         client.invalidateQueries({ queryKey: ['audit-history'] }),
       ])
       setError('')
-      toast.success('Réalisation enregistrée.')
+      toast.success(strings.executionSaved)
     },
     onError: async (problem) => {
       if (problem.name === 'AbortError') return
@@ -624,12 +634,12 @@ function ExecutionWorkspace({
       ].includes(variables.path)
       toast.success(
         variables.path === '/closure'
-          ? 'Activité clôturée.'
+          ? strings.activityClosed
           : submittedDisbursement
-            ? 'Demande de décaissement envoyée.'
+            ? strings.disbursementSent
             : submittedVirement
-              ? 'Demande de virement envoyée.'
-              : 'Suivi financier mis à jour.',
+              ? strings.virementSent
+              : strings.financeUpdated,
       )
     },
     onError: async (problem, variables) => {
@@ -652,7 +662,7 @@ function ExecutionWorkspace({
           ? strings.assignmentRequired
           : variables.path === '/zero-spending-declarations' &&
               problem.status === 422
-            ? 'Déclaration refusée. Vérifiez le motif saisi.'
+            ? strings.zeroSpendingRejected
             : problem.message,
       )
     },
@@ -720,17 +730,13 @@ function ExecutionWorkspace({
         <ExecutionList
           ptaId={params.ptaId}
           filters={filters}
-          onFilterChange={(values) =>
-            navigate({ search: { ...search, ...values, cursor: '' } })
-          }
+          onFilterChange={(values) => {
+            setListCursor('')
+            return navigate({ search: { ...search, ...values } })
+          }}
           result={list.data}
           onPage={(link) =>
-            navigate({
-              search: (current) => ({
-                ...current,
-                cursor: cursorFrom(link, `/ptas/${params.ptaId}/execution`),
-              }),
-            })
+            setListCursor(cursorFrom(link, `/ptas/${params.ptaId}/execution`))
           }
         />
       </>
@@ -750,37 +756,25 @@ function ExecutionWorkspace({
         finance={finance.data}
         funding={funding.data}
         onFundingPage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              fundingCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/funding-requests`,
-              ),
-            }),
-          })
+          moveCursor(
+            'funding',
+            link,
+            `/activities/${params.activityId}/funding-requests`,
+          )
         }
         onFinancePage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              financeCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/disbursement-requests`,
-              ),
-            }),
-          })
+          moveCursor(
+            'finance',
+            link,
+            `/activities/${params.activityId}/disbursement-requests`,
+          )
         }
         onVirementPage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              virementCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/virement-requests`,
-              ),
-            }),
-          })
+          moveCursor(
+            'virement',
+            link,
+            `/activities/${params.activityId}/virement-requests`,
+          )
         }
         zeroSpending={zeroSpending.data}
         fundingBusy={funding.isFetching}
@@ -791,8 +785,8 @@ function ExecutionWorkspace({
         selectedVirement={selectedVirement.data}
         reversementHistory={reversementHistory.data}
         role={session.user.role}
-        financeHistoryPage={Boolean(search.financeCursor)}
-        virementHistoryPage={Boolean(search.virementCursor)}
+        financeHistoryPage={Boolean(cursors.finance)}
+        virementHistoryPage={Boolean(cursors.virement)}
         error={error}
         clearError={() => setError('')}
         pending={
@@ -897,26 +891,18 @@ function ExecutionWorkspace({
         reversementUploadError={reversementUploadError}
         setReversementUploadError={setReversementUploadError}
         onZeroSpendingPage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              zeroSpendingCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/zero-spending-declarations`,
-              ),
-            }),
-          })
+          moveCursor(
+            'zeroSpending',
+            link,
+            `/activities/${params.activityId}/zero-spending-declarations`,
+          )
         }
         onReversementPage={(link) =>
-          navigate({
-            search: (current) => ({
-              ...current,
-              reversementCursor: cursorFrom(
-                link,
-                `/activities/${params.activityId}/virement-requests/${reversementRequestId}/reversement/history`,
-              ),
-            }),
-          })
+          moveCursor(
+            'reversement',
+            link,
+            `/activities/${params.activityId}/virement-requests/${reversementRequestId}/reversement/history`,
+          )
         }
       />
     </>
@@ -1013,9 +999,7 @@ export function ExecutionList({
                   <td className="min-w-0 px-3 py-3">
                     <Link
                       className="block break-words font-medium text-primary"
-                      to={Urls.activity}
-                      params={{ activityId: row.id }}
-                      search={{ tab: 'realization', origin: 'execution' }}
+                      {...activityLocation(row, 'realization')}
                       title={row.name}
                     >
                       {row.name}
@@ -1084,11 +1068,7 @@ export function ExecutionList({
                       size="sm"
                       className="min-w-24 whitespace-nowrap"
                     >
-                      <Link
-                        to={Urls.activity}
-                        params={{ activityId: row.id }}
-                        search={{ tab: 'realization', origin: 'execution' }}
-                      >
+                      <Link {...activityLocation(row, 'realization')}>
                         {strings.followUp}
                       </Link>
                     </Button>
@@ -1161,6 +1141,10 @@ function FinancialRequestTableRow({
         : request.drawer === 'zero'
           ? strings.zeroSpendingDeclaration
           : strings.disbursementRequest
+  const correction =
+    !result?.previous && result?.data?.[0]?.id === request.id
+      ? activeCorrection(request)
+      : null
   return (
     <>
       <tr className="border-b border-border last:border-0">
@@ -1206,6 +1190,11 @@ function FinancialRequestTableRow({
             size="standard"
           >
             <div className="p-6 [&>[data-ui='planning-card']]:rounded-none [&>[data-ui='planning-card']]:border-0 [&>[data-ui='planning-card']]:bg-transparent [&>[data-ui='planning-card']]:p-0 [&>[data-ui='planning-card']]:shadow-none">
+              <CorrectionNotice
+                title={strings.returnedRequestTitle}
+                correction={correction}
+                className="mb-5"
+              />
               {error && (
                 <p
                   role="alert"
@@ -1223,6 +1212,7 @@ function FinancialRequestTableRow({
                   pending={pending}
                   mutate={mutate}
                   onCancel={close}
+                  activeCorrectionId={correction?.id}
                 />
               ) : request.drawer === 'disbursement' ? (
                 <DisbursementSection
@@ -1236,6 +1226,7 @@ function FinancialRequestTableRow({
                   pending={pending}
                   mutate={mutate}
                   onCancel={close}
+                  activeCorrectionId={correction?.id}
                 />
               ) : request.drawer === 'virement' ? (
                 <VirementSection
@@ -1249,6 +1240,7 @@ function FinancialRequestTableRow({
                   pending={pending}
                   mutate={mutate}
                   onCancel={close}
+                  activeCorrectionId={correction?.id}
                 />
               ) : (
                 <ZeroSpendingSection
@@ -1260,6 +1252,7 @@ function FinancialRequestTableRow({
                   pending={pending}
                   mutate={mutate}
                   onCancel={close}
+                  activeCorrectionId={correction?.id}
                 />
               )}
             </div>
@@ -1345,9 +1338,18 @@ function ExecutionDetail({
     selectedVirement,
     virementHistoryPage,
   )
-  const validationLabel =
-    strings.realizationValidationStates[detail.realization_status] ||
-    strings.realizationValidationStates.not_started
+  const realizationRequest = [finance?.data?.[0], zeroSpending?.data?.[0]]
+    .filter(Boolean)
+    .sort((left, right) =>
+      `${right.submitted_at}:${right.id}`.localeCompare(
+        `${left.submitted_at}:${left.id}`,
+      ),
+    )[0]
+  const realizationCorrection = activeCorrection(realizationRequest)
+  const validationLabel = realizationCorrection
+    ? strings.correctionState
+    : strings.realizationValidationStates[detail.realization_status] ||
+      strings.realizationValidationStates.not_started
   const incompleteTasks = tasks.filter((task) => !task.execution_completed)
   const readinessGroups = [
     {
@@ -1455,6 +1457,12 @@ function ExecutionDetail({
   }
   return (
     <section className="grid gap-6">
+      {section === 'realization' && (
+        <CorrectionNotice
+          title={strings.returnedRealizationTitle}
+          correction={realizationCorrection}
+        />
+      )}
       {error && (
         <p role="alert" className="border-l-4 border-l-danger p-3 bg-white">
           {error}
@@ -1525,7 +1533,7 @@ function ExecutionDetail({
             />
             <section className="border-t border-border px-6 py-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <h2>Validation de la réalisation</h2>
+                <h2>{strings.realizationValidation}</h2>
                 <span className="text-sm text-muted-foreground">
                   {validationLabel}
                 </span>
@@ -1581,9 +1589,7 @@ function ExecutionDetail({
                         dépense est requise.
                       </span>
                       <Link
-                        to={Urls.activity}
-                        params={{ activityId: detail.id }}
-                        search={(current) => ({ ...current, tab: 'finance' })}
+                        {...activityLocation(detail, 'finance')}
                         className="font-medium text-primary hover:underline"
                       >
                         Consulter la demande
@@ -1607,7 +1613,7 @@ function ExecutionDetail({
           className="gap-0 overflow-hidden p-0"
         >
           <header className="border-b border-border px-6 py-5">
-            <h2 id="financial-situation-title">Situation financière</h2>
+            <h2 id="financial-situation-title">{strings.financialSituation}</h2>
           </header>
           <dl
             className={`grid gap-6 px-6 py-5 max-[760px]:grid-cols-2 max-[480px]:grid-cols-1 ${
@@ -1617,7 +1623,9 @@ function ExecutionDetail({
             }`}
           >
             <div>
-              <dt className="text-xs text-muted-foreground">Montant prévu</dt>
+              <dt className="text-xs text-muted-foreground">
+                {strings.plannedAmount}
+              </dt>
               <dd className="mt-1 font-semibold text-navy">
                 {formatXof(detail.approved_allocation)}
               </dd>
@@ -1667,7 +1675,7 @@ function ExecutionDetail({
             {unusedBalance !== null && (
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Solde non utilisé
+                  {strings.unusedFinancialBalance}
                 </dt>
                 <dd className="mt-1 font-semibold text-navy">
                   {formatXof(String(unusedBalance))}
@@ -1677,9 +1685,13 @@ function ExecutionDetail({
           </dl>
           {financialVariance !== null && (
             <div className="mx-6 flex flex-wrap items-center gap-5 border-y border-border py-4 text-xs">
-              <span className="text-muted-foreground">Écart financier</span>
+              <span className="text-muted-foreground">
+                {strings.financialDifference}
+              </span>
               <strong className="font-semibold text-navy">
-                Dépassement de {formatXof(String(financialVariance))}
+                {strings.formatString(strings.overspending, {
+                  amount: formatXof(String(financialVariance)),
+                })}
               </strong>
             </div>
           )}
@@ -1693,7 +1705,7 @@ function ExecutionDetail({
           >
             <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
               <h2 id="administrative-title" className="font-semibold text-navy">
-                Demandes financières
+                {strings.financialRequests}
               </h2>
               {newFinancialRequest && (
                 <Button
@@ -1714,13 +1726,15 @@ function ExecutionDetail({
                 <table className="w-full min-w-180 text-left text-[0.8125rem]">
                   <thead className="border-b border-border bg-background">
                     <tr>
-                      <th className="p-3 font-medium">Demande / date</th>
-                      <th className="p-3 text-right font-medium">
-                        Montant total
-                      </th>
-                      <th className="p-3 font-medium">Statut</th>
                       <th className="p-3 font-medium">
-                        <span className="sr-only">Action</span>
+                        {strings.requestAndDate}
+                      </th>
+                      <th className="p-3 text-right font-medium">
+                        {strings.totalAmount}
+                      </th>
+                      <th className="p-3 font-medium">{strings.status}</th>
+                      <th className="p-3 font-medium">
+                        <span className="sr-only">{strings.action}</span>
                       </th>
                     </tr>
                   </thead>
@@ -1985,20 +1999,20 @@ function ExecutionDetail({
               ))}
             <AdministrativeStep
               key={`closure:${Boolean(detail.closure)}:${detail.allowed_actions?.includes('close')}`}
-              title="Clôture de l’activité"
+              title={strings.activityClosure}
               description={
                 detail.closure
-                  ? 'Confirmer que l’activité et son règlement sont terminés.'
+                  ? strings.closureConfirmation
                   : detail.works_completed && detail.closure_blockers?.length
                     ? closureBlockerLabel(detail.closure_blockers[0])
                     : detail.works_completed
-                      ? 'Confirmer que l’activité et son règlement sont terminés.'
+                      ? strings.closureConfirmation
                       : strings.finishRealization
               }
               completed={Boolean(detail.closure)}
               actionLabel={
                 !detail.closure && detail.allowed_actions?.includes('close')
-                  ? 'Clôturer l’activité'
+                  ? strings.closeActivity
                   : null
               }
             >
@@ -2031,17 +2045,13 @@ function ZeroSpendingSection({
   pending,
   mutate,
   onCancel,
+  activeCorrectionId,
 }) {
   const draftBasis = useRef(null)
   if (!result) return fallback
   const declarations = result.data
   const active = current || declarations.find((row) => row.state !== 'returned')
-  const stateLabels = {
-    submitted: 'Soumise au Superviseur',
-    prevalidated: 'Prévalidée, en attente du Validateur',
-    returned: 'Retournée pour correction',
-    approved: 'Validée',
-  }
+  const stateLabels = strings.zeroSpendingStates
   const version = active?.activity_version || detail.version
   const captureDraftBasis = () => {
     draftBasis.current ??= {
@@ -2062,21 +2072,19 @@ function ZeroSpendingSection({
       <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
         <div>
           <p className="text-primary text-xs font-bold tracking-[0.08em] uppercase">
-            Clôture sans dépense
+            {strings.closureWithoutSpending}
           </p>
-          <h2 id="zero-spending-title">Déclaration de dépense nulle</h2>
+          <h2 id="zero-spending-title">{strings.zeroSpendingTitle}</h2>
         </div>
         {active && <strong>{stateLabels[active.state]}</strong>}
       </div>
-      <p>
-        Confirmez pourquoi toutes les tâches ont été réalisées sans dépense.
-        Cette déclaration remplace le parcours de décaissement uniquement après
-        la validation du Superviseur et du Validateur.
-      </p>
+      <p>{strings.zeroSpendingExplanation}</p>
       {active ? (
         <>
           <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-            Motif : {active.reason}
+            {strings.formatString(strings.reasonValue, {
+              reason: active.reason,
+            })}
           </p>
           <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {active.decisions.map((decision) => (
@@ -2087,7 +2095,9 @@ function ZeroSpendingSection({
                     : 'Validateur'}{' '}
                   · {stateLabels[decision.outcome] || decision.outcome}
                 </strong>
-                {decision.reason && <p>{decision.reason}</p>}
+                {decision.reason && decision.id !== activeCorrectionId && (
+                  <p>{decision.reason}</p>
+                )}
               </li>
             ))}
           </ol>
@@ -2185,11 +2195,11 @@ function ZeroSpendingSection({
           </div>
         </BusinessForm>
       ) : (
-        <p>Aucune déclaration sans dépense n’est en attente.</p>
+        <p>{strings.noPendingZeroSpending}</p>
       )}
       {declarations.some((row) => row.state === 'returned') && (
         <details>
-          <summary>Déclarations retournées</summary>
+          <summary>{strings.returnedDeclarations}</summary>
           <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
             {declarations
               .filter((row) => row.state === 'returned')
@@ -2209,7 +2219,7 @@ function ClosureSection({ detail, pending, mutate, onCancel }) {
   const blockers = detail.closure_blockers || []
   return (
     <section aria-labelledby="closure-title" className="grid gap-5">
-      <h2 id="closure-title">Clôture de l’activité</h2>
+      <h2 id="closure-title">{strings.activityClosure}</h2>
       {detail.closure ? (
         <>
           <p className="border-l-4 border-l-primary bg-background py-3 px-4">
@@ -2217,7 +2227,7 @@ function ClosureSection({ detail, pending, mutate, onCancel }) {
           </p>
           <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
             <div>
-              <dt>Clôturée le</dt>
+              <dt>{strings.closedOn}</dt>
               <dd>
                 <time dateTime={detail.closure.closed_at}>
                   {formatDateTime(detail.closure.closed_at)}
@@ -2225,16 +2235,12 @@ function ClosureSection({ detail, pending, mutate, onCancel }) {
               </dd>
             </div>
             <div>
-              <dt>Clôturée par</dt>
+              <dt>{strings.closedBy}</dt>
               <dd>{detail.closure.closed_by_name}</dd>
             </div>
           </dl>
           <Button asChild variant="link" className="w-fit px-0">
-            <Link
-              to={Urls.activity}
-              params={{ activityId: detail.id }}
-              search={(current) => ({ ...current, tab: 'history' })}
-            >
+            <Link {...activityLocation(detail, 'history')}>
               Ouvrir l’historique
             </Link>
           </Button>
@@ -2291,6 +2297,7 @@ function DisbursementSection({
   pending,
   mutate,
   onCancel,
+  activeCorrectionId,
 }) {
   if (!result) return fallback
   const requests = result.data
@@ -2345,6 +2352,7 @@ function DisbursementSection({
           <FinancialDecisionHistory
             decisions={current.decisions}
             stateLabels={stateLabels}
+            hiddenReasonDecisionId={activeCorrectionId}
           />
           <FinancialDecisionForm
             request={current}
@@ -2395,7 +2403,7 @@ function DisbursementSection({
             }}
           />
         ) : (
-          <p>Consultez l’état et l’historique de l’autorisation.</p>
+          <p>{strings.authorizationHelp}</p>
         ))}
     </Panel>
   )
@@ -2419,13 +2427,13 @@ function ExternalTransferStep({
       title={strings.externalTransfer}
       modalLabel={
         current.current_confirmation
-          ? 'Modifier le virement effectué'
-          : 'Confirmer le virement effectué'
+          ? strings.editVirement
+          : strings.confirmVirement
       }
       description={
         current.current_confirmation
           ? `${formatXof(current.current_confirmation.amount)} · ${formatDate(current.current_confirmation.transfer_date)}`
-          : 'Non enregistré'
+          : strings.notRecorded
       }
       completed={Boolean(current.current_confirmation)}
       error={error}
@@ -2433,10 +2441,10 @@ function ExternalTransferStep({
       actionLabel={
         current.current_confirmation
           ? current.allowed_actions.includes('correct_confirmation')
-            ? 'Modifier le virement'
-            : 'Consulter le virement'
+            ? strings.editVirementAction
+            : strings.consultVirement
           : current.allowed_actions.includes('declare_confirmation')
-            ? 'Enregistrer le virement'
+            ? strings.recordVirement
             : null
       }
     >
@@ -2446,45 +2454,50 @@ function ExternalTransferStep({
             <div className="grid gap-1">
               <h3 className="text-sm font-medium text-navy">{activityName}</h3>
               <p className="text-sm text-muted-foreground">
-                Déclaration d’un virement effectué hors de MJL.
+                {strings.externalVirementDeclaration}
               </p>
             </div>
           )}
           {current.current_confirmation && (
-            <section aria-label="Virement enregistré" className="grid gap-4">
+            <section
+              aria-label={strings.recordedVirement}
+              className="grid gap-4"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-navy">{activityName}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Virement externe déclaré
+                    {strings.declaredExternalVirement}
                   </p>
                 </div>
                 <StatusBadge className="bg-success-badge text-success">
-                  Enregistré
+                  {strings.recorded}
                 </StatusBadge>
               </div>
               <div className="rounded-card border border-border bg-background p-4">
-                <p className="text-xs text-muted-foreground">Montant viré</p>
+                <p className="text-xs text-muted-foreground">
+                  {strings.transferredAmount}
+                </p>
                 <p className="mt-1 text-xl font-semibold text-navy">
                   {formatXof(current.current_confirmation.amount)}
                 </p>
               </div>
               <dl className="grid gap-3 sm:grid-cols-2 [&_dd]:mt-1 [&_dd]:font-medium [&_dd]:text-navy [&_dt]:text-xs [&_dt]:text-muted-foreground">
                 <div className="rounded-card border border-border p-4">
-                  <dt>Date effective</dt>
+                  <dt>{strings.effectiveDate}</dt>
                   <dd>
                     {formatDate(current.current_confirmation.transfer_date)}
                   </dd>
                 </div>
                 <div className="min-w-0 rounded-card border border-border p-4">
-                  <dt>Référence ou commentaire</dt>
+                  <dt>{strings.referenceOrComment}</dt>
                   <dd className="break-words">
-                    {current.current_confirmation.note || 'Aucune référence'}
+                    {current.current_confirmation.note || strings.noReference}
                   </dd>
                 </div>
               </dl>
               <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-                Enregistré le{' '}
+                {strings.recordedOn}{' '}
                 <time
                   className="font-medium text-foreground"
                   dateTime={current.current_confirmation.recorded_at}
@@ -2520,7 +2533,7 @@ function ExternalTransferStep({
               }}
             >
               <label>
-                Montant réellement viré (F CFA)
+                {strings.actuallyTransferredAmount}
                 <input
                   value={formatXof(current.amount).replace(' F CFA', '')}
                   readOnly
@@ -2528,9 +2541,9 @@ function ExternalTransferStep({
                 />
               </label>
               <label>
-                Date effective du virement *
+                {strings.virementEffectiveDateRequired}
                 <DatePicker
-                  label="Date effective du virement"
+                  label={strings.virementEffectiveDate}
                   value={transferDate}
                   onChange={setTransferDate}
                 />
@@ -2619,7 +2632,7 @@ function ReversementStep({
     >
       {(close) => (
         <>
-          <h3 id="reversement-title">Reversement au Partenaire</h3>
+          <h3 id="reversement-title">{strings.partnerReversement}</h3>
           {reversementUploadError && reversementFile && (
             <div
               role="alert"
@@ -2627,10 +2640,10 @@ function ReversementStep({
             >
               <p>
                 {reversementUploadError === 'uncertain'
-                  ? 'Le reversement est enregistré. La réponse de l’ajout est incertaine : vérifiez les pièces justificatives avant tout nouvel essai.'
+                  ? strings.reversementUploadUncertain
                   : reversementUploadError === 'forbidden'
-                    ? 'Le reversement est enregistré, mais votre affectation ou la clôture ne permet plus d’ajouter cette pièce.'
-                    : 'Le reversement est enregistré, mais la pièce n’a pas pu être ajoutée.'}
+                    ? strings.reversementUploadForbidden
+                    : strings.reversementUploadFailed}
               </p>
               {reversementUploadError === 'retry' && (
                 <Button
@@ -2642,7 +2655,7 @@ function ReversementStep({
                       await uploadReversementEvidence(reversementFile)
                       setReversementUploadError(null)
                       setReversementFile(null)
-                      toast.success('Pièce justificative ajoutée.')
+                      toast.success(strings.evidenceAdded)
                       close()
                     } catch (error) {
                       if (error.name === 'AbortError') return
@@ -2656,36 +2669,37 @@ function ReversementStep({
                     }
                   }}
                 >
-                  Réessayer l’ajout de la pièce
+                  {strings.retryEvidence}
                 </Button>
               )}
             </div>
           )}
           <p>
-            Montant autorisé :{' '}
-            <strong>{formatXof(detail.approved_allocation)}</strong> · montant
-            dépensé : <strong>{formatXof(detail.spending_total)}</strong>.
+            {strings.formatString(strings.reversementBasis, {
+              authorized: formatXof(detail.approved_allocation),
+              spent: formatXof(detail.spending_total),
+            })}
           </p>
           <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
             <div>
-              <dt>Montant à reverser</dt>
+              <dt>{strings.amountToReverse}</dt>
               <dd>{formatXof(current.reversement.required_amount)}</dd>
             </div>
             <div>
-              <dt>Montant déclaré reversé</dt>
+              <dt>{strings.declaredReversement}</dt>
               <dd>{formatXof(current.reversement.declared_amount)}</dd>
             </div>
           </dl>
           {current.reversement.status === 'not_required' && (
             <p className="border-l-4 border-l-primary bg-background py-3 px-4">
-              <CheckCircle2 size={16} aria-hidden="true" /> Aucun reversement
-              requis.
+              <CheckCircle2 size={16} aria-hidden="true" />{' '}
+              {strings.noReversementRequired}
             </p>
           )}
           {current.reversement.current_declaration && (
             <dl className="grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] [&_dd]:mt-1 [&_dd]:mr-0 [&_dd]:mb-0 [&_dd]:ml-0 [&_dd]:text-lg [&_dd]:font-semibold [&_dd]:text-navy">
               <div>
-                <dt>Date effective du reversement</dt>
+                <dt>{strings.reversementEffectiveDate}</dt>
                 <dd>
                   {formatDate(
                     current.reversement.current_declaration.return_date,
@@ -2693,11 +2707,11 @@ function ReversementStep({
                 </dd>
               </div>
               <div>
-                <dt>Référence ou commentaire</dt>
+                <dt>{strings.referenceOrComment}</dt>
                 <dd>{current.reversement.current_declaration.note || '—'}</dd>
               </div>
               <div>
-                <dt>Enregistré le</dt>
+                <dt>{strings.recordedOn}</dt>
                 <dd>
                   <time
                     dateTime={
@@ -2746,9 +2760,7 @@ function ReversementStep({
                 if (reversementFile) {
                   try {
                     await uploadReversementEvidence(reversementFile)
-                    toast.success(
-                      'Reversement et pièce justificative enregistrés.',
-                    )
+                    toast.success(strings.reversementWithEvidenceSaved)
                     setReversementFile(null)
                   } catch (error) {
                     if (error.name === 'AbortError') return
@@ -2772,9 +2784,9 @@ function ReversementStep({
                 </strong>
               </p>
               <div className="grid gap-[6px] text-[0.8125rem] font-medium">
-                <span>Date effective du reversement *</span>
+                <span>{strings.reversementDateRequired}</span>
                 <DatePicker
-                  label="Date effective du reversement"
+                  label={strings.reversementEffectiveDate}
                   value={reversementDate}
                   onChange={setReversementDate}
                 />
@@ -2785,7 +2797,7 @@ function ReversementStep({
                 />
               </div>
               <label>
-                Référence ou commentaire du reversement
+                {strings.reversementNote}
                 <textarea
                   name="reversement_note"
                   maxLength="4000"
@@ -2796,7 +2808,7 @@ function ReversementStep({
               </label>
               {current.reversement.current_declaration && (
                 <label>
-                  Motif de la correction du reversement *
+                  {strings.reversementCorrectionReason}
                   <textarea
                     name="reversement_reason"
                     required
@@ -2805,7 +2817,7 @@ function ReversementStep({
                 </label>
               )}
               <FileSelection
-                label="Pièce justificative du reversement"
+                label={strings.reversementAttachment}
                 chooseLabel={strings.chooseFile}
                 emptyLabel={strings.noFileSelected}
                 file={reversementFile}
@@ -2816,20 +2828,20 @@ function ReversementStep({
                 }}
               />
               <label className="grid grid-cols-[auto_1fr] items-center gap-2 [&_input]:size-5">
-                <input type="checkbox" required /> Je confirme que ce montant
-                exact a été reversé au Partenaire. *
+                <input type="checkbox" required />{' '}
+                {strings.exactReversementConfirmation}
               </label>
               <div data-ui="modal-actions">
                 <Button type="button" variant="outline" onClick={close}>
-                  Annuler
+                  {strings.cancel}
                 </Button>
                 <Button
                   type="submit"
                   disabled={!reversementDate || pending || !navigator.onLine}
                 >
                   {current.reversement.current_declaration
-                    ? 'Corriger le reversement'
-                    : 'Enregistrer le reversement'}
+                    ? strings.correctReversement
+                    : strings.saveReversement}
                 </Button>
               </div>
             </BusinessForm>
@@ -2837,15 +2849,17 @@ function ReversementStep({
           {reversementHistory?.data?.length > 0 && (
             <details>
               <summary>
-                Historique des reversements ({reversementHistory.count})
+                {strings.formatString(strings.reversementHistory, {
+                  count: reversementHistory.count,
+                })}
               </summary>
               <ol className="border-l border-l-border grid gap-4 ml-2 pl-6 [&_li::marker]:text-primary [&_button]:text-primary [&_button]:font-semibold [&_button]:text-left [&_button]:underline">
                 {reversementHistory.data.map((entry) => (
                   <li key={entry.id}>
                     <strong>
                       {entry.correction_reason
-                        ? 'Reversement corrigé'
-                        : 'Reversement initial'}
+                        ? strings.correctedReversement
+                        : strings.initialReversement}
                     </strong>
                     <p>
                       {formatXof(entry.returned_amount)} · Date effective :{' '}
@@ -2865,7 +2879,7 @@ function ReversementStep({
                 ))}
               </ol>
               <Pagination
-                label="Pagination des déclarations de reversement"
+                label={strings.reversementPagination}
                 canPrevious={Boolean(reversementHistory.previous)}
                 canNext={Boolean(reversementHistory.next)}
                 onPrevious={() =>
@@ -2892,6 +2906,7 @@ function VirementSection({
   pending,
   mutate,
   onCancel,
+  activeCorrectionId,
 }) {
   if (!result) return fallback
   const context = detail.virement_context
@@ -2944,6 +2959,7 @@ function VirementSection({
           <FinancialDecisionHistory
             decisions={current.decisions}
             stateLabels={stateLabels}
+            hiddenReasonDecisionId={activeCorrectionId}
           />
           <FinancialDecisionForm
             request={current}
@@ -3005,6 +3021,7 @@ function FundingSection({
   mutate,
   fallback,
   onCancel,
+  activeCorrectionId,
 }) {
   if (!result) return fallback
   const basis = result.pending[0]
@@ -3064,6 +3081,7 @@ function FundingSection({
           states={states}
           onCancel={onCancel}
           onSuccess={onCancel}
+          activeCorrectionId={activeCorrectionId}
         />
       )}
     </Panel>
@@ -3079,6 +3097,7 @@ function FundingRequest({
   states,
   onCancel,
   onSuccess,
+  activeCorrectionId,
 }) {
   const [reason, setReason] = useState('')
   const [editVersion, setEditVersion] = useState(version)
@@ -3130,7 +3149,9 @@ function FundingRequest({
               {' '}
               · {formatDateTime(decision.decided_at)}
             </time>
-            {decision.reason && <p>{decision.reason}</p>}
+            {decision.reason && decision.id !== activeCorrectionId && (
+              <p>{decision.reason}</p>
+            )}
           </li>
         ))}
       </ol>

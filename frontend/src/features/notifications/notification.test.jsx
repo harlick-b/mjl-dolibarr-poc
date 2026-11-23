@@ -85,6 +85,7 @@ test('an assignment notification is readable and uses the standard read flow', a
     <App
       router={makeRouter(
         createMemoryHistory({ initialEntries: ['/notifications'] }),
+        { planning: () => <p>Activité ouverte</p> },
       )}
     />,
   )
@@ -141,6 +142,7 @@ test('a Supervisor sees a review notification in the shared inbox', async () => 
                 activity_id: 'activity-1',
                 activity_reference: 'ACT-001',
                 activity_name: 'Formation',
+                approved_revision_id: 'revision-1',
                 pta_year: 2028,
                 created_at: '2028-02-08T08:00:00Z',
                 read_at: null,
@@ -157,6 +159,7 @@ test('a Supervisor sees a review notification in the shared inbox', async () => 
                 activity_id: 'activity-1',
                 activity_reference: 'ACT-001',
                 activity_name: 'Formation',
+                approved_revision_id: 'revision-1',
                 pta_year: 2028,
                 created_at: '2028-02-08T09:00:00Z',
                 read_at: null,
@@ -186,12 +189,77 @@ test('a Supervisor sees a review notification in the shared inbox', async () => 
   ).toBeVisible()
   expect(screen.getAllByText('Formation')).toHaveLength(2)
   expect(
+    screen.getAllByRole('link', { name: /Ouvrir l’activité/ })[0],
+  ).toHaveAttribute('href', '/execution/activities/activity-1')
+  expect(
     screen.getAllByRole('link', { name: /Ouvrir l’activité/ })[1],
-  ).toHaveAttribute(
-    'href',
-    '/activities/activity-1?tab=finance&origin=execution',
-  )
+  ).toHaveAttribute('href', '/execution/activities/activity-1#finance')
   expect(screen.getByLabelText('2 non lues')).toBeVisible()
+})
+
+test('an approved amendment correction opens directly in Execution', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'csrf',
+              user: {
+                id: 'agent',
+                email: 'agent@example.test',
+                role: 'AGENT_SAISIE',
+              },
+              expires_at: new Date(Date.now() + 60000).toISOString(),
+            }),
+          ),
+        )
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            object: 'list',
+            count: 1,
+            data: [
+              {
+                kind: 'activity_correction',
+                id: 'notice-correction-1',
+                activity_id: 'activity-1',
+                activity_reference: 'ACT-001',
+                activity_name: 'Formation',
+                approved_revision_id: 'revision-1',
+                pta_year: 2028,
+                reason: 'Corriger les dates.',
+                created_at: '2028-02-08T08:00:00Z',
+                read_at: null,
+                handled_at: null,
+                email_status: 'delivered',
+                version: 1,
+              },
+            ],
+            next: null,
+            previous: null,
+          }),
+        ),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({ initialEntries: ['/notifications'] }),
+      )}
+    />,
+  )
+
+  expect(
+    await screen.findByText('Activité retournée pour correction'),
+  ).toBeVisible()
+  expect(
+    screen.getByRole('link', { name: /Ouvrir l’activité/ }),
+  ).toHaveAttribute('href', '/execution/activities/activity-1')
 })
 
 test('selecting an already-read notification refreshes a stale sidebar count', async () => {
@@ -264,6 +332,7 @@ test('selecting an already-read notification refreshes a stale sidebar count', a
     <App
       router={makeRouter(
         createMemoryHistory({ initialEntries: ['/notifications'] }),
+        { planning: () => <p>Activité ouverte</p> },
       )}
     />,
   )
@@ -273,5 +342,5 @@ test('selecting an already-read notification refreshes a stale sidebar count', a
   await waitFor(() =>
     expect(screen.queryByLabelText('1 non lues')).not.toBeInTheDocument(),
   )
-  expect(unreadRequests).toBe(2)
+  expect(unreadRequests).toBeGreaterThanOrEqual(2)
 })

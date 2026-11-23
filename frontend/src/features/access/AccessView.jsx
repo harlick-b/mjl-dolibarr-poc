@@ -30,6 +30,7 @@ import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { toast } from 'sonner'
 import { Pagination as SharedPagination } from '@/shared/ui/Pagination'
 import { requiredFieldFeedbackHandlers } from '@/shared/ui/required-field-feedback'
+import { useScopedPagination } from '@/shared/hooks/useScopedPagination'
 
 const states = {
   pending: 'En attente',
@@ -150,6 +151,11 @@ function Accounts({ session, onDenied = () => {}, checking }) {
   const [notice, setNotice] = useState('')
   const [dialogError, setDialogError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const pageScope = new URLSearchParams({
+    q: search.q || '',
+    role: search.role || '',
+  }).toString()
+  const [page, setPage] = useScopedPagination(pageScope, 1)
   const alive = useRef(true)
   const controller = useRef(null)
   const mutation = useMutation({
@@ -181,7 +187,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
     onDenied()
   }
   const userFilters = {
-    page: search.page,
+    page,
     size: 20,
     ...(search.q ? { q: search.q } : {}),
     ...(search.role ? { role: search.role } : {}),
@@ -210,8 +216,10 @@ function Accounts({ session, onDenied = () => {}, checking }) {
       }
     },
   })
-  const changeSearch = (values) =>
-    navigate({ to: Urls.accessUsers, search: { ...search, ...values } })
+  const changeSearch = ({ page: nextPage, ...values }) => {
+    if (nextPage) setPage(nextPage)
+    return navigate({ to: Urls.accessUsers, search: { ...search, ...values } })
+  }
   const clearDialogMessages = () => {
     setNotice('')
     setDialogError('')
@@ -535,7 +543,7 @@ function Accounts({ session, onDenied = () => {}, checking }) {
           </section>
           <Pagination
             query={users}
-            page={search.page}
+            page={page}
             change={(page) => changeSearch({ page })}
             label="Comptes"
           />

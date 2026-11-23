@@ -177,10 +177,10 @@ test('uncertain upload from an older page can be reconciled inside the native di
     'AGENT_SAISIE',
     true,
   )
-  await page.goto('/activities/state-activity?documentCursor=older')
+  await page.goto('/planning/activities/state-activity')
   await page.getByRole('link', { name: 'Pièces justificatives' }).click()
   await page.getByRole('button', { name: 'Ajouter une pièce' }).click()
-  await expect(page).not.toHaveURL(/documentCursor=older/)
+  await expect(page).toHaveURL('/planning/activities/state-activity#files')
   const dialog = page.getByRole('dialog', { name: 'Ajouter une pièce' })
   await dialog.getByLabel('Choisir un fichier PDF, JPEG ou PNG').setInputFiles({
     name: 'preuve.png',
@@ -245,7 +245,7 @@ test('a waiting application update replaces an unsaved screen and opens login', 
     'AGENT_SAISIE',
     true,
   )
-  await page.goto('/activities/state-activity')
+  await page.goto('/planning/activities/state-activity')
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready
   })

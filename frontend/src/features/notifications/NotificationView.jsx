@@ -8,7 +8,7 @@ import { PageLoading, RefreshIndicator } from '@/shared/ui/PageLoading'
 import { strings } from '@/locales/fr/NotificationView'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { Pagination } from '@/shared/ui/Pagination'
+import { activityLocation } from '@/shared/lib/activity-navigation'
 
 const notificationRoot = ['notifications']
 
@@ -31,6 +32,12 @@ function financialRequestLabel(kind) {
 
 function notificationPresentation(item) {
   const financial = item.kind.startsWith('financial_')
+  const activity = {
+    id: item.activity_id,
+    approved_revision_id: item.approved_revision_id,
+  }
+  const activityDestination = (section = 'programming') =>
+    activityLocation(activity, section)
   if (item.kind === 'assignment')
     return {
       title: strings.assignmentTitle,
@@ -39,7 +46,7 @@ function notificationPresentation(item) {
         pta: item.pta_name,
         project: item.project_name,
       }),
-      target: Urls.activity,
+      location: activityDestination(),
     }
   if (item.kind === 'activity_review')
     return {
@@ -51,7 +58,7 @@ function notificationPresentation(item) {
         item.stage === 'supervisor'
           ? strings.reviewSupervisor
           : strings.reviewValidator,
-      target: Urls.activity,
+      location: activityDestination(),
     }
   if (item.kind === 'activity_correction')
     return {
@@ -59,13 +66,13 @@ function notificationPresentation(item) {
       description: strings.formatString(strings.correction, {
         reason: item.reason,
       }),
-      target: Urls.activity,
+      location: activityDestination(),
     }
   if (item.kind === 'activity_approved')
     return {
       title: strings.approvedTitle,
       description: strings.approved,
-      target: Urls.activity,
+      location: activityDestination(),
     }
   if (financial) {
     const request = financialRequestLabel(item.request_kind)
@@ -81,8 +88,7 @@ function notificationPresentation(item) {
             : strings.financialReviewValidator,
           { request },
         ),
-        target: Urls.activity,
-        search: { tab: 'finance', origin: 'execution' },
+        location: activityDestination('finance'),
       }
     if (item.kind === 'financial_correction')
       return {
@@ -91,14 +97,12 @@ function notificationPresentation(item) {
           request,
           reason: item.reason,
         }),
-        target: Urls.activity,
-        search: { tab: 'finance', origin: 'execution' },
+        location: activityDestination('finance'),
       }
     return {
       title: strings.financialApprovedTitle,
       description: strings.formatString(strings.financialApproved, { request }),
-      target: Urls.activity,
-      search: { tab: 'finance', origin: 'execution' },
+      location: activityDestination('finance'),
     }
   }
   return {
@@ -106,7 +110,7 @@ function notificationPresentation(item) {
     description: strings.formatString(strings.deadline, {
       date: formatDate(item.planned_end),
     }),
-    target: Urls.activity,
+    location: activityDestination(),
   }
 }
 
@@ -129,11 +133,9 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
   const { api } = useAPI()
   const client = useQueryClient()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false })
   const generation = useRef(0)
   const mutationController = useRef(null)
-  const [localCursor, setLocalCursor] = useState('')
-  const cursor = embedded ? localCursor : search.cursor || ''
+  const [cursor, setCursor] = useState('')
   const path = `/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`
   const notifications = useQuery({
     queryKey: [...notificationRoot, session.user.id, 'all', cursor, 60],
@@ -195,13 +197,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
       </RetryableError>
     )
 
-  const move = (link) =>
-    embedded
-      ? setLocalCursor(cursorFrom(link, Urls.notifications))
-      : navigate({
-          to: Urls.notifications,
-          search: { cursor: cursorFrom(link, Urls.notifications) },
-        })
+  const move = (link) => setCursor(cursorFrom(link, Urls.notifications))
   return (
     <section className="grid gap-6" aria-busy={notifications.isFetching}>
       {!embedded && (
@@ -265,9 +261,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                     </span>
                     <Link
                       className="inline-flex items-center gap-2 font-medium text-primary"
-                      to={presentation.target}
-                      params={{ activityId: item.activity_id }}
-                      search={presentation.search}
+                      {...presentation.location}
                       aria-disabled={read.isPending}
                       onClick={async (event) => {
                         if (item.read_at) {
@@ -284,9 +278,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                           await read.mutateAsync(item)
                           if (current !== generation.current) return
                           await navigate({
-                            to: presentation.target,
-                            params: { activityId: item.activity_id },
-                            search: presentation.search,
+                            ...presentation.location,
                           })
                           onSelect?.()
                         } catch (error) {
@@ -296,9 +288,7 @@ function NotificationWorkspace({ session, onDenied, embedded, onSelect }) {
                           ) {
                             toast.error(strings.readFailed)
                             await navigate({
-                              to: presentation.target,
-                              params: { activityId: item.activity_id },
-                              search: presentation.search,
+                              ...presentation.location,
                             })
                             onSelect?.()
                           }

@@ -165,9 +165,14 @@ implementation boundaries; [README](../README.md) owns setup.
   predecessor evidence. Hash-based schema guards need canonical predecessor
   definitions restored on downgrade; identify columns by stable names, not
   physical positions left behind by drop/re-add.
-- Cursor APIs need Router-owned pagination in their screens. Detail histories
-  require independent cursors. Bounded reference lists must expose remaining
-  choices rather than silently limiting users to the first page.
+- Cursor APIs need page-owned pagination state and independent cursors for each
+  list or detail history. Browser URLs keep applied filters and deliberate
+  shareable views, never opaque cursors. Bounded reference lists must expose
+  remaining choices rather than silently limiting users to the first page.
+- When a resource belongs to a module because of durable business state, derive
+  its canonical detail route and sidebar from that state. Do not preserve the
+  list of origin in query parameters or hidden Router state; correct stale manual
+  links after the authorized resource loads.
 - A row limit does not bound memory if queries load large snapshots, binary files
   or every revision. Select only needed fields and latest relevant history in SQL.
   Metadata-only views must defer binary columns; inspect SQL as well as responses.

@@ -97,7 +97,7 @@ test('an assigned Agent submits an Activity for Supervisor review', async ({
   await acceptInvitation(supervisor, 'submission-supervisor@example.test')
 
   clearSharedIpBucket()
-  await agent.goto(`/activities/${activity.body.id}`)
+  await agent.goto(`/planning/activities/${activity.body.id}`)
   await agent
     .getByRole('button', { name: 'Soumettre pour prévalidation' })
     .click()
@@ -113,7 +113,7 @@ test('an assigned Agent submits an Activity for Supervisor review', async ({
   ).toHaveCount(0)
 
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.body.id}`)
+  await supervisor.goto(`/planning/activities/${activity.body.id}`)
   await expect(
     supervisor.getByRole('heading', { name: 'Activité soumission connectée' }),
   ).toBeVisible()

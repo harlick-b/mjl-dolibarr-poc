@@ -29,11 +29,7 @@ export function ApplicationSidebar({ user }) {
   const location = useLocation()
   const path = location.pathname
   const policy = authorization(user ? { state: 'verified', user } : null)
-  const active =
-    /^\/activities\/[\w-]+$/.test(path) &&
-    location.search?.origin === 'execution'
-      ? 'execution'
-      : pageForPath(path)?.id
+  const active = pageForPath(path)?.id
   return (
     <aside
       data-ui="access-sidebar"

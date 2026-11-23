@@ -42,12 +42,7 @@ import {
   useAccess,
 } from '@/features/auth/session/access-verification'
 import { useEffect, useRef } from 'react'
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearch,
-} from '@tanstack/react-router'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { redirect } from '@tanstack/react-router'
 import { HealthView } from '@/features/health/HealthView'
 import {
@@ -110,22 +105,6 @@ function WorkspaceShell() {
         </WorkspaceMain>
       </div>
     </WorkspaceFrame>
-  )
-}
-
-function LegacyExecutionActivityRedirect() {
-  const params = useParams({ strict: false })
-  const search = useSearch({ strict: false })
-  const pageSearch = { ...search }
-  delete pageSearch.financeRequest
-  delete pageSearch.virementRequest
-  return (
-    <Navigate
-      to={Urls.activity}
-      params={{ activityId: params.activityId }}
-      search={{ ...pageSearch, tab: 'realization', origin: 'execution' }}
-      replace
-    />
   )
 }
 
@@ -213,24 +192,15 @@ function Shell() {
     return <ServiceUnavailableLogin />
   if (logout.busy || logout.error || access.reason === 'logout')
     return <LogoutScreen />
-  const protectedPath =
-    Boolean(pageForPath(path)) ||
-    path === Urls.identity ||
-    path === Urls.accessUsers ||
-    path === Urls.dashboard ||
-    path === Urls.profile ||
-    path === Urls.planning ||
-    path === Urls.execution ||
-    path.startsWith(Urls.partner) ||
-    path === Urls.notifications ||
-    path === Urls.history ||
-    path === Urls.partners ||
-    path.startsWith(Urls.projects) ||
-    path.startsWith(Urls.activities) ||
-    path.startsWith(Urls.execution)
+  const protectedPath = Boolean(pageForPath(path))
   const knownPath =
     protectedPath ||
     [Urls.home, Urls.health, Urls.logout, ...AuthUrls].includes(path)
+  if (
+    !knownPath &&
+    (access.status === 'unknown' || access.status === 'checking')
+  )
+    return <AccessVerificationState />
   if (!knownPath && access.status === 'verified')
     return (
       <ProtectedGate path={path}>
@@ -267,19 +237,7 @@ function Shell() {
       content
     )
   }
-  if (
-    path === Urls.dashboard ||
-    path === Urls.profile ||
-    path === Urls.planning ||
-    path === Urls.execution ||
-    path.startsWith(Urls.partner) ||
-    path === Urls.notifications ||
-    path === Urls.history ||
-    path === Urls.partners ||
-    path.startsWith(Urls.projects) ||
-    path.startsWith(Urls.activities) ||
-    path.startsWith(Urls.execution)
-  )
+  if (protectedPath)
     return (
       <ProtectedGate path={path}>
         <WorkspaceShell />
@@ -288,7 +246,7 @@ function Shell() {
   return access.status === 'verified' ? (
     <WorkspaceShell />
   ) : (
-    <AuthFrame title={strings.notFound}>
+    <AuthFrame title={strings.notFound} loading>
       <Outlet />
     </AuthFrame>
   )
@@ -329,17 +287,6 @@ function NotFound() {
       <p>{strings.notFoundMessage}</p>
     </FallbackState>
   )
-}
-
-function validatedFinanceSearch(search) {
-  return {
-    financeCursor: String(search.financeCursor || '').slice(0, 512),
-    fundingCursor: String(search.fundingCursor || '').slice(0, 512),
-    zeroSpendingCursor: String(search.zeroSpendingCursor || '').slice(0, 512),
-    virementCursor: String(search.virementCursor || '').slice(0, 512),
-    confirmationCursor: String(search.confirmationCursor || '').slice(0, 512),
-    reversementCursor: String(search.reversementCursor || '').slice(0, 512),
-  }
 }
 
 export function makeRouter(history, componentOverrides = {}) {
@@ -408,14 +355,8 @@ export function makeRouter(history, componentOverrides = {}) {
             )
           : {}),
         project: String(search.project || '').slice(0, 36),
-        pta: String(search.pta || '').slice(0, 36),
-        projectCursor: String(search.projectCursor || '').slice(0, 512),
-        ptaCursor: String(search.ptaCursor || '').slice(0, 512),
-        cursor: String(search.cursor || '').slice(0, 512),
-        ...(Number.isInteger(Number(search.year)) &&
-        Number(search.year) >= 2000 &&
-        Number(search.year) <= 2200
-          ? { year: Number(search.year) }
+        ...(screen !== 'planning'
+          ? { pta: String(search.pta || '').slice(0, 36) }
           : {}),
       }),
       component: () => <WorkspaceOverview screen={screen} />,
@@ -495,7 +436,6 @@ export function makeRouter(history, componentOverrides = {}) {
         stripSearchParams({
           q: '',
           role: '',
-          page: 1,
         }),
       ],
     },
@@ -511,12 +451,6 @@ export function makeRouter(history, componentOverrides = {}) {
       ].includes(search.role)
         ? search.role
         : '',
-      page:
-        Number.isInteger(Number(search.page)) &&
-        Number(search.page) > 0 &&
-        Number(search.page) <= 1000000
-          ? Number(search.page)
-          : 1,
     }),
   })
   const partnerPortal = createRoute({
@@ -532,10 +466,6 @@ export function makeRouter(history, componentOverrides = {}) {
       project: String(search.project || '').slice(0, 36),
       pta: String(search.pta || '').slice(0, 36),
       activity: String(search.activity || '').slice(0, 36),
-      projectCursor: String(search.projectCursor || '').slice(0, 512),
-      ptaCursor: String(search.ptaCursor || '').slice(0, 512),
-      activityCursor: String(search.activityCursor || '').slice(0, 512),
-      documentCursor: String(search.documentCursor || '').slice(0, 512),
     }),
   })
   const partnerExports = createRoute({
@@ -550,11 +480,6 @@ export function makeRouter(history, componentOverrides = {}) {
     validateSearch: (search) => ({
       project: String(search.project || '').slice(0, 36),
       pta: String(search.pta || '').slice(0, 36),
-      activity: String(search.activity || '').slice(0, 36),
-      projectCursor: String(search.projectCursor || '').slice(0, 512),
-      ptaCursor: String(search.ptaCursor || '').slice(0, 512),
-      activityCursor: String(search.activityCursor || '').slice(0, 512),
-      documentCursor: String(search.documentCursor || '').slice(0, 512),
     }),
   })
   const planningRoutes = [
@@ -562,63 +487,55 @@ export function makeRouter(history, componentOverrides = {}) {
     [Urls.projects, 'projects'],
     [Urls.pta, 'pta'],
     [Urls.newActivity, 'activityNew'],
-    [Urls.activity, 'activity'],
+    [Urls.planningActivity, 'activity'],
+    [Urls.executionActivity, 'activity'],
   ].map(([path, screen]) =>
     createRoute({
       getParentRoute: () => root,
       path,
-      component: componentOverrides.planning
-        ? componentOverrides.planning
-        : () => <PlanningView screen={screen} />,
+      component:
+        path === Urls.executionActivity && componentOverrides.execution
+          ? () => componentOverrides.execution('detail')
+          : componentOverrides.planning
+            ? componentOverrides.planning
+            : () => <PlanningView screen={screen} />,
       errorComponent: RouteFailure,
       pendingComponent: () => <PlanningLoading screen={screen} />,
       pendingMs: 0,
       pendingMinMs: 0,
       gcTime: 0,
-      validateSearch: (search) => ({
-        partnerCursor: String(search.partnerCursor || '').slice(0, 512),
-        typeCursor: String(search.typeCursor || '').slice(0, 512),
-        projectCursor: String(search.projectCursor || '').slice(0, 512),
-        q: String(search.q || '').slice(0, 200),
-        state: String(search.state || '').slice(0, 32),
-        review: search.review === 'mine' ? 'mine' : 'all',
-        agent: String(search.agent || '').slice(0, 36),
-        mine: search.mine === 'all' ? 'all' : 'own',
-        from: String(search.from || '').slice(0, 10),
-        to: String(search.to || '').slice(0, 10),
-        view: search.view === 'calendar' ? 'calendar' : 'table',
-        month:
-          Number.isInteger(Number(search.month)) &&
-          Number(search.month) >= 1 &&
-          Number(search.month) <= 12
-            ? Number(search.month)
-            : undefined,
-        tab: ['realization', 'finance', 'history', 'files'].includes(search.tab)
-          ? search.tab
-          : 'programming',
-        origin: search.origin === 'execution' ? 'execution' : 'planning',
-        activityCursor: String(search.activityCursor || '').slice(0, 512),
-        agentCursor: String(search.agentCursor || '').slice(0, 512),
-        revisionCursor: String(search.revisionCursor || '').slice(0, 512),
-        documentCursor: String(search.documentCursor || '').slice(0, 512),
-        revision: String(search.revision || '').slice(0, 36),
-        amendment: String(search.amendment || '').slice(0, 36),
-        ...validatedFinanceSearch(search),
-      }),
+      search:
+        screen === 'pta'
+          ? undefined
+          : { middlewares: [stripSearchParams(true)] },
+      validateSearch: (search) =>
+        screen === 'pta'
+          ? {
+              q: String(search.q || '').slice(0, 200),
+              state: String(search.state || '').slice(0, 32),
+              review: search.review === 'mine' ? 'mine' : '',
+              agent: String(search.agent || '').slice(0, 36),
+              from: String(search.from || '').slice(0, 10),
+              to: String(search.to || '').slice(0, 10),
+              view: search.view === 'calendar' ? 'calendar' : '',
+              month:
+                search.view === 'calendar' &&
+                Number.isInteger(Number(search.month)) &&
+                Number(search.month) >= 1 &&
+                Number(search.month) <= 12
+                  ? Number(search.month)
+                  : undefined,
+            }
+          : {},
     }),
   )
-  const executionRoutes = [
-    [Urls.executionPta, 'list'],
-    [Urls.executionActivity, 'detail'],
-  ].map(([path, screen]) =>
+  const executionRoutes = [[Urls.executionPta, 'list']].map(([path, screen]) =>
     createRoute({
       getParentRoute: () => root,
       path,
       component: componentOverrides.execution
         ? () => componentOverrides.execution(screen)
-        : screen === 'detail'
-          ? LegacyExecutionActivityRedirect
-          : () => <ExecutionView screen={screen} />,
+        : () => <ExecutionView screen={screen} />,
       errorComponent: RouteFailure,
       pendingComponent: () => <ExecutionLoading screen={screen} />,
       pendingMs: 0,
@@ -627,15 +544,15 @@ export function makeRouter(history, componentOverrides = {}) {
       validateSearch: (search) => ({
         ...(screen === 'list'
           ? Object.fromEntries(
-              ['q', 'state', 'agent'].map((key) => [
+              ['q', 'state', 'agent', 'from', 'to'].map((key) => [
                 key,
-                String(search[key] || '').slice(0, key === 'q' ? 200 : 36),
+                String(search[key] || '').slice(
+                  0,
+                  key === 'q' ? 200 : ['from', 'to'].includes(key) ? 10 : 36,
+                ),
               ]),
             )
           : {}),
-        cursor: String(search.cursor || '').slice(0, 512),
-        historyCursor: String(search.historyCursor || '').slice(0, 512),
-        ...validatedFinanceSearch(search),
       }),
     }),
   )
@@ -648,9 +565,7 @@ export function makeRouter(history, componentOverrides = {}) {
     pendingMs: 0,
     pendingMinMs: 0,
     gcTime: 0,
-    validateSearch: (search) => ({
-      cursor: String(search.cursor || '').slice(0, 512),
-    }),
+    validateSearch: () => ({}),
   })
   const historyRoute = createRoute({
     getParentRoute: () => root,
@@ -663,7 +578,6 @@ export function makeRouter(history, componentOverrides = {}) {
     search: {
       middlewares: [
         stripSearchParams({
-          cursor: '',
           q: '',
           actor: '',
           activity: '',
@@ -676,7 +590,6 @@ export function makeRouter(history, componentOverrides = {}) {
     },
     gcTime: 0,
     validateSearch: (search) => ({
-      cursor: String(search.cursor || '').slice(0, 512),
       ...Object.fromEntries(
         [
           'q',

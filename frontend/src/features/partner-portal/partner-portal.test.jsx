@@ -702,7 +702,7 @@ test('an initially offline portal never requests private portfolio data', async 
   ).toBe(true)
 })
 
-test('portal pagination follows server cursors through router search', async () => {
+test('portal pagination follows server cursors without changing the URL', async () => {
   const fetch = vi.fn((url) => {
     const path = String(url)
     if (path.includes('/auth/session'))
@@ -741,9 +741,9 @@ test('portal pagination follows server cursors through router search', async () 
             ],
             next: second
               ? null
-              : 'http://localhost/api/v1/partner-portal/projects?limit=60&cursor=second',
+              : '/api/v1/partner-portal/projects?limit=60&cursor=second',
             previous: second
-              ? 'http://localhost/api/v1/partner-portal/projects?limit=60'
+              ? '/api/v1/partner-portal/projects?limit=60'
               : null,
           }),
         ),
@@ -762,11 +762,10 @@ test('portal pagination follows server cursors through router search', async () 
     )
   })
   vi.stubGlobal('fetch', fetch)
-  render(
-    <App
-      router={makeRouter(createMemoryHistory({ initialEntries: ['/partner'] }))}
-    />,
+  const router = makeRouter(
+    createMemoryHistory({ initialEntries: ['/partner'] }),
   )
+  render(<App router={router} />)
   expect(await screen.findByText('Projet Un')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
   expect(await screen.findByText('Projet Deux')).toBeVisible()
@@ -776,6 +775,262 @@ test('portal pagination follows server cursors through router search', async () 
     ).toBe(true),
   )
   expect(screen.getByRole('button', { name: 'Précédent' })).toBeEnabled()
+  expect(router.state.location.search).toEqual({})
+
+  fireEvent.click(screen.getByRole('button', { name: 'Précédent' }))
+  expect(await screen.findByText('Projet Un')).toBeVisible()
+  await act(async () => {
+    await router.navigate({
+      to: '/partner',
+      search: { project: 'project-2' },
+    })
+  })
+  expect(await screen.findByText('Projet Deux')).toBeVisible()
+  expect(router.state.location.search).toEqual({ project: 'project-2' })
+})
+
+test.each([403, 503])(
+  'a copied Partner selection reports resolver failure %s instead of an empty portfolio',
+  async (status) => {
+    const list = (data, next = null) => ({
+      object: 'list',
+      count: data.length,
+      data,
+      next,
+      previous: null,
+    })
+    let failedResolverRequested = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const path = String(url)
+        if (path.includes('/auth/session'))
+          return new Response(
+            JSON.stringify({
+              state: 'verified',
+              csrf: 'fixture',
+              user: {
+                id: 'partner-user',
+                email: 'partner@example.test',
+                role: 'PARTENAIRE',
+              },
+              expires_at: new Date(Date.now() + 60_000).toISOString(),
+            }),
+          )
+        if (path.endsWith('/partner-portal/profile'))
+          return new Response(
+            JSON.stringify({ id: 'partner', name: 'Partenaire' }),
+          )
+        const request = new URL(path, window.location.origin)
+        if (
+          request.pathname.endsWith('/partner-portal/projects') &&
+          request.searchParams.get('cursor') === 'next'
+        ) {
+          failedResolverRequested = true
+          return new Response('{}', { status })
+        }
+        if (path.includes('/partner-portal/projects?'))
+          return new Response(
+            JSON.stringify(
+              list(
+                [{ id: 'project-1', name: 'Projet Un' }],
+                '/api/v1/partner-portal/projects?limit=60&cursor=next',
+              ),
+            ),
+          )
+        return new Response(JSON.stringify(list([])))
+      }),
+    )
+    const router = makeRouter(
+      createMemoryHistory({
+        initialEntries: ['/partner?project=project-copied'],
+      }),
+    )
+    render(<App router={router} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'momentanément indisponible',
+    )
+    expect(failedResolverRequested).toBe(true)
+    expect(screen.queryByText('Aucun projet')).not.toBeInTheDocument()
+    if (status === 403) {
+      const cachedPortalQueries = router.options.context.queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ['partner-portal', 'partner-user'] })
+      const failedResolver = cachedPortalQueries.find(
+        (query) => query.queryKey[2] === 'selected-project',
+      )
+      expect(failedResolver?.state.status).toBe('error')
+      expect(
+        cachedPortalQueries
+          .filter((query) => query !== failedResolver)
+          .every((query) => query.state.data == null),
+      ).toBe(true)
+    }
+  },
+)
+
+test('a copied Partner selection keeps loading until its first page resolves', async () => {
+  let resolveProjects
+  let markProjectsRequested
+  const projects = new Promise((resolve) => {
+    resolveProjects = resolve
+  })
+  const projectsRequested = new Promise((resolve) => {
+    markProjectsRequested = resolve
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url) => {
+      const path = String(url)
+      if (path.includes('/auth/session'))
+        return new Response(
+          JSON.stringify({
+            state: 'verified',
+            csrf: 'fixture',
+            user: {
+              id: 'partner-user',
+              email: 'partner@example.test',
+              role: 'PARTENAIRE',
+            },
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+          }),
+        )
+      if (path.endsWith('/partner-portal/profile'))
+        return new Response(
+          JSON.stringify({ id: 'partner', name: 'Partenaire' }),
+        )
+      if (path.includes('/partner-portal/projects?')) {
+        markProjectsRequested()
+        return projects
+      }
+      return new Response(
+        JSON.stringify({ data: [], next: null, previous: null }),
+      )
+    }),
+  )
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: ['/partner?project=project-copied'],
+        }),
+      )}
+    />,
+  )
+
+  await projectsRequested
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+  await act(async () => {
+    resolveProjects(
+      new Response(
+        JSON.stringify({
+          data: [{ id: 'project-copied', name: 'Projet copié' }],
+          next: null,
+          previous: null,
+        }),
+      ),
+    )
+  })
+  expect(await screen.findByText('Projet copié')).toBeVisible()
+})
+
+test('a copied Partner URL cannot display an Activity from another PTA', async () => {
+  const page = (data) => ({
+    object: 'list',
+    count: data.length,
+    data,
+    next: null,
+    previous: null,
+  })
+  const fetch = vi.fn(async (url) => {
+    const path = String(url)
+    if (path.includes('/auth/session'))
+      return new Response(
+        JSON.stringify({
+          state: 'verified',
+          csrf: 'fixture',
+          user: {
+            id: 'partner-user',
+            email: 'partner@example.test',
+            role: 'PARTENAIRE',
+          },
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      )
+    if (path.endsWith('/partner-portal/profile'))
+      return new Response(JSON.stringify({ id: 'partner', name: 'Partenaire' }))
+    if (path.includes('/partner-portal/projects?'))
+      return new Response(
+        JSON.stringify(
+          page([
+            {
+              id: 'project-1',
+              reference: 'PRJ-001',
+              name: 'Projet Un',
+              state: 'active',
+            },
+          ]),
+        ),
+      )
+    if (path.includes('/projects/project-1/ptas?'))
+      return new Response(
+        JSON.stringify(
+          page([
+            {
+              id: 'pta-1',
+              year: 2027,
+              metrics: {
+                physical: { closed_activities: 0, approved_activities: 1 },
+                financial: {
+                  closed_spending: '0',
+                  approved_allocation: '100',
+                },
+              },
+            },
+          ]),
+        ),
+      )
+    if (path.includes('/ptas/pta-1/activities?'))
+      return new Response(
+        JSON.stringify(
+          page([
+            {
+              id: 'local-activity',
+              reference: 'ACT-001',
+              name: 'Activité locale',
+              planned_start: '2027-01-01',
+              planned_end: '2027-01-31',
+              allocation: '100',
+              state: 'approved',
+            },
+          ]),
+        ),
+      )
+    return new Response(JSON.stringify(page([])))
+  })
+  vi.stubGlobal('fetch', fetch)
+
+  render(
+    <App
+      router={makeRouter(
+        createMemoryHistory({
+          initialEntries: [
+            '/partner?project=project-1&pta=pta-1&activity=foreign-activity',
+          ],
+        }),
+      )}
+    />,
+  )
+
+  expect(await screen.findByText('Activité locale')).toBeVisible()
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.some(([url]) =>
+        String(url).endsWith('/partner-portal/activities/foreign-activity'),
+      ),
+    ).toBe(false),
+  )
 })
 
 test('a verified Partner can enter the portal from the profile sidebar', async () => {

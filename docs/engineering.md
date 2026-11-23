@@ -27,10 +27,11 @@ Domain rules do not depend on HTTP, React or globals. Organize real consumers by
 feature; no empty layers, generic workflow/repository engine, event bus, offline
 database, mutation queue, microservices or speculative infrastructure.
 
-Router owns navigation/search/cursor state. Query owns server data, cache and
-mutations. React state owns temporary forms/dialogs; do not duplicate Query state
-in Context. Components are pure, Hooks ordered, keys stable. Effects synchronize
-external systems with cleanup, not ordinary fetches, prop copies or button actions.
+Router owns navigation and shareable search state. Query owns server data, cache
+and mutations. React state owns local pagination and temporary forms/dialogs; do
+not duplicate Query state in Context. Components are pure, Hooks ordered, keys
+stable. Effects synchronize external systems with cleanup, not ordinary fetches,
+prop copies or button actions.
 Use synchronous SQLAlchemy work outside async event loops; isolate each session.
 
 Readability is a design requirement: use clear names and direct control flow,
@@ -319,9 +320,11 @@ Pagination helpers take the list envelope. Show navigation from next/previous
 presence, not count>limit; disable absent links and controls while transitioning.
 Extract only a validated opaque cursor; reject foreign/malformed links, empty
 cursors or changed filter/order/limit context. Query errors are not empty lists.
-Router cursor callbacks preserve other search fields, return their real callback
-type and support back/forward. Filter/order/limit changes reset cursors; Query keys
-use the same normalized values. Reuse shared helpers rather than per-screen copies.
+List pagination cursors stay in component state and never appear in browser URLs.
+Filter, order, limit and parent-selection changes reset the local cursor; Query
+keys use the same normalized values. Reuse shared helpers rather than per-screen
+copies. Router search belongs only to applied shareable filters and view choices,
+including calendar mode and month; Back/Forward applies to those URL-owned values.
 
 ## Authentication and PWA
 
@@ -441,12 +444,23 @@ label and icon) and role workspace defaults. `ApplicationSidebar` and direct rou
 guards derive from that same catalog. Users is currently the Admin default;
 Dashboard remains the default for the other known roles. Changing a role’s default
 does not require changing its sidebar.
-`navigation.js` selects a permitted
-last page for that user/role, otherwise that default. It retains resource paths in
-memory only and persists only allowlisted top-level destinations in sessionStorage;
-search values, fragments, credentials and form data are never retained. Resource
-access is still checked by the API when returning. Empty search values are stripped
-by the Router root middleware; meaningful filters/cursors remain shareable.
+`navigation.js` selects the last permitted, visible top-level module for that
+user/role, otherwise that role's default. Resource pages, Notifications and
+Profile never replace this preference. An explicit authorized authentication
+`returnTo` still wins. Search values, fragments, credentials and form data are
+never retained.
+
+Route search belongs to each page. Applied list filters are shareable and are
+removed when cleared. Calendar mode and month remain shareable. Pagination
+cursors and page numbers stay in component state while their API cursor remains
+part of the Query key. Activity detail sections use `#realization`, `#finance`,
+`#history` and `#files`; Programming uses the bare Activity URL. An Activity that
+has never received definitive approval uses `/planning/activities/:id`. Once an
+approved baseline exists, its canonical detail URL is
+`/execution/activities/:id`, including during amendments and returned
+corrections. The loaded Activity corrects a manually entered route to that
+canonical module; the sidebar and breadcrumb derive from the resulting pathname.
+There is no generic Activity detail route or hidden entry-source state.
 
 Auth CTAs stay busy through their dependent session check and navigation. Logout
 is coordinated by `LogoutProvider`, outside the protected tree: one page loader

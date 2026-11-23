@@ -20,6 +20,8 @@ import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
 import { ProtectedFilePreview } from '@/shared/ui/ProtectedFilePreview'
 import { Pagination } from '@/shared/ui/Pagination'
+import { cursorFrom, findPaginatedItem } from '@/shared/lib/pagination'
+import { deliverBlobDownload } from '@/shared/lib/download'
 
 const emptyList = { data: [] }
 
@@ -48,21 +50,15 @@ class DownloadGuard {
   }
 }
 
-function cursor(link) {
-  return link
-    ? new URL(link, window.location.origin).searchParams.get('cursor') || ''
-    : ''
-}
-
-function PortalPagination({ page, change, label }) {
+function PortalPagination({ page, change, label, path }) {
   return (
     <Pagination
       className="justify-end mt-3 mb-10"
       label={`Pagination ${label}`}
       canPrevious={Boolean(page?.previous)}
       canNext={Boolean(page?.next)}
-      onPrevious={() => change(cursor(page.previous))}
-      onNext={() => change(cursor(page.next))}
+      onPrevious={() => change(cursorFrom(page.previous, path))}
+      onNext={() => change(cursorFrom(page.next, path))}
     />
   )
 }
@@ -85,6 +81,32 @@ function portalQuery(api, key, path, onDenied, enabled = true) {
   }
 }
 
+function portalSelectionQuery({
+  api,
+  key,
+  path,
+  id,
+  firstPage,
+  onDenied,
+  enabled,
+}) {
+  const queryKey = ['partner-portal', ...key]
+  return {
+    queryKey,
+    queryFn: async ({ signal }) => {
+      try {
+        return await findPaginatedItem({ api, path, id, signal, firstPage })
+      } catch (error) {
+        if ([401, 403, 404].includes(error?.status))
+          onDenied(error.status, queryKey)
+        throw error
+      }
+    },
+    enabled,
+    retry: false,
+  }
+}
+
 export function PartnerPortalView({ screen = 'projects' }) {
   const { api } = useAPI()
   const client = useQueryClient()
@@ -95,6 +117,12 @@ export function PartnerPortalView({ screen = 'projects' }) {
   const permitted = authorization(session.data).can('partner')
   const [downloadGuard] = useState(() => new DownloadGuard())
   const [ficheScope, setFicheScope] = useState(() => new AbortController())
+  const [cursors, setCursors] = useState({
+    projectCursor: '',
+    ptaCursor: '',
+    activityCursor: '',
+    documentCursor: '',
+  })
   useProtectedCleanup(() => downloadGuard.revoke())
   useProtectedCleanup(() => ficheScope.abort())
   const deny = useCallback(
@@ -105,7 +133,18 @@ export function PartnerPortalView({ screen = 'projects' }) {
       if (![403, 404].includes(status) || !queryKey) return
       if (queryKey[2] === 'profile')
         client.setQueriesData({ queryKey: ['partner-portal', user?.id] }, null)
-      else {
+      else if (String(queryKey[2]).startsWith('selected-')) {
+        client.setQueriesData(
+          {
+            queryKey: ['partner-portal', user?.id],
+            predicate: (query) =>
+              !query.queryKey.every(
+                (part, index) => part === queryKey[index],
+              ) || query.queryKey.length !== queryKey.length,
+          },
+          null,
+        )
+      } else {
         client.setQueryData(queryKey, null)
         if (queryKey[2] === 'detail') {
           const documentsKey = [
@@ -127,51 +166,99 @@ export function PartnerPortalView({ screen = 'projects' }) {
   const projects = useQuery(
     portalQuery(
       api,
-      [user?.id, 'projects', search.projectCursor],
+      [user?.id, 'projects', cursors.projectCursor],
       `projects?${new URLSearchParams({
         limit: '60',
-        ...(search.projectCursor ? { cursor: search.projectCursor } : {}),
+        ...(cursors.projectCursor ? { cursor: cursors.projectCursor } : {}),
       })}`,
       deny,
       permitted,
     ),
   )
   const projectRows = projects.data?.data || emptyList.data
-  const selectedProject =
-    projectRows.find((item) => item.id === search.project) || projectRows[0]
+  const projectOnPage = projectRows.find((item) => item.id === search.project)
+  const selectedProjectQuery = useQuery(
+    portalSelectionQuery({
+      api,
+      key: [user?.id, 'selected-project', search.project],
+      path: '/partner-portal/projects',
+      id: search.project,
+      firstPage: cursors.projectCursor ? undefined : projects.data,
+      onDenied: deny,
+      enabled: Boolean(
+        permitted && search.project && projects.data && !projectOnPage,
+      ),
+    }),
+  )
+  const selectedProject = search.project
+    ? projectOnPage || selectedProjectQuery.data
+    : projectRows[0]
   const ptas = useQuery(
     portalQuery(
       api,
-      [user?.id, 'ptas', selectedProject?.id, search.ptaCursor],
+      [user?.id, 'ptas', selectedProject?.id, cursors.ptaCursor],
       `projects/${selectedProject?.id}/ptas?${new URLSearchParams({
         limit: '60',
-        ...(search.ptaCursor ? { cursor: search.ptaCursor } : {}),
+        ...(cursors.ptaCursor ? { cursor: cursors.ptaCursor } : {}),
       })}`,
       deny,
       permitted && Boolean(selectedProject),
     ),
   )
   const ptaRows = ptas.data?.data || emptyList.data
-  const selectedPta =
-    ptaRows.find((item) => item.id === search.pta) || ptaRows[0]
+  const ptaOnPage = ptaRows.find((item) => item.id === search.pta)
+  const selectedPtaQuery = useQuery(
+    portalSelectionQuery({
+      api,
+      key: [user?.id, 'selected-pta', selectedProject?.id, search.pta],
+      path: `/partner-portal/projects/${selectedProject?.id}/ptas`,
+      id: search.pta,
+      firstPage: cursors.ptaCursor ? undefined : ptas.data,
+      onDenied: deny,
+      enabled: Boolean(
+        permitted && selectedProject && search.pta && ptas.data && !ptaOnPage,
+      ),
+    }),
+  )
+  const selectedPta = search.pta
+    ? ptaOnPage || selectedPtaQuery.data
+    : ptaRows[0]
   const activities = useQuery(
     portalQuery(
       api,
-      [user?.id, 'activities', selectedPta?.id, search.activityCursor],
+      [user?.id, 'activities', selectedPta?.id, cursors.activityCursor],
       `ptas/${selectedPta?.id}/activities?${new URLSearchParams({
         limit: '60',
-        ...(search.activityCursor ? { cursor: search.activityCursor } : {}),
+        ...(cursors.activityCursor ? { cursor: cursors.activityCursor } : {}),
       })}`,
       deny,
       permitted && Boolean(selectedPta) && screen !== 'exports',
     ),
   )
   const activityRows = activities.data?.data || emptyList.data
-  const selectedActivityId = activityRows.some(
+  const activityOnPage = activityRows.find(
     (activity) => activity.id === search.activity,
   )
-    ? search.activity
-    : ''
+  const selectedActivityQuery = useQuery(
+    portalSelectionQuery({
+      api,
+      key: [user?.id, 'selected-activity', selectedPta?.id, search.activity],
+      path: `/partner-portal/ptas/${selectedPta?.id}/activities`,
+      id: search.activity,
+      firstPage: cursors.activityCursor ? undefined : activities.data,
+      onDenied: deny,
+      enabled: Boolean(
+        permitted &&
+        selectedPta &&
+        search.activity &&
+        activities.data &&
+        !activityOnPage &&
+        screen !== 'exports',
+      ),
+    }),
+  )
+  const selectedActivityId =
+    activityOnPage?.id || selectedActivityQuery.data?.id || ''
   const detail = useQuery(
     portalQuery(
       api,
@@ -198,14 +285,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
       )
       if (!downloadGuard.current(request.generation))
         throw new DOMException('Stale authorization', 'AbortError')
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = filename
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+      deliverBlobDownload({ blob, filename })
     },
     onError: (error) => {
       if (error?.status === 401) deny(error.status)
@@ -227,36 +307,73 @@ export function PartnerPortalView({ screen = 'projects' }) {
   if (!permitted) return <AccessDeniedState role={user?.role} />
 
   const primaryQueries = [profile, projects]
+  const selectionQueries = [
+    selectedProjectQuery,
+    selectedPtaQuery,
+    selectedActivityQuery,
+  ]
+  const selectionIssue =
+    selectionQueries.find((query) => query.isError) ||
+    (projects.isSuccess &&
+    search.project &&
+    !selectedProject &&
+    selectedProjectQuery.isSuccess
+      ? selectedProjectQuery
+      : null) ||
+    (ptas.isSuccess && search.pta && !selectedPta && selectedPtaQuery.isSuccess
+      ? selectedPtaQuery
+      : null) ||
+    (activities.isSuccess &&
+    search.activity &&
+    !selectedActivityId &&
+    selectedActivityQuery.isSuccess
+      ? selectedActivityQuery
+      : null)
   const changeSearch = (values) => {
     downloadGuard.revoke()
+    const hierarchyChanged = Object.keys(values).some((key) =>
+      [
+        'activity',
+        'project',
+        'pta',
+        'activityCursor',
+        'ptaCursor',
+        'projectCursor',
+      ].includes(key),
+    )
+    const cursorValues = Object.fromEntries(
+      Object.entries(values).filter(([key]) => key.endsWith('Cursor')),
+    )
+    if (Object.keys(cursorValues).length || hierarchyChanged)
+      setCursors((current) => ({
+        ...current,
+        ...(hierarchyChanged ? { documentCursor: '' } : {}),
+        ...cursorValues,
+      }))
+    const routeValues = Object.fromEntries(
+      Object.entries(values).filter(([key]) => !key.endsWith('Cursor')),
+    )
     return navigate({
       to: screen === 'exports' ? Urls.partnerExports : Urls.partner,
       search: {
         ...search,
-        ...(Object.keys(values).some((key) =>
-          [
-            'activity',
-            'project',
-            'pta',
-            'activityCursor',
-            'ptaCursor',
-            'projectCursor',
-          ].includes(key),
-        )
-          ? { documentCursor: '' }
-          : {}),
-        ...values,
+        ...routeValues,
       },
     })
   }
-  if (primaryQueries.some((query) => query.isError))
+  if (primaryQueries.some((query) => query.isError) || selectionIssue)
     return (
       <RetryableError
         page
         onRetry={() =>
           void Promise.all(
-            primaryQueries
-              .filter((query) => query.isError)
+            [...primaryQueries, ...selectionQueries]
+              .filter(
+                (query) =>
+                  query.isError ||
+                  query === selectionIssue ||
+                  query.data == null,
+              )
               .map((query) => query.refetch()),
           )
         }
@@ -264,7 +381,10 @@ export function PartnerPortalView({ screen = 'projects' }) {
         {strings.portfolioUnavailable}
       </RetryableError>
     )
-  if (primaryQueries.some((query) => query.isPending))
+  if (
+    primaryQueries.some((query) => query.isPending) ||
+    (search.project && !projectOnPage && selectedProjectQuery.isFetching)
+  )
     return <PageLoading title={strings.partnerTitle} />
   if (screen === 'exports')
     return (
@@ -293,10 +413,20 @@ export function PartnerPortalView({ screen = 'projects' }) {
                     void changeSearch({
                       project: event.target.value,
                       pta: '',
+                      activity: '',
                       ptaCursor: '',
+                      activityCursor: '',
                     })
                   }
                 >
+                  {selectedProject &&
+                    !projectRows.some(
+                      (row) => row.id === selectedProject.id,
+                    ) && (
+                      <option value={selectedProject.id}>
+                        {selectedProject.name}
+                      </option>
+                    )}
                   {projectRows.map((row) => (
                     <option key={row.id} value={row.id}>
                       {row.name}
@@ -310,9 +440,19 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   <Select
                     value={selectedPta.id}
                     onChange={(event) =>
-                      void changeSearch({ pta: event.target.value })
+                      void changeSearch({
+                        pta: event.target.value,
+                        activity: '',
+                        activityCursor: '',
+                      })
                     }
                   >
+                    {selectedPta &&
+                      !ptaRows.some((row) => row.id === selectedPta.id) && (
+                        <option value={selectedPta.id}>
+                          {selectedPta.year}
+                        </option>
+                      )}
                     {ptaRows.map((row) => (
                       <option key={row.id} value={row.id}>
                         {row.year}
@@ -325,6 +465,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
             <PortalPagination
               page={projects.data}
               label={strings.projectLabel}
+              path="/partner-portal/projects"
               change={(projectCursor) =>
                 changeSearch({
                   projectCursor,
@@ -334,7 +475,8 @@ export function PartnerPortalView({ screen = 'projects' }) {
                 })
               }
             />
-            {ptas.isPending ? (
+            {ptas.isPending ||
+            (search.pta && !ptaOnPage && selectedPtaQuery.isFetching) ? (
               <PageLoading title={strings.exportsTitle} className="min-h-45" />
             ) : ptas.isError ? (
               <RetryableError onRetry={() => void ptas.refetch()}>
@@ -385,6 +527,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
             <PortalPagination
               page={ptas.data}
               label={strings.ptaLabel}
+              path={`/partner-portal/projects/${selectedProject.id}/ptas`}
               change={(ptaCursor) => changeSearch({ ptaCursor, pta: '' })}
             />
           </>
@@ -394,7 +537,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
   return (
     <section className="grid gap-6 [&_[data-ui~='planning-list']_li]:flex [&_[data-ui~='planning-list']_li]:justify-between [&_[data-ui~='planning-list']_li]:gap-6 [&_[data-ui~='planning-list']_div]:grid [&_[data-ui~='planning-list']_div]:gap-1 [&_[data-ui~='planning-list']_small]:text-muted-foreground [&_[data-ui~='planning-list']_span]:text-muted-foreground">
       <Helmet>
-        <title>Espace Partenaire - MJL</title>
+        <title>{strings.pageTitle}</title>
       </Helmet>
       <header
         className="flex justify-between items-center gap-5 flex-wrap [&_h1]:text-navy [&_h1]:font-semibold [&_h1]:text-[1.75rem] [&_nav]:flex [&_nav]:gap-5 max-[641px]:items-start"
@@ -402,18 +545,20 @@ export function PartnerPortalView({ screen = 'projects' }) {
       >
         <div>
           <p className="mt-0 mr-0 mb-[6px] ml-0 text-primary text-[0.8125rem] font-semibold uppercase tracking-[0.04em]">
-            Vue d’ensemble
+            {strings.overview}
           </p>
           <h1>
-            Bonjour,{' '}
-            {!profile.isError && profile.data?.name
-              ? profile.data.name
-              : 'Partenaire'}
+            {strings.formatString(strings.greeting, {
+              name:
+                !profile.isError && profile.data?.name
+                  ? profile.data.name
+                  : strings.defaultPartnerName,
+            })}
           </h1>
-          <p>Suivez vos Projets, PTA et Activités approuvées.</p>
+          <p>{strings.overviewHelp}</p>
         </div>
         <span className="border border-border rounded-full py-[7px] px-3 bg-white text-muted-foreground text-[0.8125rem]">
-          Lecture seule
+          {strings.readOnly}
         </span>
       </header>
       {!projectRows.length && (
@@ -426,12 +571,16 @@ export function PartnerPortalView({ screen = 'projects' }) {
           <Panel as="article">
             <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
               <div>
-                <h2>Mes Projets</h2>
-                <p>{projectRows.length} Projet(s) dans votre portefeuille</p>
+                <h2>{strings.myProjects}</h2>
+                <p>
+                  {strings.formatString(strings.portfolioProjects, {
+                    count: projectRows.length,
+                  })}
+                </p>
               </div>
               {projectRows.length > 1 && (
                 <label>
-                  Projet affiché
+                  {strings.displayedProject}
                   <Select
                     value={selectedProject.id}
                     onChange={(event) => {
@@ -444,6 +593,14 @@ export function PartnerPortalView({ screen = 'projects' }) {
                       })
                     }}
                   >
+                    {selectedProject &&
+                      !projectRows.some(
+                        (project) => project.id === selectedProject.id,
+                      ) && (
+                        <option value={selectedProject.id}>
+                          {selectedProject.name}
+                        </option>
+                      )}
                     {projectRows.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
@@ -455,23 +612,26 @@ export function PartnerPortalView({ screen = 'projects' }) {
             </div>
             <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
               <div>
-                <dt>Référence</dt>
+                <dt>{strings.reference}</dt>
                 <dd>{selectedProject.reference}</dd>
               </div>
               <div>
-                <dt>Projet</dt>
+                <dt>{strings.projectLabel}</dt>
                 <dd>{selectedProject.name}</dd>
               </div>
               <div>
-                <dt>État</dt>
+                <dt>{strings.state}</dt>
                 <dd>
-                  {selectedProject.state === 'closed' ? 'Clôturé' : 'Actif'}
+                  {selectedProject.state === 'closed'
+                    ? strings.closedMasculine
+                    : strings.activeMasculine}
                 </dd>
               </div>
             </dl>
             <PortalPagination
               page={projects.data}
-              label="Projets"
+              label={strings.projectsPagination}
+              path="/partner-portal/projects"
               change={(projectCursor) =>
                 changeSearch({
                   projectCursor,
@@ -488,7 +648,8 @@ export function PartnerPortalView({ screen = 'projects' }) {
             <RetryableError onRetry={() => void ptas.refetch()}>
               {strings.ptasUnavailable}
             </RetryableError>
-          ) : ptas.isPending ? (
+          ) : ptas.isPending ||
+            (search.pta && !ptaOnPage && selectedPtaQuery.isFetching) ? (
             <LoadingPlaceholder
               label={strings.formatString(common.pageLoading, {
                 page: strings.ptaLabel,
@@ -515,14 +676,16 @@ export function PartnerPortalView({ screen = 'projects' }) {
                       <p role="alert">{strings.partnerPtaCsvFailed}</p>
                     )}
                   <p>
-                    {selectedPta.metrics.physical.closed_activities} activité
-                    clôturée sur{' '}
-                    {selectedPta.metrics.physical.approved_activities}
+                    {strings.formatString(strings.closedActivitiesSummary, {
+                      closed: selectedPta.metrics.physical.closed_activities,
+                      approved:
+                        selectedPta.metrics.physical.approved_activities,
+                    })}
                   </p>
                 </div>
                 {ptaRows.length > 1 && (
                   <label>
-                    Année
+                    {strings.year}
                     <Select
                       value={selectedPta.id}
                       onChange={(event) =>
@@ -533,6 +696,12 @@ export function PartnerPortalView({ screen = 'projects' }) {
                         })
                       }
                     >
+                      {selectedPta &&
+                        !ptaRows.some((pta) => pta.id === selectedPta.id) && (
+                          <option value={selectedPta.id}>
+                            {selectedPta.year}
+                          </option>
+                        )}
                       {ptaRows.map((pta) => (
                         <option key={pta.id} value={pta.id}>
                           {pta.year}
@@ -545,6 +714,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
               <PortalPagination
                 page={ptas.data}
                 label={strings.ptaLabel}
+                path={`/partner-portal/projects/${selectedProject.id}/ptas`}
                 change={(ptaCursor) =>
                   changeSearch({
                     ptaCursor,
@@ -556,28 +726,28 @@ export function PartnerPortalView({ screen = 'projects' }) {
               />
               <div className="grid grid-cols-[repeat(auto-fit,_minmax(min(100%,_280px),_1fr))] gap-6 [&_article]:border [&_article]:border-border [&_article]:rounded-panel [&_article]:p-6 [&_h3]:m-0 [&_h3]:text-navy [&_h3]:text-[15px] [&_h3]:font-semibold [&_strong]:block [&_strong]:mt-3 [&_strong]:text-navy [&_strong]:text-[2rem] [&_strong]:leading-[1.2] [&_p]:mt-3 [&_p]:mr-0 [&_p]:mb-0 [&_p]:ml-0 [&_p]:text-muted-foreground [&_p]:text-sm">
                 <article>
-                  <h3>Avancement physique</h3>
+                  <h3>{strings.physicalProgress}</h3>
                   <strong>
                     {selectedPta.metrics.physical.closed_activities} /{' '}
                     {selectedPta.metrics.physical.approved_activities}
                   </strong>
-                  <p>Activités clôturées et approuvées</p>
+                  <p>{strings.closedAndApprovedActivities}</p>
                 </article>
                 <article>
-                  <h3>Exécution financière</h3>
+                  <h3>{strings.financialExecution}</h3>
                   <strong>
                     {formatXof(selectedPta.metrics.financial.closed_spending)}
                   </strong>
                   <p>
-                    sur{' '}
-                    {formatXof(
-                      selectedPta.metrics.financial.approved_allocation,
-                    )}{' '}
-                    approuvés
+                    {strings.formatString(strings.approvedAmountSummary, {
+                      amount: formatXof(
+                        selectedPta.metrics.financial.approved_allocation,
+                      ),
+                    })}
                   </p>
                 </article>
               </div>
-              <h3>Activités approuvées</h3>
+              <h3>{strings.approvedActivitiesTitle}</h3>
               {activities.isError ? (
                 <RetryableError onRetry={() => void activities.refetch()}>
                   {strings.activitiesUnavailable}
@@ -598,12 +768,17 @@ export function PartnerPortalView({ screen = 'projects' }) {
                       <div>
                         <strong>{activity.name}</strong>
                         <small>
-                          {activity.reference} · du {activity.planned_start} au{' '}
-                          {activity.planned_end}
+                          {strings.formatString(strings.activityPeriod, {
+                            reference: activity.reference,
+                            start: activity.planned_start,
+                            end: activity.planned_end,
+                          })}
                         </small>
                       </div>
                       <span>
-                        {activity.state === 'closed' ? 'Clôturée' : 'Approuvée'}{' '}
+                        {activity.state === 'closed'
+                          ? strings.closedFeminine
+                          : strings.approvedFeminine}{' '}
                         · {formatXof(activity.allocation)}
                       </span>
                       <Button
@@ -614,7 +789,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                           void changeSearch({ activity: activity.id })
                         }
                       >
-                        Voir le détail
+                        {strings.viewDetail}
                       </Button>
                     </li>
                   ))}
@@ -625,6 +800,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
               <PortalPagination
                 page={activities.data}
                 label={strings.activitiesLabel}
+                path={`/partner-portal/ptas/${selectedPta.id}/activities`}
                 change={(activityCursor) =>
                   changeSearch({ activityCursor, activity: '' })
                 }
@@ -632,7 +808,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
             </Panel>
           ) : (
             <Panel as="article">
-              <h2>Aucun PTA disponible</h2>
+              <h2>{strings.noPta}</h2>
             </Panel>
           )}
           {detail.isError && (
@@ -653,7 +829,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
               <div className="flex justify-between items-center gap-5 flex-wrap [&_form]:flex [&_form]:gap-3 [&_form]:items-end [&_form]:flex-wrap">
                 <div>
                   <p className="mt-0 mr-0 mb-[6px] ml-0 text-primary text-[0.8125rem] font-semibold uppercase tracking-[0.04em]">
-                    Activité approuvée
+                    {strings.approvedActivity}
                   </p>
                   <h2 id="partner-detail">{detail.data.name}</h2>
                   <p>{detail.data.description}</p>
@@ -661,7 +837,7 @@ export function PartnerPortalView({ screen = 'projects' }) {
                 <ProtectedFilePreview
                   key={detail.data.id}
                   path={`/api/v1/partner-portal/activities/${detail.data.id}/fiche.pdf`}
-                  title="Fiche de suivi de l’activité"
+                  title={strings.activityFicheTitle}
                   kind="pdf"
                   onDenied={(status) =>
                     deny(status, [
@@ -673,35 +849,37 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   }
                   scope={ficheScope}
                 >
-                  Consulter la fiche PDF
+                  {strings.consultPdf}
                 </ProtectedFilePreview>
               </div>
               <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                 <div>
-                  <dt>Référence</dt>
+                  <dt>{strings.reference}</dt>
                   <dd>{detail.data.reference}</dd>
                 </div>
                 <div>
-                  <dt>Période</dt>
+                  <dt>{strings.period}</dt>
                   <dd>
-                    Du {formatDate(detail.data.planned_start)} au{' '}
-                    {formatDate(detail.data.planned_end)}
+                    {strings.formatString(strings.periodValue, {
+                      start: formatDate(detail.data.planned_start),
+                      end: formatDate(detail.data.planned_end),
+                    })}
                   </dd>
                 </div>
                 <div>
-                  <dt>Budget approuvé</dt>
+                  <dt>{strings.approvedBudget}</dt>
                   <dd>{formatXof(detail.data.allocation)}</dd>
                 </div>
                 <div>
-                  <dt>Avancement</dt>
+                  <dt>{strings.progress}</dt>
                   <dd>
                     {detail.data.progress == null
-                      ? 'Non disponible'
+                      ? strings.unavailable
                       : `${detail.data.progress} %`}
                   </dd>
                 </div>
               </dl>
-              <h3>Tâches approuvées</h3>
+              <h3>{strings.approvedTasks}</h3>
               <ul
                 className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
                 data-ui="planning-list"
@@ -726,13 +904,15 @@ export function PartnerPortalView({ screen = 'projects' }) {
                     <span>
                       {task.final_spending == null
                         ? formatXof(task.allocation)
-                        : `${formatXof(task.final_spending)} dépensés`}
+                        : strings.formatString(strings.spentAmount, {
+                            amount: formatXof(task.final_spending),
+                          })}
                       {task.progress != null && ` · ${task.progress} %`}
                     </span>
                   </li>
                 ))}
               </ul>
-              <h3>Décisions finales</h3>
+              <h3>{strings.finalDecisions}</h3>
               <ul
                 className="grid gap-0 p-0 list-none [&_li]:min-h-13 [&_li]:border-t [&_li]:border-t-border [&_li]:flex [&_li]:items-center [&_li]:justify-between [&_li]:gap-4"
                 data-ui="planning-list"
@@ -741,10 +921,10 @@ export function PartnerPortalView({ screen = 'projects' }) {
                   <li key={`${decision.kind}-${decision.revision}`}>
                     <strong>
                       {decision.kind === 'initial'
-                        ? 'Planification approuvée'
+                        ? strings.approvedPlanning
                         : decision.kind === 'amendment'
-                          ? 'Modification approuvée'
-                          : 'Transfert annuel approuvé'}
+                          ? strings.approvedAmendment
+                          : strings.approvedTransfer}
                     </strong>
                     <span>{formatDate(decision.decided_at)}</span>
                   </li>
@@ -754,30 +934,30 @@ export function PartnerPortalView({ screen = 'projects' }) {
                 key={`${user.id}:${detail.data.id}`}
                 activityId={detail.data.id}
                 userId={user.id}
-                cursor={search.documentCursor}
+                cursor={cursors.documentCursor}
                 changeCursor={(documentCursor) =>
                   changeSearch({ documentCursor })
                 }
                 onDenied={deny}
               />
-              <h3>Résultat financier</h3>
+              <h3>{strings.financialResult}</h3>
               {detail.data.finance ? (
                 <dl className="flex gap-8 flex-wrap [&_dt]:text-muted-foreground [&_dt]:text-[0.8125rem]">
                   <div>
-                    <dt>Dépenses finales</dt>
+                    <dt>{strings.finalSpending}</dt>
                     <dd>{formatXof(detail.data.finance.final_spending)}</dd>
                   </div>
                   {detail.data.finance.zero_spending && (
                     <div>
-                      <dt>Parcours validé</dt>
-                      <dd>Dépense nulle validée</dd>
+                      <dt>{strings.validatedPath}</dt>
+                      <dd>{strings.validatedZeroSpending}</dd>
                     </div>
                   )}
                   <div>
-                    <dt>Virement confirmé</dt>
+                    <dt>{strings.confirmedTransfer}</dt>
                     <dd>
                       {detail.data.finance.confirmed_transfer_amount == null
-                        ? 'Aucun virement requis'
+                        ? strings.noTransferRequired
                         : `${formatXof(
                             detail.data.finance.confirmed_transfer_amount,
                           )} · ${formatDate(
@@ -786,16 +966,16 @@ export function PartnerPortalView({ screen = 'projects' }) {
                     </dd>
                   </div>
                   <div>
-                    <dt>Surplus à reverser</dt>
+                    <dt>{strings.surplusToReturn}</dt>
                     <dd>
                       {formatXof(detail.data.finance.reversement_required)}
                     </dd>
                   </div>
                   <div>
-                    <dt>Surplus reversé</dt>
+                    <dt>{strings.returnedSurplus}</dt>
                     <dd>
                       {detail.data.finance.reversement_amount == null
-                        ? 'Aucun reversement requis'
+                        ? strings.noReturnRequired
                         : `${formatXof(
                             detail.data.finance.reversement_amount,
                           )} · ${formatDate(
@@ -804,12 +984,12 @@ export function PartnerPortalView({ screen = 'projects' }) {
                     </dd>
                   </div>
                   <div>
-                    <dt>Clôture</dt>
+                    <dt>{strings.closure}</dt>
                     <dd>{formatDate(detail.data.finance.closed_at)}</dd>
                   </div>
                 </dl>
               ) : (
-                <p>Le résultat financier sera disponible après la clôture.</p>
+                <p>{strings.financeAfterClosure}</p>
               )}
             </Panel>
           )}

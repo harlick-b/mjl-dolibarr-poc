@@ -2591,8 +2591,8 @@ Successful decisions and cancellations refresh the Activity data and close the
 dialog; failed submissions keep it open with the entered value and display the
 server error inside the dialog.
 
-Legacy financial-request search parameters reach the Activity page without
-opening a dialog. The existing virement detail query remains for settlement
+Financial-request search parameters are unsupported and stripped; notifications
+link only to the Activity and its section fragment. The existing virement detail query remains for settlement
 confirmation, reversement and history data. Creation, funding, zero-spending and
 other modal-ownership follow-ups remain unchanged and require their own authorized
 slice. No backend, schema, API payload, permission or financial approval rule
@@ -2632,3 +2632,31 @@ ESLint and Prettier passed, `git diff --check` was clean, and the production bui
 passed with the existing chunk-size warning. The independent review's success
 coverage and status-wording findings were corrected, and the same reviewer
 cleared the candidate. No browser journey was run.
+
+### Correction notice presentation — 2026-11-23
+
+Programming, Réalisation and financial request corrections use the shared amber
+notice from the approved references. This is a frontend-only presentation change;
+the existing APIs and correction workflows remain unchanged.
+
+### Clean browser navigation — 2026-11-23
+
+Activity detail sections now use stable fragments. Activities that have never
+received definitive approval use `/planning/activities/:id`; Activities with an
+approved baseline use `/execution/activities/:id`, including while an amendment
+or correction is prepared. Both lists may show an approved Activity, but every
+detail link resolves to the Execution URL. The detail loader corrects a manually
+entered route from the latest Activity data, and the sidebar follows the canonical
+pathname. Applied filters and calendar selection remain shareable; list
+pagination stays local and no longer adds opaque cursors or page numbers to
+browser URLs. Login remembers only the last visible top-level module.
+Planning rows, notifications, global History and newly generated Activity emails
+carry the same approved-baseline fact, so their links use the canonical module
+directly. Previously delivered generic Activity email links are intentionally not
+supported.
+Copied project, PTA and Partner Activity selections resolve even when their row is
+outside the currently visible list page. The change does not alter API pagination,
+permissions or business workflows.
+Resolver failures now render retryable errors instead of empty screens, and
+Partner resolver denials follow the existing protected-data cleanup. Browser
+coverage uses the canonical fragments and local-pagination contract.

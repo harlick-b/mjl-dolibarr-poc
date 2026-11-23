@@ -389,7 +389,7 @@ test('fresh authorization denial discards pending shared-file bytes', async () =
   expect(urls.createObjectURL).not.toHaveBeenCalled()
 })
 
-test('shared-document pagination uses Router state and rejects foreign links', async () => {
+test('shared-document pagination stays local and rejects foreign links', async () => {
   const fixture = portalFixture(vi.fn())
   vi.stubGlobal(
     'fetch',
@@ -425,6 +425,6 @@ test('shared-document pagination uses Router state and rejects foreign links', a
   render(<App router={router} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Suivant' }))
   expect(await screen.findByText('second.pdf')).toBeVisible()
-  expect(router.state.location.search.documentCursor).toBe('second')
+  expect(router.state.location.search.documentCursor).toBeUndefined()
   expect(screen.getByRole('button', { name: 'Suivant' })).toBeDisabled()
 })

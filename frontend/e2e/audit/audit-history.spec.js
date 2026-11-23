@@ -180,7 +180,7 @@ test('Agent reads Activity history changes on desktop and mobile', async ({
       return route.fulfill({ json: empty })
     throw new Error(`Unexpected API request: ${request.method()} ${path}`)
   })
-  await page.goto('/activities/activity-1?tab=history')
+  await page.goto('/planning/activities/activity-1#history')
   const history = page.getByRole('region', { name: 'Historique de l’activité' })
   const events = history.getByRole('listitem')
   await expect(events).toHaveCount(2)

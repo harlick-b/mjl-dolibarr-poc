@@ -193,9 +193,7 @@ test('V19 planning, correction and final approval browser journey', async ({
       }),
     })
   })
-  const loadingNavigation = loadingPage.goto(
-    '/partners?partnerCursor=loading-oracle',
-  )
+  const loadingNavigation = loadingPage.goto('/partners')
   await loadingStarted
   await expect(
     loadingPage.locator('section[data-ui~="planning-stack"]'),
@@ -253,7 +251,7 @@ test('V19 planning, correction and final approval browser journey', async ({
       body: JSON.stringify({ code: 'service_unavailable' }),
     })
   })
-  await errorPage.goto('/projects?projectCursor=error-oracle')
+  await errorPage.goto('/projects')
   await expect(errorPage.getByRole('alert')).toHaveText(
     'Les données de planification sont indisponibles.',
   )
@@ -374,7 +372,7 @@ assert e.url.database == '${database}'
 with e.begin() as db: db.execute(text("DELETE FROM auth_abuse"))
 e.dispose()`,
   ])
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/planning/activities/${activity.id}`)
   await supervisor.getByLabel('pta-agent@example.test').check()
   await supervisor
     .getByRole('button', { name: 'Enregistrer les affectations' })
@@ -437,7 +435,7 @@ e.dispose()`,
   expect(cached.some((url) => url.includes('/api/'))).toBe(false)
 
   clearSharedIpBucket()
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/planning/activities/${activity.id}`)
   await agent
     .getByRole('button', { name: 'Soumettre pour prévalidation' })
     .click()
@@ -449,7 +447,7 @@ e.dispose()`,
     'Soumise pour prévalidation',
   )
 
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/planning/activities/${activity.id}`)
   await supervisor
     .getByRole('button', { name: 'Demander une correction' })
     .click()
@@ -465,7 +463,7 @@ e.dispose()`,
     supervisor.getByLabel('Progression de la validation'),
   ).toContainText('Correction demandée par le Superviseur')
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/planning/activities/${activity.id}`)
   await agent.getByRole('button', { name: 'Modifier' }).click()
   await agent
     .getByLabel('Description')
@@ -480,7 +478,7 @@ e.dispose()`,
     .click()
 
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/planning/activities/${activity.id}`)
   await supervisor.getByRole('button', { name: 'Prévalider' }).click()
   await supervisor
     .getByRole('dialog')
@@ -490,7 +488,7 @@ e.dispose()`,
     supervisor.getByLabel('Progression de la validation'),
   ).toContainText('Validation définitive attendue')
 
-  await validator.goto(`/activities/${activity.id}`)
+  await validator.goto(`/planning/activities/${activity.id}`)
   await validator
     .getByRole('button', { name: 'Demander une correction' })
     .click()
@@ -506,7 +504,7 @@ e.dispose()`,
     validator.getByLabel('Progression de la validation'),
   ).toContainText('Correction demandée par le Validateur définitif')
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/planning/activities/${activity.id}`)
   await expect(agent.getByText(/350[\s\u202f]?000 XOF/)).toBeVisible()
   await agent.getByRole('button', { name: 'Modifier' }).click()
   await agent.getByLabel('Budget de l’opération 1').fill('360000')
@@ -521,7 +519,7 @@ e.dispose()`,
     .click()
 
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/planning/activities/${activity.id}`)
   await supervisor.getByRole('button', { name: 'Prévalider' }).click()
   await supervisor
     .getByRole('dialog')
@@ -531,7 +529,7 @@ e.dispose()`,
     supervisor.getByLabel('Progression de la validation'),
   ).toContainText('Validation définitive attendue')
   clearSharedIpBucket()
-  await validator.goto(`/activities/${activity.id}`)
+  await validator.goto(`/planning/activities/${activity.id}`)
   await validator
     .getByRole('button', { name: 'Valider définitivement' })
     .click()
@@ -564,7 +562,7 @@ e.dispose()`,
   await expect(frozenRevision).toContainText('pta-agent@example.test')
   await expect(frozenRevision).toContainText('Préciser le résultat attendu.')
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/execution/activities/${activity.id}`)
   await agent.getByRole('button', { name: 'Demander une modification' }).click()
   await agent
     .getByRole('dialog')
@@ -596,7 +594,7 @@ e.dispose()`,
     .click()
 
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/execution/activities/${activity.id}`)
   await supervisor
     .getByRole('button', { name: 'Demander une correction' })
     .click()
@@ -609,7 +607,7 @@ e.dispose()`,
     .getByRole('button', { name: 'Confirmer' })
     .click()
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/execution/activities/${activity.id}`)
   await agent.getByRole('button', { name: 'Modifier' }).click()
   await agent.getByLabel('Description').fill('Modification corrigée et prête')
   await agent.getByRole('button', { name: 'Enregistrer' }).click()
@@ -621,14 +619,14 @@ e.dispose()`,
     .getByRole('button', { name: 'Confirmer' })
     .click()
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/execution/activities/${activity.id}`)
   await supervisor.getByRole('button', { name: 'Prévalider' }).click()
   await supervisor
     .getByRole('dialog')
     .getByRole('button', { name: 'Confirmer' })
     .click()
   clearSharedIpBucket()
-  await validator.goto(`/activities/${activity.id}`)
+  await validator.goto(`/execution/activities/${activity.id}`)
   await validator
     .getByRole('button', { name: 'Valider définitivement' })
     .click()
@@ -643,7 +641,7 @@ e.dispose()`,
     validator.getByText('Modification corrigée et prête').first(),
   ).toBeVisible()
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/execution/activities/${activity.id}`)
   await agent.getByRole('button', { name: 'Demander une modification' }).click()
   await agent
     .getByRole('dialog')
@@ -754,7 +752,7 @@ e.dispose()`,
     .getByRole('button', { name: 'Confirmer' })
     .click()
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/execution/activities/${activity.id}`)
   await supervisor
     .getByRole('button', { name: 'Demander une correction' })
     .click()
@@ -767,7 +765,7 @@ e.dispose()`,
     .getByRole('button', { name: 'Confirmer' })
     .click()
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/execution/activities/${activity.id}`)
   await agent
     .getByRole('button', { name: 'Corriger la demande de transfert' })
     .click()
@@ -789,14 +787,14 @@ e.dispose()`,
     .click()
 
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/execution/activities/${activity.id}`)
   await supervisor.getByRole('button', { name: 'Prévalider' }).click()
   await supervisor
     .getByRole('dialog')
     .getByRole('button', { name: 'Confirmer' })
     .click()
   clearSharedIpBucket()
-  await validator.goto(`/activities/${activity.id}`)
+  await validator.goto(`/execution/activities/${activity.id}`)
   await validator
     .getByRole('button', { name: 'Valider définitivement' })
     .click()
@@ -810,7 +808,7 @@ e.dispose()`,
     .click()
   await expect(validator).toHaveURL(/\/projects\/[^/]+\/ptas\/2028(?:\?|$)/)
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/execution/activities/${activity.id}`)
   await agent.getByRole('button', { name: 'Retirer l’activité' }).click()
   await agent
     .getByRole('dialog')
@@ -847,7 +845,7 @@ e.dispose()`,
     .click()
 
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/execution/activities/${activity.id}`)
   await supervisor
     .getByRole('button', { name: 'Demander une correction' })
     .click()
@@ -860,7 +858,7 @@ e.dispose()`,
     .getByRole('button', { name: 'Confirmer' })
     .click()
 
-  await agent.goto(`/activities/${activity.id}`)
+  await agent.goto(`/execution/activities/${activity.id}`)
   await agent
     .getByRole('button', { name: 'Corriger la demande de retrait' })
     .click()
@@ -873,14 +871,14 @@ e.dispose()`,
     .getByRole('button', { name: 'Confirmer' })
     .click()
   clearSharedIpBucket()
-  await supervisor.goto(`/activities/${activity.id}`)
+  await supervisor.goto(`/execution/activities/${activity.id}`)
   await supervisor.getByRole('button', { name: 'Prévalider' }).click()
   await supervisor
     .getByRole('dialog')
     .getByRole('button', { name: 'Confirmer' })
     .click()
   clearSharedIpBucket()
-  await validator.goto(`/activities/${activity.id}`)
+  await validator.goto(`/execution/activities/${activity.id}`)
   await validator
     .getByRole('button', { name: 'Valider définitivement' })
     .click()
@@ -907,7 +905,7 @@ e.dispose()`,
       })
     },
   )
-  await historyError.goto(`/activities/${activity.id}?revisionCursor=failure`)
+  await historyError.goto(`/execution/activities/${activity.id}#history`)
   await expect(historyError.getByRole('alert')).toHaveText(
     'Les données de planification sont indisponibles.',
   )

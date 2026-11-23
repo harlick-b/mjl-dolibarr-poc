@@ -277,7 +277,7 @@ test('planning references: index, table, calendar, form and detail tabs', async 
     page.getByRole('heading', { name: 'Informations générales' }),
   ).toBeVisible()
   await page.screenshot({ path: '/tmp/mjl-design-create.png', fullPage: true })
-  await page.goto('/activities/activity-1')
+  await page.goto('/planning/activities/activity-1')
   await expect(
     page.getByRole('heading', { name: 'Programmation' }),
   ).toBeVisible()
@@ -325,6 +325,29 @@ test('planning references: index, table, calendar, form and detail tabs', async 
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true)
+})
+
+test('an approved Activity corrects a Planning URL to its Execution module', async ({
+  page,
+}) => {
+  await setup(page, 'AGENT_SAISIE', {
+    approved_revision_id: 'approved-revision-1',
+    state: 'approved',
+  })
+
+  await page.goto('/planning/activities/activity-1#history')
+
+  await expect(page).toHaveURL(/\/execution\/activities\/activity-1#history$/)
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Espace de travail' })
+      .getByRole('link', {
+        name: 'Réalisation',
+      }),
+  ).toHaveAttribute('aria-current', 'page')
+  await expect(
+    page.getByRole('navigation', { name: 'Fil d’Ariane de l’activité' }),
+  ).toContainText('Réalisation')
 })
 test('project and partner actions use editing and project PTA navigation', async ({
   page,
@@ -563,7 +586,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
   })
   const supervisor = await supervisorContext.newPage()
   await setup(supervisor, 'AGENT_VERIFICATEUR', reviewActivity)
-  await supervisor.goto('/activities/activity-1')
+  await supervisor.goto('/planning/activities/activity-1')
   const assignmentOpener = supervisor.getByRole('button', {
     name: 'Affectations',
   })
@@ -688,7 +711,7 @@ test('assignment and both planning decisions match their governing dialogs', asy
     },
     allowed_actions: ['read', 'assign_agents', 'approve'],
   })
-  await validator.goto('/activities/activity-1')
+  await validator.goto('/planning/activities/activity-1')
   const approveOpener = validator.getByRole('button', {
     name: 'Valider définitivement',
   })
@@ -749,7 +772,7 @@ test('complete activity editing matches the populated desktop and reflow referen
     operation_count: 2,
     allocation: '4000000',
   })
-  await page.goto('/activities/activity-1')
+  await page.goto('/planning/activities/activity-1')
   await expect(
     page.getByRole('heading', { name: activity.name, level: 1 }),
   ).toBeVisible()
@@ -841,7 +864,7 @@ test('a failed editor attachment keeps the saved Draft and skips submission', as
     return route.fulfill({ json: { id: 'unexpected-submission' } })
   })
 
-  await page.goto('/activities/activity-1')
+  await page.goto('/planning/activities/activity-1')
   await page
     .getByRole('button', { name: 'Modifier la programmation', exact: true })
     .click()

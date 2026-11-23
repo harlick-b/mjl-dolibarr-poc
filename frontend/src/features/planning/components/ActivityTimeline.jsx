@@ -1,4 +1,3 @@
-import { Urls } from '@/app/urls'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -8,6 +7,7 @@ import { Button } from '@/shared/ui/button'
 import { EmptyContent } from '@/shared/ui/EmptyContent'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { timelinePosition, timelineWindow } from '../lib/timeline'
+import { activityLocation } from '@/shared/lib/activity-navigation'
 
 function monthName(year, month, style = 'short') {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -64,8 +64,7 @@ const TimelineActivityRow = ({
         <div className="min-w-0 px-3 py-3">
           <Link
             className="block max-h-10 overflow-hidden text-sm font-medium leading-5 text-primary"
-            to={Urls.activity}
-            params={{ activityId: row.id }}
+            {...activityLocation(row)}
           >
             {row.name}
           </Link>
@@ -173,9 +172,7 @@ const TimelineActivityRow = ({
                 {strings.close}
               </Button>
               <Button asChild>
-                <Link to={Urls.activity} params={{ activityId: row.id }}>
-                  {strings.consult}
-                </Link>
+                <Link {...activityLocation(row)}>{strings.consult}</Link>
               </Button>
             </div>
           </section>
@@ -230,8 +227,7 @@ export function ActivityTimeline({ rows, year, month, onMonth, hasFilters }) {
               <li key={row.id} className="flex flex-wrap justify-between gap-3">
                 <Link
                   className="text-sm font-medium text-primary"
-                  to={Urls.activity}
-                  params={{ activityId: row.id }}
+                  {...activityLocation(row)}
                 >
                   {row.name}
                 </Link>

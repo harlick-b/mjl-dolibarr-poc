@@ -37,27 +37,24 @@ export function PlanningIndex() {
   const search = useSearch({ strict: false })
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [cursorState, setCursorState] = useState({ scope: '', value: '' })
+  const cursor =
+    cursorState.scope === (search.project || '') ? cursorState.value : ''
   const ptaOpener = useRef(null)
   const path = search.project ? `/projects/${search.project}/ptas` : '/ptas'
   const ptas = useQuery({
     enabled: !denied,
-    queryKey: [
-      'planning',
-      user.id,
-      'pta-index',
-      search.project,
-      search.ptaCursor,
-    ],
+    queryKey: ['planning', user.id, 'pta-index', search.project, cursor],
     queryFn: ({ signal }) =>
       read(
-        `/api/v1${path}${search.ptaCursor ? '?cursor=' + encodeURIComponent(search.ptaCursor) : ''}`,
+        `/api/v1${path}${cursor ? '?cursor=' + encodeURIComponent(cursor) : ''}`,
         signal,
       ),
   })
   const move = (link) =>
-    navigate({
-      to: Urls.planning,
-      search: { ...search, ptaCursor: cursorFrom(link, path) },
+    setCursorState({
+      scope: search.project || '',
+      value: cursorFrom(link, path),
     })
   if (denied) return <AccessDeniedState role={user.role} />
   return (

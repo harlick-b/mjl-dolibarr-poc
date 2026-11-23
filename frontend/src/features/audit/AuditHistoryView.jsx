@@ -1,4 +1,5 @@
 import { Urls } from '@/app/urls'
+import { activityLocation } from '@/shared/lib/activity-navigation'
 import { EventDetails } from './EventDetails'
 import { formatDateTime } from '@/shared/lib/format'
 import { ListFilters } from '@/shared/ui/ListFilters'
@@ -23,9 +24,11 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Helmet } from 'react-helmet-async'
 import { toast } from 'sonner'
 import { cursorFrom } from '@/shared/lib/pagination'
+import { deliverBlobDownload } from '@/shared/lib/download'
 import { useAPI } from '@/shared/api/RestClientProvider'
 import { RetryableError } from '@/shared/ui/RetryableError'
 import { AccessDeniedState } from '@/features/auth/components/AccessDeniedState'
+import { useScopedPagination } from '@/shared/hooks/useScopedPagination'
 import { Pagination } from '@/shared/ui/Pagination'
 
 const historyRoot = ['audit-history']
@@ -69,16 +72,21 @@ function History({ session, onDenied }) {
     client.removeQueries(scope)
     onDenied()
   }
-  const cursor = search.cursor || ''
   const filters = Object.fromEntries(
     ['q', 'action', 'actor', 'activity', 'project', 'date_from', 'date_to']
       .filter((key) => search[key])
       .map((key) => [key, search[key]]),
   )
   const filterQuery = new URLSearchParams(filters).toString()
-  const changeFilters = (values) =>
-    navigate({ to: Urls.history, search: { ...search, ...values, cursor: '' } })
-  const resetFilters = () => navigate({ to: Urls.history, search: {} })
+  const [cursor, setCursor] = useScopedPagination(filterQuery, '')
+  const changeFilters = (values) => {
+    setCursor('')
+    return navigate({ to: Urls.history, search: { ...search, ...values } })
+  }
+  const resetFilters = () => {
+    setCursor('')
+    return navigate({ to: Urls.history, search: {} })
+  }
   const canOpenActivity = authorization(session).can('business')
   const result = useQuery({
     enabled: !denied,
@@ -127,14 +135,7 @@ function History({ session, onDenied }) {
       handleDenied(error)
     },
     onSuccess: async ({ blob, filename }) => {
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = filename
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(href), 0)
+      deliverBlobDownload({ blob, filename })
       await client.invalidateQueries({ queryKey: historyRoot })
       toast.success(strings.exported)
     },
@@ -152,11 +153,7 @@ function History({ session, onDenied }) {
         )}
       </RetryableError>
     )
-  const move = (link) =>
-    navigate({
-      to: Urls.history,
-      search: { ...search, cursor: cursorFrom(link, '/audit-events') },
-    })
+  const move = (link) => setCursor(cursorFrom(link, '/audit-events'))
   return (
     <section className="grid gap-6" aria-busy={result.isFetching}>
       <Helmet>
@@ -268,10 +265,7 @@ function History({ session, onDenied }) {
                   <td>
                     <div>
                       {item.activity && canOpenActivity ? (
-                        <Link
-                          to={Urls.activity}
-                          params={{ activityId: item.activity.id }}
-                        >
+                        <Link {...activityLocation(item.activity)}>
                           {item.activity.reference} — {item.activity.name}
                         </Link>
                       ) : item.activity ? (

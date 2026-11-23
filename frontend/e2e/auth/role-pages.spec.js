@@ -187,10 +187,10 @@ test('PTA entry pages load bounded selected project data and keep sidebar visibl
   ).toBeVisible()
   await expect(
     attention.getByRole('link', { name: 'Revoir la programmation' }).first(),
-  ).toHaveAttribute('href', '/activities/activity-1')
+  ).toHaveAttribute('href', '/planning/activities/activity-1')
   await expect(
     attention.getByRole('link', { name: 'Déclarer le reversement' }),
-  ).toHaveAttribute('href', '/execution/activities/activity-3')
+  ).toHaveAttribute('href', '/execution/activities/activity-3#finance')
   await page.screenshot({
     path: '/tmp/mjl-dashboard-populated.png',
     fullPage: true,

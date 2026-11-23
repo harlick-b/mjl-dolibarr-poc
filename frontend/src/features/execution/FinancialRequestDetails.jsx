@@ -4,6 +4,7 @@ import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Button } from '@/shared/ui/button'
 import { FileSelection } from '@/shared/ui/FileSelection'
 import { ExactNumberInput } from '@/shared/ui/ExactNumberInput'
+import { strings } from '@/locales/fr/ExecutionView'
 
 export function FinancialRequestSummary({
   requested,
@@ -23,8 +24,8 @@ export function FinancialRequestSummary({
       authorizedLabel,
       authorized === null ? unavailableLabel : formatXof(authorized),
     ],
-    ['Budget prévu', formatXof(budget)],
-    ['Dépenses enregistrées', formatXof(spending)],
+    [strings.plannedBudget, formatXof(budget)],
+    [strings.registeredSpending, formatXof(spending)],
   ]
   return (
     <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-b border-border pb-5 text-sm max-[520px]:grid-cols-1">
@@ -41,13 +42,15 @@ export function FinancialRequestSummary({
 export function FinancialRequestCreationContext({
   budget,
   authorized,
-  authorizedLabel = 'Total actuellement autorisé',
-  unavailableLabel = 'Non renseigné',
+  authorizedLabel = strings.currentAuthorizedTotal,
+  unavailableLabel = strings.notProvided,
 }) {
   return (
     <dl className="grid grid-cols-2 gap-8 text-sm max-[520px]:grid-cols-1">
       <div>
-        <dt className="text-xs text-muted-foreground">Budget prévu</dt>
+        <dt className="text-xs text-muted-foreground">
+          {strings.plannedBudget}
+        </dt>
         <dd className="mt-1 text-base font-medium">{formatXof(budget)}</dd>
       </div>
       <div>
@@ -60,27 +63,35 @@ export function FinancialRequestCreationContext({
   )
 }
 
-export function FinancialDecisionHistory({ decisions, stateLabels }) {
+export function FinancialDecisionHistory({
+  decisions,
+  stateLabels,
+  hiddenReasonDecisionId,
+}) {
   return (
     <section className="grid gap-3 border-b border-border pb-5">
-      <h3 className="font-semibold">Décisions</h3>
+      <h3 className="font-semibold">{strings.decisions}</h3>
       {decisions.length ? (
         <ol className="grid gap-3">
           {decisions.map((decision) => (
             <li key={decision.id} className="text-sm">
               <strong>
-                {decision.stage === 'supervisor' ? 'Superviseur' : 'Validateur'}{' '}
+                {decision.stage === 'supervisor'
+                  ? strings.supervisor
+                  : strings.validator}{' '}
                 · {stateLabels[decision.outcome] || decision.outcome}
               </strong>
               <span className="mt-1 block text-muted-foreground">
                 {decision.actor_name} · {formatDateTime(decision.decided_at)}
               </span>
-              {decision.reason && <p className="mt-1">{decision.reason}</p>}
+              {decision.reason && decision.id !== hiddenReasonDecisionId && (
+                <p className="mt-1">{decision.reason}</p>
+              )}
             </li>
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-muted-foreground">Aucune décision.</p>
+        <p className="text-sm text-muted-foreground">{strings.noDecision}</p>
       )}
     </section>
   )
@@ -91,12 +102,12 @@ export function FinancialRequestApplicantDetails({ request }) {
     <section className="grid gap-3 border-b border-border pb-5 text-sm">
       {request.observation && (
         <div>
-          <h3 className="font-semibold">Observation du demandeur</h3>
+          <h3 className="font-semibold">{strings.applicantObservation}</h3>
           <p className="mt-2 whitespace-pre-wrap">{request.observation}</p>
         </div>
       )}
       <p className="text-muted-foreground">
-        {request.submitter_name || 'Utilisateur indisponible'}
+        {request.submitter_name || strings.unavailableUser}
       </p>
     </section>
   )
@@ -120,12 +131,14 @@ export function FinancialRequestCreateForm({
         const data = new FormData(event.currentTarget)
         const submittedAmount = String(data.get('amount') || '')
         if (!/^[1-9][0-9]*$/.test(submittedAmount)) {
-          setAmountError('Saisissez un montant positif en francs CFA.')
+          setAmountError(strings.positiveAmountRequired)
           return false
         }
         if (BigInt(submittedAmount) > BigInt(maximumAmount)) {
           setAmountError(
-            `Le montant ne peut pas dépasser ${formatXof(maximumAmount)}.`,
+            strings.formatString(strings.amountMaximum, {
+              amount: formatXof(maximumAmount),
+            }),
           )
           return false
         }
@@ -140,10 +153,10 @@ export function FinancialRequestCreateForm({
       }}
     >
       <label>
-        Montant total demandé (F CFA) *
+        {strings.totalRequestedAmount} *
         <ExactNumberInput
           name="amount"
-          aria-label="Montant total demandé (F CFA)"
+          aria-label={strings.totalRequestedAmount}
           value={amount}
           onChange={(value) => {
             setAmount(value)
@@ -154,9 +167,7 @@ export function FinancialRequestCreateForm({
           aria-describedby={
             amountError ? 'financial-request-amount-error' : undefined
           }
-          onInvalid={() =>
-            setAmountError('Saisissez un montant positif en francs CFA.')
-          }
+          onInvalid={() => setAmountError(strings.positiveAmountRequired)}
         />
         {amountError && (
           <span
@@ -169,13 +180,13 @@ export function FinancialRequestCreateForm({
         )}
       </label>
       <label>
-        Observation
+        {strings.observation}
         <textarea name="observation" maxLength="4000" />
       </label>
       <FileSelection
-        label="Pièce justificative"
-        chooseLabel="Choisir un fichier"
-        emptyLabel="Aucun fichier sélectionné"
+        label={strings.supportingDocument}
+        chooseLabel={strings.chooseFile}
+        emptyLabel={strings.noFileSelected}
         file={file}
         accept="application/pdf,image/jpeg,image/png"
         disabled={pending}
@@ -183,10 +194,10 @@ export function FinancialRequestCreateForm({
       />
       <div data-ui="modal-actions">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Annuler
+          {strings.cancel}
         </Button>
         <Button type="submit" disabled={pending || !navigator.onLine}>
-          Faire la demande
+          {strings.submitRequest}
         </Button>
       </div>
     </BusinessForm>
@@ -223,7 +234,7 @@ export function FinancialCancellationForm({
       }}
     >
       <label>
-        Motif *
+        {strings.reasonRequired}
         <textarea name="reason" required maxLength="4000" />
       </label>
       <Button
@@ -231,7 +242,7 @@ export function FinancialCancellationForm({
         variant="outline"
         disabled={pending || !navigator.onLine}
       >
-        Annuler la demande
+        {strings.cancelRequest}
       </Button>
     </BusinessForm>
   )

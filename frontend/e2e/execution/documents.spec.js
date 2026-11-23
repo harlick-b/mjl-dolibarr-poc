@@ -151,7 +151,7 @@ test('an Agent adds an optional Activity attachment', async ({ page }) => {
     return route.fulfill({ json: empty })
   })
 
-  await page.goto('/activities/activity-1')
+  await page.goto('/execution/activities/activity-1')
   await expect(page.getByText('Aucune pièce justificative.')).toBeVisible()
   await page.getByRole('button', { name: 'Ajouter une pièce' }).click()
   await page.getByLabel('Choisir un fichier PDF, JPEG ou PNG').setInputFiles({

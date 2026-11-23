@@ -51,7 +51,7 @@ const pages = [
     capability: 'business',
     icon: 'planning',
     matches:
-      /^(?:\/planning|\/projects\/[\w-]+\/ptas\/\d{4}(?:\/activities\/new)?|\/activities\/[\w-]+)$/,
+      /^(?:\/planning(?:\/activities\/[\w-]+)?|\/projects\/[\w-]+\/ptas\/\d{4}(?:\/activities\/new)?)$/,
   },
   {
     id: 'execution',

@@ -21,8 +21,7 @@ export const Urls = Object.freeze({
   projects: '/projects',
   pta: '/projects/$projectId/ptas/$year',
   newActivity: '/projects/$projectId/ptas/$year/activities/new',
-  activities: '/activities',
-  activity: '/activities/$activityId',
+  planningActivity: '/planning/activities/$activityId',
   executionPta: '/execution/$ptaId',
   executionActivity: '/execution/activities/$activityId',
 })

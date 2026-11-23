@@ -778,9 +778,7 @@ test('the Task execution modal keeps its planned period inside the viewport', as
   })
 
   await page.setViewportSize({ width: 1280, height: 844 })
-  await page.goto(
-    '/activities/activity-layout?tab=realization&origin=execution&review=all&mine=own&view=table',
-  )
+  await page.goto('/execution/activities/activity-layout#realization')
   await page
     .getByRole('button', {
       name: 'Modifier la réalisation Préparer la session',
@@ -1640,13 +1638,14 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
       .filter({ hasText: 'REVERSEMENT-002' }),
   ).toBeVisible()
   await reversementDialog.getByText('Historique des reversements (2)').click()
+  const activityUrl = page.url()
   await reversementDialog
     .getByRole('navigation', {
       name: 'Pagination des déclarations de reversement',
     })
     .getByRole('button', { name: 'Suivant' })
     .click()
-  await expect(page).toHaveURL(/reversementCursor=older/)
+  await expect(page).toHaveURL(activityUrl)
   await reversementSection
     .getByRole('button', { name: 'Modifier le reversement' })
     .click()
@@ -1656,8 +1655,18 @@ test('PTA-3B through PTA-3E administrative settlement journey', async ({
       .getByRole('listitem')
       .filter({ hasText: 'REVERSEMENT-001' }),
   ).toBeVisible()
-  await page.goBack()
-  await expect(page).not.toHaveURL(/reversementCursor=older/)
+  await reversementDialog
+    .getByRole('navigation', {
+      name: 'Pagination des déclarations de reversement',
+    })
+    .getByRole('button', { name: 'Précédent' })
+    .click()
+  await expect(page).toHaveURL(activityUrl)
+  await expect(
+    reversementDialog
+      .getByRole('listitem')
+      .filter({ hasText: 'REVERSEMENT-002' }),
+  ).toBeVisible()
   expect(reversementMutationCount).toBe(2)
 
   await page.context().setOffline(true)

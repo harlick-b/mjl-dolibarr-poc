@@ -310,7 +310,7 @@ for (const kind of ['disbursement', 'virement']) {
         ? 'Autorisation de virement'
         : 'Autorisation de décaissement'
     const submitName = 'Faire la demande'
-    await page.goto('/activities/activity-1?tab=finance&origin=execution')
+    await page.goto('/execution/activities/activity-1#finance')
     const requests = page.getByRole('region', { name: 'Demandes financières' })
     await requests.getByRole('button', { name: 'Reprendre' }).click()
     const section = page.getByRole('region', { name: title })

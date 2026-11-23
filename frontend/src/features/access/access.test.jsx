@@ -841,7 +841,7 @@ test('late lifecycle completion after offline invalidation cannot restore protec
   }
 })
 
-test('Admin navigation omits default search values and preserves meaningful filters', async () => {
+test('Admin navigation keeps filters but never exposes pagination', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn((url) =>
@@ -863,12 +863,12 @@ test('Admin navigation omits default search values and preserves meaningful filt
   await act(() =>
     router.navigate({
       to: '/access/users',
-      search: { role: 'AGENT_SAISIE', page: 2 },
+      search: { role: 'AGENT_SAISIE' },
     }),
   )
-  expect(router.state.location.searchStr).toBe('?role=AGENT_SAISIE&page=2')
+  expect(router.state.location.searchStr).toBe('?role=AGENT_SAISIE')
   await act(() =>
-    router.navigate({ to: '/access/users', search: { role: '', page: 1 } }),
+    router.navigate({ to: '/access/users', search: { role: '' } }),
   )
   expect(router.state.location.searchStr).toBe('')
 })
