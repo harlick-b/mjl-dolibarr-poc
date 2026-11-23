@@ -1,4 +1,26 @@
+from types import SimpleNamespace
+
 from app.planning.core.presentation import activity_review_action
+from app.planning.notifications.notification_delivery import activity_action_url
+
+
+def test_activity_action_url_uses_the_approved_baseline_module():
+    auth = SimpleNamespace(policy=SimpleNamespace(origin="https://mjl.example"))
+
+    assert (
+        activity_action_url(
+            auth,
+            SimpleNamespace(id="draft", approved_revision_id=None),
+        )
+        == "https://mjl.example/planning/activities/draft"
+    )
+    assert (
+        activity_action_url(
+            auth,
+            SimpleNamespace(id="approved", approved_revision_id="revision-1"),
+        )
+        == "https://mjl.example/execution/activities/approved"
+    )
 
 
 def test_activity_review_action_requires_the_eligible_review_stage():

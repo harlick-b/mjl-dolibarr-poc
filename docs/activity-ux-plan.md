@@ -793,6 +793,11 @@ strict mypy, ESLint, build and diff checks passed; existing warnings remain.
 
 ## Activity detail shell correction — progress, 2026-11-12
 
+Historical implementation note, superseded by the approval-based canonical
+Activity routes recorded in **URL and return-navigation cleanup — 2026-11-23**.
+The entry-source route context and legacy generic Activity URL described below
+are no longer supported.
+
 The Activity identity header now belongs to the canonical Activity page and stays
 mounted while Programming, Realization and finance, History, and Supporting
 documents change independently below it. Entry from Planning or Execution is
@@ -883,6 +888,9 @@ Ruff check/format, strict mypy for both changed source modules, documentation
 Prettier and `git diff --check` passed. Existing Starlette deprecation remains.
 
 ## Execution-context header correction — 2026-11-12
+
+Historical implementation note, superseded by the approval-based canonical
+Activity routes recorded in **URL and return-navigation cleanup — 2026-11-23**.
 
 The execution entry context now controls the shared Activity breadcrumb and
 planning-action visibility across Programming, finance, History and documents.
@@ -1566,8 +1574,8 @@ Activity-scoped modal directly from the current table data. It no longer writes
 the request ID into the URL, starts a second detail-page load or replaces the
 Activity with a loading screen. Both request types share the standard modal
 composition from `activity-demande-virement-modal.png`; the historical-request
-expander is absent. Legacy links containing a request search parameter now reach
-the Activity page without opening a modal. Cancelling a request closes
+expander is absent. Request search parameters are unsupported and stripped;
+notifications link only to the Activity and its section fragment. Cancelling a request closes
 the local modal after the server accepts the cancellation so stale request data
 is not left on screen.
 
@@ -1616,9 +1624,9 @@ one handler. Correctable failures keep the modal and entered values available.
 1. **Remove URL-driven modal behavior.** In `frontend/src/app/router.jsx` and
    `frontend/src/features/execution/ExecutionView.jsx`, remove the
    `financeRequest` and `virementRequest` search contract, URL-selected modal
-   branches, and navigation used solely for modal closing. Old links must still
-   reach their page without opening a modal. Notification links already target
-   the Activity Finance tab and should retain that behavior.
+   branches, and navigation used solely for modal closing. Request-selection
+   parameters are unsupported and stripped. Notification links target the
+   Activity Finance fragment.
 2. **Simplify ownership.** Replace the overlapping request-selection IDs, modal
    type, mode and URL precedence for décaissement/virement review with a
    prop-driven composition owned by the CTA's current record. Keep creation
@@ -1680,7 +1688,8 @@ remain outside the authorized slices.
   cancellation, access checks and temporary URL cleanup.
 - Notification count and full notification list are different reads. Neither
   requires modal-opening URL parameters.
-- Existing page routes and meaningful tab/filter/cursor parameters remain.
+- Existing page routes remain. Activity sections use fragments; applied filters
+  and calendar mode/month remain shareable; pagination cursors stay local.
 
 ### Verification and completion gate
 
@@ -1709,8 +1718,8 @@ Use existing focused tests and extend them only for changed behavior:
 The financial-review slice now uses one local visibility boolean at each current
 request row. The current Query record and Activity context flow into the shared
 centered modal through props; no request ID or server-record copy is stored for
-modal selection. Legacy `financeRequest` and `virementRequest` search parameters
-are discarded by the Activity redirect and cannot open a modal. Décaissement
+modal selection. `financeRequest` and `virementRequest` search parameters are
+unsupported, stripped and cannot open a modal. Décaissement
 review no longer performs a redundant detail read. The existing virement detail
 read remains because settlement confirmation, reversement and their histories
 need data absent from the financial-request row.
@@ -1731,7 +1740,7 @@ show their error inside the dialog. Funding remains outside this slice.
 
 Cursor controls for décaissement, virement and zero-spending history are rendered
 in the **Demandes financières** card. They use the shared `Pagination` component
-and Router-owned cursors, so changing pages may remount the page without coupling
+and page-local cursors, so changing pages does not mutate the URL or couple
 pagination to modal state.
 
 Verification for the implemented candidate:
@@ -2025,3 +2034,28 @@ with Supervisor prevalidation followed by a distinct Validator decision. Version
 assignment, completeness and no-self-review protections remain unchanged. A new
 amendment without any change from the approved baseline remains invalid; transfer
 and withdrawal correction rules are outside this correction.
+
+### Correction notice presentation — 2026-11-23
+
+Existing returned-correction reasons now use one shared amber notice matching the
+approved Activity references. Programming and financial request views reuse their
+current correction data. The Réalisation tab derives the same presentation from
+the already loaded décaissement or zero-spending request lists. No backend
+contract, permission, decision or resubmission rule changes in this UI slice.
+
+### URL and return-navigation cleanup — 2026-11-23
+
+Implementation replaces the broad shared search schema with route-specific
+filters. Activity sections use fragments. Activities without an approved
+baseline use `/planning/activities/:id`; Activities with an approved baseline use
+`/execution/activities/:id`, including amendment drafts and returned corrections.
+The Activity response corrects a manually entered route, so no origin parameter
+or Router history state is needed. Calendar mode/month and applied filters remain
+shareable. Pagination cursors are local to their lists and remain in Query keys
+and API requests. Login return memory is limited to visible top-level modules;
+explicit authorized authentication return targets remain unchanged. Shared
+project, PTA and Partner Activity selections are resolved independently of the
+list page currently visible.
+Planning rows, notifications, global History and newly generated Activity emails
+receive the approved-baseline fact needed to produce the canonical Activity link
+without an intermediate redirect.

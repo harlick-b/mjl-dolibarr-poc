@@ -113,6 +113,7 @@ def test_reminder_projection_rejects_a_missing_activity_name():
                 SimpleNamespace(
                     notification_id="notice-id",
                     activity_reference="ACT-1",
+                    approved_revision_id="approved-revision-1",
                     pta_year=2027,
                     revision_snapshot={"name": None},
                 )
@@ -131,6 +132,10 @@ def test_exact_due_cycle_is_deduplicated_and_recipient_only(planning):
     assert len(assignment_mail(planning)) == 1
     assert assigned["reference"] in assignment_mail(planning)[0]["html"]
     assert assigned["name"] in assignment_mail(planning)[0]["html"]
+    assert (
+        f"/execution/activities/{assigned['id']}"
+        in assignment_mail(planning)[0]["html"]
+    )
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 9)) == 1
     assert dispatch_due_reminders(planning["auth"], date(2028, 2, 10)) == 0
     assert len(reminder_mail(planning)) == 2
@@ -190,6 +195,12 @@ def test_approved_end_date_change_creates_a_new_cycle_and_keeps_history(planning
         f"/api/v1/activities/{activity['id']}/submissions",
         {"expected_version": edited.json()["version"]},
     ).json()
+    amendment_review_mail = [
+        row
+        for row in messages(planning["auth"].mail.directory)
+        if row["kind"] == "activity_review_supervisor"
+    ][-1]
+    assert f"/execution/activities/{activity['id']}" in amendment_review_mail["html"]
     prevalidated = post(
         planning["supervisor"],
         f"/api/v1/activities/{activity['id']}/revisions/{revision['id']}/decisions",
@@ -628,7 +639,7 @@ def test_activity_review_notifications_follow_the_available_decision(planning):
     for content in (review_mail[0]["html"], review_mail[0]["text"]):
         assert "Une activité attend votre examen" in content
         assert activity["reference"] in content
-        assert f"/activities/{activity['id']}" in content
+        assert f"/planning/activities/{activity['id']}" in content
 
     prevalidated = post(
         planning["supervisor"],
@@ -666,6 +677,7 @@ def test_activity_review_notifications_follow_the_available_decision(planning):
         row for row in agent_items["data"] if row["kind"] == "activity_correction"
     )
     assert correction["reason"] == "Préciser les résultats attendus."
+    assert correction["approved_revision_id"] is None
     assert correction["email_status"] == "delivered"
     assert (
         planning["validator"]

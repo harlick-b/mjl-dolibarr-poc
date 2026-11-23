@@ -8,6 +8,7 @@ from typing import NamedTuple
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
@@ -19,6 +20,11 @@ class AuthEnvironment(NamedTuple):
 
     def __repr__(self):
         return "AuthEnvironment(<isolated credentials redacted>)"
+
+
+@pytest.fixture(scope="session")
+def alembic_head() -> str:
+    return ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
 
 
 @pytest.fixture

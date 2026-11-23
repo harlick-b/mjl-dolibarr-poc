@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal
 from urllib.parse import quote, urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.security import APIKeyCookie
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.dto import ErrorResponse
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError, AuthService
+from app.core.pagination import list_args
 from app.planning.core.models import (
     Activity,
     ActivityDocument,
@@ -331,12 +332,6 @@ def store_upload(
             ),
             location,
         )
-
-
-def list_args(
-    limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
-) -> tuple[int, str | None]:
-    return limit, cursor
 
 
 @router.get("/activities/{activity_id}/documents", response_model=ListOutput)

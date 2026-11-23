@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select, tuple_
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.auth.dto import ErrorResponse
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.core.pagination import list_args
 from app.planning.core.models import (
     FundingDecision,
     FundingRequest,
@@ -20,6 +21,8 @@ from app.planning.core.models import (
 from app.planning.core.service import (
     CONTEXT,
     Cursor,
+    get_activity,
+    get_activity_for_command,
     is_assigned_agent,
     locked_mutation,
     principal,
@@ -33,7 +36,7 @@ from app.planning.notifications.financial_notifications import (
     record_review_notifications,
 )
 from app.planning.operations.execution import pause_reason
-from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
+from app.planning.routes import MUTATION_HEADERS
 
 router = APIRouter(
     prefix="/api/v1",
@@ -130,12 +133,6 @@ class ListOutput(Input):
     data: list[RequestOutput]
     next: str | None
     previous: str | None
-
-
-def list_args(
-    limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
-) -> tuple[int, str | None]:
-    return limit, cursor
 
 
 def decisions(db: Session, request_id: str) -> list[FundingDecision]:

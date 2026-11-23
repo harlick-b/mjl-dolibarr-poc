@@ -216,6 +216,7 @@ def test_global_history_is_bounded_newest_first_and_activity_aware(planning):
         "id": created.json()["id"],
         "reference": created.json()["reference"],
         "name": "Historique synthétique",
+        "approved_revision_id": None,
     }
     assert activity["actor"]["email"] == "agent@example.test"
     assert set(activity["actor"]) == {"id", "email", "full_name"}

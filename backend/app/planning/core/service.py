@@ -52,6 +52,40 @@ def locked_mutation(db: Session) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(1843201)"))
 
 
+def get_activity(
+    db: Session,
+    identifier: str,
+    *,
+    actor: User | None = None,
+    lock: bool = False,
+    shared: bool = False,
+) -> Activity:
+    if lock and shared:
+        raise ValueError("Activity lock mode must be exclusive or shared")
+    lock_mode: bool | dict[str, bool] = {"read": True} if shared else lock
+    item = db.get(Activity, identifier, with_for_update=lock_mode)
+    if not item or item.context_id != CONTEXT:
+        raise AuthError(404, "activity_not_found")
+    if actor is not None:
+        require_activity_visible(db, item, actor)
+    return item
+
+
+def get_activity_for_command(db: Session, identifier: str, actor: User) -> Activity:
+    item = get_activity(db, identifier, actor=actor)
+    project = db.scalar(
+        select(Project)
+        .join(AnnualPTA, AnnualPTA.project_id == Project.id)
+        .where(AnnualPTA.id == item.pta_id)
+        .with_for_update()
+    )
+    if not project:
+        raise AuthError(404, "activity_not_found")
+    db.refresh(item, with_for_update=True)
+    require_agent_assignment(db, item.id, actor)
+    return item
+
+
 def is_assigned_agent(db: Session, activity_id: str, actor_id: str | None) -> bool:
     return (
         actor_id is not None

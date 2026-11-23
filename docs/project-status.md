@@ -6,6 +6,15 @@ for another feature. [Business rules](business-rules.md) define behavior;
 [engineering](engineering.md), [security](security.md) and [design](design.md)
 own their subjects. [README](../README.md) owns setup and development commands.
 
+## Execution administrative status — 2026-11-23
+
+The Execution list derives one concise administrative status from the existing
+execution projection. Completed physical work under financial review now shows
+the relevant décaissement, virement or no-spending step instead of the generic
+**Réalisation suspendue** label. The shared frontend helper also covers work to
+complete, reversement, funding regularization, other administrative blocks,
+closure readiness and closed Activities. No API, workflow or permission changed.
+
 ## Activity correction resubmission — 2026-11-22
 
 An assigned Agent can resubmit a valid Activity after either the Supervisor or

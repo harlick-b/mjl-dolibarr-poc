@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 from urllib.parse import quote, urlencode
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select, tuple_
@@ -17,6 +17,7 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.core.pagination import list_args
 from app.partner_portal.export import artifact as partner_csv
 from app.partner_portal.fiche import render_partner_fiche
 from app.planning.core.models import (
@@ -191,12 +192,6 @@ class ListOutput[Item](Output):
     data: list[Item]
     next: str | None
     previous: str | None
-
-
-def list_args(
-    limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
-) -> tuple[int, str | None]:
-    return limit, cursor
 
 
 def partner_principal(

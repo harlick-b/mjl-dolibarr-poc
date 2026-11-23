@@ -774,3 +774,74 @@ a failed optional reversement evidence upload keeps its actionable retry state.
 Access dialogs no longer coordinate a second page-wide visibility flag or write
 an unused document marker; each invitation or account-row dialog owns its open
 state and delegates only message cleanup to the page.
+
+### Shared correction notice — 2026-11-23
+
+`CorrectionNotice` centralizes the approved warning surface, optional reviewer
+attribution and verbatim multiline reason. Planning and Execution pass existing
+query data into the component; it owns no fetching, workflow state or action.
+
+### Clean browser navigation — 2026-11-23
+
+Activity sections use fragments, applied filters and calendar view/month use
+validated search parameters, and pagination stays in local component state.
+Local pagination is scoped to the effective filters or parent selection, so URL
+Back/Forward changes cannot reuse a cursor or page from another list context.
+Routes without shareable search state strip unrelated parameters. Copied
+Project, PTA and Activity selections may traverse cursor pages through the shared
+pagination helper; resolver failures remain explicit retryable errors, and
+Partner resolver denials use the established protected-data cleanup.
+Activity detail routing follows the approved baseline: never-approved Activities
+use the Planning path, while any Activity with an approved baseline uses the
+Execution path throughout amendments and corrections. The loaded Activity
+canonicalizes manually entered paths; no origin query or hidden navigation state
+owns module identity.
+Planning lists, notifications, audit projections and new Activity email contexts
+include or derive that same durable approval fact. Link producers call the shared
+route helpers with the current server approval fact or, for Dashboard attention,
+the server-selected destination module. They do not invent approval identifiers
+or use an origin guess.
+
+The focused frontend rerun covers scoped pagination, copied Partner selection
+loading and resolver failures, Activity/Task breadcrumbs and Dashboard links.
+Lint and the production build pass; the existing hook-cleanup and bundle-size
+warnings remain outside this slice.
+
+### Duplication and Activity workflow ownership — 2026-11-23
+
+Existing cursor parsing, browser blob delivery, backend list arguments and
+generic Alembic-head assertions now use their established shared owners.
+Execution and Partner portal copy lives in the existing French locale
+dictionaries. The Planning Activity workflow uses one explicit request builder
+and a focused dialog that owns only temporary form state; the page continues to
+own Query mutations, cache refresh and navigation.
+
+Activity submission and review decisions now execute in the feature-local
+`activity_review` owner. Each use case opens and commits its complete transaction,
+including authorization, lock ordering, state checks, immutable evidence, audit
+and durable notification records. HTTP routes retain validated input mapping,
+response headers and post-commit notification delivery. Activity creation and
+the other planning workflows remain in their existing owners; no generic
+workflow or persistence framework was introduced.
+
+Frontend workflow checks cover independent amendment, withdrawal and transfer
+outcomes, failed-submit draft retention, transfer dates, clicked-action loading
+and opener focus. Backend imports, route registration, Ruff and test collection
+pass. Focused checks against a dedicated disposable PostgreSQL database reached
+the extracted use cases and passed 27 scenarios, including unchanged correction
+resubmission, immutable review evidence, exact-revision review, stale versions,
+concurrent decisions, rollback atomicity and notification persistence. One
+amendment scenario failed earlier during an existing assignment-protected edit,
+before the second submission entered the extracted use case. An earlier selection
+passed 23 scenarios and had three equivalent pre-use-case setup or edit failures.
+These unrelated failures remain explicit verification gaps; they are not treated
+as passes or as production-readiness evidence.
+
+### Execution administrative status — 2026-11-23
+
+The Execution list and Activity header use one feature helper to derive their
+administrative status from the existing execution projection. The helper
+prioritizes the concrete closure blocker over the broad financial-editing freeze
+and groups review substates into a concise next step. Shared `StatusBadge`
+variants own the matching semantic colors. The API contract and financial
+workflow remain unchanged.

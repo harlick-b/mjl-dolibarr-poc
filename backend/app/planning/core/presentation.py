@@ -179,6 +179,7 @@ def activity_rows(
             "reference": row.reference,
             "name": row.name,
             "allocation": str(row.allocation) if row.allocation is not None else None,
+            "approved_revision_id": row.approved_revision_id,
             "planned_start": (
                 row.planned_start.isoformat() if row.planned_start else None
             ),

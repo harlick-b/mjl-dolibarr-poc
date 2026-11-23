@@ -37,6 +37,7 @@ import { FileSelection } from '@/shared/ui/FileSelection'
 import { CompactAllocationTable } from '../components/CompactAllocationTable'
 import { strings as executionStrings } from '@/locales/fr/ExecutionView'
 import { ExecutionView } from '@/features/execution/ExecutionView'
+import { executionAdministrativeStatus } from '@/features/execution/lib/administrative-status'
 import { BusinessForm } from '@/shared/ui/BusinessForm'
 import { Modal } from '@/shared/ui/BusinessModal'
 import { RetryableError } from '@/shared/ui/RetryableError'
@@ -2359,13 +2360,14 @@ function ActivityDetail({
   const programmingIncomplete = programmingProblems.length > 0
   const executionContext = source === 'execution'
   const execution = executionSummary.data
-  const administrativeSituation = execution?.closure
-    ? executionStrings.closedLabel
-    : execution?.pause_reason === 'funding_required'
-      ? executionStrings.fundingStage
-      : execution?.works_completed && execution?.closure_blockers?.length
-        ? strings.pendingClosure
-        : ''
+  const administrativeStatus = execution
+    ? executionAdministrativeStatus(execution)
+    : null
+  const administrativeSituation = administrativeStatus
+    ? executionStrings.executionAdministrativeStatuses[
+        administrativeStatus.code
+      ]
+    : ''
   const administrativeActions = [
     ['open_amendment', strings.openAmendment],
     ['cancel_amendment', strings.cancelAmendment],

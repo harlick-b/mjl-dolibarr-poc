@@ -18,7 +18,10 @@ from app.planning.core.models import (
     Project,
 )
 from app.planning.core.service import CONTEXT, locked_mutation
-from app.planning.notifications.notification_delivery import attempt_notification_email
+from app.planning.notifications.notification_delivery import (
+    activity_action_url,
+    attempt_notification_email,
+)
 
 
 def _record(
@@ -226,7 +229,7 @@ def _mail_context(
         "activity_name": activity.name,
         "pta_name": names[0],
         "project_name": names[1],
-        "action_url": f"{auth.policy.origin}/activities/{activity.id}",
+        "action_url": activity_action_url(auth, activity),
         **({"reason": item.reason} if item.kind == "activity_correction" else {}),
     }
 

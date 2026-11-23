@@ -13,7 +13,10 @@ from app.planning.core.models import (
     Project,
 )
 from app.planning.core.service import CONTEXT, locked_mutation
-from app.planning.notifications.notification_delivery import attempt_notification_email
+from app.planning.notifications.notification_delivery import (
+    activity_action_url,
+    attempt_notification_email,
+)
 
 
 def record_assignment_notification(
@@ -91,7 +94,7 @@ def deliver_assignment_notification(auth: AuthService, identifier: str) -> str |
                     "pta_name": context[0],
                     "project_name": context[1],
                     "assigner_name": assigner.full_name or assigner.email,
-                    "action_url": f"{auth.policy.origin}/activities/{activity.id}",
+                    "action_url": activity_action_url(auth, activity),
                 },
             )
         item.email_completed_at = auth.now(db)

@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlencode
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select, text, tuple_
@@ -23,6 +23,7 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.core.pagination import list_args
 from app.planning.core.models import (
     Activity,
     ActivityRevision,
@@ -83,6 +84,7 @@ class ActivityOutput(Output):
     id: str
     reference: str
     name: str
+    approved_revision_id: str | None
 
 
 class AuditOutput(Output):
@@ -513,12 +515,6 @@ def display_value(value: object, field: str) -> str | None:
     }.get(str(value), str(value))
 
 
-def args(
-    limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
-) -> tuple[int, str | None]:
-    return limit, cursor
-
-
 def activity_identifier(row: Audit) -> str | None:
     for facts in (row.business, row.details):
         value = facts.get("activity_id") if isinstance(facts, dict) else None
@@ -743,6 +739,7 @@ def projected_rows(
                         "id": activity.id,
                         "reference": activity.reference,
                         "name": activity.name,
+                        "approved_revision_id": activity.approved_revision_id,
                     }
                     if activity
                     else None
@@ -828,7 +825,7 @@ def export_csv(
 def audit_events(
     request: Request,
     auth: Auth,
-    pagination: Annotated[tuple[int, str | None], Depends(args)],
+    pagination: Annotated[tuple[int, str | None], Depends(list_args)],
     filters: Annotated[dict[str, str], Depends(history_filters)],
 ) -> dict[str, Any]:
     return history_page(request, auth, pagination, filters)
@@ -852,7 +849,7 @@ def activity_history(
     identifier: str,
     request: Request,
     auth: Auth,
-    pagination: Annotated[tuple[int, str | None], Depends(args)],
+    pagination: Annotated[tuple[int, str | None], Depends(list_args)],
 ) -> dict[str, Any]:
     return history_page(
         request, auth, pagination, {"activity": identifier}, activity_id=identifier
@@ -878,8 +875,7 @@ def history_page(
             read_only=True,
         )
         if activity_id:
-            from app.planning.core.service import require_activity_visible
-            from app.planning.routes import get_activity
+            from app.planning.core.service import get_activity, require_activity_visible
 
             activity = get_activity(db, activity_id, shared=True)
             require_activity_visible(db, activity, actor)
@@ -1093,7 +1089,7 @@ class FilterOptions(Output):
 def audit_filter_options(
     request: Request,
     auth: Auth,
-    pagination: Annotated[tuple[int, str | None], Depends(args)],
+    pagination: Annotated[tuple[int, str | None], Depends(list_args)],
     kind: Literal["actor", "activity", "project", "action"],
 ) -> dict[str, Any]:
     with Session(auth.engine) as db, db.begin():

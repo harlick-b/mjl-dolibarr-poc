@@ -39,6 +39,7 @@ import { FileSelection } from '@/shared/ui/FileSelection'
 import { Pagination } from '@/shared/ui/Pagination'
 import { CorrectionNotice } from '@/shared/ui/CorrectionNotice'
 import { useScopedPagination } from '@/shared/hooks/useScopedPagination'
+import { executionAdministrativeStatus } from './lib/administrative-status'
 import {
   FinancialCancellationForm,
   FinancialDecisionHistory,
@@ -991,90 +992,89 @@ export function ExecutionList({
           )}
           <tbody>
             {rows.length ? (
-              rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-border align-top last:border-0"
-                >
-                  <td className="min-w-0 px-3 py-3">
-                    <Link
-                      className="block break-words font-medium text-primary"
-                      {...activityLocation(row, 'realization')}
-                      title={row.name}
-                    >
-                      {row.name}
-                    </Link>
-                    <small className="mt-1 block break-words text-muted-foreground">
-                      {row.reference}
-                      {row.project_name ? ` · ${row.project_name}` : ''}
-                    </small>
-                  </td>
-                  <td className="px-3 py-3">
-                    {formatDate(row.planned_start)}
-                    <small className="block mt-1 text-muted-foreground">
-                      au {formatDate(row.planned_end)}
-                    </small>
-                  </td>
-                  <td className="px-3 py-3">
-                    <strong>
-                      {row.works_completed
-                        ? strings.completedLabel
-                        : strings.ongoingLabel}
-                    </strong>
-                    <small className="block mt-1 text-muted-foreground">
-                      {row.completed_tasks ?? 0} / {row.task_count ?? 0}{' '}
-                      {(row.task_count ?? 0) > 1
-                        ? 'tâches terminées'
-                        : 'tâche terminée'}
-                    </small>
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <strong>
-                      {row.spending_total === null
-                        ? strings.notProvided
-                        : formatXof(row.spending_total)}
-                    </strong>
-                    <small className="block mt-1 text-muted-foreground">
-                      {strings.formatString(strings.authorizedAmount, {
-                        amount: formatXof(row.approved_allocation),
-                      })}
-                    </small>
-                    {!row.works_completed && (
-                      <small className="block mt-1 text-muted-foreground">
-                        {strings.partialSpending}
-                      </small>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
-                    <AgentNames activityId={row.id} names={row.agents} />
-                  </td>
-                  <td className="px-3 py-3">
-                    <StatusBadge
-                      className={
-                        row.closure
-                          ? 'bg-success-badge text-success'
-                          : row.works_completed || row.execution_paused
-                            ? 'bg-warning-soft text-warning'
-                            : 'bg-selected text-primary'
-                      }
-                    >
-                      {executionStage(row)}
-                    </StatusBadge>
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="min-w-24 whitespace-nowrap"
-                    >
-                      <Link {...activityLocation(row, 'realization')}>
-                        {strings.followUp}
+              rows.map((row) => {
+                const administrativeStatus = executionAdministrativeStatus(row)
+                return (
+                  <tr
+                    key={row.id}
+                    className="border-b border-border align-top last:border-0"
+                  >
+                    <td className="min-w-0 px-3 py-3">
+                      <Link
+                        className="block break-words font-medium text-primary"
+                        {...activityLocation(row, 'realization')}
+                        title={row.name}
+                      >
+                        {row.name}
                       </Link>
-                    </Button>
-                  </td>
-                </tr>
-              ))
+                      <small className="mt-1 block break-words text-muted-foreground">
+                        {row.reference}
+                        {row.project_name ? ` · ${row.project_name}` : ''}
+                      </small>
+                    </td>
+                    <td className="px-3 py-3">
+                      {formatDate(row.planned_start)}
+                      <small className="block mt-1 text-muted-foreground">
+                        au {formatDate(row.planned_end)}
+                      </small>
+                    </td>
+                    <td className="px-3 py-3">
+                      <strong>
+                        {row.works_completed
+                          ? strings.completedLabel
+                          : strings.ongoingLabel}
+                      </strong>
+                      <small className="block mt-1 text-muted-foreground">
+                        {row.completed_tasks ?? 0} / {row.task_count ?? 0}{' '}
+                        {(row.task_count ?? 0) > 1
+                          ? 'tâches terminées'
+                          : 'tâche terminée'}
+                      </small>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <strong>
+                        {row.spending_total === null
+                          ? strings.notProvided
+                          : formatXof(row.spending_total)}
+                      </strong>
+                      <small className="block mt-1 text-muted-foreground">
+                        {strings.formatString(strings.authorizedAmount, {
+                          amount: formatXof(row.approved_allocation),
+                        })}
+                      </small>
+                      {!row.works_completed && (
+                        <small className="block mt-1 text-muted-foreground">
+                          {strings.partialSpending}
+                        </small>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      <AgentNames activityId={row.id} names={row.agents} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <StatusBadge variant={administrativeStatus.variant}>
+                        {
+                          strings.executionAdministrativeStatuses[
+                            administrativeStatus.code
+                          ]
+                        }
+                      </StatusBadge>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="min-w-24 whitespace-nowrap"
+                      >
+                        <Link {...activityLocation(row, 'realization')}>
+                          {strings.followUp}
+                        </Link>
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              })
             ) : (
               <tr>
                 <td colSpan={7}>
@@ -3235,21 +3235,4 @@ export function ExecutionLoading({ screen }) {
       variant={screen === 'list' ? 'table' : 'detail'}
     />
   )
-}
-
-function executionStage(row) {
-  if (row.closure) return strings.closedLabel
-  if (
-    row.pause_reason === 'funding_required' ||
-    row.closure_blockers?.includes('financial_insufficiency_unresolved')
-  )
-    return strings.fundingStage
-  if (row.execution_paused) return strings.pausedLabel
-  if (row.closure_blockers?.includes('reversement_not_settled'))
-    return strings.returnStage
-  if (row.works_completed)
-    return row.closure_blockers?.length
-      ? strings.financialStage
-      : strings.readyToClose
-  return strings.ongoingStage
 }

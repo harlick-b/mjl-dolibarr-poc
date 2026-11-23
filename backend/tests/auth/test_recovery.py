@@ -159,7 +159,7 @@ def test_recovery_policy_accepts_only_authorized_test_values(
         load_policy(auth_env.url)
 
 
-def test_a3_migration_preserves_existing_auth_evidence(auth_env):
+def test_a3_migration_preserves_existing_auth_evidence(auth_env, alembic_head):
     config = Config("alembic.ini")
     command.downgrade(config, "0003_a21")
     engine = create_engine(auth_env.url)
@@ -213,7 +213,7 @@ def test_a3_migration_preserves_existing_auth_evidence(auth_env):
         with engine.connect() as db:
             assert (
                 db.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0041_reviewer_finance"
+                == alembic_head
             )
             for table in (
                 "auth_user",

@@ -22,7 +22,10 @@ from app.planning.core.models import (
     ZeroSpendingDeclaration,
 )
 from app.planning.core.service import CONTEXT, locked_mutation
-from app.planning.notifications.notification_delivery import attempt_notification_email
+from app.planning.notifications.notification_delivery import (
+    activity_action_url,
+    attempt_notification_email,
+)
 
 FinancialRequest = (
     FundingRequest | DisbursementRequest | VirementRequest | ZeroSpendingDeclaration
@@ -266,9 +269,7 @@ def deliver_financial_notification(auth: AuthService, identifier: str) -> str | 
                         "request_amount": f"{amount:,}".replace(",", " "),
                         "activity_reference": activity.reference,
                         "activity_name": activity.name,
-                        "action_url": (
-                            f"{auth.policy.origin}/execution/activities/{activity.id}"
-                        ),
+                        "action_url": activity_action_url(auth, activity),
                         **(
                             {"reason": item.reason}
                             if item.kind == "financial_correction"

@@ -16,6 +16,7 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import Audit, User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.core.pagination import list_args
 from app.planning.core.models import (
     Activity,
     ActivityAssignment,
@@ -36,6 +37,8 @@ from app.planning.core.service import (
     CONTEXT,
     Cursor,
     fingerprint,
+    get_activity,
+    get_activity_for_command,
     is_assigned_agent,
     locked_mutation,
     page_rows,
@@ -47,7 +50,7 @@ from app.planning.core.task_hierarchy import (
     manual_task_progress,
     percentage,
 )
-from app.planning.routes import MUTATION_HEADERS, get_activity, get_activity_for_command
+from app.planning.routes import MUTATION_HEADERS
 
 router = APIRouter(
     prefix="/api/v1",
@@ -253,12 +256,6 @@ class ListOutput[Item](Input):
     data: list[Item]
     next: str | None
     previous: str | None
-
-
-def list_args(
-    limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
-) -> tuple[int, str | None]:
-    return limit, cursor
 
 
 def execution_facts(operation: Operation | Subtask) -> dict[str, object]:
@@ -544,8 +541,10 @@ def execution_detail(
         ),
         None,
     )
-    current_virement = pending_virement or unconfirmed_virement or (
-        nonterminal_virements[0] if nonterminal_virements else None
+    current_virement = (
+        pending_virement
+        or unconfirmed_virement
+        or (nonterminal_virements[0] if nonterminal_virements else None)
     )
     approved_virement_by_source: dict[str, int] = {}
     for row in nonterminal_virements:

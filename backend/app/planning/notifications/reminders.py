@@ -99,6 +99,7 @@ class ReminderOutput(Input):
     activity_id: str
     activity_reference: str
     activity_name: str
+    approved_revision_id: str | None
     pta_year: int
     planned_end: str | None
     due_on: str | None
@@ -315,6 +316,7 @@ def _reminder_outputs(
             select(
                 ActivityReminder.id.label("notification_id"),
                 Activity.reference.label("activity_reference"),
+                Activity.approved_revision_id.label("approved_revision_id"),
                 Activity.placement_year.label("pta_year"),
                 ActivityRevision.snapshot.label("revision_snapshot"),
             )
@@ -343,6 +345,7 @@ def _reminder_outputs(
             "activity_id": item.activity_id,
             "activity_reference": contexts[item.id].activity_reference,
             "activity_name": names[item.id],
+            "approved_revision_id": contexts[item.id].approved_revision_id,
             "pta_year": contexts[item.id].pta_year,
             "planned_end": item.planned_end.isoformat(),
             "due_on": item.due_on.isoformat(),
@@ -367,6 +370,7 @@ def _assignment_outputs(
                 ActivityAssignmentNotification.id.label("notification_id"),
                 Activity.reference.label("activity_reference"),
                 Activity.name.label("activity_name"),
+                Activity.approved_revision_id.label("approved_revision_id"),
                 Activity.placement_year.label("pta_year"),
                 User.full_name.label("assigner_name"),
                 User.email.label("assigner_email"),
@@ -390,6 +394,7 @@ def _assignment_outputs(
             "activity_id": item.activity_id,
             "activity_reference": contexts[item.id].activity_reference,
             "activity_name": contexts[item.id].activity_name,
+            "approved_revision_id": contexts[item.id].approved_revision_id,
             "pta_year": contexts[item.id].pta_year,
             "planned_end": None,
             "due_on": None,
@@ -428,6 +433,7 @@ def _workflow_outputs(
             "activity_id": item.activity_id,
             "activity_reference": activities[item.activity_id].reference,
             "activity_name": activities[item.activity_id].name,
+            "approved_revision_id": activities[item.activity_id].approved_revision_id,
             "pta_year": activities[item.activity_id].placement_year,
             "planned_end": None,
             "due_on": None,
@@ -481,6 +487,7 @@ def _financial_outputs(
             "activity_id": item.activity_id,
             "activity_reference": activities[item.activity_id].reference,
             "activity_name": activities[item.activity_id].name,
+            "approved_revision_id": activities[item.activity_id].approved_revision_id,
             "pta_year": activities[item.activity_id].placement_year,
             "planned_end": None,
             "due_on": None,

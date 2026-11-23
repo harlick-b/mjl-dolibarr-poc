@@ -1,11 +1,18 @@
 import { cn } from '@/shared/lib/utils'
 
-export function StatusBadge({ children, className, ...props }) {
+const variants = {
+  info: 'bg-selected text-primary',
+  warning: 'bg-warning-soft text-warning',
+  success: 'bg-success-badge text-success',
+}
+
+export function StatusBadge({ children, className, variant, ...props }) {
   return (
     <span
       {...props}
       className={cn(
         'inline-flex min-h-5 w-fit min-w-0 max-w-full items-center self-start rounded-card px-2 py-1 text-center text-xs leading-4 whitespace-normal break-words',
+        variants[variant],
         className,
       )}
     >

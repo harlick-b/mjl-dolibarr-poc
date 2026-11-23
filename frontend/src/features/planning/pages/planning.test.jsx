@@ -145,6 +145,8 @@ test('an approved Activity shows its due administrative reminder without repeati
             realization_status: 'not_started',
             progress: null,
             closure: null,
+            pause_reason: 'funding_required',
+            closure_blockers: ['financial_insufficiency_unresolved'],
           }),
         )
       return new Response(
@@ -177,6 +179,7 @@ test('an approved Activity shows its due administrative reminder without repeati
   expect(within(reminderCard).getByText(formatDate(plannedEnd))).toBeVisible()
   expect(within(reminderCard).getByText('Aïcha Agent')).toBeVisible()
   expect(within(reminderCard).getByText(/Relance prévue le/)).toBeVisible()
+  expect(screen.getByText('Financement à régulariser')).toBeVisible()
 
   const programmingCard = screen
     .getByRole('heading', { name: 'Programmation' })

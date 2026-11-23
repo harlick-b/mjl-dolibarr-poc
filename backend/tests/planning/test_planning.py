@@ -304,7 +304,9 @@ def test_draft_preserves_manual_activity_total_and_a_task_without_category(plann
     assert "submit" not in activity["allowed_actions"]
 
 
-def test_category_migration_refuses_to_discard_an_incomplete_draft(planning, auth_env):
+def test_category_migration_refuses_to_discard_an_incomplete_draft(
+    planning, auth_env, alembic_head
+):
     _partner, _operation_type, project = references(planning)
     created = post(
         planning["agent"],
@@ -343,7 +345,7 @@ def test_category_migration_refuses_to_discard_an_incomplete_draft(planning, aut
         with engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "0041_reviewer_finance"
+                == alembic_head
             )
             assert (
                 connection.scalar(
@@ -1282,7 +1284,7 @@ def test_v08_v20_runtime_role_cannot_mutate_evidence_or_administer_schema(planni
 def test_v04_snapshot_overflow_rolls_back_without_truncating_lineage(
     planning, monkeypatch
 ):
-    from app.planning import routes as planning_routes
+    from app.planning import activity_review
 
     _partner, operation_type, project = references(planning)
     activity = post(
@@ -1290,7 +1292,7 @@ def test_v04_snapshot_overflow_rolls_back_without_truncating_lineage(
         f"/api/v1/projects/{project['id']}/ptas/2027/activities",
         {**plan(operation_type), "request_key": str(uuid4())},
     ).json()
-    actual_builder = planning_routes.build_revision_snapshot
+    actual_builder = activity_review.build_revision_snapshot
 
     def oversized_snapshot(db, item, actor, submitted_at):
         return {
@@ -1298,7 +1300,7 @@ def test_v04_snapshot_overflow_rolls_back_without_truncating_lineage(
             "overflow": "x" * 1_048_576,
         }
 
-    monkeypatch.setattr(planning_routes, "build_revision_snapshot", oversized_snapshot)
+    monkeypatch.setattr(activity_review, "build_revision_snapshot", oversized_snapshot)
     response = post(
         planning["agent"],
         f"/api/v1/activities/{activity['id']}/submissions",
@@ -2139,6 +2141,7 @@ def test_p02_p12_p13_role_matrix_and_coordination_assignment(planning):
         "reference",
         "name",
         "allocation",
+        "approved_revision_id",
         "planned_start",
         "planned_end",
         "operation_count",

@@ -37,7 +37,7 @@ from app.planning.core.models import (
     ZeroSpendingDecision,
     ZeroSpendingDeclaration,
 )
-from app.planning.core.service import principal
+from app.planning.core.service import get_activity, principal
 from app.planning.core.task_hierarchy import (
     activity_progress,
     format_percentage,
@@ -47,7 +47,7 @@ from app.planning.reports.activity_fiche_pdf import (
     render_activity_fiche,
     task_fiche_label,
 )
-from app.planning.routes import get_activity, locked_read
+from app.planning.routes import locked_read
 
 router = APIRouter(
     prefix="/api/v1",

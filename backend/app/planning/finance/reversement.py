@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated, Any, Literal
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select, text
@@ -12,8 +12,16 @@ from app.auth.dto import ErrorResponse
 from app.auth.models import User
 from app.auth.routes import Auth, evidence
 from app.auth.service import AuthError
+from app.core.pagination import list_args
 from app.planning.core.models import ReversementDeclaration, VirementRequest
-from app.planning.core.service import CONTEXT, Cursor, locked_mutation, principal
+from app.planning.core.service import (
+    CONTEXT,
+    Cursor,
+    get_activity,
+    get_activity_for_command,
+    locked_mutation,
+    principal,
+)
 from app.planning.finance.virement import (
     exact_request,
     settlement_ready_for_reversement,
@@ -24,8 +32,6 @@ from app.planning.finance.virement_confirmation import current as current_confir
 from app.planning.routes import (
     MUTATION_HEADERS,
     created,
-    get_activity,
-    get_activity_for_command,
 )
 
 router = APIRouter(
@@ -294,12 +300,6 @@ def correct(
         f"{result['request_id']}/reversement",
         result,
     )
-
-
-def list_args(
-    limit: Annotated[int, Query(ge=1, le=100)] = 60, cursor: str | None = None
-) -> tuple[int, str | None]:
-    return limit, cursor
 
 
 @router.get(

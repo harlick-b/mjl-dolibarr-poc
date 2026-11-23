@@ -318,7 +318,7 @@ def test_editable_activity_dates_migration_round_trip_preserves_complete_activit
 
 
 def test_m04_editable_amendments_can_clear_dates_and_keep_audit_history(
-    planning, auth_env
+    planning, auth_env, alembic_head
 ):
     approved, operation_type = approved_activity(planning)
     opened = open_amendment(planning, approved, "Corriger un calendrier incomplet")
@@ -439,7 +439,7 @@ def test_m04_editable_amendments_can_clear_dates_and_keep_audit_history(
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0041_reviewer_finance"
+                alembic_head
             )
     finally:
         engine.dispose()

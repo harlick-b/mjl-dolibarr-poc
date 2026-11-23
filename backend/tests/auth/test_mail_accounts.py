@@ -94,7 +94,7 @@ def test_all_personalized_templates_and_strict_variables():
         pta_name="PTA 2028",
         project_name="Protection de l’enfant",
         assigner_name="Jean Superviseur",
-        action_url="http://localhost:5173/activities/activity-1",
+        action_url="http://localhost:5173/planning/activities/activity-1",
     )
 
     assert "Bonjour," in recovery.html and "réinitialiser" in recovery.text
@@ -105,7 +105,7 @@ def test_all_personalized_templates_and_strict_variables():
     assert "Jean Superviseur" in assignment.text
     assert "ACT-2028-002" in assignment.html
     assert "Consulter l’activité" in assignment.html
-    assert "http://localhost:5173/activities/activity-1" in assignment.text
+    assert "http://localhost:5173/planning/activities/activity-1" in assignment.text
     with pytest.raises(UndefinedError):
         renderer.render("activity_reminder", recipient_name="Aminata Dossou")
 
@@ -155,7 +155,7 @@ def test_resend_transport_returns_provider_id_and_rejects_bad_responses():
                 "activity_name": "Formation des relais",
                 "project_name": "Protection de l’enfant",
                 "pta_name": "PTA 2028",
-                "action_url": "http://localhost/activities/activity-1",
+                "action_url": "http://localhost/planning/activities/activity-1",
             },
             "Une activité attend votre examen",
         ),
@@ -169,7 +169,7 @@ def test_resend_transport_returns_provider_id_and_rejects_bad_responses():
                 "activity_name": "Formation des relais",
                 "project_name": "Protection de l’enfant",
                 "pta_name": "PTA 2028",
-                "action_url": "http://localhost/activities/activity-1",
+                "action_url": "http://localhost/execution/activities/activity-1",
             },
             "attend votre approbation",
         ),
@@ -184,7 +184,7 @@ def test_resend_transport_returns_provider_id_and_rejects_bad_responses():
                 "project_name": "Protection de l’enfant",
                 "pta_name": "PTA 2028",
                 "reason": "Préciser les résultats.",
-                "action_url": "http://localhost/activities/activity-1",
+                "action_url": "http://localhost/execution/activities/activity-1",
             },
             "Une modification d’activité nécessite des corrections",
         ),

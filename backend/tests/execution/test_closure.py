@@ -942,7 +942,9 @@ def test_closure_serializes_with_account_lifecycle(planning):
         assert db.get(User, agent_id).state == "inactive"
 
 
-def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
+def test_pta3f_migration_upgrades_clean_predecessor(
+    auth_env, monkeypatch, alembic_head
+):
     config = Config("alembic.ini")
     base = make_url(os.environ["TEST_DATABASE_URL"])
     canonical_name = "mjl_test_" + uuid4().hex
@@ -1010,7 +1012,7 @@ def test_pta3f_migration_upgrades_clean_predecessor(auth_env, monkeypatch):
     try:
         with engine.connect() as db:
             assert db.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "0041_reviewer_finance"
+                alembic_head
             )
             columns = {row["name"] for row in inspect(db).get_columns("pta_activity")}
             assert {"closed_at", "closed_by_id"} <= columns

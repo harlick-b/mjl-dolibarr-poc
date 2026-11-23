@@ -1144,6 +1144,9 @@ test('execution explorer searches assigned Agents and shows readable active filt
               project_name: 'Justice des mineurs',
               approved_revision_number: 1,
               agents: ['Agent de test'],
+              closure_blockers: ['disbursement_not_settled'],
+              execution_paused: true,
+              pause_reason: 'disbursement_frozen',
             },
           ],
         }
@@ -1166,6 +1169,8 @@ test('execution explorer searches assigned Agents and shows readable active filt
   ).toBeVisible()
   expect(screen.getByText('1 / 1 tâche terminée')).toBeVisible()
   expect(screen.getByText('sur 100 000 F CFA autorisés')).toBeVisible()
+  expect(screen.getByText('Décaissement à finaliser')).toBeVisible()
+  expect(screen.queryByText('Réalisation suspendue')).not.toBeInTheDocument()
   expect(screen.queryByText(/Révision 1/)).not.toBeInTheDocument()
   expect(
     screen.getByRole('searchbox', {
