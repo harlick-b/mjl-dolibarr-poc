@@ -57,9 +57,10 @@ changed interactions.
 
 ## Activity header and financial review flow — 2026-11-21
 
-Activity-header actions now use a shared Activity-specific Button variant, and
-the visible header actions are text-only. The workspace navigation calls the
-reminder entry **Notifications**. Supervisor and Validator review of both
+Activity-header actions now use a shared Activity-specific Button variant.
+Purposeful icons are allowed where approved, including the download and creation
+actions. The workspace navigation calls the reminder entry **Notifications**.
+Supervisor and Validator review of both
 décaissement and virement requests now opens a centered modal immediately from
 the Activity finance table without URL mutation or an Activity-page reload; the
 obsolete request-history expander is no longer displayed. Links identify only
@@ -206,8 +207,8 @@ elements for both native and manually validated controls.
 
 The PTA page now leads with the Project identity. Activity header typography uses
 the approved title and metadata tokens, while the five financial facts use one
-desktop row and responsive reflow. Draft over-allocation behavior remains unchanged
-pending a final métier choice. The focused final frontend run passed 123 tests,
+desktop row and responsive reflow. Drafts may remain incomplete but cannot exceed
+their parent amount or 100% weight; submission requires exact totals. The focused final frontend run passed 123 tests,
 targeted ESLint and the production build passed, and independent re-review cleared
 the candidate. Responsive financial breakpoints were inspected in code; no rendered
 browser screenshot pass was run.
@@ -2658,11 +2659,16 @@ detail link resolves to the Execution URL. The detail loader corrects a manually
 entered route from the latest Activity data, and the sidebar follows the canonical
 pathname. Applied filters and calendar selection remain shareable; list
 pagination stays local and no longer adds opaque cursors or page numbers to
-browser URLs. Login remembers only the last visible top-level module.
+browser URLs. Activity canonicalization now ignores non-Activity destinations,
+so every sidebar link completes instead of being overwritten by the previous
+Activity route. Login remembers only the last visible top-level module.
 Planning rows, notifications, global History and newly generated Activity emails
 carry the same approved-baseline fact, so their links use the canonical module
 directly. Previously delivered generic Activity email links are intentionally not
-supported.
+supported. Dashboard attention also derives its destination from the approved
+baseline, so approved amendments and corrections open Execution directly. Its
+pending action selects the Activity section independently, keeping approved
+planning corrections on Programming and financial actions on Finance.
 Copied project, PTA and Partner Activity selections resolve even when their row is
 outside the currently visible list page. The change does not alter API pagination,
 permissions or business workflows.

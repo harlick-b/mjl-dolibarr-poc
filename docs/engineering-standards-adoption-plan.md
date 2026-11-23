@@ -798,9 +798,10 @@ canonicalizes manually entered paths; no origin query or hidden navigation state
 owns module identity.
 Planning lists, notifications, audit projections and new Activity email contexts
 include or derive that same durable approval fact. Link producers call the shared
-route helpers with the current server approval fact or, for Dashboard attention,
-the server-selected destination module. They do not invent approval identifiers
-or use an origin guess.
+route helpers with the current server approval fact. Dashboard attention derives
+its server-selected module from that durable approval fact, rather than the type
+of pending action. Link producers do not invent approval identifiers or use an
+origin guess.
 
 The focused frontend rerun covers scoped pagination, copied Partner selection
 loading and resolver failures, Activity/Task breadcrumbs and Dashboard links.

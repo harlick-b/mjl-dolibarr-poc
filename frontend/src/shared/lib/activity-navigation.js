@@ -13,9 +13,10 @@ export function activitySection(hash) {
 }
 
 export function activitySource(pathname) {
-  return String(pathname || '').startsWith('/execution/activities/')
-    ? 'execution'
-    : 'planning'
+  const path = String(pathname || '')
+  if (path.startsWith('/execution/activities/')) return 'execution'
+  if (path.startsWith('/planning/activities/')) return 'planning'
+  return null
 }
 
 export function activityRoute(activity) {

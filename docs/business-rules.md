@@ -25,10 +25,12 @@ level of Subtasks inherits the parent Category. Task weights must total exactly
 100% per Activity when submitted for prevalidation. When Subtasks exist, their
 positive weights and planned amounts must respectively total 100% and the Task
 planned amount. Initial Drafts, amendment Drafts and returned corrections may
-keep missing Categories, dates and weights, and may keep incomplete or excessive
-Task/Subtask allocations. Saving a started Task or Subtask still requires its
-name and a positive planned amount. Submission requires every Category, date and
-positive weight, exact 100% weight totals and exact Activity/Task amount totals.
+keep missing Categories, dates and weights, and may keep incomplete Task/Subtask
+allocations. Draft Task and Subtask amount totals must not exceed their parent
+amount, and Draft weight totals must not exceed 100%. Saving a started Task or
+Subtask still requires its name and a positive planned amount. Submission requires
+every Category, date and positive weight, exact 100% weight totals and exact
+Activity/Task amount totals.
 
 An assigned Agent enters progress for a Task without Subtasks. Subtask progress
 is binary, and the Task derives its progress from its Subtask weights. Activity

@@ -1540,8 +1540,10 @@ Activity editing and Activity details now call one submission validator for the
 required Activity, Task and Subtask fields, date boundaries, amount equality and
 weight totals. An invalid Draft remains visible on the detail page with the same
 specific corrections as the editor, and its submission action stays unavailable.
-Draft over-allocation behavior is unchanged pending the user's final métier
-choice; server submission enforcement remains authoritative.
+Drafts may retain incomplete allocations, but amount totals may not exceed their
+parent and weight totals may not exceed 100%. Submission additionally requires
+exact parent amount equality and exact 100% weight totals; server enforcement
+remains authoritative.
 
 The PTA page identifies the Project first, the Activity header uses the approved
 24 px title and 12 px metadata scale, and the five-value financial summary stays
@@ -1563,11 +1565,11 @@ screenshot pass was run.
 
 Activity-header actions use the shared Button base with an Activity-specific
 variant that owns their approved compact height, border, radius, spacing and
-type scale. **Affectations** and **Fiche récapitulative** use that variant and
-contain text only. Text action buttons across the touched application surfaces
-also contain no decorative icons; icon-only controls and control-state symbols
-remain where the icon is the control or communicates selection. The sidebar
-entry previously labelled **Relances** is now **Notifications**.
+type scale. **Affectations** and **Fiche récapitulative** use that variant.
+Purposeful icons are permitted when they match the approved control, including
+the download icon for **Fiche récapitulative** and plus icons for creation CTAs;
+the blanket text-only rule no longer applies. The sidebar entry previously
+labelled **Relances** is now **Notifications**.
 
 Selecting **Examiner** for a décaissement or virement now opens a centered
 Activity-scoped modal directly from the current table data. It no longer writes
@@ -2056,6 +2058,13 @@ and API requests. Login return memory is limited to visible top-level modules;
 explicit authorized authentication return targets remain unchanged. Shared
 project, PTA and Partner Activity selections are resolved independently of the
 list page currently visible.
+Canonical Activity correction now runs only while the browser is still on an
+Activity route. A sidebar navigation therefore cannot be reclassified as a
+Planning Activity route or overwritten by a stale Activity redirect.
 Planning rows, notifications, global History and newly generated Activity emails
 receive the approved-baseline fact needed to produce the canonical Activity link
-without an intermediate redirect.
+without an intermediate redirect. Dashboard attention derives its destination
+from that same approved baseline, rather than from whether the pending action is
+a planning or financial action. The pending action independently selects the
+relevant Activity section, so approved planning corrections open Programming on
+the Execution route while financial actions open Finance.

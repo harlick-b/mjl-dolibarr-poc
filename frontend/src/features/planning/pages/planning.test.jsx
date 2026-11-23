@@ -186,6 +186,9 @@ test('an approved Activity shows its due administrative reminder without repeati
     .closest('section')
   expect(within(programmingCard).queryByText('Début prévu')).toBeNull()
   expect(within(programmingCard).queryByText('Fin prévue')).toBeNull()
+
+  await userEvent.click(screen.getByRole('link', { name: 'Tableau de bord' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/dashboard'))
 })
 
 test('a returned Activity presents the existing correction in the shared notice', async () => {

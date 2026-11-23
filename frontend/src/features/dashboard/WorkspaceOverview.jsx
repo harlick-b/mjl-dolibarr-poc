@@ -545,7 +545,10 @@ function AttentionSummary({ attention }) {
             const destination = activityLocationForModule(
               item.activity_id,
               item.destination,
-              item.destination === 'planning' ? 'programming' : 'finance',
+              item.destination === 'planning' ||
+                item.action === 'review_planning'
+                ? 'programming'
+                : 'finance',
             )
             return (
               <li

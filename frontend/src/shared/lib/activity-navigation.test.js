@@ -49,6 +49,8 @@ describe('activity navigation', () => {
   test('derives sidebar context from the route and normalizes unknown fragments', () => {
     expect(activitySource('/execution/activities/activity-1')).toBe('execution')
     expect(activitySource('/planning/activities/activity-1')).toBe('planning')
+    for (const path of ['/dashboard', '/planning', '/execution', '/projects'])
+      expect(activitySource(path)).toBeNull()
     expect(activitySection('')).toBe('programming')
     expect(activitySection('#unknown')).toBe('programming')
   })

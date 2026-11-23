@@ -164,8 +164,8 @@ def dashboard_attention_data(
         priority: int,
         reason: str,
         action: str,
-        destination: str,
     ) -> None:
+        destination = "execution" if item.approved_revision_id else "planning"
         ranked.append(
             (
                 priority,
@@ -205,7 +205,6 @@ def dashboard_attention_data(
                         else "draft_to_complete"
                     ),
                     action="review_planning",
-                    destination="planning",
                 )
         _add_reversement_attention(db, activities, assigned, add)
     else:
@@ -277,7 +276,6 @@ def _add_planning_reviews(
                 priority=0,
                 reason=reason,
                 action="review_planning",
-                destination="planning",
             )
 
 
@@ -348,7 +346,6 @@ def _add_financial_reviews(
                 priority=1,
                 reason=f"{kind}_{stage}",
                 action="review_finance",
-                destination="execution",
             )
 
 
@@ -410,5 +407,4 @@ def _add_reversement_attention(
                 priority=2,
                 reason="reversement_required",
                 action="declare_reversement",
-                destination="execution",
             )

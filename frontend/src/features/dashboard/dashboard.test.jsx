@@ -43,7 +43,7 @@ test('dashboard attention titles and actions link to their activity workflow', a
           financial: { closed_spending: '0', approved_allocation: '0' },
           finance: { approved_tasks: 0, recorded_tasks: 0 },
           attention: {
-            count: 4,
+            count: 5,
             items: [
               {
                 activity_id: 'planning-id',
@@ -73,6 +73,13 @@ test('dashboard attention titles and actions link to their activity workflow', a
                 reason: 'disbursement_approval',
                 action: 'review_finance',
               },
+              {
+                activity_id: 'approved-correction-id',
+                name: 'Activité approuvée à corriger',
+                destination: 'execution',
+                reason: 'correction_requested',
+                action: 'review_planning',
+              },
             ],
           },
         }
@@ -90,6 +97,10 @@ test('dashboard attention titles and actions link to their activity workflow', a
   for (const [name, href] of [
     ['Activité à préparer', '/planning/activities/planning-id'],
     ['Activité à réaliser', '/execution/activities/execution-id#finance'],
+    [
+      'Activité approuvée à corriger',
+      '/execution/activities/approved-correction-id',
+    ],
   ]) {
     const title = await screen.findByRole('link', { name }, { timeout: 5000 })
     const links = within(title.closest('li')).getAllByRole('link')

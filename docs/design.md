@@ -279,11 +279,12 @@ removing a Task or Subtask. The approved Activity detail follows
 `docs/inspiration/activities/details`: Réalisation combines its four-value summary,
 compact Task table and validation readiness in one card. Subtasks are collapsed by
 default and expand within that table. Finance uses separate **Situation financière**,
-**Demandes financières** and **Suivi administratif et clôture** cards; its Task
-expense breakdown is collapsed by default. Financial requests remain a compact
-table: each row shows the latest decision, actor and date, and its action opens
-the existing workflow in the shared right-side modal. History and
-supporting-document tabs retain their existing layouts.
+**Demandes financières** and **Suivi administratif et clôture** cards. It does
+not repeat a Task expense breakdown. Financial requests remain a compact table:
+each row shows one status badge and its available action opens the shared centered
+review modal. Decision evidence remains available inside that modal and History;
+it is not repeated beneath the table badge. History and supporting-document tabs
+retain their existing layouts.
 
 The Activity fiche reproduces the internal and Partner references in
 `docs/inspiration/fiche de suivi`: A4, 48-point side margins, 65-point navy header,

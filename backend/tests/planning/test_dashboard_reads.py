@@ -6,6 +6,7 @@ from tests.auth.test_access import headers
 from tests.execution.test_closure import close_path
 from tests.execution.test_reversement import confirmed_virement, reversement_path
 from tests.execution.test_virement import submit_virement
+from tests.planning.test_amendments import approved_activity, open_amendment
 from tests.planning.test_planning import (
     admin as admin_fixture,
 )
@@ -142,6 +143,26 @@ def test_dashboard_attention_follows_existing_planning_review_roles(planning):
     validator = planning["validator"].get(path)
     assert validator.status_code == 200, validator.text
     assert validator.json()["attention"]["items"][0]["reason"] == ("planning_approval")
+
+
+def test_dashboard_attention_sends_an_approved_amendment_to_execution(planning):
+    approved, _operation_type = approved_activity(planning)
+    amendment = open_amendment(planning, approved, "Adapter le calendrier")
+
+    response = planning["agent"].get(
+        f"/api/v1/ptas/{amendment['pta_id']}/dashboard"
+    )
+
+    assert response.status_code == 200, response.text
+    item = next(
+        row
+        for row in response.json()["attention"]["items"]
+        if row["activity_id"] == amendment["id"]
+    )
+    assert (item["reason"], item["destination"]) == (
+        "draft_to_complete",
+        "execution",
+    )
 
 
 def test_dashboard_attention_exposes_an_eligible_financial_review(planning):

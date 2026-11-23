@@ -368,7 +368,11 @@ function Workspace({ screen, session, onDenied }) {
     ? activityRoute(activity.data)
     : null
   const currentActivityRoute =
-    source === 'execution' ? Urls.executionActivity : Urls.planningActivity
+    source === 'execution'
+      ? Urls.executionActivity
+      : source === 'planning'
+        ? Urls.planningActivity
+        : null
   const canonicalSection =
     activity.data?.approved_revision_id ||
     !['realization', 'finance'].includes(requestedSection)
@@ -377,6 +381,7 @@ function Workspace({ screen, session, onDenied }) {
   const activityRouteMismatch = Boolean(
     screen === 'activity' &&
     canonicalActivityRoute &&
+    currentActivityRoute &&
     canonicalActivityRoute !== currentActivityRoute,
   )
   useEffect(() => {

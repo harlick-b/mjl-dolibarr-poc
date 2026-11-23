@@ -12,6 +12,7 @@ import { RetryableError } from '@/shared/ui/RetryableError'
 import { cursorFrom } from '@/shared/lib/pagination'
 import { strings } from '@/locales/fr/PTAModal'
 import { toast } from 'sonner'
+import { Plus } from 'lucide-react'
 
 // Mounted only while open: an edit owns a snapshot and its optimistic version.
 export function PTAModal({
@@ -321,6 +322,7 @@ export function PTAModal({
               save.error?.code === 'pta_stale'
             }
           >
+            {!pta && <Plus size={16} aria-hidden="true" />}
             {pta ? strings.save : strings.createSubmit}
           </Button>
         </div>
